@@ -1,0 +1,18 @@
+# Movement Network Portfolio Manager - SEO Configuration
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /.git
+Disallow: /node_modules
+
+# API endpoints not to crawl
+Disallow: /api/*
+
+# Rate limiting for aggressive crawlers
+User-agent: AhrefsBot
+User-agent: SemrushBot
+Crawl-delay: 10
+
+# Sitemap location
+Sitemap: https://movement-portfolio-tracker.com/sitemap.xml

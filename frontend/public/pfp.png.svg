@@ -1,0 +1,33 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="100" cy="100" r="100" fill="url(#ghostBg)"/>
+  
+  <!-- Ghost Body -->
+  <path d="M100 50C75 50 55 70 55 95V140C55 145 57 150 60 150C63 150 65 145 65 140V135C65 130 67 125 70 125C73 125 75 130 75 135V140C75 145 77 150 80 150C83 150 85 145 85 140V135C85 130 87 125 90 125C93 125 95 130 95 135V140C95 145 97 150 100 150C103 150 105 145 105 140V135C105 130 107 125 110 125C113 125 115 130 115 135V140C115 145 117 150 120 150C123 150 125 145 125 140V135C125 130 127 125 130 125C133 125 135 130 135 135V140C135 145 137 150 140 150C143 150 145 145 145 140V95C145 70 125 50 100 50Z" fill="white" opacity="0.95"/>
+  
+  <!-- Left Eye -->
+  <ellipse cx="80" cy="90" rx="8" ry="12" fill="#1a1a1a"/>
+  
+  <!-- Right Eye -->
+  <ellipse cx="120" cy="90" rx="8" ry="12" fill="#1a1a1a"/>
+  
+  <!-- Mouth -->
+  <path d="M85 110C90 115 95 117 100 117C105 117 110 115 115 110" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" fill="none"/>
+  
+  <!-- Ghost Glow -->
+  <circle cx="100" cy="100" r="90" fill="none" stroke="url(#ghostGlow)" stroke-width="2" opacity="0.3"/>
+  
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="ghostBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow Gradient -->
+    <linearGradient id="ghostGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0.2" />
+    </linearGradient>
+  </defs>
+</svg>

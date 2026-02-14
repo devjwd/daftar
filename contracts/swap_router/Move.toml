@@ -1,0 +1,15 @@
+[package]
+name = "swap_router"
+version = "1.0.0"
+authors = []
+
+[addresses]
+swap_router = "_"
+
+[dependencies.AptosFramework]
+git = "https://github.com/movementlabsxyz/aptos-core.git"
+rev = "movement"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dev-addresses]
+swap_router = "0x1"

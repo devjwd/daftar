@@ -1,0 +1,64 @@
+{
+  "build": {
+    "command": "npm run build",
+    "functions": "netlify/functions",
+    "directory": "frontend/dist"
+  },
+  "dev": {
+    "command": "npm run dev",
+    "dir": "frontend"
+  },
+  "functions": {
+    "directory": "netlify/functions",
+    "nodeVersion": "20.x"
+  },
+  "redirects": [
+    {
+      "from": "/*",
+      "to": "/index.html",
+      "status": 200
+    }
+  ],
+  "headers": [
+    {
+      "for": "/assets/*",
+      "values": {
+        "Cache-Control": "public, immutable, max-age=31536000"
+      }
+    },
+    {
+      "for": "/",
+      "values": {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "X-XSS-Protection": "1; mode=block",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload"
+      }
+    }
+  ],
+  "environment": {
+    "VITE_NETWORK": "mainnet",
+    "NODE_VERSION": "20"
+  },
+  "env": {
+    "production": {
+      "VITE_NETWORK": "mainnet",
+      "VITE_SENTRY_ENVIRONMENT": "production"
+    },
+    "deploy-preview": {
+      "VITE_NETWORK": "testnet",
+      "VITE_SENTRY_ENVIRONMENT": "staging"
+    }
+  },
+  "plugins": [
+    {
+      "package": "@netlify/plugin-lighthouse"
+    },
+    {
+      "package": "@netlify/plugin-nextjs"
+    }
+  ]
+}
