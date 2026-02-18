@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { formatAddress, isValidAddress } from '../utils/tokenUtils';
+import { getStoredLanguagePreference, t } from '../utils/language';
+import { getStoredThemePreference, resolveTheme } from '../utils/theme';
 import { resolveAddressOrUsername, searchProfiles, getProfile } from '../services/profileService';
 import { checkAccountExists } from '../services/indexer';
 import './Layout.css';
-
-const logo = "/logo.png";
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
@@ -26,8 +26,56 @@ export default function Layout({ children }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
   const [recentSearches, setRecentSearches] = useState([]);
+  const [activeTheme, setActiveTheme] = useState(() => resolveTheme(getStoredThemePreference()));
+  const [language, setLanguage] = useState(() => getStoredLanguagePreference());
   const searchTimeoutRef = useRef(null);
   const latestQueryRef = useRef("");
+
+  const currentLogo = activeTheme === 'light' ? '/logo dark.png' : '/logo.png';
+
+  useEffect(() => {
+    const syncTheme = () => {
+      setActiveTheme(resolveTheme(getStoredThemePreference()));
+    };
+
+    const onThemeChange = (event) => {
+      const resolvedTheme = event?.detail?.resolvedTheme;
+      if (resolvedTheme) {
+        setActiveTheme(resolvedTheme);
+      } else {
+        syncTheme();
+      }
+    };
+
+    window.addEventListener('themechange', onThemeChange);
+    window.addEventListener('storage', syncTheme);
+    return () => {
+      window.removeEventListener('themechange', onThemeChange);
+      window.removeEventListener('storage', syncTheme);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncLanguage = () => {
+      setLanguage(getStoredLanguagePreference());
+    };
+
+    const onLanguageChange = (event) => {
+      const nextLanguage = event?.detail?.language;
+      if (nextLanguage) {
+        setLanguage(nextLanguage);
+      } else {
+        syncLanguage();
+      }
+    };
+
+    window.addEventListener('languagechange', onLanguageChange);
+    window.addEventListener('storage', syncLanguage);
+    return () => {
+      window.removeEventListener('languagechange', onLanguageChange);
+      window.removeEventListener('storage', syncLanguage);
+    };
+  }, []);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -262,7 +310,7 @@ export default function Layout({ children }) {
         <div className="navbar-inner">
           <div className="nav-left">
             <div className="logo-container" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
-              <img src={logo} alt="Logo" className="logo-img" />
+              <img src={currentLogo} alt="Logo" className="logo-img" />
             </div>
             <ul className="nav-links">
               <li 
@@ -276,7 +324,7 @@ export default function Layout({ children }) {
                 }}
                 style={{ cursor: "pointer" }}
               >
-                PORTFOLIO
+                {t(language, 'navPortfolio')}
               </li>
 
               <li 
@@ -284,7 +332,7 @@ export default function Layout({ children }) {
                 onClick={() => navigate("/swap")}
                 style={{ cursor: "pointer" }}
               >
-                SWAP
+                {t(language, 'navSwap')}
               </li>
 
               <li 
@@ -292,7 +340,7 @@ export default function Layout({ children }) {
                 onClick={() => navigate("/badges")}
                 style={{ cursor: "pointer" }}
               >
-                BADGES
+                {t(language, 'navBadges')}
               </li>
 
               <li 
@@ -300,7 +348,7 @@ export default function Layout({ children }) {
                 onClick={() => navigate("/leaderboard")}
                 style={{ cursor: "pointer" }}
               >
-                LEADERBOARD
+                {t(language, 'navLeaderboard')}
               </li>
 
               <li className="more-dropdown-container" ref={moreContainerRef}>
@@ -310,7 +358,7 @@ export default function Layout({ children }) {
                   type="button"
                   aria-expanded={moreDropdownOpen}
                 >
-                  MORE ▼
+                  {t(language, 'navMore')} ▼
                 </button>
 
                 {moreDropdownOpen && (
@@ -324,7 +372,7 @@ export default function Layout({ children }) {
                           <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 19H11V17H13V19ZM15.07 11.25L14.17 12.17C13.45 12.9 13 13.5 13 15H11V14.5C11 13.4 11.45 12.4 12.17 11.67L13.41 10.41C13.78 10.05 14 9.55 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9H8C8 6.79 9.79 5 12 5C14.21 5 16 6.79 16 9C16 9.88 15.64 10.68 15.07 11.25Z" fill="currentColor"/>
                         </svg>
                       </div>
-                      <span>Support</span>
+                      <span>{t(language, 'menuSupport')}</span>
                     </button>
 
                     <button 
@@ -339,7 +387,7 @@ export default function Layout({ children }) {
                           <path d="M12 3C11.45 3 11 3.45 11 4V5C11 5.55 11.45 6 12 6C12.55 6 13 5.55 13 5V4C13 3.45 12.55 3 12 3ZM18 12C18 11.45 18.45 11 19 11H20C20.55 11 21 11.45 21 12C21 12.55 20.55 13 20 13H19C18.45 13 18 12.55 18 12ZM6 12C6 11.45 5.55 11 5 11H4C3.45 11 3 11.45 3 12C3 12.55 3.45 13 4 13H5C5.55 13 6 12.55 6 12ZM12 18C11.45 18 11 18.45 11 19V20C11 20.55 11.45 21 12 21C12.55 21 13 20.55 13 20V19C13 18.45 12.55 18 12 18ZM17.66 6.34C17.27 5.95 16.64 5.95 16.25 6.34L15.54 7.05C15.15 7.44 15.15 8.07 15.54 8.46C15.93 8.85 16.56 8.85 16.95 8.46L17.66 7.75C18.05 7.36 18.05 6.73 17.66 6.34ZM6.34 17.66C5.95 17.27 5.95 16.64 6.34 16.25L7.05 15.54C7.44 15.15 8.07 15.15 8.46 15.54C8.85 15.93 8.85 16.56 8.46 16.95L7.75 17.66C7.36 18.05 6.73 18.05 6.34 17.66ZM8.46 8.46C8.85 8.07 8.85 7.44 8.46 7.05L7.75 6.34C7.36 5.95 6.73 5.95 6.34 6.34C5.95 6.73 5.95 7.36 6.34 7.75L7.05 8.46C7.44 8.85 8.07 8.85 8.46 8.46ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z" fill="currentColor"/>
                         </svg>
                       </div>
-                      <span>Theme</span>
+                      <span>{t(language, 'menuTheme')}</span>
                       <div className="more-menu-arrow">→</div>
                     </button>
 
@@ -355,7 +403,7 @@ export default function Layout({ children }) {
                           <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor"/>
                         </svg>
                       </div>
-                      <span>Settings</span>
+                      <span>{t(language, 'menuSettings')}</span>
                       <div className="more-menu-arrow">→</div>
                     </button>
 
@@ -368,7 +416,7 @@ export default function Layout({ children }) {
                           <path d="M20 6H12L10 4H4C2.9 4 2.01 4.9 2.01 6L2 18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6ZM20 18H4V8H20V18Z" fill="currentColor"/>
                         </svg>
                       </div>
-                      <span>Resources</span>
+                      <span>{t(language, 'menuResources')}</span>
                       <div className="more-menu-arrow">→</div>
                     </button>
 
@@ -417,7 +465,7 @@ export default function Layout({ children }) {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search address / username / move id"
+                  placeholder={t(language, 'searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -467,7 +515,7 @@ export default function Layout({ children }) {
                 <div className="search-suggestions">
                   {!searchQuery.trim() && recentSearches.length > 0 && (
                     <>
-                      <div className="search-suggestion-header">Recent Searches</div>
+                      <div className="search-suggestion-header">{t(language, 'recentSearches')}</div>
                       {recentSearches.map((address, i) => (
                         <button
                           key={`recent-${address}-${i}`}
@@ -496,7 +544,7 @@ export default function Layout({ children }) {
                       {searchLoading && searchResults.length === 0 && (
                         <div className="search-suggestion-loading">
                           <div className="search-spinner-sm" />
-                          <span>Searching blockchain...</span>
+                          <span>{t(language, 'searchBlockchain')}</span>
                         </div>
                       )}
                       {searchResults.length > 0 ? (
@@ -517,9 +565,9 @@ export default function Layout({ children }) {
                               <div className="suggestion-main">
                                 <span className="suggestion-name">{result.username}</span>
                                 <span className={`suggestion-badge ${result.type}`}>
-                                  {result.type === 'blockchain' ? '✓ On-chain' 
-                                    : result.type === 'profile' ? 'Profile' 
-                                    : 'Address'}
+                                  {result.type === 'blockchain' ? `✓ ${t(language, 'onChain')}` 
+                                    : result.type === 'profile' ? t(language, 'profile') 
+                                    : t(language, 'address')}
                                 </span>
                               </div>
                               <span className="suggestion-address">{formatAddress(result.address, 10, 6)}</span>
@@ -537,10 +585,10 @@ export default function Layout({ children }) {
                               }}
                             >
                               <span>🔍</span>
-                              <span>Look up <strong>{formatAddress(searchQuery.trim())}</strong> on-chain</span>
+                              <span>{t(language, 'lookupOnChain', { address: formatAddress(searchQuery.trim()) })}</span>
                             </button>
                           ) : (
-                            <span>No profiles found. Enter a valid 0x address to search the blockchain.</span>
+                            <span>{t(language, 'noProfilesFound')}</span>
                           )}
                         </div>
                       ) : null}
@@ -574,7 +622,7 @@ export default function Layout({ children }) {
                         <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v3h20v-3c0-3.33-6.67-5-10-5z" fill="currentColor"/>
                       </svg>
                     </div>
-                    Profile
+                    {t(language, 'profile')}
                   </button>
                   <div className="dropdown-divider"></div>
                   <button 
@@ -589,7 +637,7 @@ export default function Layout({ children }) {
                         <path d="M10 17l1.41-1.41L8.83 13H20v-2H8.83l2.58-2.59L10 7l-5 5 5 5z" fill="currentColor"/>
                       </svg>
                     </div>
-                    Disconnect
+                    {t(language, 'disconnect')}
                   </button>
                 </div>
               )}
@@ -597,7 +645,7 @@ export default function Layout({ children }) {
           ) : (
             <div className="wallet-picker-container" ref={walletContainerRef}>
               <button className="connect-btn" onClick={handleConnect}>
-                Connect Wallet
+                {t(language, 'connectWallet')}
               </button>
               {walletPickerOpen && (
                 <div className="wallet-picker" style={{ position: 'fixed', ...walletDropdownStyle }}>

@@ -136,6 +136,101 @@
   color: #d4a574;
 }
 
+body[data-theme='light'] .settings-page {
+  background: #f4f5f7;
+}
+
+body[data-theme='light'] .back-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #0f172a;
+}
+
+body[data-theme='light'] .back-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(100, 116, 139, 0.55);
+  color: #020617;
+  box-shadow: 0 0 18px rgba(148, 163, 184, 0.2);
+}
+
+body[data-theme='light'] .settings-container {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.4);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
+}
+
+body[data-theme='light'] .settings-header h1 {
+  background: linear-gradient(135deg, #0f172a, #334155);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body[data-theme='light'] .settings-header p,
+body[data-theme='light'] .setting-description {
+  color: #64748b;
+}
+
+body[data-theme='light'] .settings-section,
+body[data-theme='light'] .settings-actions {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+body[data-theme='light'] .section-title,
+body[data-theme='light'] .setting-info label {
+  color: #0f172a;
+}
+
+body[data-theme='light'] .setting-select {
+  background: #ffffff;
+  border-color: rgba(148, 163, 184, 0.5);
+  color: #0f172a;
+}
+
+body[data-theme='light'] .setting-select:focus {
+  border-color: #334155;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.22);
+}
+
+body[data-theme='light'] .setting-select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+body[data-theme='light'] .toggle-slider {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: rgba(100, 116, 139, 0.35);
+}
+
+body[data-theme='light'] .toggle-slider:before {
+  background: #64748b;
+}
+
+body[data-theme='light'] .toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #0f172a, #334155);
+}
+
+body[data-theme='light'] .toggle-switch input:checked + .toggle-slider:before {
+  background: #ffffff;
+}
+
+body[data-theme='light'] .save-btn {
+  background: linear-gradient(135deg, #0f172a, #334155);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+}
+
+body[data-theme='light'] .save-btn:hover {
+  background: linear-gradient(135deg, #1e293b, #475569);
+}
+
+body[data-theme='light'] .reset-btn {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #b91c1c;
+}
+
 /* Toggle Switch */
 .toggle-switch {
   position: relative;

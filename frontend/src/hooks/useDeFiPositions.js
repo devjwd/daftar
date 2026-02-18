@@ -73,7 +73,7 @@ const PROTOCOL_REGISTRY = {
     addresses: [
       "0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82",
     ],
-    keywords: ["meridian"],
+    keywords: ["meridian", "userpools", "userpositions", "::ds::"],
   },
   
   CANOPY: {
@@ -137,6 +137,7 @@ const DEFI_PATTERNS = [
   { regex: /LPCoin/i, category: "Liquidity", priority: 1 },
   { regex: /LPToken/i, category: "Liquidity", priority: 1 },
   { regex: /PoolToken/i, category: "Liquidity", priority: 2 },
+  { regex: /UserPoolsMap/i, category: "Liquidity", priority: 2 },    // Meridian pools
   { regex: /UserPositionsMap/i, category: "Liquidity", priority: 2 },  // Pool positions
   
   // Staking patterns
@@ -351,6 +352,67 @@ const extractPositionName = (resourceType, protocol) => {
   return lastPart || "DeFi Position";
 };
 
+const parsePositiveNumeric = (value) => {
+  if (value === null || value === undefined) return 0;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  if (typeof value === "bigint") {
+    const converted = Number(value);
+    return Number.isFinite(converted) && converted > 0 ? converted : 0;
+  }
+
+  if (typeof value === "string") {
+    if (!/^\d+(\.\d+)?$/.test(value)) return 0;
+    const converted = Number(value);
+    return Number.isFinite(converted) && converted > 0 ? converted : 0;
+  }
+
+  if (typeof value === "object") {
+    if (value.value !== undefined) return parsePositiveNumeric(value.value);
+    if (value.amount !== undefined) return parsePositiveNumeric(value.amount);
+    if (value.coin !== undefined) return parsePositiveNumeric(value.coin);
+  }
+
+  return 0;
+};
+
+const collectNumericFields = (node, fieldNames, maxDepth = 8, depth = 0) => {
+  if (!node || depth > maxDepth) return [];
+
+  if (Array.isArray(node)) {
+    return node.flatMap((item) => collectNumericFields(item, fieldNames, maxDepth, depth + 1));
+  }
+
+  if (typeof node !== "object") {
+    return [];
+  }
+
+  const values = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (fieldNames.has(key)) {
+      const numeric = parsePositiveNumeric(value);
+      if (numeric > 0) {
+        values.push(numeric);
+      }
+    }
+
+    if (value && typeof value === "object") {
+      values.push(...collectNumericFields(value, fieldNames, maxDepth, depth + 1));
+    }
+  }
+
+  return values;
+};
+
+const sumNumericFields = (node, fields) => {
+  const values = collectNumericFields(node, new Set(fields));
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0);
+};
+
 // =============================================================================
 // MAIN HOOK - useDeFiPositions
 // =============================================================================
@@ -466,6 +528,31 @@ export const useDeFiPositions = (searchAddress = null) => {
 
       if (import.meta.env.DEV) {
         console.log(`📦 Total resources fetched: ${resources.length}`);
+        
+        // Debug: Log all Meridian resources
+        const meridianResources = resources.filter(r => 
+          r.type.includes("8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82") ||
+          (r.type.includes("swap") && r.type.includes("LPCoin"))
+        );
+        if (meridianResources.length > 0) {
+          console.log(`\n🔷 MERIDIAN RESOURCES SUMMARY: ${meridianResources.length} found`);
+          meridianResources.forEach((res, idx) => {
+            console.log(`  [${idx+1}] ${res.type.substring(0, 100)}...`);
+          });
+        }
+        
+        // Extra debug: Find ANY resources with "pool" or "position" keywords
+        const poolResources = resources.filter(r => 
+          r.type.toLowerCase().includes("pool") || 
+          r.type.toLowerCase().includes("position") ||
+          r.type.toLowerCase().includes("liquidity")
+        );
+        if (poolResources.length > 0) {
+          console.log(`\n🏊 POOL/POSITION RESOURCES: ${poolResources.length} found`);
+          poolResources.forEach((res, idx) => {
+            console.log(`  [${idx+1}] ${res.type.substring(0, 120)}...`);
+          });
+        }
       }
 
       // Initialize detection arrays
@@ -483,40 +570,46 @@ export const useDeFiPositions = (searchAddress = null) => {
         const resourceType = resource.type;
         const resourceData = resource.data;
         
-        // Skip standard coin stores (handled by balance fetcher) unless they're receipt tokens
+        // Skip standard coin stores (handled by balance fetcher) unless they're receipt tokens or LP coins
         if (resourceType.includes("0x1::coin::CoinStore")) {
-          // Check if it's a receipt token
-          let isReceiptToken = false;
-          for (const { regex, protocol, category } of RECEIPT_TOKEN_PATTERNS) {
-            if (regex.test(resourceType)) {
-              isReceiptToken = true;
-              const value = calculateTotalValue(resourceData);
-              if (value > 0) {
-                const typeKey = `receipt_${protocol}_${resourceType.substring(0, 50)}`;
-                if (!processedTypes.has(typeKey)) {
-                  processedTypes.add(typeKey);
-                  const protocolInfo = PROTOCOL_REGISTRY[protocol];
-                  
-                  console.log(`  ✅ Receipt Token: ${protocolInfo?.name || protocol}`);
-                  
-                  detectedPositions.push({
-                    id: `${protocol.toLowerCase()}_receipt_${detectedPositions.length}`,
-                    name: `${protocolInfo?.name || protocol} Deposit`,
-                    type: category,
-                    value: value.toFixed(4),
-                    numericValue: value,
-                    resourceType: resourceType,
-                    source: "rpc",
-                    protocol: protocolInfo || null,
-                    protocolName: protocolInfo?.name || protocol,
-                    protocolWebsite: protocolInfo?.website || null,
-                  });
+          // Special handling for LP/DEX coins - let them pass to adapter matching
+          const isLPCoin = /::swap::LPCoin|::amm::|::pool::|LPCoin|LPToken/i.test(resourceType);
+          
+          if (!isLPCoin) {
+            // Check if it's a receipt token
+            let isReceiptToken = false;
+            for (const { regex, protocol, category } of RECEIPT_TOKEN_PATTERNS) {
+              if (regex.test(resourceType)) {
+                isReceiptToken = true;
+                const value = calculateTotalValue(resourceData);
+                if (value > 0) {
+                  const typeKey = `receipt_${protocol}_${resourceType.substring(0, 50)}`;
+                  if (!processedTypes.has(typeKey)) {
+                    processedTypes.add(typeKey);
+                    const protocolInfo = PROTOCOL_REGISTRY[protocol];
+                    
+                    console.log(`  ✅ Receipt Token: ${protocolInfo?.name || protocol}`);
+                    
+                    detectedPositions.push({
+                      id: `${protocol.toLowerCase()}_receipt_${detectedPositions.length}`,
+                      name: `${protocolInfo?.name || protocol} Deposit`,
+                      type: category,
+                      value: value.toFixed(4),
+                      numericValue: value,
+                      resourceType: resourceType,
+                      source: "rpc",
+                      protocol: protocolInfo || null,
+                      protocolName: protocolInfo?.name || protocol,
+                      protocolWebsite: protocolInfo?.website || null,
+                    });
+                  }
                 }
+                break;
               }
-              break;
             }
+            if (!isReceiptToken) continue;
           }
-          if (!isReceiptToken) continue;
+          // If isLPCoin, continue to adapter matching (don't skip)
         }
         
         // Check if this is a DeFi resource via patterns
@@ -1046,6 +1139,23 @@ export const useDeFiPositions = (searchAddress = null) => {
         const resourceType = resource.type;
         const resourceData = resource.data;
         
+        // Enhanced debug logging for all Meridian resources
+        if (resourceType.includes("8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82")) {
+          console.log(`  🔷 MERIDIAN RESOURCE:`);
+          console.log(`     Type: ${resourceType.substring(0, 120)}...`);
+          console.log(`     Data keys: ${Object.keys(resourceData).join(", ")}`);
+        }
+        
+        // Specific logging for UserPoolsMap and UserPositionsMap
+        if (resourceType.includes("UserPoolsMap") || resourceType.includes("UserPositionsMap")) {
+          console.log(`  🎯 MERIDIAN POSITION RESOURCE FOUND`);
+          console.log(`     Type: ${resourceType.substring(0, 150)}`);
+          console.log(`     Keys: ${Object.keys(resourceData).join(", ")}`);
+          if (resourceData.data) {
+            console.log(`     Has data array: length=${Array.isArray(resourceData.data) ? resourceData.data.length : "not-array"}`);
+          }
+        }
+        
         // Check each adapter for a match
         for (const adapter of ALL_ADAPTERS) {
           if (!adapter.searchString || !adapter.parse) continue;
@@ -1055,8 +1165,18 @@ export const useDeFiPositions = (searchAddress = null) => {
             try {
               const parsedValue = adapter.parse(resourceData);
               
+              // Debug for Meridian adapters
+              if (adapter.id.includes("meridian")) {
+                console.log(`  ✨ Meridian adapter matched: ${adapter.id}`);
+                console.log(`     Resource: ${resourceType.substring(0, 100)}...`);
+                console.log(`     Parsed value: ${parsedValue}`);
+              }
+              
               // Skip if parser returns null, undefined, or "0"
               if (!parsedValue || parsedValue === "0" || parsedValue === "0.0000") {
+                if (adapter.id.includes("meridian")) {
+                  console.log(`     ⚠️ Skipped (zero value or parsing issue)`);
+                }
                 continue;
               }
               
@@ -1065,6 +1185,9 @@ export const useDeFiPositions = (searchAddress = null) => {
               
               // Skip zero/dust values
               if (numericValue <= 0 || numericValue < 0.0001) {
+                if (adapter.id.includes("meridian")) {
+                  console.log(`     ⚠️ Skipped (dust value: ${numericValue})`);
+                }
                 continue;
               }
               
@@ -1072,8 +1195,61 @@ export const useDeFiPositions = (searchAddress = null) => {
               const protocolKey = adapter.id.split('_')[0].toUpperCase();
               const protocol = PROTOCOL_REGISTRY[protocolKey] || null;
               
+              // Extract additional metadata for Meridian positions
+              let additionalData = {};
+              if (adapter.id.includes("meridian")) {
+                const liquidityX = sumNumericFields(resourceData, [
+                  "liquidity_x", "coin_x_amount", "token_x_amount", "x_amount", "amount_x", "token0_amount", "amount_0", "reserve_x"
+                ]);
+                const liquidityY = sumNumericFields(resourceData, [
+                  "liquidity_y", "coin_y_amount", "token_y_amount", "y_amount", "amount_y", "token1_amount", "amount_1", "reserve_y"
+                ]);
+                let stakedTotal = sumNumericFields(resourceData, [
+                  "staked", "staked_amount", "deposit", "deposited", "stake", "stake_amount", "lp_amount", "shares"
+                ]);
+                let liquidityTokenTotal = sumNumericFields(resourceData, [
+                  "lp_amount", "liquidity", "shares", "amount", "stake_amount", "staked_amount"
+                ]);
+
+                if (!stakedTotal && (adapter.id.includes("staking") || adapter.id.includes("userpools") || adapter.id.includes("userpositions"))) {
+                  stakedTotal = Math.round(numericValue * 1_000_000);
+                }
+                if (!liquidityTokenTotal && (adapter.id.includes("userpools") || adapter.id.includes("userpositions") || adapter.id.includes("position"))) {
+                  liquidityTokenTotal = Math.round(numericValue * 1_000_000);
+                }
+
+                if (liquidityX > 0) {
+                  additionalData.liquidityX = liquidityX;
+                  additionalData.coinXAmount = liquidityX;
+                }
+                if (liquidityY > 0) {
+                  additionalData.liquidityY = liquidityY;
+                  additionalData.coinYAmount = liquidityY;
+                }
+                if (stakedTotal > 0) {
+                  additionalData.stakedAmount = stakedTotal;
+                }
+                if (liquidityTokenTotal > 0) {
+                  additionalData.liquidityTokens = liquidityTokenTotal;
+                }
+
+                if (resourceData.pool_id !== undefined) {
+                  additionalData.poolId = resourceData.pool_id;
+                }
+                // Try to extract pool composition from resource type
+                const typeMatch = resourceType.match(/swap::(\w+)<([^,]+),\s*([^>]+)>/);
+                if (typeMatch) {
+                  additionalData.tokenX = typeMatch[2].split("::").pop();
+                  additionalData.tokenY = typeMatch[3].split("::").pop();
+                }
+              }
+              
               console.log(`  ✅ Adapter Match: ${adapter.name} (${adapter.type})`);
               console.log(`     Value: ${parsedValue} | Pattern: ${adapter.searchString}`);
+              
+              if (adapter.id.includes("meridian")) {
+                console.log('     🔷 Meridian Adapter additionalData:', additionalData);
+              }
               
               detectedPositions.push({
                 id: `${adapter.id}_${detectedPositions.length}`,
@@ -1086,6 +1262,7 @@ export const useDeFiPositions = (searchAddress = null) => {
                 protocol: protocol,
                 protocolName: protocol?.name || adapter.name.split(' ')[0],
                 protocolWebsite: protocol?.website || null,
+                ...additionalData  // Spread additional data fields
               });
               
               // Only use first matching adapter per resource

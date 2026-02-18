@@ -1,16 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getStoredLanguagePreference } from '../utils/language';
+import { getStoredThemePreference, saveThemePreference } from '../utils/theme';
 import './More.css';
 
 export default function More() {
   const navigate = useNavigate();
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
-  const [language, setLanguage] = useState(localStorage.getItem('language') || 'EN');
+  const [theme, setTheme] = useState(getStoredThemePreference());
+  const [language, setLanguage] = useState(getStoredLanguagePreference());
+
+  useEffect(() => {
+    const syncLanguage = () => setLanguage(getStoredLanguagePreference());
+    const onLanguageChange = (event) => {
+      if (event?.detail?.language) {
+        setLanguage(event.detail.language);
+      } else {
+        syncLanguage();
+      }
+    };
+
+    window.addEventListener('languagechange', onLanguageChange);
+    window.addEventListener('storage', syncLanguage);
+    return () => {
+      window.removeEventListener('languagechange', onLanguageChange);
+      window.removeEventListener('storage', syncLanguage);
+    };
+  }, []);
 
   const handleThemeChange = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
+    saveThemePreference(newTheme, 'settings_global');
   };
 
   const handleLanguageClick = () => {
@@ -71,7 +91,7 @@ export default function More() {
               <span>Language</span>
             </div>
             <div className="more-option-right">
-              <span className="language-badge">EN</span>
+              <span className="language-badge">{language.toUpperCase()}</span>
               →
             </div>
           </button>

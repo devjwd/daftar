@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useNavigate } from 'react-router-dom';
+import { getStoredLanguagePreference, saveLanguagePreference, t } from '../utils/language';
+import { applyTheme, getStoredThemePreference, saveThemePreference } from '../utils/theme';
 import './Settings.css';
 
 export default function Settings() {
@@ -13,28 +15,12 @@ export default function Settings() {
   const [language, setLanguage] = useState('en');
   const [showTestnet, setShowTestnet] = useState(false);
 
-  const settingsKey = account?.address
+  const accountSettingsKey = account?.address
     ? `settings_${typeof account.address === 'string' ? account.address : account.address.toString()}`
     : null;
+  const settingsKey = accountSettingsKey || 'settings_global';
 
-  useEffect(() => {
-    // Load settings from localStorage
-    if (settingsKey) {
-      const saved = localStorage.getItem(settingsKey);
-      if (saved) {
-        const data = JSON.parse(saved);
-        setCurrency(data.currency || 'USD');
-        setNotifications(data.notifications ?? true);
-        setPriceAlerts(data.priceAlerts ?? false);
-        setTheme(data.theme || 'dark');
-        setLanguage(data.language || 'en');
-        setShowTestnet(data.showTestnet ?? false);
-      }
-    }
-  }, [settingsKey]);
-
-  const handleSave = () => {
-    if (!settingsKey) return;
+  const persistSettings = (overrides = {}) => {
     const settingsData = {
       currency,
       notifications,
@@ -42,9 +28,55 @@ export default function Settings() {
       theme,
       language,
       showTestnet,
+      ...overrides,
     };
+
     localStorage.setItem(settingsKey, JSON.stringify(settingsData));
+    if (accountSettingsKey) {
+      localStorage.setItem('settings_global', JSON.stringify(settingsData));
+    }
+
+    return settingsData;
+  };
+
+  useEffect(() => {
+    // Load settings from localStorage
+    const saved = localStorage.getItem(settingsKey);
+    if (saved) {
+      const data = JSON.parse(saved);
+      setCurrency(data.currency || 'USD');
+      setNotifications(data.notifications ?? true);
+      setPriceAlerts(data.priceAlerts ?? false);
+      const storedTheme = data.theme || getStoredThemePreference(settingsKey);
+      setTheme(storedTheme);
+      applyTheme(storedTheme);
+      setLanguage(data.language || getStoredLanguagePreference(settingsKey));
+      setShowTestnet(data.showTestnet ?? false);
+    } else {
+      const storedTheme = getStoredThemePreference(settingsKey);
+      setTheme(storedTheme);
+      applyTheme(storedTheme);
+      setLanguage(getStoredLanguagePreference(settingsKey));
+    }
+  }, [settingsKey]);
+
+  const handleSave = () => {
+    persistSettings();
+    saveThemePreference(theme, settingsKey);
+    saveLanguagePreference(language, settingsKey);
     alert('Settings saved successfully!');
+  };
+
+  const handleThemeChange = (nextTheme) => {
+    setTheme(nextTheme);
+    persistSettings({ theme: nextTheme });
+    saveThemePreference(nextTheme, settingsKey);
+  };
+
+  const handleLanguageChange = (nextLanguage) => {
+    setLanguage(nextLanguage);
+    persistSettings({ language: nextLanguage });
+    saveLanguagePreference(nextLanguage, settingsKey);
   };
 
   const handleReset = () => {
@@ -55,7 +87,9 @@ export default function Settings() {
       setTheme('dark');
       setLanguage('en');
       setShowTestnet(false);
-      if (settingsKey) localStorage.removeItem(settingsKey);
+      localStorage.removeItem(settingsKey);
+      saveThemePreference('dark', settingsKey);
+      saveLanguagePreference('en', settingsKey);
     }
   };
 
@@ -63,24 +97,24 @@ export default function Settings() {
     <div className="settings-page">
       <div className="page-nav">
         <button onClick={() => navigate('/')} className="back-btn">
-          ← Back to Portfolio
+          ← {t(language, 'backToPortfolio')}
         </button>
       </div>
       
       <div className="settings-container">
         <div className="settings-header">
-          <h1>Settings</h1>
-          <p>Customize your portfolio experience</p>
+          <h1>{t(language, 'settingsTitle')}</h1>
+          <p>{t(language, 'settingsSubtitle')}</p>
         </div>
 
         <div className="settings-sections">
           {/* Display Settings */}
           <div className="settings-section">
-            <h2 className="section-title">Display</h2>
+            <h2 className="section-title">{t(language, 'display')}</h2>
             <div className="setting-item">
               <div className="setting-info">
-                <label>Currency</label>
-                <span className="setting-description">Choose your preferred currency</span>
+                <label>{t(language, 'currency')}</label>
+                <span className="setting-description">{t(language, 'currencyDescription')}</span>
               </div>
               <select
                 value={currency}
@@ -114,45 +148,45 @@ export default function Settings() {
 
             <div className="setting-item">
               <div className="setting-info">
-                <label>Theme</label>
-                <span className="setting-description">Select your theme preference</span>
+                <label>{t(language, 'theme')}</label>
+                <span className="setting-description">{t(language, 'themeDescription')}</span>
               </div>
               <select
                 value={theme}
-                onChange={(e) => setTheme(e.target.value)}
+                onChange={(e) => handleThemeChange(e.target.value)}
                 className="setting-select"
               >
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="auto">Auto</option>
+                <option value="dark">{t(language, 'dark')}</option>
+                <option value="light">{t(language, 'light')}</option>
+                <option value="auto">{t(language, 'auto')}</option>
               </select>
             </div>
 
             <div className="setting-item">
               <div className="setting-info">
-                <label>Language</label>
-                <span className="setting-description">Choose your language</span>
+                <label>{t(language, 'language')}</label>
+                <span className="setting-description">{t(language, 'languageDescription')}</span>
               </div>
               <select
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
+                onChange={(e) => handleLanguageChange(e.target.value)}
                 className="setting-select"
               >
-                <option value="en">English</option>
-                <option value="es">Español</option>
-                <option value="fr">Français</option>
-                <option value="zh">中文</option>
+                <option value="en">{t(language, 'english')}</option>
+                <option value="zh">{t(language, 'chinese')}</option>
+                <option value="ko">{t(language, 'korean')}</option>
+                <option value="tr">{t(language, 'turkish')}</option>
               </select>
             </div>
           </div>
 
           {/* Notifications */}
           <div className="settings-section">
-            <h2 className="section-title">Notifications</h2>
+            <h2 className="section-title">{t(language, 'notifications')}</h2>
             <div className="setting-item">
               <div className="setting-info">
-                <label>Enable Notifications</label>
-                <span className="setting-description">Receive updates about your portfolio</span>
+                <label>{t(language, 'enableNotifications')}</label>
+                <span className="setting-description">{t(language, 'enableNotificationsDescription')}</span>
               </div>
               <label className="toggle-switch">
                 <input
@@ -166,8 +200,8 @@ export default function Settings() {
 
             <div className="setting-item">
               <div className="setting-info">
-                <label>Price Alerts</label>
-                <span className="setting-description">Get notified of significant price changes</span>
+                <label>{t(language, 'priceAlerts')}</label>
+                <span className="setting-description">{t(language, 'priceAlertsDescription')}</span>
               </div>
               <label className="toggle-switch">
                 <input
@@ -182,11 +216,11 @@ export default function Settings() {
 
           {/* Advanced */}
           <div className="settings-section">
-            <h2 className="section-title">Advanced</h2>
+            <h2 className="section-title">{t(language, 'advanced')}</h2>
             <div className="setting-item">
               <div className="setting-info">
-                <label>Show Testnet</label>
-                <span className="setting-description">Include testnet tokens in portfolio</span>
+                <label>{t(language, 'showTestnet')}</label>
+                <span className="setting-description">{t(language, 'showTestnetDescription')}</span>
               </div>
               <label className="toggle-switch">
                 <input
@@ -202,10 +236,10 @@ export default function Settings() {
 
         <div className="settings-actions">
           <button onClick={handleReset} className="reset-btn">
-            Reset to Default
+            {t(language, 'resetDefault')}
           </button>
           <button onClick={handleSave} className="save-btn">
-            Save Settings
+            {t(language, 'saveSettings')}
           </button>
         </div>
       </div>

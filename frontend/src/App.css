@@ -150,6 +150,66 @@
 
 }
 
+:root[data-theme="light"] {
+
+  --bg-primary: #f4f5f7;
+
+  --bg-secondary: #ffffff;
+
+  --glass: rgba(15, 23, 42, 0.03);
+
+  --glass-hover: rgba(15, 23, 42, 0.06);
+
+  --glass-strong: rgba(15, 23, 42, 0.08);
+
+  --border-subtle: rgba(148, 163, 184, 0.3);
+
+  --border-medium: rgba(100, 116, 139, 0.35);
+
+  --border-strong: rgba(71, 85, 105, 0.45);
+
+  --shadow-sm: 0 4px 16px rgba(15, 23, 42, 0.08);
+
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.1);
+
+  --shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.12);
+
+  --shadow-glow: 0 0 28px rgba(100, 116, 139, 0.12);
+
+  --text-primary: #0f172a;
+
+  --text-secondary: #334155;
+
+  --text-tertiary: #64748b;
+
+  --text-muted: #94a3b8;
+
+  --primary: #0f172a;
+
+  --primary-light: #334155;
+
+  --primary-dark: #020617;
+
+  --accent: #0f172a;
+
+  --accent-light: #334155;
+
+  --gold: #0f172a;
+
+  --gold-dark: #020617;
+
+  --gradient-primary: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+
+  --gradient-accent: linear-gradient(135deg, #334155 0%, #0f172a 100%);
+
+  --gradient-card: linear-gradient(145deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.92));
+
+  --gradient-hero: linear-gradient(135deg, rgba(248, 250, 252, 1) 0%, rgba(241, 245, 249, 1) 100%);
+
+  --gradient-gamer: linear-gradient(135deg, rgba(226, 232, 240, 0.5), rgba(241, 245, 249, 0.7));
+
+}
+
 
 
 /* --- 3. GLOBAL STYLES --- */
@@ -184,6 +244,56 @@ body {
 
   border-top: 2px solid var(--primary);
 
+}
+
+body[data-theme="light"] {
+
+  background: var(--bg-primary);
+
+  color: var(--text-primary);
+
+}
+
+body[data-theme="light"] .hero-v3,
+body[data-theme="light"] .hero-card,
+body[data-theme="light"] .hero-card-v2,
+body[data-theme="light"] .grid-container,
+body[data-theme="light"] .card,
+body[data-theme="light"] .token-card-new,
+body[data-theme="light"] .defi-card-v2,
+body[data-theme="light"] .lp-card {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08) !important;
+}
+
+body[data-theme="light"] .section-title,
+body[data-theme="light"] .hero-v3-title,
+body[data-theme="light"] .token-symbol,
+body[data-theme="light"] .lp-card-name,
+body[data-theme="light"] .defi-v2-title h3,
+body[data-theme="light"] .hero-v3-stat-value,
+body[data-theme="light"] .hero-v3-value {
+  color: #0f172a !important;
+}
+
+body[data-theme="light"] .token-network,
+body[data-theme="light"] .hero-v3-label,
+body[data-theme="light"] .hero-v3-stat-label,
+body[data-theme="light"] .lp-card-stat-label,
+body[data-theme="light"] .defi-v2-type,
+body[data-theme="light"] .defi-v2-column-label {
+  color: #64748b !important;
+}
+
+body[data-theme="light"] .hero-v3-change.positive,
+body[data-theme="light"] .hero-v3-stat-value.positive {
+  color: #15803d !important;
+}
+
+body[data-theme="light"] .hero-v3-change.negative,
+body[data-theme="light"] .hero-v3-stat-value.negative {
+  color: #b91c1c !important;
 }
 
 

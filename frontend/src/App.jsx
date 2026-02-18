@@ -29,6 +29,7 @@ import { DEFAULT_NETWORK } from "./config/network";
 import { INTERVALS, FORMATTING, ANIMATION_DELAYS } from "./config/constants";
 
 import { parseCoinType, getTokenDecimals, formatAddress, isValidAddress } from "./utils/tokenUtils";
+import { applyTheme, getStoredThemePreference } from "./utils/theme";
 
 import { getTokenInfo } from "./config/tokens";
 
@@ -45,7 +46,7 @@ import { useProfile } from "./hooks/useProfile";
 import { useCurrency } from "./hooks/useCurrency";
 
 // Indexer services
-import { getWalletAge, getRecentTransactions, getUserNFTHoldings, getYuzuLiquidityPositions } from "./services/indexer";
+import { getWalletAge, getRecentTransactions, getUserNFTHoldings, getYuzuLiquidityPositions, getUserTokenBalances } from "./services/indexer";
 
 // Components
 import Swap from "./components/Swap";
@@ -594,6 +595,13 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
   };
 
   const usdValue = getUnderlyingValue();
+  const meridianPoolLabel = position.protocol === 'meridian'
+    ? (
+        Array.isArray(position.poolTokens) && position.poolTokens.length > 0
+          ? position.poolTokens.map((token) => token.symbol).join(' / ')
+          : (position.tokenX && position.tokenY ? `${position.tokenX} / ${position.tokenY}` : 'MER-LP')
+      )
+    : '';
 
   return (
     <div 
@@ -650,9 +658,11 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
       <div className="lp-card-body">
         <div className="lp-card-stats-row">
           <div className="lp-card-stat">
-            <span className="lp-card-stat-label">{position.isNFT ? 'Pool' : 'Balance'}</span>
+            <span className="lp-card-stat-label">{position.isNFT || position.protocol === 'meridian' ? 'Pool' : 'Balance'}</span>
             <span className="lp-card-stat-value">
-              {position.isNFT ? position.name : formatValue(position.amount)}
+              {position.isNFT
+                ? position.name
+                : (position.protocol === 'meridian' ? meridianPoolLabel : formatValue(position.amount))}
             </span>
           </div>
           <div className="lp-card-stat">
@@ -674,6 +684,30 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
             </span>
           </div>
         )}
+
+        {/* Show token composition for Meridian LP positions */}
+        {position.protocol === 'meridian' && Array.isArray(position.poolTokens) && position.poolTokens.length > 0 && (
+          <div className="lp-card-stat lp-card-token-amounts">
+            <span className="lp-card-stat-label">Token Composition</span>
+            <span className="lp-card-stat-value small">
+              {position.poolTokens
+                .map((token) => `${formatValue(token.amount)} ${token.symbol || 'Token'}`)
+                .join(' + ')}
+            </span>
+          </div>
+        )}
+
+        {position.protocol === 'meridian' && (!Array.isArray(position.poolTokens) || position.poolTokens.length === 0) && (position.liquidityX > 0 || position.liquidityY > 0) && (
+          <div className="lp-card-stat lp-card-token-amounts">
+            <span className="lp-card-stat-label">Token Composition</span>
+            <span className="lp-card-stat-value small">
+              {position.liquidityX > 0 && `${formatValue(position.liquidityX / 1000000)} ${position.tokenX || 'Token X'}`}
+              {position.liquidityX > 0 && position.liquidityY > 0 && ' + '}
+              {position.liquidityY > 0 && `${formatValue(position.liquidityY / 1000000)} ${position.tokenY || 'Token Y'}`}
+            </span>
+          </div>
+        )}
+
       </div>
 
       {/* Footer */}
@@ -917,6 +951,158 @@ const Dashboard = () => {
 
   }, [movementClient]);
 
+  const toRawCoinString = useCallback((value) => {
+    if (value === null || value === undefined) return null;
+
+    if (typeof value === "bigint") {
+      return value > 0n ? value.toString() : null;
+    }
+
+    if (typeof value === "number") {
+      if (!Number.isFinite(value) || value <= 0) return null;
+      return Number.isInteger(value) ? String(value) : String(Math.trunc(value));
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return /^\d+$/.test(trimmed) && trimmed !== "0" ? trimmed : null;
+    }
+
+    if (typeof value === "object") {
+      return (
+        toRawCoinString(value.value) ||
+        toRawCoinString(value.amount) ||
+        toRawCoinString(value.balance) ||
+        toRawCoinString(value.coin)
+      );
+    }
+
+    return null;
+  }, []);
+
+  const extractRawCoinValue = useCallback((coinData) => {
+    if (!coinData) return null;
+
+    const direct =
+      toRawCoinString(coinData?.coin?.value) ||
+      toRawCoinString(coinData?.coin?.amount) ||
+      toRawCoinString(coinData?.coin) ||
+      toRawCoinString(coinData?.value) ||
+      toRawCoinString(coinData?.amount) ||
+      toRawCoinString(coinData?.balance);
+
+    if (direct) return direct;
+
+    const queue = [];
+    if (coinData?.coin && typeof coinData.coin === "object") {
+      queue.push(coinData.coin);
+    }
+    queue.push(coinData);
+
+    const seen = new Set();
+    const primaryKeys = ["value", "amount", "balance", "coin", "liquidity", "staked", "deposited"];
+    const relevantKeyRegex = /(coin|amount|balance|value|liquidity|staked|deposit|share|stake)/i;
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+
+      if (!current || typeof current !== "object") {
+        const primitiveCandidate = toRawCoinString(current);
+        if (primitiveCandidate) return primitiveCandidate;
+        continue;
+      }
+
+      if (seen.has(current)) continue;
+      seen.add(current);
+
+      if (Array.isArray(current)) {
+        for (const item of current) {
+          const candidate = toRawCoinString(item);
+          if (candidate) return candidate;
+          if (item && typeof item === "object") queue.push(item);
+        }
+        continue;
+      }
+
+      for (const key of primaryKeys) {
+        if (current[key] !== undefined) {
+          const candidate = toRawCoinString(current[key]);
+          if (candidate) return candidate;
+        }
+      }
+
+      const prioritized = [];
+      const secondary = [];
+      for (const [key, value] of Object.entries(current)) {
+        if (!value || typeof value !== "object") continue;
+        if (relevantKeyRegex.test(key)) {
+          prioritized.push(value);
+        } else {
+          secondary.push(value);
+        }
+      }
+
+      queue.unshift(...prioritized);
+      queue.push(...secondary);
+    }
+
+    return null;
+  }, [toRawCoinString]);
+
+  const fetchMeridianPoolInfo = useCallback(async (poolAddress) => {
+    if (!poolAddress || typeof poolAddress !== 'string') return null;
+
+    try {
+      const normalizedPool = poolAddress.trim().toLowerCase();
+      const resources = await movementClient.getAccountResources({ accountAddress: normalizedPool });
+
+      const poolResource = resources.find((resource) => resource.type.includes('::pool::Pool'));
+      const supplyResource = resources.find((resource) => resource.type === '0x1::fungible_asset::ConcurrentSupply');
+
+      if (!poolResource || !supplyResource?.data?.current?.value) return null;
+
+      const poolAssets = Array.isArray(poolResource.data?.assets_metadata)
+        ? poolResource.data.assets_metadata
+            .map((asset) => String(asset?.inner || '').toLowerCase())
+            .filter(Boolean)
+        : [];
+
+      if (!poolAssets.length) return null;
+
+      const poolBalances = await getUserTokenBalances(normalizedPool);
+      const filteredReserves = poolBalances.filter((item) =>
+        poolAssets.includes(String(item?.asset_type || '').toLowerCase())
+      );
+
+      if (!filteredReserves.length) return null;
+
+      const tokens = filteredReserves.map((item) => {
+        const decimals = Number(item?.metadata?.decimals ?? 8);
+        const rawAmount = Number(item?.amount || 0);
+        const amount = rawAmount / Math.pow(10, decimals);
+
+        return {
+          assetType: String(item?.asset_type || '').toLowerCase(),
+          symbol: item?.metadata?.symbol || 'Token',
+          decimals,
+          rawAmount,
+          amount,
+        };
+      });
+
+      const totalSupplyRaw = Number(supplyResource.data.current.value || 0);
+      if (!totalSupplyRaw || totalSupplyRaw <= 0) return null;
+
+      return {
+        poolId: normalizedPool,
+        totalSupplyRaw,
+        tokens,
+      };
+    } catch (_e) {
+      return null;
+    }
+  }, [movementClient]);
+
 
 
   // --- ASSET FETCHING LOGIC ---
@@ -1045,39 +1231,15 @@ const Dashboard = () => {
             }
 
             const decimals = getTokenDecimals(coin.type, tokenMeta);
-            let coinValue = "0";
-            
-            // Try different data structures (Movement/Aptos can return various formats)
-            // Movement Network uses Aptos-compatible structure: coin.data.coin.value
-            if (coin.data) {
-              // Most common format: coin.data.coin.value (Aptos/Movement standard)
-              if (coin.data.coin !== undefined) {
-                if (coin.data.coin.value !== undefined) {
-                  coinValue = String(coin.data.coin.value);
-                } else if (coin.data.coin.amount !== undefined) {
-                  coinValue = String(coin.data.coin.amount);
-                } else if (typeof coin.data.coin === "string" || typeof coin.data.coin === "number" || typeof coin.data.coin === "bigint") {
-                  coinValue = String(coin.data.coin);
-                }
-              }
-              // Alternative: coin.data.value (direct value)
-              else if (coin.data.value !== undefined) {
-                coinValue = String(coin.data.value);
-              }
-              // Direct string/number value
-              else if (typeof coin.data === "string" || typeof coin.data === "number" || typeof coin.data === "bigint") {
-                coinValue = String(coin.data);
-              }
-              
-              // If still no value found, log the structure for debugging
-              if (!coinValue || coinValue === "0" || coinValue === "undefined") {
-                console.warn("Coin data structure:", {
-                  type: coin.type,
-                  data: coin.data,
-                  dataKeys: Object.keys(coin.data || {}),
-                  coinKeys: coin.data?.coin ? Object.keys(coin.data.coin) : null
-                });
-              }
+            let coinValue = extractRawCoinValue(coin.data) || "0";
+
+            if ((!coinValue || coinValue === "0") && coin.data) {
+              console.warn("Coin data structure:", {
+                type: coin.type,
+                data: coin.data,
+                dataKeys: Object.keys(coin.data || {}),
+                coinKeys: coin.data?.coin ? Object.keys(coin.data.coin) : null
+              });
             }
 
             // Log for debugging if we can't find the value
@@ -1224,7 +1386,7 @@ const Dashboard = () => {
     } finally {
       setAssetsLoading(false);
     }
-  }, [movementClient, priceMap, currentNetwork]);
+  }, [movementClient, priceMap, currentNetwork, extractRawCoinValue]);
 
 
 
@@ -1466,6 +1628,42 @@ const Dashboard = () => {
           { pattern: /YuzuLP|Yuzu-LP/i, protocol: 'yuzu', underlying: 'LP' },
         ];
 
+        // For Meridian LP tokens, collect composition data from positions hook
+        let meridianCompositions = [];
+        if (positions && positions.length > 0) {
+          console.log('🔷 All positions from hook:', positions.map(p => ({ id: p.id, protocolName: p.protocolName, type: p.type, liquidityX: p.liquidityX })));
+          meridianCompositions = positions.filter(pos => 
+            pos.protocolName === 'Meridian' && 
+            (pos.liquidityX !== undefined || pos.liquidityY !== undefined || pos.liquidityTokens !== undefined || pos.stakedAmount !== undefined)
+          );
+          console.log('🔷 Meridian positions with composition:', meridianCompositions.length, 
+            meridianCompositions.map(p => ({ liquidityX: p.liquidityX, liquidityY: p.liquidityY, liquidityTokens: p.liquidityTokens, tokenX: p.tokenX, tokenY: p.tokenY })));
+        }
+
+        // Track which Meridian LP token we're processing (to match with composition data)
+        let meridianLPIndex = 0;
+
+        // Resolve Meridian pool reserves for exact token composition per LP token
+        const meridianPoolInfoByAddress = {};
+        const meridianPoolAddresses = Array.from(
+          new Set(
+            indexerBalances
+              .filter((balance) => {
+                const symbol = balance.symbol || '';
+                const name = balance.name || '';
+                return /MER-LP|Meridian LP/i.test(symbol) || /MER-LP|Meridian LP/i.test(name);
+              })
+              .map((balance) => String(balance.address || balance.type || '').toLowerCase())
+              .filter(Boolean)
+          )
+        );
+
+        await Promise.all(
+          meridianPoolAddresses.map(async (poolAddress) => {
+            meridianPoolInfoByAddress[poolAddress] = await fetchMeridianPoolInfo(poolAddress);
+          })
+        );
+
         indexerBalances.forEach(balance => {
           const symbol = balance.symbol || '';
           const name = balance.name || '';
@@ -1508,6 +1706,86 @@ const Dashboard = () => {
               }
               // For Meridian LP, value will be 0 (Price N/A) since we need pool composition
 
+              // For Meridian LP, use composition data from positions hook
+              let meridianComposition = {};
+              if (protocol === 'meridian' && meridianCompositions.length > 0) {
+                // Use composition from the corresponding meridian position
+                const compositionIndex = meridianLPIndex < meridianCompositions.length ? meridianLPIndex : 0;
+                meridianComposition = {
+                  liquidityX: meridianCompositions[compositionIndex].liquidityX,
+                  liquidityY: meridianCompositions[compositionIndex].liquidityY,
+                  liquidityTokens: meridianCompositions[compositionIndex].liquidityTokens,
+                  stakedAmount: meridianCompositions[compositionIndex].stakedAmount,
+                  tokenX: meridianCompositions[compositionIndex].tokenX,
+                  tokenY: meridianCompositions[compositionIndex].tokenY,
+                  poolId: meridianCompositions[compositionIndex].poolId
+                };
+
+                if (!meridianComposition.liquidityTokens || meridianComposition.liquidityTokens <= 0) {
+                  meridianComposition.liquidityTokens = Math.round(amount * 1_000_000);
+                }
+                console.log('🔷 Adding Meridian LP #' + meridianLPIndex + ' with composition:', meridianComposition);
+                meridianLPIndex++;
+              } else if (protocol === 'meridian') {
+                meridianComposition = {
+                  liquidityTokens: Math.round(amount * 1_000_000),
+                };
+              }
+
+              if (protocol === 'meridian') {
+                const poolAddress = String(balance.address || balance.type || '').toLowerCase();
+                const poolInfo = meridianPoolInfoByAddress[poolAddress];
+                const userLpRaw = Number(balance.rawAmount || 0);
+
+                if (poolInfo && poolInfo.totalSupplyRaw > 0 && userLpRaw > 0) {
+                  const userShare = userLpRaw / poolInfo.totalSupplyRaw;
+                  const poolTokens = poolInfo.tokens
+                    .map((token) => ({
+                      ...token,
+                      userAmount: token.amount * userShare,
+                    }))
+                    .filter((token) => token.userAmount > 0);
+
+                  if (poolTokens.length > 0) {
+                    meridianComposition.poolId = poolInfo.poolId;
+                    meridianComposition.poolTokens = poolTokens.map((token) => ({
+                      symbol: token.symbol,
+                      amount: token.userAmount,
+                      decimals: token.decimals,
+                      address: token.assetType,
+                    }));
+
+                    if (!meridianComposition.tokenX && poolTokens[0]) {
+                      meridianComposition.tokenX = poolTokens[0].symbol;
+                    }
+                    if (!meridianComposition.tokenY && poolTokens[1]) {
+                      meridianComposition.tokenY = poolTokens[1].symbol;
+                    }
+
+                    if (priceMap) {
+                      const stableSymbols = ['USDT', 'USDT.E', 'USDC', 'USDC.E', 'USDA', 'USDE'];
+                      const meridianUsdValue = poolTokens.reduce((sum, token) => {
+                        const tokenAddress = String(token.assetType || '').toLowerCase();
+                        const tokenSymbol = String(token.symbol || '').toUpperCase();
+
+                        let tokenPrice = 0;
+                        if (tokenAddress && priceMap[tokenAddress] !== undefined) {
+                          tokenPrice = Number(priceMap[tokenAddress]) || 0;
+                        } else if (stableSymbols.includes(tokenSymbol)) {
+                          tokenPrice = 1;
+                        }
+
+                        return sum + (token.userAmount * tokenPrice);
+                      }, 0);
+
+                      if (meridianUsdValue > 0) {
+                        usdValue = meridianUsdValue;
+                      }
+                    }
+                  }
+                }
+              }
+
               lpPositions.push({
                 id: `lp-${balance.type || balance.address}`,
                 protocol,
@@ -1521,6 +1799,7 @@ const Dashboard = () => {
                 usdValue,
                 liquidityValue: usdValue,
                 isMeridianLP: underlyingAsset === 'MERIDIAN_LP',
+                ...meridianComposition
               });
               break; // Found a match, stop checking patterns
             }
@@ -1741,7 +2020,7 @@ const Dashboard = () => {
 
     detectLPPositions();
     return () => { cancelled = true; };
-  }, [indexerBalances, viewingAddress, priceMap]);
+  }, [indexerBalances, viewingAddress, priceMap, positions, fetchMeridianPoolInfo]);
 
   // Fetch wallet age when viewingAddress changes
   useEffect(() => {
@@ -2230,6 +2509,37 @@ const Dashboard = () => {
 const App = () => {
 
   const wallets = useMemo(() => [new PetraWallet(), new OKXWallet()], []);
+
+  useEffect(() => {
+    const syncTheme = () => {
+      const preference = getStoredThemePreference();
+      applyTheme(preference);
+    };
+
+    syncTheme();
+
+    const onStorage = (event) => {
+      if (!event?.key || event.key === "theme" || event.key === "settings_global" || event.key.startsWith("settings_")) {
+        syncTheme();
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const onMediaChange = () => {
+      if (getStoredThemePreference() === "auto") {
+        syncTheme();
+      }
+    };
+
+    media?.addEventListener?.("change", onMediaChange);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      media?.removeEventListener?.("change", onMediaChange);
+    };
+  }, []);
 
   return (
 

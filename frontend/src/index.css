@@ -23,6 +23,10 @@ body {
   overflow-x: hidden;
 }
 
+body[data-theme='light'] {
+  background: #f4f5f7;
+}
+
 /* Subtle golden gradient background - Movechi Theme */
 body::before {
   content: '';
