@@ -66,16 +66,6 @@ const PROTOCOL_REGISTRY = {
     keywords: ["moveposition"],
   },
   
-  MERIDIAN: {
-    name: "Meridian",
-    website: "https://app.meridian.money/",
-    type: "CDP",
-    addresses: [
-      "0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82",
-    ],
-    keywords: ["meridian", "userpools", "userpositions", "::ds::"],
-  },
-  
   CANOPY: {
     name: "Canopy",
     website: "https://app.canopyhub.xyz/",

@@ -5,7 +5,6 @@ import { mosaicAdapter } from "./mosaic";
 import { echelonAdapter } from "./echelon";
 import { canopyAdapter } from "./canopy";
 import { movePositionAdapter } from "./moveposition";
-import { meridianAdapter } from "./meridian";
 import { layerbankAdapter } from "./layerbank";
 
 export const ALL_ADAPTERS = [
@@ -16,6 +15,5 @@ export const ALL_ADAPTERS = [
   ...echelonAdapter,
   ...canopyAdapter,
   ...movePositionAdapter,
-  ...meridianAdapter,
   ...layerbankAdapter,
 ];
