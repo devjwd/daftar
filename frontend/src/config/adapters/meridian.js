@@ -201,56 +201,6 @@ export const meridianAdapter = [
     }
   },
 
-  // CDP / Vault Positions
-  {
-    id: "meridian_vault",
-    name: "Meridian Vault",
-    type: "Lending",
-    
-    searchString: "::vault::", 
-
-    parse: (data) => {
-      let collateral = 0;
-      
-      if (data.collateral) {
-        collateral = Number(data.collateral.value || data.collateral);
-      } else if (data.collateral_amount) {
-        collateral = Number(data.collateral_amount);
-      } else if (data.deposited) {
-        collateral = Number(data.deposited);
-      } else if (data.locked_amount) {
-        collateral = Number(data.locked_amount);
-      }
-
-      return (collateral / 100000000).toFixed(4);
-    }
-  },
-  
-  // CDP Debt (Minted stablecoins)
-  {
-    id: "meridian_debt",
-    name: "Meridian Debt",
-    type: "Debt",
-    
-    searchString: "::vault::",
-    
-    parse: (data) => {
-      let debt = 0;
-      
-      if (data.debt) {
-        debt = Number(data.debt.value || data.debt);
-      } else if (data.debt_amount) {
-        debt = Number(data.debt_amount);
-      } else if (data.minted) {
-        debt = Number(data.minted);
-      } else if (data.borrowed) {
-        debt = Number(data.borrowed);
-      }
-      
-      return formatByLikelyDecimals(debt, [8, 6]);
-    }
-  },
-
   // AMM Liquidity Positions - CoinStore<LPCoin>
   {
     id: "meridian_lp",
@@ -262,34 +212,6 @@ export const meridianAdapter = [
     parse: (data) => {
       const balance = pickLargestField(data, ["value", "amount", "coin", "balance", "liquidity", "shares"]);
       return formatByLikelyDecimals(balance, [6, 8]);
-    }
-  },
-
-  // Stability Pool Deposits
-  {
-    id: "meridian_stability",
-    name: "Meridian Stability Pool",
-    type: "Staking",
-    
-    searchString: "::stability_pool::",
-    
-    parse: (data) => {
-      const deposited = sumFields(data, ["deposited", "amount", "stake", "staked", "staked_amount", "deposit"]);
-      return formatByLikelyDecimals(deposited, [8, 6]);
-    }
-  },
-
-  // Staking - MERL token staking (LP staking)
-  {
-    id: "meridian_staking",
-    name: "Meridian Staked LP",
-    type: "Farming",
-    
-    searchString: "::staking::",
-    
-    parse: (data) => {
-      const staked = sumFields(data, ["amount", "staked", "staked_amount", "deposit", "deposited", "stake", "lp_amount"]);
-      return formatByLikelyDecimals(staked, [6, 8]);
     }
   }
 ];
