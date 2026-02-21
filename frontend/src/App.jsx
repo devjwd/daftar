@@ -1058,6 +1058,42 @@ const Dashboard = () => {
     if (!poolAddress || typeof poolAddress !== 'string') return null;
 
     try {
+      const normalizeAssetIdentifier = (value) => {
+        if (!value) return '';
+
+        let normalized = String(value).trim().toLowerCase();
+        const genericMatch = normalized.match(/<\s*([^>]+)\s*>/);
+        if (genericMatch?.[1]) {
+          normalized = genericMatch[1].trim().toLowerCase();
+        }
+
+        if (normalized.includes('::')) {
+          normalized = normalized.split('::')[0];
+        }
+
+        if (normalized.startsWith('0x')) {
+          const compact = normalized.slice(2).replace(/^0+/, '') || '0';
+          normalized = `0x${compact}`;
+        }
+
+        return normalized;
+      };
+
+      const buildAssetAliases = (value) => {
+        const aliases = new Set();
+        const normalized = normalizeAssetIdentifier(value);
+        if (!normalized) return aliases;
+
+        aliases.add(normalized);
+
+        if (normalized === '0x1' || normalized === '0xa') {
+          aliases.add('0x1');
+          aliases.add('0xa');
+        }
+
+        return aliases;
+      };
+
       const normalizedPool = poolAddress.trim().toLowerCase();
       const resources = await movementClient.getAccountResources({ accountAddress: normalizedPool });
 
@@ -1068,20 +1104,62 @@ const Dashboard = () => {
 
       const poolAssets = Array.isArray(poolResource.data?.assets_metadata)
         ? poolResource.data.assets_metadata
-            .map((asset) => String(asset?.inner || '').toLowerCase())
+            .map((asset) => {
+              if (typeof asset === 'string') return asset;
+              if (asset?.inner) return asset.inner;
+              if (asset?.value) return asset.value;
+              if (asset?.metadata) return asset.metadata;
+              return null;
+            })
+            .map((asset) => normalizeAssetIdentifier(asset))
             .filter(Boolean)
         : [];
 
       if (!poolAssets.length) return null;
 
       const poolBalances = await getUserTokenBalances(normalizedPool);
-      const filteredReserves = poolBalances.filter((item) =>
-        poolAssets.includes(String(item?.asset_type || '').toLowerCase())
+      const poolAssetAliasSet = new Set(
+        poolAssets.flatMap((asset) => Array.from(buildAssetAliases(asset)))
       );
 
-      if (!filteredReserves.length) return null;
+      const filteredReserves = poolBalances.filter((item) => {
+        const itemAssetType = item?.asset_type;
+        const aliases = buildAssetAliases(itemAssetType);
+        if (!aliases.size) return false;
 
-      const tokens = filteredReserves.map((item) => {
+        for (const alias of aliases) {
+          if (poolAssetAliasSet.has(alias)) {
+            return true;
+          }
+        }
+
+        return false;
+      });
+
+      const fallbackReserves = poolBalances
+        .filter((item) => Number(item?.amount || 0) > 0)
+        .filter((item) => !/MER-LP|LP TOKEN|LPCOIN/i.test(String(item?.metadata?.symbol || '')))
+        .sort((a, b) => Number(b?.amount || 0) - Number(a?.amount || 0));
+
+      const candidateReserves = filteredReserves.length >= 2
+        ? filteredReserves
+        : fallbackReserves.slice(0, 2);
+
+      if (!candidateReserves.length) return null;
+
+      const reserveByAsset = new Map();
+      candidateReserves.forEach((item) => {
+        const key = normalizeAssetIdentifier(item?.asset_type) || String(item?.asset_type || '').toLowerCase();
+        const amount = Number(item?.amount || 0);
+        const existing = reserveByAsset.get(key);
+        if (!existing || amount > Number(existing?.amount || 0)) {
+          reserveByAsset.set(key, item);
+        }
+      });
+
+      const reserves = Array.from(reserveByAsset.values());
+
+      const tokens = reserves.map((item) => {
         const decimals = Number(item?.metadata?.decimals ?? 8);
         const rawAmount = Number(item?.amount || 0);
         const amount = rawAmount / Math.pow(10, decimals);
@@ -1103,7 +1181,7 @@ const Dashboard = () => {
         totalSupplyRaw,
         tokens,
       };
-    } catch (_e) {
+    } catch {
       return null;
     }
   }, [movementClient]);
@@ -1648,6 +1726,39 @@ const Dashboard = () => {
         // Track which Meridian LP token we're processing (to match with composition data)
         let meridianLPIndex = 0;
 
+        const normalizeMeridianSymbol = (value) => {
+          const symbol = String(value || '').trim().toUpperCase();
+          if (!symbol) return '';
+          if (symbol.includes('USDC')) return 'USDC';
+          if (symbol.includes('USDT')) return 'USDT';
+          if (symbol.includes('WBTC') || symbol === 'BTC') return 'WBTC';
+          if (symbol.includes('WETH') || symbol === 'ETH') return 'WETH';
+          if (symbol.includes('MOVE') && symbol.includes('DROP')) return 'MOVE_DROPS';
+          if (symbol.includes('MOVE')) return 'MOVE';
+          return symbol.replace(/[^A-Z0-9]/g, '');
+        };
+
+        const isMeridianPoolMatch = (tokenX, tokenY, poolTokens) => {
+          if (!Array.isArray(poolTokens) || poolTokens.length === 0) return false;
+
+          const expectedTokens = [tokenX, tokenY]
+            .map((token) => normalizeMeridianSymbol(token))
+            .filter(Boolean);
+
+          if (expectedTokens.length === 0) return true;
+
+          const poolTokenSet = new Set(
+            poolTokens
+              .map((token) => normalizeMeridianSymbol(token?.symbol))
+              .filter(Boolean)
+          );
+
+          if (!poolTokenSet.size) return false;
+
+          const matched = expectedTokens.filter((token) => poolTokenSet.has(token)).length;
+          return matched >= Math.min(2, expectedTokens.length);
+        };
+
         // Resolve Meridian pool reserves for exact token composition per LP token
         const meridianPoolInfoByAddress = {};
         const meridianPoolAddresses = Array.from(
@@ -1752,40 +1863,54 @@ const Dashboard = () => {
                     .filter((token) => token.userAmount > 0);
 
                   if (poolTokens.length > 0) {
-                    meridianComposition.poolId = poolInfo.poolId;
-                    meridianComposition.poolTokens = poolTokens.map((token) => ({
-                      symbol: token.symbol,
-                      amount: token.userAmount,
-                      decimals: token.decimals,
-                      address: token.assetType,
-                    }));
+                    const poolMatchesPosition = isMeridianPoolMatch(
+                      meridianComposition.tokenX,
+                      meridianComposition.tokenY,
+                      poolTokens
+                    );
 
-                    if (!meridianComposition.tokenX && poolTokens[0]) {
-                      meridianComposition.tokenX = poolTokens[0].symbol;
-                    }
-                    if (!meridianComposition.tokenY && poolTokens[1]) {
-                      meridianComposition.tokenY = poolTokens[1].symbol;
-                    }
+                    if (poolMatchesPosition || (!meridianComposition.tokenX && !meridianComposition.tokenY)) {
+                      meridianComposition.poolId = poolInfo.poolId;
+                      meridianComposition.poolTokens = poolTokens.map((token) => ({
+                        symbol: token.symbol,
+                        amount: token.userAmount,
+                        decimals: token.decimals,
+                        address: token.assetType,
+                      }));
 
-                    if (priceMap) {
-                      const stableSymbols = ['USDT', 'USDT.E', 'USDC', 'USDC.E', 'USDA', 'USDE'];
-                      const meridianUsdValue = poolTokens.reduce((sum, token) => {
-                        const tokenAddress = String(token.assetType || '').toLowerCase();
-                        const tokenSymbol = String(token.symbol || '').toUpperCase();
-
-                        let tokenPrice = 0;
-                        if (tokenAddress && priceMap[tokenAddress] !== undefined) {
-                          tokenPrice = Number(priceMap[tokenAddress]) || 0;
-                        } else if (stableSymbols.includes(tokenSymbol)) {
-                          tokenPrice = 1;
-                        }
-
-                        return sum + (token.userAmount * tokenPrice);
-                      }, 0);
-
-                      if (meridianUsdValue > 0) {
-                        usdValue = meridianUsdValue;
+                      if (!meridianComposition.tokenX && poolTokens[0]) {
+                        meridianComposition.tokenX = poolTokens[0].symbol;
                       }
+                      if (!meridianComposition.tokenY && poolTokens[1]) {
+                        meridianComposition.tokenY = poolTokens[1].symbol;
+                      }
+
+                      if (priceMap) {
+                        const stableSymbols = ['USDT', 'USDT.E', 'USDC', 'USDC.E', 'USDA', 'USDE'];
+                        const meridianUsdValue = poolTokens.reduce((sum, token) => {
+                          const tokenAddress = String(token.assetType || '').toLowerCase();
+                          const tokenSymbol = String(token.symbol || '').toUpperCase();
+
+                          let tokenPrice = 0;
+                          if (tokenAddress && priceMap[tokenAddress] !== undefined) {
+                            tokenPrice = Number(priceMap[tokenAddress]) || 0;
+                          } else if (stableSymbols.includes(tokenSymbol)) {
+                            tokenPrice = 1;
+                          }
+
+                          return sum + (token.userAmount * tokenPrice);
+                        }, 0);
+
+                        if (meridianUsdValue > 0) {
+                          usdValue = meridianUsdValue;
+                        }
+                      }
+                    } else {
+                      console.warn('⚠️ Meridian pool token mismatch, skipping pool override', {
+                        expected: [meridianComposition.tokenX, meridianComposition.tokenY],
+                        actual: poolTokens.map((token) => token.symbol),
+                        poolId: poolInfo.poolId,
+                      });
                     }
                   }
                 }
