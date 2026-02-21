@@ -1,4 +1,4 @@
-import { getBadgeFunction, BADGE_RULES } from "../config/badges";
+import { getBadgeFunction, BADGE_RULES, getRuleLabel } from "../config/badges";
 
 export const decodeBytes = (value) => {
   if (value === null || value === undefined) return "";
@@ -289,9 +289,7 @@ export const mintBadgeWithBalance = async ({
 };
 
 export const ruleLabel = (ruleType) => {
-  if (ruleType === BADGE_RULES.MIN_BALANCE) return "Minimum Balance";
-  if (ruleType === BADGE_RULES.OFFCHAIN_ALLOWLIST) return "Off-chain Allowlist";
-  return "Allowlist";
+  return getRuleLabel(ruleType);
 };
 
 const hexToString = (hex) => {

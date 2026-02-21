@@ -363,6 +363,21 @@ export default function Layout({ children }) {
 
                 {moreDropdownOpen && (
                   <div className="more-dropdown-menu" style={{ position: 'fixed', ...dropdownStyle }}>
+                    <button
+                      className="more-menu-item"
+                      onClick={() => {
+                        navigate('/level');
+                        setMoreDropdownOpen(false);
+                      }}
+                    >
+                      <div className="more-menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M17 7H7V3H17V7ZM5 9H19V11H5V9ZM7 13H17V21H7V13Z" fill="currentColor"/>
+                        </svg>
+                      </div>
+                      <span>Level</span>
+                      <div className="more-menu-arrow">→</div>
+                    </button>
                     <button 
                       className="more-menu-item"
                       style={{ cursor: 'not-allowed', opacity: 0.6 }}

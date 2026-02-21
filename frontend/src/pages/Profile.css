@@ -402,6 +402,15 @@
     width: 100%;
   }
 
+  .level-progression {
+    max-width: 100%;
+  }
+
+  .level-progression-item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
   .upload-btn,
   .remove-btn {
     width: 100%;

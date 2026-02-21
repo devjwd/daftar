@@ -43,6 +43,7 @@ import { useDeFiPositions } from "./hooks/useDeFiPositions";
 import { useTokenPrices } from "./hooks/useTokenPrices";
 import { useIndexerBalances } from "./hooks/useIndexerBalances";
 import { useProfile } from "./hooks/useProfile";
+import { useUserLevel } from "./hooks/useUserLevel";
 import { useCurrency } from "./hooks/useCurrency";
 
 // Indexer services
@@ -59,6 +60,7 @@ import Badges from "./pages/Badges";
 import Leaderboard from "./pages/Leaderboard";
 import Admin from "./pages/Admin";
 import More from "./pages/More";
+import Level from "./pages/Level";
 import ProfileCard from "./components/ProfileCard";
 
 
@@ -807,6 +809,9 @@ const Dashboard = () => {
 
   // Use profile hook to get user profile data
   const { profile: userProfile } = useProfile(viewingAddress);
+
+  // Use level hook to calculate user level from badges
+  const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(viewingAddress);
 
   // Initialize viewingAddress from URL param — this is the primary source of truth
   useEffect(() => {
@@ -2090,7 +2095,7 @@ const Dashboard = () => {
                 {viewingAddress && (
                   <div className="hero-profile-section">
                     <div className="hero-profile-card">
-                      {/* Profile Picture */}
+                      {/* Profile Picture with Level Badge */}
                       <div 
                         className="hero-profile-avatar"
                         onClick={() => setShowProfileModal(true)}
@@ -2103,6 +2108,9 @@ const Dashboard = () => {
                           alt="User" 
                           className="hero-avatar-image" 
                         />
+                        {!levelLoading && (
+                          <div className="hero-level-badge">{level}</div>
+                        )}
                       </div>
 
                       {/* Social Links */}
@@ -2477,19 +2485,42 @@ const Dashboard = () => {
                 </button>
               </div>
 
+              {/* Level Details Section */}
+              {!levelLoading && (
+                <div className="modal-level-section">
+                  <div className="modal-level-row">
+                    <span className="modal-level-label">Current Level</span>
+                    <span className="modal-level-value">{level}</span>
+                  </div>
+                  <div className="modal-xp-row">
+                    <span className="modal-xp-label">Experience Points</span>
+                    <span className="modal-xp-value">{xp} / {nextLevelXP}</span>
+                  </div>
+                  <div className="modal-xp-bar-container">
+                    <div className="modal-xp-bar-fill" style={{ width: `${xpProgress}%` }} />
+                  </div>
+                </div>
+              )}
+
               {/* Badges Section */}
               <div className="modal-badges-section">
-                <h3 className="modal-badges-title">Collected Badges</h3>
-                <div className="modal-badges-grid">
-                  {badges.filter(b => b.earned).map(badge => (
-                    <div key={badge.id} className="modal-badge-item">
-                      <span className="modal-badge-icon">{badge.icon}</span>
-                      <span className="modal-badge-name">{badge.name}</span>
-                    </div>
-                  ))}
-                </div>
-                {badges.filter(b => b.earned).length === 0 && (
-                  <p className="modal-no-badges">No badges earned yet</p>
+                <h3 className="modal-badges-title">Collected Badges ({userBadges.length})</h3>
+                {userBadges.length > 0 ? (
+                  <div className="modal-badges-grid">
+                    {userBadges.map(badge => (
+                      <div key={badge.id} className="modal-badge-item">
+                        <div className="modal-badge-icon-box">
+                          <span className="modal-badge-icon">{badge.icon || '🏆'}</span>
+                        </div>
+                        <div className="modal-badge-info">
+                          <div className="modal-badge-name">{badge.name}</div>
+                          <div className="modal-badge-description">{badge.description}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="modal-no-badges">No badges earned yet. Mint badges to level up!</p>
                 )}
               </div>
             </div>
@@ -2561,6 +2592,7 @@ const App = () => {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/more" element={<More />} />
+                <Route path="/level" element={<Level />} />
               </Routes>
             </Layout>
           } />

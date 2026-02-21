@@ -553,3 +553,325 @@
     width: 100%;
   }
 }
+
+/* Badge SubTabs */
+.badge-subtabs {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid rgba(212, 165, 116, 0.1);
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+
+.badge-subtab {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.badge-subtab:hover {
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom-color: rgba(212, 165, 116, 0.3);
+}
+
+.badge-subtab.active {
+  color: #d4a574;
+  border-bottom-color: #d4a574;
+}
+
+.badge-tab-content {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Section Description */
+.section-description {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.95rem;
+  margin: 0.5rem 0 1.5rem 0;
+}
+
+/* Tier Preview */
+.tier-preview {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: rgba(212, 165, 116, 0.08);
+  border: 1px solid rgba(212, 165, 116, 0.15);
+  border-radius: 12px;
+  margin: 1.5rem 0;
+}
+
+.tier-emoji {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+}
+
+.tier-info {
+  flex: 1;
+}
+
+.tier-info strong {
+  display: block;
+  font-size: 1.2rem;
+  color: #d4a574;
+  margin-bottom: 0.25rem;
+}
+
+.tier-info p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+}
+
+/* Badge Tiers Grid */
+.badge-tiers-grid {
+  margin-top: 3rem;
+}
+
+.badge-tiers-grid h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #d4a574;
+}
+
+.tiers-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.tier-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: rgba(212, 165, 116, 0.08);
+  border: 1px solid rgba(212, 165, 116, 0.1);
+  border-radius: 12px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.tier-card:hover {
+  background: rgba(212, 165, 116, 0.12);
+  border-color: rgba(212, 165, 116, 0.2);
+  transform: translateY(-2px);
+}
+
+.tier-card .tier-emoji {
+  font-size: 2rem;
+}
+
+.tier-card strong {
+  font-size: 1rem;
+  color: #d4a574;
+}
+
+.tier-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+}
+
+.tier-card .tier-desc {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+/* Badges Checkbox List */
+.badges-checkbox-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.badges-checkbox-list .admin-checkbox {
+  padding: 1rem;
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(212, 165, 116, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.badges-checkbox-list .admin-checkbox:hover {
+  background: rgba(212, 165, 116, 0.1);
+  border-color: rgba(212, 165, 116, 0.2);
+}
+
+.badges-checkbox-list .admin-checkbox input:checked + span {
+  color: #d4a574;
+  font-weight: 600;
+}
+
+/* Eligibility Report */
+.eligibility-report {
+  margin-top: 2rem;
+  padding: 2rem;
+  background: rgba(212, 165, 116, 0.08);
+  border: 1px solid rgba(212, 165, 116, 0.15);
+  border-radius: 12px;
+}
+
+.eligibility-report h3 {
+  color: #d4a574;
+  margin-bottom: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.eligibility-report h4 {
+  color: rgba(212, 165, 116, 0.9);
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat {
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat strong {
+  display: block;
+  color: rgba(212, 165, 116, 0.8);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #d4a574;
+}
+
+/* Eligibility Badges */
+.eligibility-badges {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.eligibility-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 2px solid rgba(200, 100, 100, 0.3);
+  border-radius: 8px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.eligibility-badge.eligible {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.eligibility-badge .badge-emoji {
+  font-size: 2rem;
+}
+
+.eligibility-badge .badge-name {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.eligibility-badge .badge-requirement {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.badge-status {
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.badge-status.success {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.badge-status.pending {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.help-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .badge-subtabs {
+    gap: 0.5rem;
+  }
+
+  .badge-subtab {
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .tiers-list {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  .tier-preview {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .eligibility-badges {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  .report-stats {
+    grid-template-columns: 1fr;
+  }
+}
+

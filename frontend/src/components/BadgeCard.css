@@ -1,0 +1,489 @@
+/* Badge Card Gamification Styles */
+
+.badge-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--rarity-bg);
+  border: 2px solid var(--rarity-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.badge-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 8px 24px var(--rarity-glow);
+}
+
+.badge-card:active {
+  transform: scale(0.98);
+}
+
+/* Rarity-specific colors */
+.badge-card.rarity-COMMON {
+  --rarity-color: #10b981;
+  --rarity-border: #059669;
+  --rarity-glow: rgba(16, 185, 129, 0.4);
+}
+
+.badge-card.rarity-UNCOMMON {
+  --rarity-color: #3b82f6;
+  --rarity-border: #1e40af;
+  --rarity-glow: rgba(59, 130, 246, 0.4);
+}
+
+.badge-card.rarity-RARE {
+  --rarity-color: #8b5cf6;
+  --rarity-border: #6d28d9;
+  --rarity-glow: rgba(139, 92, 246, 0.4);
+}
+
+.badge-card.rarity-EPIC {
+  --rarity-color: #f59e0b;
+  --rarity-border: #d97706;
+  --rarity-glow: rgba(245, 158, 11, 0.4);
+}
+
+.badge-card.rarity-LEGENDARY {
+  --rarity-color: #fbbf24;
+  --rarity-border: #b45309;
+  --rarity-glow: rgba(251, 191, 36, 0.5);
+}
+
+/* Glow Effect */
+.badge-glow {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, var(--rarity-glow) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.badge-card:hover .badge-glow {
+  opacity: 1;
+}
+
+/* Earned Overlay */
+.badge-earned-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  z-index: 10;
+  box-shadow: 0 4px 8px rgba(34, 197, 94, 0.3);
+  animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Badge Image Section */
+.badge-image-section {
+  position: relative;
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.05) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+}
+
+.badge-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  max-height: 120px;
+  animation: slideDown 0.4s ease-out;
+}
+
+.badge-placeholder {
+  font-size: 4rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+.badge-card.earned .badge-image {
+  filter: drop-shadow(0 0 8px var(--rarity-glow));
+}
+
+/* Rarity Badge */
+.rarity-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--rarity-color);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  animation: popIn 0.5s ease-out;
+  z-index: 5;
+}
+
+.rarity-text {
+  display: block;
+}
+
+/* XP Badge */
+.xp-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+  animation: bounce 0.6s ease-out;
+}
+
+.xp-text {
+  display: block;
+}
+
+/* Badge Content */
+.badge-content {
+  flex: 1;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Badge Header */
+.badge-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.badge-name {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.percentile-badge {
+  background: linear-gradient(135deg, var(--rarity-color), var(--rarity-border));
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px var(--rarity-glow);
+}
+
+/* Badge Description */
+.badge-description {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+}
+
+/* Criteria Section */
+.badge-criteria {
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid var(--rarity-color);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.badge-criteria strong {
+  display: block;
+  color: var(--rarity-color);
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-criteria p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Progress Section */
+.progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.progress-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.progress-value {
+  color: var(--rarity-color);
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+/* Progress Bar */
+.progress-bar-container {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--rarity-color), var(--rarity-border));
+  border-radius: 10px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar-animation {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+.progress-percent {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--rarity-color);
+  font-weight: 700;
+}
+
+/* Next Milestone */
+.next-milestone {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: var(--rarity-bg);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.milestone-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.milestone-value {
+  color: var(--rarity-color);
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+/* Earned Date */
+.earned-date {
+  padding: 0.75rem;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05));
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 8px;
+  color: #22c55e;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  animation: slideUp 0.4s ease-out;
+}
+
+/* Ready to Claim */
+.ready-to-claim {
+  padding: 0.75rem;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.1));
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 8px;
+  color: #fbbf24;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Badge Shimmer Effect */
+.badge-shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  animation: shimmer 3s infinite;
+  pointer-events: none;
+}
+
+.badge-card.earned .badge-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Animations */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .badge-card {
+    border-radius: 12px;
+  }
+
+  .badge-card:hover {
+    transform: translateY(-2px) scale(1.01);
+  }
+
+  .badge-image-section {
+    min-height: 100px;
+    padding: 0.75rem;
+  }
+
+  .badge-image {
+    max-height: 80px;
+  }
+
+  .badge-placeholder {
+    font-size: 3rem;
+  }
+
+  .badge-name {
+    font-size: 1rem;
+  }
+
+  .badge-description {
+    font-size: 0.8rem;
+  }
+
+  .badge-content {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+}
+
+/* Unearned Badge Styling */
+.badge-card.unearned {
+  opacity: 0.8;
+}
+
+.badge-card.unearned:hover {
+  opacity: 1;
+}
+
+/* Earned Badge Enhanced Styling */
+.badge-card.earned {
+  border-color: var(--rarity-color);
+  box-shadow: 0 8px 20px var(--rarity-glow), inset 0 0 20px rgba(255, 255, 255, 0.05);
+}

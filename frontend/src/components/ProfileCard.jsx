@@ -1,10 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { useProfileByAddress } from '../hooks/useProfile';
+import { useUserLevel } from '../hooks/useUserLevel';
 import './ProfileCard.css';
 
 export default function ProfileCard({ address }) {
   const navigate = useNavigate();
   const { profile, loading } = useProfileByAddress(address);
+  const { level } = useUserLevel(address);
 
   if (loading) {
     return (
@@ -45,6 +47,7 @@ export default function ProfileCard({ address }) {
             alt={profile.username || 'User'} 
             className="profile-card-image" 
           />
+          <div className="profile-level-badge">{level}</div>
         </div>
         <div className="profile-card-info">
           <h3 className="profile-card-name">

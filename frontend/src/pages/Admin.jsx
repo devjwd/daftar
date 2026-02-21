@@ -12,7 +12,7 @@ import {
   clearAllAdminData,
 } from '../services/adminService';
 import { DEFAULT_NETWORK } from '../config/network';
-import { BADGE_RULES } from '../config/badges';
+import { BADGE_RULES, BADGE_CATEGORIES, ACTIVITY_BADGE_TIERS, LONGEVITY_BADGE_TIERS, getRuleLabel } from '../config/badges';
 import {
   fetchBadges,
   fetchBadgeIds,
@@ -24,11 +24,21 @@ import {
   computeSha256Hex,
   ruleLabel,
 } from '../services/badgeService';
+import {
+  getTransactionCount,
+  getDaysOnchain,
+  checkActivityEligibility,
+  checkLongevityEligibility,
+  getEligibleActivityBadges,
+  getEligibleLongevityBadges,
+  getEligibilityReport,
+} from '../services/eligibilityService';
 import { imageToBase64, compressImage } from '../services/profileService';
 import { isValidAddress } from '../utils/tokenUtils';
 
 export default function Admin() {
-  const [activeTab, setActiveTab] = useState('tokens'); // 'tokens' or 'badges'
+  const [activeTab, setActiveTab] = useState('tokens'); // 'tokens', 'badges', or 'settings'
+  const [badgeSubTab, setBadgeSubTab] = useState('manual'); // 'manual', 'activity', 'longevity', 'roles'
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const [customTokens, setCustomTokens] = useState([]);
   const [onChainBadges, setOnChainBadges] = useState([]);
@@ -37,6 +47,13 @@ export default function Admin() {
   const [editingToken, setEditingToken] = useState(null);
   const [badgeBusy, setBadgeBusy] = useState(false);
   const [badgeImagePreview, setBadgeImagePreview] = useState('');
+  const [selectedActivityTier, setSelectedActivityTier] = useState(ACTIVITY_BADGE_TIERS[0]);
+  const [selectedLongevityTier, setSelectedLongevityTier] = useState(LONGEVITY_BADGE_TIERS[0]);
+  const [eligibilityCheckAddress, setEligibilityCheckAddress] = useState('');
+  const [eligibilityReport, setEligibilityReport] = useState(null);
+  const [checkingEligibility, setCheckingEligibility] = useState(false);
+  const [badgeRoles, setBadgeRoles] = useState([]);
+  const [newRoleForm, setNewRoleForm] = useState({ name: '', description: '', badgeIds: [] });
 
   const movementClient = useMemo(
     () =>
@@ -71,16 +88,24 @@ export default function Admin() {
     coinType: '',
     coinTypeStr: '',
     allowlistText: '',
+    minTransactionCount: '1',
+    minDaysOnchain: '7',
   });
 
   // Load data on mount
   useEffect(() => {
     loadData();
     loadBadges();
+    loadRoles();
   }, []);
 
   const loadData = () => {
     setCustomTokens(getCustomTokens());
+  };
+
+  const loadRoles = () => {
+    const roles = JSON.parse(localStorage.getItem('badge_roles') || '[]');
+    setBadgeRoles(roles);
   };
 
   const loadBadges = async () => {
@@ -180,6 +205,8 @@ export default function Admin() {
       coinType: '',
       coinTypeStr: '',
       allowlistText: '',
+      minTransactionCount: '1',
+      minDaysOnchain: '7',
     });
     setBadgeImagePreview('');
   };
@@ -393,6 +420,153 @@ export default function Admin() {
     }
   };
 
+  // --- ACTIVITY & LONGEVITY BADGE HANDLERS ---
+
+  const handleCreateActivityBadge = async (e) => {
+    e.preventDefault();
+    if (!badgeForm.name || !badgeForm.description || !badgeForm.imageUri) {
+      showMessage('Name, description, and image are required', true);
+      return;
+    }
+
+    try {
+      setBadgeBusy(true);
+      const tier = selectedActivityTier;
+      
+      const metadataJson = buildMetadataJson({
+        name: `${badgeForm.name} (${tier.count}+ Txns)`,
+        description: `${badgeForm.description} - ${tier.description}`,
+        imageUri: badgeForm.imageUri,
+        attributes: [
+          { trait_type: 'Type', value: 'Activity Badge' },
+          { trait_type: 'Transaction Requirement', value: tier.count.toString() },
+          { trait_type: 'Emoji', value: tier.emoji },
+        ],
+      });
+
+      const metadataUri = buildMetadataDataUri(metadataJson);
+      const metadataHash = await computeSha256Hex(metadataJson);
+
+      const response = await createBadgeAllowlist({
+        signAndSubmitTransaction,
+        sender: account.address,
+        name: `${badgeForm.name} (${tier.count}+)`,
+        description: `${badgeForm.description} - ${tier.description}`,
+        imageUri: badgeForm.imageUri,
+        metadataUri,
+        metadataHash,
+        ruleType: BADGE_RULES.TRANSACTION_COUNT,
+        ruleNote: `Requires ${tier.count}+ transactions`,
+      });
+
+      if (response?.hash) {
+        await movementClient.waitForTransaction({
+          transactionHash: response.hash,
+          options: { timeoutSecs: 30 },
+        });
+      }
+
+      showMessage('Activity badge created!');
+      resetBadgeForm();
+      await loadBadges();
+    } catch (error) {
+      showMessage(error.message || 'Failed to create activity badge', true);
+    } finally {
+      setBadgeBusy(false);
+    }
+  };
+
+  const handleCreateLongevityBadge = async (e) => {
+    e.preventDefault();
+    if (!badgeForm.name || !badgeForm.description || !badgeForm.imageUri) {
+      showMessage('Name, description, and image are required', true);
+      return;
+    }
+
+    try {
+      setBadgeBusy(true);
+      const tier = selectedLongevityTier;
+      
+      const metadataJson = buildMetadataJson({
+        name: `${badgeForm.name} (${tier.days} Days)`,
+        description: `${badgeForm.description} - ${tier.description}`,
+        imageUri: badgeForm.imageUri,
+        attributes: [
+          { trait_type: 'Type', value: 'Longevity Badge' },
+          { trait_type: 'Days Requirement', value: tier.days.toString() },
+          { trait_type: 'Emoji', value: tier.emoji },
+        ],
+      });
+
+      const metadataUri = buildMetadataDataUri(metadataJson);
+      const metadataHash = await computeSha256Hex(metadataJson);
+
+      const response = await createBadgeAllowlist({
+        signAndSubmitTransaction,
+        sender: account.address,
+        name: `${badgeForm.name} (${tier.days}d)`,
+        description: `${badgeForm.description} - ${tier.description}`,
+        imageUri: badgeForm.imageUri,
+        metadataUri,
+        metadataHash,
+        ruleType: BADGE_RULES.DAYS_ONCHAIN,
+        ruleNote: `Requires ${tier.days}+ days onchain`,
+      });
+
+      if (response?.hash) {
+        await movementClient.waitForTransaction({
+          transactionHash: response.hash,
+          options: { timeoutSecs: 30 },
+        });
+      }
+
+      showMessage('Longevity badge created!');
+      resetBadgeForm();
+      await loadBadges();
+    } catch (error) {
+      showMessage(error.message || 'Failed to create longevity badge', true);
+    } finally {
+      setBadgeBusy(false);
+    }
+  };
+
+  const handleCheckEligibility = async () => {
+    if (!eligibilityCheckAddress || !isValidAddress(eligibilityCheckAddress)) {
+      showMessage('Please enter a valid address', true);
+      return;
+    }
+
+    try {
+      setCheckingEligibility(true);
+      const report = await getEligibilityReport(eligibilityCheckAddress);
+      setEligibilityReport(report);
+    } catch (error) {
+      showMessage(error.message || 'Failed to check eligibility', true);
+    } finally {
+      setCheckingEligibility(false);
+    }
+  };
+
+  const handleAddRole = () => {
+    if (!newRoleForm.name || newRoleForm.badgeIds.length === 0) {
+      showMessage('Role name and at least one badge are required', true);
+      return;
+    }
+
+    const role = {
+      id: `role-${Date.now()}`,
+      ...newRoleForm,
+      createdAt: new Date(),
+    };
+
+    const roles = JSON.parse(localStorage.getItem('badge_roles') || '[]');
+    roles.push(role);
+    localStorage.setItem('badge_roles', JSON.stringify(roles));
+    setBadgeRoles(roles);
+    setNewRoleForm({ name: '', description: '', badgeIds: [] });
+    showMessage('Role created successfully!');
+  };
+
   return (
     <div className="admin-page">
       <div className="admin-container">
@@ -579,257 +753,687 @@ export default function Admin() {
         {/* Badges Tab */}
         {activeTab === 'badges' && (
           <div className="admin-content">
-            {/* Add Badge Form */}
-            <div className="admin-form-section">
-              <h2>Create On-chain Badge</h2>
-              <form onSubmit={handleAddBadge} className="admin-form">
-                <div className="admin-form-row">
-                  <div className="admin-form-group">
-                    <label htmlFor="badge-name">Badge Name *</label>
-                    <input
-                      id="badge-name"
-                      type="text"
-                      placeholder="e.g., Early Member"
-                      value={badgeForm.name}
-                      onChange={(e) => setBadgeForm({ ...badgeForm, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="admin-form-group">
-                    <label htmlFor="badge-rule">Eligibility Rule *</label>
-                    <select
-                      id="badge-rule"
-                      value={badgeForm.ruleType}
-                      onChange={(e) =>
-                        setBadgeForm({ ...badgeForm, ruleType: Number(e.target.value) })
-                      }
-                    >
-                      <option value={BADGE_RULES.ALLOWLIST}>Allowlist</option>
-                      <option value={BADGE_RULES.MIN_BALANCE}>Minimum Balance</option>
-                      <option value={BADGE_RULES.OFFCHAIN_ALLOWLIST}>Off-chain Allowlist</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="admin-form-row">
-                  <div className="admin-form-group full">
-                    <label htmlFor="badge-description">Description *</label>
-                    <textarea
-                      id="badge-description"
-                      placeholder="e.g., Joined in the first month"
-                      value={badgeForm.description}
-                      onChange={(e) =>
-                        setBadgeForm({ ...badgeForm, description: e.target.value })
-                      }
-                      required
-                      rows="3"
-                    />
-                  </div>
-                </div>
-
-                <div className="admin-form-row">
-                  <div className="admin-form-group">
-                    <label htmlFor="badge-image">Badge Image *</label>
-                    <input
-                      id="badge-image"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleBadgeImageUpload}
-                    />
-                  </div>
-                  <div className="admin-form-group">
-                    <label htmlFor="badge-image-uri">Image URI *</label>
-                    <input
-                      id="badge-image-uri"
-                      type="text"
-                      placeholder="ipfs://... or https://..."
-                      value={badgeForm.imageUri}
-                      onChange={(e) =>
-                        setBadgeForm({ ...badgeForm, imageUri: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-
-                {badgeImagePreview && (
-                  <div className="admin-image-preview">
-                    <img src={badgeImagePreview} alt="Badge preview" />
-                  </div>
-                )}
-
-                <div className="admin-form-row">
-                  <div className="admin-form-group">
-                    <label htmlFor="badge-metadata-uri">Metadata URI</label>
-                    <input
-                      id="badge-metadata-uri"
-                      type="text"
-                      placeholder="ipfs://... or data:application/json;base64,..."
-                      value={badgeForm.metadataUri}
-                      onChange={(e) =>
-                        setBadgeForm({ ...badgeForm, metadataUri: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="admin-form-group">
-                    <label htmlFor="badge-metadata-hash">Metadata SHA-256</label>
-                    <input
-                      id="badge-metadata-hash"
-                      type="text"
-                      placeholder="hex hash"
-                      value={badgeForm.metadataHash}
-                      onChange={(e) =>
-                        setBadgeForm({ ...badgeForm, metadataHash: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="admin-form-row">
-                  <div className="admin-form-group full">
-                    <button
-                      type="button"
-                      className="admin-btn admin-btn-secondary"
-                      onClick={handleGenerateMetadata}
-                    >
-                      ✨ Generate Metadata JSON
-                    </button>
-                  </div>
-                </div>
-
-                <div className="admin-form-row">
-                  <div className="admin-form-group full">
-                    <label htmlFor="badge-rule-note">Eligibility Notes</label>
-                    <textarea
-                      id="badge-rule-note"
-                      placeholder="e.g., Must have 3+ DeFi positions"
-                      value={badgeForm.ruleNote}
-                      onChange={(e) =>
-                        setBadgeForm({ ...badgeForm, ruleNote: e.target.value })
-                      }
-                      rows="2"
-                    />
-                  </div>
-                </div>
-
-                {Number(badgeForm.ruleType) === BADGE_RULES.MIN_BALANCE && (
-                  <div className="admin-form-row">
-                    <div className="admin-form-group">
-                      <label htmlFor="badge-coin-type">Coin Type *</label>
-                      <input
-                        id="badge-coin-type"
-                        type="text"
-                        placeholder="0x1::aptos_coin::AptosCoin"
-                        value={badgeForm.coinType}
-                        onChange={(e) =>
-                          setBadgeForm({ ...badgeForm, coinType: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="admin-form-group">
-                      <label htmlFor="badge-min-balance">Minimum Balance (raw) *</label>
-                      <input
-                        id="badge-min-balance"
-                        type="number"
-                        min="0"
-                        placeholder="100000000"
-                        value={badgeForm.minBalance}
-                        onChange={(e) =>
-                          setBadgeForm({ ...badgeForm, minBalance: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {Number(badgeForm.ruleType) !== BADGE_RULES.MIN_BALANCE && (
-                  <div className="admin-form-row">
-                    <div className="admin-form-group full">
-                      <label htmlFor="badge-allowlist">Allowlist Addresses (one per line)</label>
-                      <textarea
-                        id="badge-allowlist"
-                        placeholder="0x123...\n0xabc..."
-                        value={badgeForm.allowlistText}
-                        onChange={(e) =>
-                          setBadgeForm({ ...badgeForm, allowlistText: e.target.value })
-                        }
-                        rows="4"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="admin-form-actions">
-                  <button
-                    type="submit"
-                    className="admin-btn admin-btn-primary"
-                    disabled={badgeBusy}
-                  >
-                    {badgeBusy ? '⏳ Creating...' : '➕ Create On-chain Badge'}
-                  </button>
-                </div>
-              </form>
+            {/* Badge Sub-tabs */}
+            <div className="badge-subtabs">
+              <button
+                className={`badge-subtab ${badgeSubTab === 'manual' ? 'active' : ''}`}
+                onClick={() => setBadgeSubTab('manual')}
+              >
+                📋 Manual Badges
+              </button>
+              <button
+                className={`badge-subtab ${badgeSubTab === 'activity' ? 'active' : ''}`}
+                onClick={() => setBadgeSubTab('activity')}
+              >
+                📊 Activity Badges
+              </button>
+              <button
+                className={`badge-subtab ${badgeSubTab === 'longevity' ? 'active' : ''}`}
+                onClick={() => setBadgeSubTab('longevity')}
+              >
+                📅 Longevity Badges
+              </button>
+              <button
+                className={`badge-subtab ${badgeSubTab === 'roles' ? 'active' : ''}`}
+                onClick={() => setBadgeSubTab('roles')}
+              >
+                👥 Roles & Permissions
+              </button>
+              <button
+                className={`badge-subtab ${badgeSubTab === 'eligibility' ? 'active' : ''}`}
+                onClick={() => setBadgeSubTab('eligibility')}
+              >
+                ✅ Check Eligibility
+              </button>
             </div>
 
-            {/* Badges List */}
-            <div className="admin-list-section">
-              <h2>On-chain Badges ({onChainBadges.length})</h2>
-              {onChainBadges.length === 0 ? (
-                <div className="admin-empty-state">No on-chain badges yet</div>
-              ) : (
-                <div className="admin-list">
-                  {onChainBadges.map((badge) => (
-                    <div key={badge.id} className="admin-list-item">
-                      <div className="admin-item-header">
-                        <div className="admin-item-title">
-                          {badge.imageUri ? (
-                            <img
-                              src={badge.imageUri}
-                              alt={badge.name}
-                              className="admin-badge-image"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <span className="admin-badge-icon">🏆</span>
-                          )}
-                          <strong>{badge.name}</strong>
+            {/* Manual Badges Tab */}
+            {badgeSubTab === 'manual' && (
+              <div className="badge-tab-content">
+                {/* Add Badge Form */}
+                <div className="admin-form-section">
+                  <h2>Create Manual Badge</h2>
+                  <form onSubmit={handleAddBadge} className="admin-form">
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="badge-name">Badge Name *</label>
+                        <input
+                          id="badge-name"
+                          type="text"
+                          placeholder="e.g., Early Member"
+                          value={badgeForm.name}
+                          onChange={(e) => setBadgeForm({ ...badgeForm, name: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="admin-form-group">
+                        <label htmlFor="badge-rule">Eligibility Rule *</label>
+                        <select
+                          id="badge-rule"
+                          value={badgeForm.ruleType}
+                          onChange={(e) =>
+                            setBadgeForm({ ...badgeForm, ruleType: Number(e.target.value) })
+                          }
+                        >
+                          <option value={BADGE_RULES.ALLOWLIST}>Allowlist</option>
+                          <option value={BADGE_RULES.MIN_BALANCE}>Minimum Balance</option>
+                          <option value={BADGE_RULES.OFFCHAIN_ALLOWLIST}>Off-chain Allowlist</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group full">
+                        <label htmlFor="badge-description">Description *</label>
+                        <textarea
+                          id="badge-description"
+                          placeholder="e.g., Joined in the first month"
+                          value={badgeForm.description}
+                          onChange={(e) =>
+                            setBadgeForm({ ...badgeForm, description: e.target.value })
+                          }
+                          required
+                          rows="3"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="badge-image">Badge Image *</label>
+                        <input
+                          id="badge-image"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleBadgeImageUpload}
+                        />
+                      </div>
+                      <div className="admin-form-group">
+                        <label htmlFor="badge-image-uri">Image URI *</label>
+                        <input
+                          id="badge-image-uri"
+                          type="text"
+                          placeholder="ipfs://... or https://..."
+                          value={badgeForm.imageUri}
+                          onChange={(e) =>
+                            setBadgeForm({ ...badgeForm, imageUri: e.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {badgeImagePreview && (
+                      <div className="admin-image-preview">
+                        <img src={badgeImagePreview} alt="Badge preview" />
+                      </div>
+                    )}
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group full">
+                        <label htmlFor="badge-rule-note">Eligibility Notes</label>
+                        <textarea
+                          id="badge-rule-note"
+                          placeholder="e.g., Must have 3+ DeFi positions"
+                          value={badgeForm.ruleNote}
+                          onChange={(e) =>
+                            setBadgeForm({ ...badgeForm, ruleNote: e.target.value })
+                          }
+                          rows="2"
+                        />
+                      </div>
+                    </div>
+
+                    {Number(badgeForm.ruleType) === BADGE_RULES.MIN_BALANCE && (
+                      <div className="admin-form-row">
+                        <div className="admin-form-group">
+                          <label htmlFor="badge-coin-type">Coin Type *</label>
+                          <input
+                            id="badge-coin-type"
+                            type="text"
+                            placeholder="0x1::aptos_coin::AptosCoin"
+                            value={badgeForm.coinType}
+                            onChange={(e) =>
+                              setBadgeForm({ ...badgeForm, coinType: e.target.value })
+                            }
+                            required
+                          />
+                        </div>
+                        <div className="admin-form-group">
+                          <label htmlFor="badge-min-balance">Minimum Balance (raw) *</label>
+                          <input
+                            id="badge-min-balance"
+                            type="number"
+                            min="0"
+                            placeholder="100000000"
+                            value={badgeForm.minBalance}
+                            onChange={(e) =>
+                              setBadgeForm({ ...badgeForm, minBalance: e.target.value })
+                            }
+                            required
+                          />
                         </div>
                       </div>
-                      <div className="admin-item-details">
-                        <p>
-                          <span>Description:</span> {badge.description}
-                        </p>
-                        <p>
-                          <span>Rule:</span> {ruleLabel(badge.ruleType)}
-                        </p>
-                        {badge.ruleNote && (
-                          <p>
-                            <span>Note:</span> {badge.ruleNote}
-                          </p>
-                        )}
-                        {badge.ruleType === BADGE_RULES.MIN_BALANCE && (
-                          <p>
-                            <span>Minimum:</span> {badge.minBalance} ({badge.coinTypeStr})
-                          </p>
-                        )}
-                        {badge.metadataUri && (
-                          <p>
-                            <span>Metadata:</span> {badge.metadataUri}
-                          </p>
-                        )}
-                        <p className="admin-item-date">
-                          Added {new Date(badge.createdAt * 1000).toLocaleDateString()}
-                        </p>
+                    )}
+
+                    {Number(badgeForm.ruleType) !== BADGE_RULES.MIN_BALANCE && (
+                      <div className="admin-form-row">
+                        <div className="admin-form-group full">
+                          <label htmlFor="badge-allowlist">Allowlist Addresses (one per line)</label>
+                          <textarea
+                            id="badge-allowlist"
+                            placeholder="0x123...\n0xabc..."
+                            value={badgeForm.allowlistText}
+                            onChange={(e) =>
+                              setBadgeForm({ ...badgeForm, allowlistText: e.target.value })
+                            }
+                            rows="4"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="admin-form-actions">
+                      <button
+                        type="submit"
+                        className="admin-btn admin-btn-primary"
+                        disabled={badgeBusy}
+                      >
+                        {badgeBusy ? '⏳ Creating...' : '➕ Create Manual Badge'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Badges List */}
+                <div className="admin-list-section">
+                  <h2>On-chain Badges ({onChainBadges.length})</h2>
+                  {onChainBadges.length === 0 ? (
+                    <div className="admin-empty-state">No on-chain badges yet</div>
+                  ) : (
+                    <div className="admin-list">
+                      {onChainBadges.map((badge) => (
+                        <div key={badge.id} className="admin-list-item">
+                          <div className="admin-item-header">
+                            <div className="admin-item-title">
+                              {badge.imageUri ? (
+                                <img
+                                  src={badge.imageUri}
+                                  alt={badge.name}
+                                  className="admin-badge-image"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <span className="admin-badge-icon">🏆</span>
+                              )}
+                              <strong>{badge.name}</strong>
+                            </div>
+                          </div>
+                          <div className="admin-item-details">
+                            <p>
+                              <span>Description:</span> {badge.description}
+                            </p>
+                            <p>
+                              <span>Rule:</span> {ruleLabel(badge.ruleType)}
+                            </p>
+                            {badge.ruleNote && (
+                              <p>
+                                <span>Note:</span> {badge.ruleNote}
+                              </p>
+                            )}
+                            {badge.ruleType === BADGE_RULES.MIN_BALANCE && (
+                              <p>
+                                <span>Minimum:</span> {badge.minBalance} ({badge.coinTypeStr})
+                              </p>
+                            )}
+                            <p className="admin-item-date">
+                              Added {new Date(badge.createdAt * 1000).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Activity Badges Tab */}
+            {badgeSubTab === 'activity' && (
+              <div className="badge-tab-content">
+                <div className="admin-form-section">
+                  <h2>Create Activity Badge (Transaction-Based)</h2>
+                  <p className="section-description">Badges awarded based on transaction count milestones</p>
+                  
+                  <form onSubmit={handleCreateActivityBadge} className="admin-form">
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="activity-name">Badge Name *</label>
+                        <input
+                          id="activity-name"
+                          type="text"
+                          placeholder="e.g., Transaction Master"
+                          value={badgeForm.name}
+                          onChange={(e) => setBadgeForm({ ...badgeForm, name: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="admin-form-group">
+                        <label htmlFor="activity-tier">Transaction Requirement *</label>
+                        <select
+                          id="activity-tier"
+                          value={selectedActivityTier.count}
+                          onChange={(e) => {
+                            const tier = ACTIVITY_BADGE_TIERS.find(t => t.count === Number(e.target.value));
+                            if (tier) setSelectedActivityTier(tier);
+                          }}
+                        >
+                          {ACTIVITY_BADGE_TIERS.map((tier) => (
+                            <option key={tier.count} value={tier.count}>
+                              {tier.emoji} {tier.name} ({tier.count}+ transactions)
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
-                  ))}
+
+                    <div className="tier-preview">
+                      <span className="tier-emoji">{selectedActivityTier.emoji}</span>
+                      <div className="tier-info">
+                        <strong>{selectedActivityTier.name}</strong>
+                        <p>{selectedActivityTier.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group full">
+                        <label htmlFor="activity-description">Description *</label>
+                        <textarea
+                          id="activity-description"
+                          placeholder="e.g., Earned by completing 10+ transactions on the network"
+                          value={badgeForm.description}
+                          onChange={(e) =>
+                            setBadgeForm({ ...badgeForm, description: e.target.value })
+                          }
+                          required
+                          rows="3"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="activity-image">Badge Image *</label>
+                        <input
+                          id="activity-image"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleBadgeImageUpload}
+                        />
+                      </div>
+                      <div className="admin-form-group">
+                        <label htmlFor="activity-image-uri">Image URI *</label>
+                        <input
+                          id="activity-image-uri"
+                          type="text"
+                          placeholder="ipfs://... or https://..."
+                          value={badgeForm.imageUri}
+                          onChange={(e) =>
+                            setBadgeForm({ ...badgeForm, imageUri: e.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {badgeImagePreview && (
+                      <div className="admin-image-preview">
+                        <img src={badgeImagePreview} alt="Badge preview" />
+                      </div>
+                    )}
+
+                    <div className="admin-form-actions">
+                      <button
+                        type="submit"
+                        className="admin-btn admin-btn-primary"
+                        disabled={badgeBusy}
+                      >
+                        {badgeBusy ? '⏳ Creating...' : '📊 Create Activity Badge'}
+                      </button>
+                    </div>
+                  </form>
                 </div>
-              )}
-            </div>
+
+                <div className="badge-tiers-grid">
+                  <h3>Available Activity Tiers</h3>
+                  <div className="tiers-list">
+                    {ACTIVITY_BADGE_TIERS.map((tier) => (
+                      <div key={tier.count} className="tier-card">
+                        <span className="tier-emoji">{tier.emoji}</span>
+                        <strong>{tier.name}</strong>
+                        <p>{tier.count}+ transactions</p>
+                        <p className="tier-desc">{tier.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Longevity Badges Tab */}
+            {badgeSubTab === 'longevity' && (
+              <div className="badge-tab-content">
+                <div className="admin-form-section">
+                  <h2>Create Longevity Badge (Days Onchain)</h2>
+                  <p className="section-description">Badges awarded based on how long users have been onchain</p>
+                  
+                  <form onSubmit={handleCreateLongevityBadge} className="admin-form">
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="longevity-name">Badge Name *</label>
+                        <input
+                          id="longevity-name"
+                          type="text"
+                          placeholder="e.g., Veteran Member"
+                          value={badgeForm.name}
+                          onChange={(e) => setBadgeForm({ ...badgeForm, name: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="admin-form-group">
+                        <label htmlFor="longevity-tier">Days Requirement *</label>
+                        <select
+                          id="longevity-tier"
+                          value={selectedLongevityTier.days}
+                          onChange={(e) => {
+                            const tier = LONGEVITY_BADGE_TIERS.find(t => t.days === Number(e.target.value));
+                            if (tier) setSelectedLongevityTier(tier);
+                          }}
+                        >
+                          {LONGEVITY_BADGE_TIERS.map((tier) => (
+                            <option key={tier.days} value={tier.days}>
+                              {tier.emoji} {tier.name} ({tier.days}+ days)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="tier-preview">
+                      <span className="tier-emoji">{selectedLongevityTier.emoji}</span>
+                      <div className="tier-info">
+                        <strong>{selectedLongevityTier.name}</strong>
+                        <p>{selectedLongevityTier.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group full">
+                        <label htmlFor="longevity-description">Description *</label>
+                        <textarea
+                          id="longevity-description"
+                          placeholder="e.g., Earned by being onchain for 100+ days"
+                          value={badgeForm.description}
+                          onChange={(e) =>
+                            setBadgeForm({ ...badgeForm, description: e.target.value })
+                          }
+                          required
+                          rows="3"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="longevity-image">Badge Image *</label>
+                        <input
+                          id="longevity-image"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleBadgeImageUpload}
+                        />
+                      </div>
+                      <div className="admin-form-group">
+                        <label htmlFor="longevity-image-uri">Image URI *</label>
+                        <input
+                          id="longevity-image-uri"
+                          type="text"
+                          placeholder="ipfs://... or https://..."
+                          value={badgeForm.imageUri}
+                          onChange={(e) =>
+                            setBadgeForm({ ...badgeForm, imageUri: e.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {badgeImagePreview && (
+                      <div className="admin-image-preview">
+                        <img src={badgeImagePreview} alt="Badge preview" />
+                      </div>
+                    )}
+
+                    <div className="admin-form-actions">
+                      <button
+                        type="submit"
+                        className="admin-btn admin-btn-primary"
+                        disabled={badgeBusy}
+                      >
+                        {badgeBusy ? '⏳ Creating...' : '📅 Create Longevity Badge'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="badge-tiers-grid">
+                  <h3>Available Longevity Tiers</h3>
+                  <div className="tiers-list">
+                    {LONGEVITY_BADGE_TIERS.map((tier) => (
+                      <div key={tier.days} className="tier-card">
+                        <span className="tier-emoji">{tier.emoji}</span>
+                        <strong>{tier.name}</strong>
+                        <p>{tier.days}+ days onchain</p>
+                        <p className="tier-desc">{tier.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Roles & Permissions Tab */}
+            {badgeSubTab === 'roles' && (
+              <div className="badge-tab-content">
+                <div className="admin-form-section">
+                  <h2>Create Badge Role</h2>
+                  <p className="section-description">Group badges together as roles for permission management</p>
+                  
+                  <form onSubmit={(e) => { e.preventDefault(); handleAddRole(); }} className="admin-form">
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="role-name">Role Name *</label>
+                        <input
+                          id="role-name"
+                          type="text"
+                          placeholder="e.g., VIP Member"
+                          value={newRoleForm.name}
+                          onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group full">
+                        <label htmlFor="role-description">Description *</label>
+                        <textarea
+                          id="role-description"
+                          placeholder="e.g., Users with premium badges"
+                          value={newRoleForm.description}
+                          onChange={(e) => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
+                          required
+                          rows="2"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="admin-form-row">
+                      <div className="admin-form-group full">
+                        <label>Select Badges for This Role *</label>
+                        <div className="badges-checkbox-list">
+                          {onChainBadges.map((badge) => (
+                            <label key={badge.id} className="admin-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={newRoleForm.badgeIds.includes(badge.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setNewRoleForm({
+                                      ...newRoleForm,
+                                      badgeIds: [...newRoleForm.badgeIds, badge.id],
+                                    });
+                                  } else {
+                                    setNewRoleForm({
+                                      ...newRoleForm,
+                                      badgeIds: newRoleForm.badgeIds.filter((id) => id !== badge.id),
+                                    });
+                                  }
+                                }}
+                              />
+                              <span>{badge.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                        {onChainBadges.length === 0 && <p className="help-text">No badges available yet</p>}
+                      </div>
+                    </div>
+
+                    <div className="admin-form-actions">
+                      <button type="submit" className="admin-btn admin-btn-primary">
+                        ➕ Create Role
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="admin-list-section">
+                  <h2>Existing Roles</h2>
+                  {badgeRoles.length === 0 ? (
+                    <div className="admin-empty-state">No roles created yet</div>
+                  ) : (
+                    <div className="admin-list">
+                      {badgeRoles.map((role) => (
+                        <div key={role.id} className="admin-list-item">
+                          <div className="admin-item-header">
+                            <strong>{role.name}</strong>
+                          </div>
+                          <div className="admin-item-details">
+                            <p>{role.description}</p>
+                            <p><span>Badges:</span> {role.badgeIds.length} badge(s)</p>
+                            <p className="admin-item-date">Created {new Date(role.createdAt).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Check Eligibility Tab */}
+            {badgeSubTab === 'eligibility' && (
+              <div className="badge-tab-content">
+                <div className="admin-form-section">
+                  <h2>Check User Eligibility</h2>
+                  <p className="section-description">Verify if a user qualifies for activity and longevity badges</p>
+                  
+                  <form onSubmit={(e) => { e.preventDefault(); handleCheckEligibility(); }} className="admin-form">
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="check-address">Wallet Address *</label>
+                        <input
+                          id="check-address"
+                          type="text"
+                          placeholder="0x..."
+                          value={eligibilityCheckAddress}
+                          onChange={(e) => setEligibilityCheckAddress(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="admin-form-actions">
+                      <button
+                        type="submit"
+                        className="admin-btn admin-btn-primary"
+                        disabled={checkingEligibility}
+                      >
+                        {checkingEligibility ? '⏳ Checking...' : '✅ Check Eligibility'}
+                      </button>
+                    </div>
+                  </form>
+
+                  {eligibilityReport && (
+                    <div className="eligibility-report">
+                      <h3>Eligibility Report</h3>
+                      <div className="report-stats">
+                        <div className="stat">
+                          <strong>Transactions</strong>
+                          <span className="stat-value">{eligibilityReport.transactionCount}</span>
+                        </div>
+                        <div className="stat">
+                          <strong>Days Onchain</strong>
+                          <span className="stat-value">{eligibilityReport.daysOnchain}</span>
+                        </div>
+                        {eligibilityReport.firstTransactionDate && (
+                          <div className="stat">
+                            <strong>First Transaction</strong>
+                            <span className="stat-value">{eligibilityReport.firstTransactionDate.toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <h4>Activity Badge Eligibility</h4>
+                      <div className="eligibility-badges">
+                        {ACTIVITY_BADGE_TIERS.map((tier) => {
+                          const eligible = eligibilityReport.transactionCount >= tier.count;
+                          return (
+                            <div key={tier.count} className={`eligibility-badge ${eligible ? 'eligible' : ''}`}>
+                              <span className="badge-emoji">{tier.emoji}</span>
+                              <span className="badge-name">{tier.name}</span>
+                              <span className="badge-requirement">({tier.count}+)</span>
+                              <span className={`badge-status ${eligible ? 'success' : 'pending'}`}>
+                                {eligible ? '✓ Eligible' : '✗ Not Yet'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <h4>Longevity Badge Eligibility</h4>
+                      <div className="eligibility-badges">
+                        {LONGEVITY_BADGE_TIERS.map((tier) => {
+                          const eligible = eligibilityReport.daysOnchain >= tier.days;
+                          return (
+                            <div key={tier.days} className={`eligibility-badge ${eligible ? 'eligible' : ''}`}>
+                              <span className="badge-emoji">{tier.emoji}</span>
+                              <span className="badge-name">{tier.name}</span>
+                              <span className="badge-requirement">({tier.days}d)</span>
+                              <span className={`badge-status ${eligible ? 'success' : 'pending'}`}>
+                                {eligible ? '✓ Eligible' : '✗ Not Yet'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

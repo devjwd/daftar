@@ -41,6 +41,10 @@ export default function More() {
     window.open('https://docs.movementnetwork.xyz/', '_blank');
   };
 
+  const handleLevelClick = () => {
+    navigate('/level');
+  };
+
   const handleSupportClick = () => {
     window.open('https://discord.gg/movementlabsxyz', '_blank');
   };
@@ -56,6 +60,17 @@ export default function More() {
         </div>
 
         <div className="more-options">
+          <button className="more-option" onClick={handleLevelClick}>
+            <div className="more-option-left">
+              <div className="more-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17 7H7V3H17V7ZM5 9H19V11H5V9ZM7 13H17V21H7V13Z" fill="currentColor"/>
+                </svg>
+              </div>
+              <span>Level</span>
+            </div>
+            <div className="more-option-right">→</div>
+          </button>
           <button className="more-option" onClick={handleSupportClick}>
             <div className="more-option-left">
               <div className="more-icon">
