@@ -57,14 +57,45 @@ const SWAP_ROUTES = [
 // Common token addresses on Movement Network
 const TOKEN_ADDRESSES = {
   MOVE: "0x1::aptos_coin::AptosCoin",
-  USDC: "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC",
-  USDT: "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDT",
-  WETH: "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::WETH",
-  WBTC: "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::WBTC",
+  USDC: "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39::asset::USDC",
+  USDT: "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d::asset::USDT",
+  WETH: "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376::asset::WETH",
+  WBTC: "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c::asset::WBTC",
+};
+
+const TOKEN_LOGOS = {
+  MOVE: "/movement-logo.svg",
+  USDC: "/usdc.png",
+  USDT: "/usdt.png",
+  WETH: "/ETH.png",
+  WBTC: "/BTC.png",
+  CAPY: "/capy.png",
+  MOVECAT: "/movecat.jfif",
+  LBTC: "/LBTC.webp",
+  EZETH: "/ezETH.webp",
+  RSETH: "/rsETH.webp",
+  SOLVBTC: "/SolvBTC.webp",
+  USDE: "/USDe.webp",
+  USDA: "/USDa.webp",
+  WEETH: "/weETH.webp",
 };
 
 const DEFAULT_SLIPPAGE = 0.5;
 const DEFAULT_DECIMALS = 8;
+
+const normalizeTokenSymbol = (symbol) => {
+  const normalized = String(symbol || "").trim().toUpperCase().replace(/\.E$/i, "");
+  if (normalized === "ETH") return "WETH";
+  if (normalized === "BTC") return "WBTC";
+  return normalized;
+};
+
+const extractAddressFromType = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "";
+  if (raw.includes("::")) return raw.split("::")[0];
+  return raw;
+};
 
 const Swap = ({ balances }) => {
   const { account, connected, signAndSubmitTransaction } = useWallet();
@@ -124,22 +155,38 @@ const Swap = ({ balances }) => {
    */
   const getTokenType = useCallback((token) => {
     if (!token) return null;
-    
-    // If token already has fullType, use it
-    if (token.fullType) return token.fullType;
-    
-    // Check if it's a known token
-    const symbol = token.symbol?.toUpperCase();
+
+    // Prefer full type from balance data when available
+    if (token.fullType && String(token.fullType).includes("::")) {
+      return token.fullType;
+    }
+
+    // Resolve by normalized symbol (supports ETH/BTC and .e forms)
+    const symbol = normalizeTokenSymbol(token.symbol);
     if (TOKEN_ADDRESSES[symbol]) return TOKEN_ADDRESSES[symbol];
-    
-    // Use address as fallback
+
+    // Use address when it is already a full type
+    if (token.address && String(token.address).includes("::")) {
+      return token.address;
+    }
+
+    // Last-resort fallback for unknown tokens
     return token.address || null;
+  }, []);
+
+  const getTokenLogo = useCallback((token) => {
+    const symbol = normalizeTokenSymbol(token?.symbol);
+    if (!symbol) return null;
+    return TOKEN_LOGOS[symbol] || null;
   }, []);
 
   // Available tokens from user's balance - filtered to only verified tokens
   // Also includes all verified tokens from registry even if user has no balance
   const availableTokens = useMemo(() => {
     const tokensMap = new Map();
+    const registryBySymbol = new Map(
+      Object.values(MOVEMENT_TOKENS).map((tokenInfo) => [normalizeTokenSymbol(tokenInfo.symbol), tokenInfo])
+    );
     
     // First, add all verified tokens from MOVEMENT_TOKENS registry
     Object.entries(MOVEMENT_TOKENS).forEach(([address, tokenInfo]) => {
@@ -169,11 +216,23 @@ const Swap = ({ balances }) => {
     // Then overlay user's actual balances
     if (balances && balances.length > 0) {
       balances.forEach(balance => {
-        const tokenInfo = getTokenInfo(balance.address || balance.fullType);
+        const extractedAddress = extractAddressFromType(balance.address || balance.fullType);
+        const normalizedSymbol = normalizeTokenSymbol(balance.symbol);
+        const tokenInfo = getTokenInfo(extractedAddress) || registryBySymbol.get(normalizedSymbol);
+
         if (tokenInfo?.verified && balance.symbol) {
-          tokensMap.set(balance.symbol, {
+          const balanceFullType = String(balance.fullType || "");
+          const resolvedType = balanceFullType.includes("::")
+            ? balanceFullType
+            : TOKEN_ADDRESSES[normalizedSymbol] || extractedAddress;
+
+          tokensMap.set(tokenInfo.symbol || balance.symbol, {
             ...balance,
-            id: balance.symbol,
+            id: tokenInfo.symbol || balance.symbol,
+            symbol: tokenInfo.symbol || balance.symbol,
+            address: extractedAddress || tokenInfo.address,
+            fullType: resolvedType,
+            decimals: tokenInfo.decimals || balance.decimals,
           });
         }
       });
@@ -212,6 +271,9 @@ const Swap = ({ balances }) => {
     try {
       const srcAsset = getTokenType(fromToken);
       const dstAsset = getTokenType(toToken);
+      if (!srcAsset || !dstAsset || !String(srcAsset).includes("::") || !String(dstAsset).includes("::")) {
+        throw new Error("Unsupported token route for selected pair");
+      }
       const fromDecimals = getDecimals(fromToken);
       const amountInSmallest = toSmallestUnit(fromAmount, fromDecimals);
       const senderAddress = account?.address?.toString() || "";
@@ -231,7 +293,7 @@ const Swap = ({ balances }) => {
           srcAsset,
           dstAsset,
           amount: amountInSmallest,
-          slippage: (slippage * 100).toString(), // Convert to basis points
+          slippage: slippage.toString(),
           sender: senderAddress,
           receiver: senderAddress,
         });
@@ -514,6 +576,11 @@ const Swap = ({ balances }) => {
   const SettingsModal = () => {
     if (!showSettings) return null;
     const presetSlippages = [0.1, 0.5, 1.0, 3.0];
+    const setClampedSlippage = (value) => {
+      const parsed = parseFloat(value);
+      if (Number.isNaN(parsed)) return;
+      setSlippage(Math.max(0.01, Math.min(50, parsed)));
+    };
 
     return (
       <div className="settings-overlay" onClick={() => setShowSettings(false)}>
@@ -523,7 +590,10 @@ const Swap = ({ balances }) => {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="settings-icon">
                 <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor"/>
               </svg>
-              <h3>Swap Settings</h3>
+              <div className="settings-title-group">
+                <h3>Swap Settings</h3>
+                <p className="settings-subtitle">Control routing and execution tolerance</p>
+              </div>
             </div>
             <button className="close-btn" onClick={() => setShowSettings(false)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -532,139 +602,83 @@ const Swap = ({ balances }) => {
               </svg>
             </button>
           </div>
-          
-          <div className="settings-section">
-            <label>Select Router</label>
-            <div className="router-selector">
-              {SWAP_ROUTES.map((routeItem) => (
-                <button
-                  key={routeItem.id}
-                  className={`router-option ${selectedRouter === routeItem.id ? "active" : ""}`}
-                  onClick={() => setSelectedRouter(routeItem.id)}
-                >
-                  <div className="router-icon">
-                    {routeItem.id === 'mosaic' ? (
-                      <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-                        <defs>
-                          <linearGradient id="mosaicGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style={{stopColor: '#3b82f6', stopOpacity: 1}} />
-                            <stop offset="100%" style={{stopColor: '#9333ea', stopOpacity: 1}} />
-                          </linearGradient>
-                        </defs>
-                        <circle cx="16" cy="16" r="15" fill="url(#mosaicGradient)" opacity="0.15"/>
-                        <path d="M12 10h3v3h-3zm5 0h3v3h-3zm-5 5h3v3h-3zm5 0h3v3h-3zm-5 5h3v3h-3zm5 0h3v3h-3z" fill="url(#mosaicGradient)"/>
-                        <rect x="12" y="10" width="3" height="3" rx="0.5" fill="url(#mosaicGradient)" opacity="0.9"/>
-                        <rect x="17" y="10" width="3" height="3" rx="0.5" fill="url(#mosaicGradient)" opacity="0.9"/>
-                        <rect x="12" y="15" width="3" height="3" rx="0.5" fill="url(#mosaicGradient)"/>
-                        <rect x="17" y="15" width="3" height="3" rx="0.5" fill="url(#mosaicGradient)"/>
-                        <rect x="12" y="20" width="3" height="3" rx="0.5" fill="url(#mosaicGradient)" opacity="0.9"/>
-                        <rect x="17" y="20" width="3" height="3" rx="0.5" fill="url(#mosaicGradient)" opacity="0.9"/>
-                      </svg>
-                    ) : (
-                      <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-                        <defs>
-                          <linearGradient id="yuzuGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style={{stopColor: '#fbbf24', stopOpacity: 1}} />
-                            <stop offset="100%" style={{stopColor: '#f59e0b', stopOpacity: 1}} />
-                          </linearGradient>
-                        </defs>
-                        <circle cx="16" cy="16" r="15" fill="url(#yuzuGradient)" opacity="0.15"/>
-                        <circle cx="16" cy="16" r="9" fill="url(#yuzuGradient)" opacity="0.2"/>
-                        <path d="M16 8c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z" fill="url(#yuzuGradient)"/>
-                        <circle cx="16" cy="16" r="2.5" fill="url(#yuzuGradient)"/>
-                        <path d="M13 13l-1.5-1.5M19 13l1.5-1.5M13 19l-1.5 1.5M19 19l1.5 1.5" stroke="url(#yuzuGradient)" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
-                    )}
-                  </div>
-                  <div className="router-info">
-                    <span className="router-name">{routeItem.name}</span>
-                    <span className="router-tag">{routeItem.tag}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="settings-section">
-            <label>Slippage Tolerance</label>
-            <div className="slippage-options">
-              {presetSlippages.map((s) => (
-                <button
-                  key={s}
-                  className={`slippage-btn ${slippage === s ? "active" : ""}`}
-                  onClick={() => setSlippage(s)}
-                >
-                  {s}%
-                </button>
-              ))}
-              <div className="slippage-custom">
-                <input
-                  type="number"
-                  value={slippage}
-                  onChange={(e) => setSlippage(Math.max(0.01, Math.min(50, parseFloat(e.target.value) || 0.5)))}
-                  step="0.1"
-                  min="0.01"
-                  max="50"
-                />
-                <span>%</span>
+          <div className="settings-body">
+            <div className="settings-section">
+              <div className="settings-section-head">
+                <label>Routing</label>
+                <span className="settings-hint">Choose your preferred execution source</span>
+              </div>
+              <div className="router-selector">
+                {SWAP_ROUTES.map((routeItem) => (
+                  <button
+                    key={routeItem.id}
+                    className={`router-option ${selectedRouter === routeItem.id ? "active" : ""}`}
+                    onClick={() => setSelectedRouter(routeItem.id)}
+                  >
+                    <div className="router-icon">{routeItem.id === "mosaic" ? "🔷" : "🍋"}</div>
+                    <div className="router-info">
+                      <span className="router-name">{routeItem.name}</span>
+                      <span className="router-tag">{routeItem.tag}</span>
+                    </div>
+                    <span className="router-status">{selectedRouter === routeItem.id ? "Selected" : "Use"}</span>
+                  </button>
+                ))}
               </div>
             </div>
-            {slippage > 5 && (
-              <div className="slippage-warning">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{marginRight: '6px'}}>
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z"/>
-                </svg>
-                High slippage may result in unfavorable rates
-              </div>
-            )}
-          </div>
 
-          <div className="settings-section routes-info">
-            <label>Available Routes</label>
-            <div className="route-list">
-              {SWAP_ROUTES.map((routeItem) => (
-                <div key={routeItem.id} className={`route-badge ${routeItem.id}`}>
-                  <div className="route-icon">
-                    {routeItem.id === 'mosaic' ? (
-                      <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                        <defs>
-                          <linearGradient id="mosaicGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style={{stopColor: '#3b82f6', stopOpacity: 1}} />
-                            <stop offset="100%" style={{stopColor: '#9333ea', stopOpacity: 1}} />
-                          </linearGradient>
-                        </defs>
-                        <circle cx="16" cy="16" r="15" fill="url(#mosaicGradient2)" opacity="0.15"/>
-                        <rect x="12" y="10" width="3" height="3" rx="0.5" fill="url(#mosaicGradient2)" opacity="0.9"/>
-                        <rect x="17" y="10" width="3" height="3" rx="0.5" fill="url(#mosaicGradient2)" opacity="0.9"/>
-                        <rect x="12" y="15" width="3" height="3" rx="0.5" fill="url(#mosaicGradient2)"/>
-                        <rect x="17" y="15" width="3" height="3" rx="0.5" fill="url(#mosaicGradient2)"/>
-                        <rect x="12" y="20" width="3" height="3" rx="0.5" fill="url(#mosaicGradient2)" opacity="0.9"/>
-                        <rect x="17" y="20" width="3" height="3" rx="0.5" fill="url(#mosaicGradient2)" opacity="0.9"/>
-                      </svg>
-                    ) : (
-                      <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                        <defs>
-                          <linearGradient id="yuzuGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style={{stopColor: '#fbbf24', stopOpacity: 1}} />
-                            <stop offset="100%" style={{stopColor: '#f59e0b', stopOpacity: 1}} />
-                          </linearGradient>
-                        </defs>
-                        <circle cx="16" cy="16" r="15" fill="url(#yuzuGradient2)" opacity="0.15"/>
-                        <circle cx="16" cy="16" r="9" fill="url(#yuzuGradient2)" opacity="0.2"/>
-                        <path d="M16 8c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z" fill="url(#yuzuGradient2)"/>
-                        <circle cx="16" cy="16" r="2.5" fill="url(#yuzuGradient2)"/>
-                        <path d="M13 13l-1.5-1.5M19 13l1.5-1.5M13 19l-1.5 1.5M19 19l1.5 1.5" stroke="url(#yuzuGradient2)" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
-                    )}
-                  </div>
-                  <span className="route-name">{routeItem.name}</span>
-                  <span className={`route-tag ${routeItem.id}`}>{routeItem.tag}</span>
+            <div className="settings-section">
+              <div className="settings-section-head">
+                <label>Slippage Tolerance</label>
+                <span className="settings-hint">Current: {slippage}%</span>
+              </div>
+              <div className="slippage-options">
+                {presetSlippages.map((value) => (
+                  <button
+                    key={value}
+                    className={`slippage-btn ${Math.abs(slippage - value) < 0.000001 ? "active" : ""}`}
+                    onClick={() => setSlippage(value)}
+                  >
+                    {value}%
+                  </button>
+                ))}
+              </div>
+              <div className="slippage-custom-row">
+                <div className="slippage-custom">
+                  <input
+                    type="number"
+                    value={slippage}
+                    onChange={(e) => setClampedSlippage(e.target.value)}
+                    step="0.1"
+                    min="0.01"
+                    max="50"
+                  />
+                  <span>%</span>
                 </div>
-              ))}
+              </div>
+              {slippage > 5 && (
+                <div className="slippage-warning">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z"/>
+                  </svg>
+                  High slippage may result in unfavorable execution.
+                </div>
+              )}
             </div>
-            <p className="route-description">
-              Mosaic aggregates liquidity across Movement Network DEXs and can route through Yuzu when available for best execution.
-            </p>
+
+            <div className="settings-footer">
+              <button
+                className="settings-reset-btn"
+                onClick={() => {
+                  setSlippage(DEFAULT_SLIPPAGE);
+                  setSelectedRouter("mosaic");
+                }}
+              >
+                Reset
+              </button>
+              <button className="settings-save-btn" onClick={() => setShowSettings(false)}>
+                Done
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -725,7 +739,15 @@ const Swap = ({ balances }) => {
                     }}
                   >
                     <div className="token-option-left">
-                      <div className="token-icon-small">{token.symbol?.charAt(0).toUpperCase() || "?"}</div>
+                      {getTokenLogo(token) ? (
+                        <img
+                          src={getTokenLogo(token)}
+                          alt={`${token.symbol} logo`}
+                          className="token-logo-small"
+                        />
+                      ) : (
+                        <div className="token-icon-small">{token.symbol?.charAt(0).toUpperCase() || "?"}</div>
+                      )}
                       <div className="token-option-info">
                         <div className="token-option-symbol">{token.symbol}</div>
                         <div className="token-option-name">{token.name}</div>
@@ -827,7 +849,15 @@ const Swap = ({ balances }) => {
                   <button className="swap-token-selector" onClick={() => setShowFromSelector(true)}>
                     {fromToken ? (
                       <>
-                        <span className="token-icon-mini">{fromToken.symbol?.charAt(0).toUpperCase()}</span>
+                        {getTokenLogo(fromToken) ? (
+                          <img
+                            src={getTokenLogo(fromToken)}
+                            alt={`${fromToken.symbol} logo`}
+                            className="token-logo-mini"
+                          />
+                        ) : (
+                          <span className="token-icon-mini">{fromToken.symbol?.charAt(0).toUpperCase()}</span>
+                        )}
                         <span className="token-symbol">{fromToken.symbol}</span>
                         <span className="dropdown-arrow">▼</span>
                       </>
@@ -869,7 +899,15 @@ const Swap = ({ balances }) => {
                   <button className="swap-token-selector" onClick={() => setShowToSelector(true)}>
                     {toToken ? (
                       <>
-                        <span className="token-icon-mini">{toToken.symbol?.charAt(0).toUpperCase()}</span>
+                        {getTokenLogo(toToken) ? (
+                          <img
+                            src={getTokenLogo(toToken)}
+                            alt={`${toToken.symbol} logo`}
+                            className="token-logo-mini"
+                          />
+                        ) : (
+                          <span className="token-icon-mini">{toToken.symbol?.charAt(0).toUpperCase()}</span>
+                        )}
                         <span className="token-symbol">{toToken.symbol}</span>
                         <span className="dropdown-arrow">▼</span>
                       </>

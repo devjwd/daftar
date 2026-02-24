@@ -491,6 +491,73 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     website: null
   };
 
+  const LP_TOKEN_COLORS = {
+    MOVE: '#d4a574',
+    USDC: '#2775ca',
+    USDT: '#26a17b',
+    ETH: '#627eea',
+    WETH: '#627eea',
+    BTC: '#f7931a',
+    WBTC: '#f7931a',
+    CAPY: '#ff6b9d',
+    MOVECAT: '#9b59b6',
+    LBTC: '#f7931a',
+    EZETH: '#00d395',
+    RSETH: '#4caf50',
+    SOLVBTC: '#f7931a',
+    USDE: '#171717',
+    USDA: '#2196f3',
+    WEETH: '#7c3aed',
+  };
+
+  const getTokenTextColor = (rawSymbol) => {
+    if (!rawSymbol) return null;
+    const normalized = rawSymbol
+      .toString()
+      .toUpperCase()
+      .replace(/[^A-Z0-9.]/g, '');
+
+    const withoutSuffix = normalized.replace(/\.E$/i, '');
+    const withoutCvPrefix = withoutSuffix.replace(/^CV/, '');
+    const withoutLPrefix = withoutCvPrefix.replace(/^L/, '');
+
+    return (
+      LP_TOKEN_COLORS[withoutLPrefix] ||
+      LP_TOKEN_COLORS[withoutCvPrefix] ||
+      LP_TOKEN_COLORS[withoutSuffix] ||
+      LP_TOKEN_COLORS[normalized] ||
+      null
+    );
+  };
+
+  const renderColoredTokenText = (value) => {
+    if (typeof value !== 'string' || !value) return value;
+
+    const pieces = value.split(/(\s+|\/|\+|,|:|\(|\))/g).filter((piece) => piece !== '');
+    const NON_TOKEN_WORDS = new Set(['LP', 'TOKEN', 'POSITION', 'NOT', 'AVAILABLE', 'ASSET']);
+
+    return pieces.map((piece, index) => {
+      const trimmed = piece.trim();
+      if (!trimmed) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
+
+      const normalized = trimmed.replace(/[^A-Za-z0-9.]/g, '');
+      const hasLetters = /[A-Za-z]/.test(normalized);
+      if (!hasLetters) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
+
+      const upper = normalized.toUpperCase();
+      if (NON_TOKEN_WORDS.has(upper)) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
+
+      const color = getTokenTextColor(upper);
+      if (!color) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
+
+      return (
+        <span key={`lp-txt-${index}`} className="lp-token-colored" style={{ color }}>
+          {piece}
+        </span>
+      );
+    });
+  };
+
   // Check if this position was deposited through Canopy (has Canopy vault tokens)
   const isCanopyDeposit = position.protocol === 'canopy' || 
     position.symbol?.startsWith('cv') || 
@@ -605,6 +672,41 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
       )
     : '';
 
+  const isPoolStylePrimary = position.isNFT || position.protocol === 'meridian';
+  const primaryLabel = isPoolStylePrimary ? 'Pool' : 'Balance';
+  const primaryValue = position.isNFT
+    ? (position.name || 'LP Position')
+    : (position.protocol === 'meridian' ? meridianPoolLabel : formatValue(position.amount));
+  const secondaryLabel = position.isNFT ? 'Position' : 'Underlying Asset';
+  const secondaryValue = position.isNFT
+    ? `#${position.positionId || position.tokenDataId?.slice(-8) || 'NFT'}`
+    : (position.underlying || position.symbol?.replace('cv', '').replace('l', '') || 'MOVE');
+
+  let detailLabel = 'Underlying';
+  let detailValue = position.underlying || position.symbol?.replace('cv', '').replace('l', '') || 'Not available';
+
+  if (position.isNFT && position.protocol === 'yuzu' && (position.token0Amount > 0 || position.token1Amount > 0)) {
+    detailLabel = 'Token Amounts';
+    detailValue = `${position.token0Amount > 0 ? `${formatValue(position.token0Amount)} ${position.name?.split(' / ')[0] || 'Token0'}` : ''}${position.token0Amount > 0 && position.token1Amount > 0 ? ' + ' : ''}${position.token1Amount > 0 ? `${formatValue(position.token1Amount)} ${position.name?.split(' / ')[1] || 'Token1'}` : ''}`;
+  } else if (position.protocol === 'meridian' && Array.isArray(position.poolTokens) && position.poolTokens.length > 0) {
+    detailLabel = 'Token Composition';
+    detailValue = position.poolTokens
+      .map((token) => `${formatValue(token.amount)} ${token.symbol || 'Token'}`)
+      .join(' + ');
+  } else if (
+    position.protocol === 'meridian' &&
+    (!Array.isArray(position.poolTokens) || position.poolTokens.length === 0) &&
+    (position.liquidityX > 0 || position.liquidityY > 0)
+  ) {
+    detailLabel = 'Token Composition';
+    detailValue = `${position.liquidityX > 0 ? `${formatValue(position.liquidityX / 1000000)} ${position.tokenX || 'Token X'}` : ''}${position.liquidityX > 0 && position.liquidityY > 0 ? ' + ' : ''}${position.liquidityY > 0 ? `${formatValue(position.liquidityY / 1000000)} ${position.tokenY || 'Token Y'}` : ''}`;
+  }
+
+  const isLongDetailValue = detailLabel === 'Token Amounts' || detailLabel === 'Token Composition';
+  const colorizePrimaryValue = isPoolStylePrimary;
+  const colorizeDetailValue = detailLabel === 'Token Amounts' || detailLabel === 'Token Composition' || detailLabel === 'Underlying';
+  const colorizeSecondaryValue = secondaryLabel === 'Underlying Asset';
+
   return (
     <div 
       className="lp-card" 
@@ -626,119 +728,66 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
           />
         </div>
         <div className="lp-card-info">
-          <h4 className="lp-card-name">{protocol.name}</h4>
-          <div className="lp-card-type-row">
+          <h4 className="lp-card-name" title={protocol.name}>{protocol.name}</h4>
+          <div className="lp-card-subline">
             <span className="lp-card-type">{protocol.type}</span>
-            {isCanopyDeposit && position.protocol !== 'canopy' && (
-              <span className="lp-card-tag canopy">via Canopy</span>
-            )}
+            <span className="lp-card-dot">•</span>
+            <span className="lp-card-symbol" title={position.symbol}>{position.symbol}</span>
           </div>
-        </div>
-        <div className="lp-card-actions">
-          <div className="lp-card-badge">
-            <span>{position.symbol}</span>
-          </div>
-          {protocol.website && (
-            <a 
-              href={protocol.website} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="lp-card-link"
-              title={`Open ${protocol.name}`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                <polyline points="15 3 21 3 21 9"/>
-                <line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
-            </a>
+          {(position.isNFT || (isCanopyDeposit && position.protocol !== 'canopy')) && (
+            <div className="lp-card-flags">
+              {position.isNFT && <span className="lp-card-flag">NFT</span>}
+              {isCanopyDeposit && position.protocol !== 'canopy' && <span className="lp-card-flag">via Canopy</span>}
+            </div>
           )}
         </div>
+        {protocol.website && (
+          <a 
+            href={protocol.website} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="lp-card-link"
+            title={`Open ${protocol.name}`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+        )}
       </div>
 
       {/* Body */}
       <div className="lp-card-body">
         <div className="lp-card-stats-row">
           <div className="lp-card-stat">
-            <span className="lp-card-stat-label">{position.isNFT || position.protocol === 'meridian' ? 'Pool' : 'Balance'}</span>
-            <span className="lp-card-stat-value">
-              {position.isNFT
-                ? position.name
-                : (position.protocol === 'meridian' ? meridianPoolLabel : formatValue(position.amount))}
+            <span className="lp-card-stat-label">{primaryLabel}</span>
+            <span className={`lp-card-stat-value ${isPoolStylePrimary ? 'text' : ''}`} title={primaryValue}>
+              {colorizePrimaryValue ? renderColoredTokenText(primaryValue) : primaryValue}
             </span>
           </div>
           <div className="lp-card-stat">
             <span className="lp-card-stat-label">Liquidity</span>
-            <span className="lp-card-stat-value highlight">
+            <span className={`lp-card-stat-value highlight ${usdValue > 0 ? '' : 'na'}`}>
               {usdValue > 0 ? formatUsd(usdValue) : 'Price N/A'}
             </span>
           </div>
         </div>
-        
-        {/* Show token amounts for Yuzu NFT positions */}
-        {position.isNFT && position.protocol === 'yuzu' && (position.token0Amount > 0 || position.token1Amount > 0) && (
-          <div className="lp-card-stat lp-card-token-amounts">
-            <span className="lp-card-stat-label">Token Amounts</span>
-            <span className="lp-card-stat-value small">
-              {position.token0Amount > 0 && `${formatValue(position.token0Amount)} ${position.name?.split(' / ')[0] || 'Token0'}`}
-              {position.token0Amount > 0 && position.token1Amount > 0 && ' + '}
-              {position.token1Amount > 0 && `${formatValue(position.token1Amount)} ${position.name?.split(' / ')[1] || 'Token1'}`}
+
+        <div className="lp-card-details">
+          <div className={`lp-card-detail-row ${isLongDetailValue ? 'long' : ''}`}>
+            <span className="lp-card-stat-label">{detailLabel}</span>
+            <span className={`lp-card-stat-value small ${detailValue === 'Not available' ? 'muted' : ''} ${isLongDetailValue ? 'wrap' : ''}`} title={detailValue}>
+              {colorizeDetailValue ? renderColoredTokenText(detailValue) : detailValue}
             </span>
           </div>
-        )}
-
-        {/* Show token composition for Meridian LP positions */}
-        {position.protocol === 'meridian' && Array.isArray(position.poolTokens) && position.poolTokens.length > 0 && (
-          <div className="lp-card-stat lp-card-token-amounts">
-            <span className="lp-card-stat-label">Token Composition</span>
-            <span className="lp-card-stat-value small">
-              {position.poolTokens
-                .map((token) => `${formatValue(token.amount)} ${token.symbol || 'Token'}`)
-                .join(' + ')}
+          <div className="lp-card-detail-row">
+            <span className="lp-card-stat-label">{secondaryLabel}</span>
+            <span className="lp-card-stat-value small" title={secondaryValue}>
+              {colorizeSecondaryValue ? renderColoredTokenText(secondaryValue) : secondaryValue}
             </span>
           </div>
-        )}
-
-        {position.protocol === 'meridian' && (!Array.isArray(position.poolTokens) || position.poolTokens.length === 0) && (position.liquidityX > 0 || position.liquidityY > 0) && (
-          <div className="lp-card-stat lp-card-token-amounts">
-            <span className="lp-card-stat-label">Token Composition</span>
-            <span className="lp-card-stat-value small">
-              {position.liquidityX > 0 && `${formatValue(position.liquidityX / 1000000)} ${position.tokenX || 'Token X'}`}
-              {position.liquidityX > 0 && position.liquidityY > 0 && ' + '}
-              {position.liquidityY > 0 && `${formatValue(position.liquidityY / 1000000)} ${position.tokenY || 'Token Y'}`}
-            </span>
-          </div>
-        )}
-
-      </div>
-
-      {/* Footer */}
-      <div className="lp-card-footer">
-        <div className="lp-card-underlying">
-          <span className="lp-card-underlying-label">
-            {position.isNFT ? 'Position' : 'Underlying Asset'}
-          </span>
-          <span className="lp-card-underlying-value">
-            {position.isNFT 
-              ? `#${position.positionId || position.tokenDataId?.slice(-8) || 'NFT'}` 
-              : (position.underlying || position.symbol?.replace('cv', '').replace('l', '') || 'MOVE')}
-          </span>
-        </div>
-        <div className="lp-card-badges">
-          {position.isNFT && (
-            <div className="lp-card-nft-badge">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
-              <span>NFT Position</span>
-            </div>
-          )}
-          {isCanopyDeposit && (
-            <div className="lp-card-canopy-badge">
-              <img src="/canopy.png" alt="Canopy" onError={(e) => { e.target.style.display = 'none'; }} />
-              <span>Canopy</span>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -2220,7 +2269,7 @@ const Dashboard = () => {
                 {viewingAddress && (
                   <div className="hero-profile-section">
                     <div className="hero-profile-card">
-                      {/* Profile Picture with Level Badge */}
+                      {/* Profile Picture */}
                       <div 
                         className="hero-profile-avatar"
                         onClick={() => setShowProfileModal(true)}
@@ -2233,9 +2282,6 @@ const Dashboard = () => {
                           alt="User" 
                           className="hero-avatar-image" 
                         />
-                        {!levelLoading && (
-                          <div className="hero-level-badge">{level}</div>
-                        )}
                       </div>
 
                       {/* Social Links */}

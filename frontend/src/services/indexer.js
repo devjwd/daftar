@@ -296,10 +296,13 @@ export const getRecentTransactions = async (address, limit = 30) => {
         order_by: { transaction_timestamp: desc }
         limit: $limit
       ) {
+        transaction_version
         transaction_timestamp
+        owner_address
         amount
         asset_type
         type
+        is_transaction_success
       }
     }
   `;

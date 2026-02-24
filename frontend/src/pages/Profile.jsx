@@ -102,12 +102,6 @@ export default function Profile() {
 
   return (
     <div className="profile-page">
-      <div className="page-nav">
-        <button onClick={() => navigate('/')} className="back-btn">
-          ← Back to Portfolio
-        </button>
-      </div>
-      
       {showSuccess && (
         <div className="success-banner">
           Profile saved successfully!
@@ -229,13 +223,18 @@ export default function Profile() {
             </div>
           </div>
 
-          <button
-            onClick={handleSave}
-            className="save-btn"
-            disabled={saving || uploadingImage}
-          >
-            {saving ? 'Saving...' : 'Save Profile'}
-          </button>
+          <div className="profile-actions">
+            <button
+              onClick={handleSave}
+              className="save-btn"
+              disabled={saving || uploadingImage}
+            >
+              {saving ? 'Saving...' : 'Save Profile'}
+            </button>
+            <button className="statement-btn" type="button">
+              Download Wallet Statement
+            </button>
+          </div>
           
           {error && (
             <div className="error-message">{error}</div>

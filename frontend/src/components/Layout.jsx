@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
+import { useUserLevel } from '../hooks/useUserLevel';
 import { formatAddress, isValidAddress } from '../utils/tokenUtils';
 import { getStoredLanguagePreference, t } from '../utils/language';
 import { getStoredThemePreference, resolveTheme } from '../utils/theme';
@@ -30,6 +31,8 @@ export default function Layout({ children }) {
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
   const searchTimeoutRef = useRef(null);
   const latestQueryRef = useRef("");
+  const passAddress = account?.address ? String(account.address) : null;
+  const { level: passLevel, loading: passLevelLoading } = useUserLevel(passAddress);
 
   const currentLogo = activeTheme === 'light' ? '/logo dark.png' : '/logo.png';
 
@@ -363,21 +366,7 @@ export default function Layout({ children }) {
 
                 {moreDropdownOpen && (
                   <div className="more-dropdown-menu" style={{ position: 'fixed', ...dropdownStyle }}>
-                    <button
-                      className="more-menu-item"
-                      onClick={() => {
-                        navigate('/level');
-                        setMoreDropdownOpen(false);
-                      }}
-                    >
-                      <div className="more-menu-icon">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M17 7H7V3H17V7ZM5 9H19V11H5V9ZM7 13H17V21H7V13Z" fill="currentColor"/>
-                        </svg>
-                      </div>
-                      <span>Level</span>
-                      <div className="more-menu-arrow">→</div>
-                    </button>
+
                     <button 
                       className="more-menu-item"
                       style={{ cursor: 'not-allowed', opacity: 0.6 }}
@@ -468,6 +457,7 @@ export default function Layout({ children }) {
                   </div>
                 )}
               </li>
+
             </ul>
           </div>
 
@@ -611,6 +601,18 @@ export default function Layout({ children }) {
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="nav-pass-inline">
+              <button
+                type="button"
+                className={`nav-pass-pill ${location.pathname === '/level' ? 'active' : ''}`}
+                onClick={() => navigate('/level')}
+                aria-label="Open level"
+              >
+                <span className="nav-pass-text">Level</span>
+                <span className="nav-pass-level">{passLevelLoading ? '•' : passLevel}</span>
+              </button>
             </div>
 
           {connected && account ? (

@@ -95,12 +95,6 @@ export default function Settings() {
 
   return (
     <div className="settings-page">
-      <div className="page-nav">
-        <button onClick={() => navigate('/')} className="back-btn">
-          ← {t(language, 'backToPortfolio')}
-        </button>
-      </div>
-      
       <div className="settings-container">
         <div className="settings-header">
           <h1>{t(language, 'settingsTitle')}</h1>
