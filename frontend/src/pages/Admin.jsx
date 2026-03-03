@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import './Admin.css';
@@ -10,9 +10,11 @@ import {
   exportAdminData,
   importAdminData,
   clearAllAdminData,
+  getSwapSettings,
+  updateSwapSettings,
 } from '../services/adminService';
 import { DEFAULT_NETWORK } from '../config/network';
-import { BADGE_RULES, BADGE_CATEGORIES, ACTIVITY_BADGE_TIERS, LONGEVITY_BADGE_TIERS, getRuleLabel } from '../config/badges';
+import { BADGE_RULES, BADGE_CATEGORIES, ACTIVITY_BADGE_TIERS, LONGEVITY_BADGE_TIERS } from '../config/badges';
 import {
   fetchBadges,
   fetchBadgeIds,
@@ -24,15 +26,7 @@ import {
   computeSha256Hex,
   ruleLabel,
 } from '../services/badgeService';
-import {
-  getTransactionCount,
-  getDaysOnchain,
-  checkActivityEligibility,
-  checkLongevityEligibility,
-  getEligibleActivityBadges,
-  getEligibleLongevityBadges,
-  getEligibilityReport,
-} from '../services/eligibilityService';
+import { getEligibilityReport } from '../services/eligibilityService';
 import { imageToBase64, compressImage } from '../services/profileService';
 import { isValidAddress } from '../utils/tokenUtils';
 
@@ -54,6 +48,7 @@ export default function Admin() {
   const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [badgeRoles, setBadgeRoles] = useState([]);
   const [newRoleForm, setNewRoleForm] = useState({ name: '', description: '', badgeIds: [] });
+  const [swapSettings, setSwapSettings] = useState(getSwapSettings());
 
   const movementClient = useMemo(
     () =>
@@ -92,30 +87,31 @@ export default function Admin() {
     minDaysOnchain: '7',
   });
 
-  // Load data on mount
-  useEffect(() => {
-    loadData();
-    loadBadges();
-    loadRoles();
+  const loadData = useCallback(() => {
+    setCustomTokens(getCustomTokens());
+    setSwapSettings(getSwapSettings());
   }, []);
 
-  const loadData = () => {
-    setCustomTokens(getCustomTokens());
-  };
-
-  const loadRoles = () => {
+  const loadRoles = useCallback(() => {
     const roles = JSON.parse(localStorage.getItem('badge_roles') || '[]');
     setBadgeRoles(roles);
-  };
+  }, []);
 
-  const loadBadges = async () => {
+  const loadBadges = useCallback(async () => {
     try {
       const badges = await fetchBadges(movementClient);
       setOnChainBadges(badges);
     } catch (error) {
       console.error('Failed to load badges:', error);
     }
-  };
+  }, [movementClient]);
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+    loadBadges();
+    loadRoles();
+  }, [loadBadges, loadData, loadRoles]);
 
   // Show message for 3 seconds
   const showMessage = (message, isError = false) => {
@@ -235,34 +231,6 @@ export default function Admin() {
     } catch (error) {
       showMessage(error.message, true);
     }
-  };
-
-  const handleGenerateMetadata = async () => {
-    if (!badgeForm.name || !badgeForm.description) {
-      showMessage('Please enter name and description first', true);
-      return;
-    }
-
-    const metadataJson = buildMetadataJson({
-      name: badgeForm.name,
-      description: badgeForm.description,
-      imageUri: badgeForm.imageUri,
-      attributes: [
-        {
-          trait_type: 'Eligibility',
-          value: badgeForm.ruleNote || ruleLabel(Number(badgeForm.ruleType)),
-        },
-      ],
-    });
-
-    const metadataUri = buildMetadataDataUri(metadataJson);
-    const metadataHash = await computeSha256Hex(metadataJson);
-
-    setBadgeForm((prev) => ({
-      ...prev,
-      metadataUri,
-      metadataHash,
-    }));
   };
 
   const handleAddBadge = async (event) => {
@@ -417,6 +385,26 @@ export default function Admin() {
       } catch (error) {
         showMessage(error.message, true);
       }
+    }
+  };
+
+  // --- SWAP SETTINGS HANDLERS ---
+  const handleSaveSwapSettings = (e) => {
+    e.preventDefault();
+    try {
+      const fee = Number(swapSettings.protocolFeeBps || 0);
+      if (fee < 0 || fee > 1000) {
+        showMessage('Protocol fee must be between 0 and 1000 bps (0% - 10%)', true);
+        return;
+      }
+      const updated = updateSwapSettings({
+        protocolFeeBps: fee,
+        referrer: (swapSettings.referrer || '').trim(),
+      });
+      setSwapSettings(updated);
+      showMessage('Swap settings saved!');
+    } catch (error) {
+      showMessage(error.message || 'Failed to save swap settings', true);
     }
   };
 
@@ -1441,8 +1429,60 @@ export default function Admin() {
         {activeTab === 'settings' && (
           <div className="admin-content">
             <div className="admin-settings-section">
-              <h2>Data Management</h2>
-              <p>Export, import, or clear all administrative data</p>
+              <h2>Swap & Data Management</h2>
+              <p>Configure swap parameters and manage administrative data</p>
+
+              <div className="admin-settings-grid">
+                <div className="admin-settings-card">
+                  <h3>🔷 Mosaic Swap Settings</h3>
+                  <p>Configure platform fee and referrer used with the Mosaic aggregator.</p>
+                  <form onSubmit={handleSaveSwapSettings} className="admin-form">
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="swap-fee-bps">Platform Fee (bps)</label>
+                        <input
+                          id="swap-fee-bps"
+                          type="number"
+                          min="0"
+                          max="1000"
+                          value={swapSettings.protocolFeeBps ?? 0}
+                          onChange={(e) =>
+                            setSwapSettings({
+                              ...swapSettings,
+                              protocolFeeBps: e.target.value === '' ? '' : Number(e.target.value),
+                            })
+                          }
+                        />
+                        <small>
+                          Effective user fee: {(Number(swapSettings.protocolFeeBps || 0) / 100).toFixed(2)}%
+                        </small>
+                      </div>
+                    </div>
+                    <div className="admin-form-row">
+                      <div className="admin-form-group">
+                        <label htmlFor="swap-referrer">Referrer Address (optional)</label>
+                        <input
+                          id="swap-referrer"
+                          type="text"
+                          placeholder="0x..."
+                          value={swapSettings.referrer || ''}
+                          onChange={(e) =>
+                            setSwapSettings({
+                              ...swapSettings,
+                              referrer: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="admin-form-actions">
+                      <button type="submit" className="admin-btn admin-btn-primary">
+                        💾 Save Swap Settings
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
 
               <div className="admin-settings-grid">
                 <div className="admin-settings-card">

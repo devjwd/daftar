@@ -63,9 +63,16 @@ const ENV_SCHEMA = {
   VITE_MOSAIC_API_URL: {
     type: 'string',
     required: false,
-    default: 'https://api.mosaic.cloud',
+    default: 'https://api.mosaic.ag/v1',
     validate: (val) => !val || val.startsWith('https://'),
     error: 'VITE_MOSAIC_API_URL must be valid HTTPS URL'
+  },
+  
+  VITE_MOSAIC_API_KEY: {
+    type: 'string',
+    required: false,
+    validate: (val) => !val || (typeof val === 'string' && val.length > 0),
+    error: 'VITE_MOSAIC_API_KEY must be non-empty string or empty'
   },
   
   VITE_COINGECKO_API_KEY: {
@@ -120,9 +127,10 @@ function convertEnvValue(value, type) {
   }
 
   switch (type) {
-    case 'number':
+    case 'number': {
       const num = Number(value);
       return isNaN(num) ? undefined : num;
+    }
     
     case 'boolean':
       return String(value).toLowerCase() === 'true';

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import { DEFAULT_NETWORK } from "../config/network";
-import { parseCoinType, getTokenDecimals, formatAddress } from "../utils/tokenUtils";
-import { getTokenInfo, MOVEMENT_TOKENS } from "../config/tokens";
+import { DEFAULT_NETWORK, MOSAIC_CONFIG } from "../config/network";
+import { getSwapSettings } from "../services/adminService";
+import { getTokenDecimals } from "../utils/tokenUtils";
+import { getTokenInfo, getSwapAssetTypeBySymbol, MOVEMENT_TOKENS } from "../config/tokens";
+import { TOKEN_VISUALS } from "../config/display";
 import { useTokenPrices } from "../hooks/useTokenPrices";
 import "./Swap.css";
 
@@ -34,54 +36,22 @@ import "./Swap.css";
  */
 
 const MOSAIC_API = {
-  baseUrl: "https://api.mosaic.ag/v1",
+  baseUrl: MOSAIC_CONFIG.apiUrl,
   quoteEndpoint: "/quote",
-  // Router contract address for direct calls if API fails
-  routerAddress: "0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c",
+  routerAddress: MOSAIC_CONFIG.routerAddress,
   swapFunction: "router::swap",
 };
 
-const SWAP_ROUTES = [
-  {
-    id: "mosaic",
-    name: "Mosaic",
-    tag: "Aggregator",
-  },
-  {
-    id: "yuzu",
-    name: "Yuzu",
-    tag: "CLMM",
-  },
-];
-
-// Common token addresses on Movement Network
-const TOKEN_ADDRESSES = {
-  MOVE: "0x1::aptos_coin::AptosCoin",
-  USDC: "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39::asset::USDC",
-  USDT: "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d::asset::USDT",
-  WETH: "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376::asset::WETH",
-  WBTC: "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c::asset::WBTC",
-};
-
-const TOKEN_LOGOS = {
-  MOVE: "/movement-logo.svg",
-  USDC: "/usdc.png",
-  USDT: "/usdt.png",
-  WETH: "/ETH.png",
-  WBTC: "/BTC.png",
-  CAPY: "/capy.png",
-  MOVECAT: "/movecat.jfif",
-  LBTC: "/LBTC.webp",
-  EZETH: "/ezETH.webp",
-  RSETH: "/rsETH.webp",
-  SOLVBTC: "/SolvBTC.webp",
-  USDE: "/USDe.webp",
-  USDA: "/USDa.webp",
-  WEETH: "/weETH.webp",
-};
+const MOSAIC_API_KEY = import.meta.env.VITE_MOSAIC_API_KEY;
 
 const DEFAULT_SLIPPAGE = 0.5;
 const DEFAULT_DECIMALS = 8;
+
+const devLog = (...args) => {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
+};
 
 const normalizeTokenSymbol = (symbol) => {
   const normalized = String(symbol || "").trim().toUpperCase().replace(/\.E$/i, "");
@@ -117,8 +87,14 @@ const Swap = ({ balances }) => {
   const [isQuoting, setIsQuoting] = useState(false);
   const [quoteData, setQuoteData] = useState(null);
   const [route, setRoute] = useState(null);
-  const [selectedRouter, setSelectedRouter] = useState("mosaic"); // mosaic or yuzu
   const quoteAbortController = useRef(null);
+  const [swapSettings] = useState(() => {
+    try {
+      return getSwapSettings();
+    } catch {
+      return { protocolFeeBps: 0, referrer: "" };
+    }
+  });
 
   const movementClient = useMemo(() => 
     new Aptos(new AptosConfig({
@@ -163,7 +139,8 @@ const Swap = ({ balances }) => {
 
     // Resolve by normalized symbol (supports ETH/BTC and .e forms)
     const symbol = normalizeTokenSymbol(token.symbol);
-    if (TOKEN_ADDRESSES[symbol]) return TOKEN_ADDRESSES[symbol];
+    const swapType = getSwapAssetTypeBySymbol(symbol);
+    if (swapType) return swapType;
 
     // Use address when it is already a full type
     if (token.address && String(token.address).includes("::")) {
@@ -177,7 +154,7 @@ const Swap = ({ balances }) => {
   const getTokenLogo = useCallback((token) => {
     const symbol = normalizeTokenSymbol(token?.symbol);
     if (!symbol) return null;
-    return TOKEN_LOGOS[symbol] || null;
+    return TOKEN_VISUALS[symbol]?.logo || null;
   }, []);
 
   // Available tokens from user's balance - filtered to only verified tokens
@@ -189,7 +166,7 @@ const Swap = ({ balances }) => {
     );
     
     // First, add all verified tokens from MOVEMENT_TOKENS registry
-    Object.entries(MOVEMENT_TOKENS).forEach(([address, tokenInfo]) => {
+    Object.entries(MOVEMENT_TOKENS).forEach(([, tokenInfo]) => {
       if (tokenInfo.verified && tokenInfo.symbol) {
         // Skip duplicate MOVE entries (0x1 and 0xa are the same token)
         if (tokenInfo.symbol === 'MOVE' && tokensMap.has('MOVE')) {
@@ -202,7 +179,7 @@ const Swap = ({ balances }) => {
           symbol: tokenInfo.symbol,
           name: tokenInfo.name,
           address: tokenInfo.address,
-          fullType: tokenInfo.address,
+          fullType: getSwapAssetTypeBySymbol(tokenInfo.symbol) || tokenInfo.address,
           decimals: tokenInfo.decimals,
           amount: "0.00",
           numericAmount: 0,
@@ -224,7 +201,7 @@ const Swap = ({ balances }) => {
           const balanceFullType = String(balance.fullType || "");
           const resolvedType = balanceFullType.includes("::")
             ? balanceFullType
-            : TOKEN_ADDRESSES[normalizedSymbol] || extractedAddress;
+            : getSwapAssetTypeBySymbol(normalizedSymbol) || extractedAddress;
 
           tokensMap.set(tokenInfo.symbol || balance.symbol, {
             ...balance,
@@ -242,7 +219,7 @@ const Swap = ({ balances }) => {
   }, [balances]);
 
   /**
-   * Fetch quote from Mosaic API or Yuzu
+   * Fetch quote from Mosaic API
    */
   const fetchQuote = useCallback(async () => {
     if (!fromToken || !toToken || !fromAmount || parseFloat(fromAmount) <= 0) {
@@ -278,94 +255,85 @@ const Swap = ({ balances }) => {
       const amountInSmallest = toSmallestUnit(fromAmount, fromDecimals);
       const senderAddress = account?.address?.toString() || "";
 
-      // Route based on selected router
-      if (selectedRouter === "mosaic") {
-        console.log("🔄 Fetching Mosaic quote:", {
-          from: `${fromAmount} ${fromToken.symbol}`,
-          to: toToken.symbol,
-          srcAsset,
-          dstAsset,
-          amount: amountInSmallest,
+      const protocolFeeBps = Number(swapSettings.protocolFeeBps || 0);
+      const referrer = (swapSettings.referrer || "").trim();
+
+      devLog("🔄 Fetching Mosaic quote:", {
+        from: `${fromAmount} ${fromToken.symbol}`,
+        to: toToken.symbol,
+        srcAsset,
+        dstAsset,
+        amount: amountInSmallest,
+      });
+
+      // Build API URL
+      const params = new URLSearchParams({
+        srcAsset,
+        dstAsset,
+        amount: amountInSmallest,
+        slippage: slippage.toString(),
+        sender: senderAddress,
+        receiver: senderAddress,
+      });
+
+      if (protocolFeeBps > 0) {
+        params.set("protocolFeeBps", String(protocolFeeBps));
+      }
+      if (referrer) {
+        params.set("referrer", referrer);
+      }
+
+      const response = await fetch(
+        `${MOSAIC_API.baseUrl}${MOSAIC_API.quoteEndpoint}?${params}`,
+        {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            ...(MOSAIC_API_KEY ? { "x-api-key": MOSAIC_API_KEY } : {}),
+          },
+          signal: quoteAbortController.current.signal,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Mosaic API error: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      devLog("✅ Mosaic API response:", result);
+
+      if (!result.data || !result.data.dstAmount) {
+        throw new Error("Invalid Mosaic API response");
+      }
+
+      const data = result.data;
+      const toDecimals = getDecimals(toToken);
+      const outputValue = Number(data.dstAmount) / Math.pow(10, toDecimals);
+      setToAmount(outputValue.toFixed(6));
+      
+      // Store full quote data for swap execution
+      setQuoteData(data);
+      
+      // Calculate price impact
+      const fromPrice = fromToken.price || priceMap[fromToken.address] || 0;
+      const toPrice = toToken.price || priceMap[toToken.address] || 0;
+      if (fromPrice > 0 && toPrice > 0) {
+        const expectedOut = (parseFloat(fromAmount) * fromPrice) / toPrice;
+        const actualOut = outputValue;
+        const impact = ((expectedOut - actualOut) / expectedOut) * 100;
+        setPriceImpact(Math.max(0, impact));
+      }
+      
+      // Set route info
+      if (data.paths && data.paths.length > 0) {
+        const sources = data.paths.map(p => p.source).join(" → ");
+        setRoute({ 
+          type: "mosaic",
+          via: "Mosaic Aggregator",
+          sources: sources,
         });
-
-        // Build API URL
-        const params = new URLSearchParams({
-          srcAsset,
-          dstAsset,
-          amount: amountInSmallest,
-          slippage: slippage.toString(),
-          sender: senderAddress,
-          receiver: senderAddress,
-        });
-
-        const response = await fetch(
-          `${MOSAIC_API.baseUrl}${MOSAIC_API.quoteEndpoint}?${params}`,
-          {
-            method: "GET",
-            headers: {
-              "Accept": "application/json",
-            },
-            signal: quoteAbortController.current.signal,
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Mosaic API error: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        console.log("✅ Mosaic API response:", result);
-
-        if (!result.data || !result.data.dstAmount) {
-          throw new Error("Invalid Mosaic API response");
-        }
-
-        const data = result.data;
-        const toDecimals = getDecimals(toToken);
-        const outputValue = Number(data.dstAmount) / Math.pow(10, toDecimals);
-        setToAmount(outputValue.toFixed(6));
-        
-        // Store full quote data for swap execution
-        setQuoteData(data);
-        
-        // Calculate price impact
-        const fromPrice = fromToken.price || priceMap[fromToken.address] || 0;
-        const toPrice = toToken.price || priceMap[toToken.address] || 0;
-        if (fromPrice > 0 && toPrice > 0) {
-          const expectedOut = (parseFloat(fromAmount) * fromPrice) / toPrice;
-          const actualOut = outputValue;
-          const impact = ((expectedOut - actualOut) / expectedOut) * 100;
-          setPriceImpact(Math.max(0, impact));
-        }
-        
-        // Set route info
-        if (data.paths && data.paths.length > 0) {
-          const sources = data.paths.map(p => p.source).join(" → ");
-          setRoute({ 
-            type: "mosaic",
-            via: "Mosaic Aggregator",
-            sources: sources,
-          });
-        } else {
-          setRoute({ type: "mosaic", via: "Mosaic Aggregator" });
-        }
-      } else if (selectedRouter === "yuzu") {
-        // Yuzu CLMM quote (price-based for now)
-        console.log("🍋 Fetching Yuzu quote (price-based estimate)");
-        const fromPrice = fromToken.price || priceMap[fromToken.address] || 0;
-        const toPrice = toToken.price || priceMap[toToken.address] || 0;
-        
-        if (fromPrice > 0 && toPrice > 0) {
-          const inputValue = parseFloat(fromAmount) * fromPrice;
-          const estimatedOutput = (inputValue / toPrice) * 0.997; // 0.3% fee estimate
-          setToAmount(estimatedOutput.toFixed(6));
-          setPriceImpact(0.3);
-          setRoute({ type: "yuzu", via: "Yuzu CLMM" });
-        } else {
-          setToAmount(fromAmount);
-          setPriceImpact(0);
-          setRoute({ type: "yuzu", via: "Yuzu CLMM (1:1)" });
-        }
+      } else {
+        setRoute({ type: "mosaic", via: "Mosaic Aggregator" });
       }
 
 
@@ -392,7 +360,7 @@ const Swap = ({ balances }) => {
     } finally {
       setIsQuoting(false);
     }
-  }, [fromToken, toToken, fromAmount, slippage, account, selectedRouter, getTokenType, getDecimals, toSmallestUnit, priceMap]);
+  }, [fromToken, toToken, fromAmount, slippage, account, getTokenType, getDecimals, toSmallestUnit, priceMap, swapSettings]);
 
   // Debounced quote fetching
   useEffect(() => {
@@ -490,37 +458,29 @@ const Swap = ({ balances }) => {
         toDecimals
       );
 
-      if (selectedRouter === "mosaic") {
-        // If we have quote data from Mosaic API with tx info, use it
-        if (quoteData?.tx) {
-          console.log("🔄 Using Mosaic API transaction payload");
-          payload = {
-            function: quoteData.tx.function,
-            typeArguments: quoteData.tx.typeArguments || [],
-            functionArguments: quoteData.tx.functionArguments || [],
-          };
-        } else {
-          // Fallback: Build transaction manually
-          console.log("🔄 Building manual Mosaic swap transaction");
-          const srcAsset = getTokenType(fromToken);
-          const dstAsset = getTokenType(toToken);
-
-          payload = {
-            function: `${MOSAIC_API.routerAddress}::${MOSAIC_API.swapFunction}`,
-            typeArguments: [srcAsset, dstAsset],
-            functionArguments: [amountIn, minAmountOut],
-          };
-        }
+      // Execute via Mosaic only
+      // If we have quote data from Mosaic API with tx info, use it
+      if (quoteData?.tx) {
+        devLog("🔄 Using Mosaic API transaction payload");
+        payload = {
+          function: quoteData.tx.function,
+          typeArguments: quoteData.tx.typeArguments || [],
+          functionArguments: quoteData.tx.functionArguments || [],
+        };
       } else {
-        // Yuzu CLMM swap
-        console.log("🍋 Building Yuzu swap transaction");
-        // Note: This is a placeholder - needs pool object and proper integration
-        // In production, you'd call yuzuswap::scripts::swap_exact_coin_for_fa
-        setError("Yuzu integration coming soon. Use Mosaic for now.");
-        return;
+        // Fallback: Build transaction manually
+        devLog("🔄 Building manual Mosaic swap transaction");
+        const srcAsset = getTokenType(fromToken);
+        const dstAsset = getTokenType(toToken);
+        
+        payload = {
+          function: `${MOSAIC_API.routerAddress}::${MOSAIC_API.swapFunction}`,
+          typeArguments: [srcAsset, dstAsset],
+          functionArguments: [amountIn, minAmountOut],
+        };
       }
 
-      console.log("🔄 Executing swap:", {
+      devLog("🔄 Executing swap:", {
         from: `${fromAmount} ${fromToken.symbol}`,
         to: `${toAmount} ${toToken.symbol}`,
         slippage: `${slippage}%`,
@@ -534,7 +494,7 @@ const Swap = ({ balances }) => {
 
       if (response?.hash) {
         setTxHash(response.hash);
-        console.log("📝 Transaction submitted:", response.hash);
+        devLog("📝 Transaction submitted:", response.hash);
         
         const txResult = await movementClient.waitForTransaction({ 
           transactionHash: response.hash,
@@ -546,7 +506,7 @@ const Swap = ({ balances }) => {
           setFromAmount("");
           setToAmount("");
           setQuoteData(null);
-          console.log("✅ Swap successful!");
+          devLog("✅ Swap successful!");
         } else {
           throw new Error("Transaction failed on-chain");
         }
@@ -605,29 +565,6 @@ const Swap = ({ balances }) => {
           <div className="settings-body">
             <div className="settings-section">
               <div className="settings-section-head">
-                <label>Routing</label>
-                <span className="settings-hint">Choose your preferred execution source</span>
-              </div>
-              <div className="router-selector">
-                {SWAP_ROUTES.map((routeItem) => (
-                  <button
-                    key={routeItem.id}
-                    className={`router-option ${selectedRouter === routeItem.id ? "active" : ""}`}
-                    onClick={() => setSelectedRouter(routeItem.id)}
-                  >
-                    <div className="router-icon">{routeItem.id === "mosaic" ? "🔷" : "🍋"}</div>
-                    <div className="router-info">
-                      <span className="router-name">{routeItem.name}</span>
-                      <span className="router-tag">{routeItem.tag}</span>
-                    </div>
-                    <span className="router-status">{selectedRouter === routeItem.id ? "Selected" : "Use"}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="settings-section">
-              <div className="settings-section-head">
                 <label>Slippage Tolerance</label>
                 <span className="settings-hint">Current: {slippage}%</span>
               </div>
@@ -670,7 +607,6 @@ const Swap = ({ balances }) => {
                 className="settings-reset-btn"
                 onClick={() => {
                   setSlippage(DEFAULT_SLIPPAGE);
-                  setSelectedRouter("mosaic");
                 }}
               >
                 Reset
@@ -686,7 +622,7 @@ const Swap = ({ balances }) => {
   };
 
   // Token Selector
-  const TokenSelector = ({ selectedToken, onSelect, show, onClose, label, excludeToken }) => {
+  const TokenSelector = ({ selectedToken, onSelect, show, onClose, excludeToken }) => {
     const [searchQuery, setSearchQuery] = useState("");
 
     if (!show) return null;
@@ -777,8 +713,7 @@ const Swap = ({ balances }) => {
     if (!fromAmount || parseFloat(fromAmount) <= 0) return { text: "Enter Amount", disabled: true };
     if (parseFloat(fromAmount) > (fromToken.numericAmount || 0)) return { text: "Insufficient Balance", disabled: true };
     if (isQuoting) return { text: "Getting Quote...", disabled: true };
-    const routerName = selectedRouter === "mosaic" ? "Mosaic" : "Yuzu";
-    return { text: `Swap via ${routerName}`, disabled: false };
+    return { text: "Swap via Mosaic", disabled: false };
   };
 
   const buttonState = getSwapButtonState();
@@ -984,9 +919,9 @@ const Swap = ({ balances }) => {
                   <span>Router</span>
                   <span className="mosaic-router">
                     <span className="mosaic-icon">
-                      {selectedRouter === "mosaic" ? "🔷" : "🍋"}
+                      {"🔷"}
                     </span>
-                    {route?.via || (selectedRouter === "mosaic" ? "Mosaic Aggregator" : "Yuzu CLMM")}
+                    {route?.via || "Mosaic Aggregator"}
                   </span>
                 </div>
                 {route?.sources && (

@@ -3,6 +3,11 @@
 
 const ADMIN_STORAGE_KEY = 'movement_admin_data';
 
+const DEFAULT_SWAP_SETTINGS = {
+  protocolFeeBps: 0,
+  referrer: '',
+};
+
 // Load admin data from localStorage
 export const loadAdminData = () => {
   try {
@@ -11,14 +16,21 @@ export const loadAdminData = () => {
       return {
         tokens: [],
         badges: [],
+        swapSettings: { ...DEFAULT_SWAP_SETTINGS },
       };
     }
-    return JSON.parse(stored);
+    const parsed = JSON.parse(stored);
+    return {
+      tokens: parsed.tokens || [],
+      badges: parsed.badges || [],
+      swapSettings: parsed.swapSettings || { ...DEFAULT_SWAP_SETTINGS },
+    };
   } catch (error) {
     console.error('Failed to load admin data:', error);
     return {
       tokens: [],
       badges: [],
+      swapSettings: { ...DEFAULT_SWAP_SETTINGS },
     };
   }
 };
@@ -155,6 +167,28 @@ export const deleteBadge = (badgeId) => {
 export const getCustomBadges = () => {
   const data = loadAdminData();
   return data.badges;
+};
+
+// Swap settings (Mosaic integrator fees, referrer, etc.)
+export const getSwapSettings = () => {
+  const data = loadAdminData();
+  return data.swapSettings || { ...DEFAULT_SWAP_SETTINGS };
+};
+
+export const updateSwapSettings = (updates) => {
+  const data = loadAdminData();
+  const current = data.swapSettings || { ...DEFAULT_SWAP_SETTINGS };
+  const next = {
+    ...current,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+  const nextData = {
+    ...data,
+    swapSettings: next,
+  };
+  saveAdminData(nextData);
+  return next;
 };
 
 // Export admin data (for backup)
