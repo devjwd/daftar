@@ -88,13 +88,6 @@ const Swap = ({ balances }) => {
   const [quoteData, setQuoteData] = useState(null);
   const [route, setRoute] = useState(null);
   const quoteAbortController = useRef(null);
-  const [swapSettings] = useState(() => {
-    try {
-      return getSwapSettings();
-    } catch {
-      return { protocolFeeBps: 0, referrer: "" };
-    }
-  });
 
   const movementClient = useMemo(() => 
     new Aptos(new AptosConfig({
@@ -255,8 +248,16 @@ const Swap = ({ balances }) => {
       const amountInSmallest = toSmallestUnit(fromAmount, fromDecimals);
       const senderAddress = account?.address?.toString() || "";
 
-      const protocolFeeBps = Number(swapSettings.protocolFeeBps || 0);
-      const referrer = (swapSettings.referrer || "").trim();
+      let protocolFeeBps = 0;
+      let referrer = "";
+      try {
+        const settings = getSwapSettings();
+        protocolFeeBps = Number(settings.protocolFeeBps || 0);
+        referrer = (settings.referrer || "").trim();
+      } catch {
+        protocolFeeBps = 0;
+        referrer = "";
+      }
 
       devLog("🔄 Fetching Mosaic quote:", {
         from: `${fromAmount} ${fromToken.symbol}`,
@@ -360,7 +361,7 @@ const Swap = ({ balances }) => {
     } finally {
       setIsQuoting(false);
     }
-  }, [fromToken, toToken, fromAmount, slippage, account, getTokenType, getDecimals, toSmallestUnit, priceMap, swapSettings]);
+  }, [fromToken, toToken, fromAmount, slippage, account, getTokenType, getDecimals, toSmallestUnit, priceMap]);
 
   // Debounced quote fetching
   useEffect(() => {
