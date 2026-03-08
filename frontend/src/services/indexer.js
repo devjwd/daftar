@@ -4,7 +4,7 @@
  * Documentation: https://docs.movementnetwork.xyz/devs/indexing
  */
 
-import { DEFAULT_NETWORK } from "../config/network";
+import { DEFAULT_NETWORK } from "../config/network.js";
 
 /**
  * Get the appropriate indexer endpoint based on network
@@ -21,33 +21,28 @@ export const getIndexerEndpoint = () => {
  */
 export const queryIndexer = async (query, variables = {}) => {
   const endpoint = getIndexerEndpoint();
-  
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query,
-        variables,
-      }),
-    });
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query,
+      variables,
+    }),
+  });
 
-    if (!response.ok) {
-      throw new Error(`Indexer API error: ${response.status} ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    
-    if (result.errors) {
-      throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
-    }
-
-    return result.data;
-  } catch (error) {
-    throw error;
+  if (!response.ok) {
+    throw new Error(`Indexer API error: ${response.status} ${response.statusText}`);
   }
+
+  const result = await response.json();
+  
+  if (result.errors) {
+    throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
+  }
+
+  return result.data;
 };
 
 /**
@@ -146,7 +141,7 @@ export const getUserTokenBalances = async (address) => {
     const data = await queryIndexer(query, { address: normalizedAddress });
     const balances = data?.current_fungible_asset_balances || [];
     return balances;
-  } catch (error) {
+  } catch {
     // Return empty array to trigger RPC fallback
     return [];
   }

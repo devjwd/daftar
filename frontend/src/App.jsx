@@ -1,12 +1,10 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, Suspense, lazy } from "react";
 import { Routes, Route, useNavigate, useLocation, useParams } from "react-router-dom";
 import "./App.css";
 
 
 
 // --- IMPORTS ---
-
-const logo = "/logo.png";
 
 
 
@@ -28,13 +26,14 @@ import { DEFAULT_NETWORK } from "./config/network";
 
 import { INTERVALS, FORMATTING, ANIMATION_DELAYS } from "./config/constants";
 
-import { parseCoinType, getTokenDecimals, formatAddress, isValidAddress } from "./utils/tokenUtils";
+import { parseCoinType, getTokenDecimals, isValidAddress } from "./utils/tokenUtils";
 import { applyTheme, getStoredThemePreference } from "./utils/theme";
+import { devLog } from "./utils/devLogger";
 
-import { getTokenInfo } from "./config/tokens";
+import { getTokenInfo, getTokenAddressBySymbol } from "./config/tokens";
+import { TOKEN_VISUALS, DEFI_PROTOCOL_VISUALS, DEFAULT_TOKEN_COLOR, DEFAULT_PROTOCOL_VISUAL } from "./config/display";
 
 import ErrorBoundary from "./components/ErrorBoundary";
-import Layout from "./components/Layout";
 
 
 
@@ -45,22 +44,24 @@ import { useIndexerBalances } from "./hooks/useIndexerBalances";
 import { useProfile } from "./hooks/useProfile";
 import { useUserLevel } from "./hooks/useUserLevel";
 import { useCurrency } from "./hooks/useCurrency";
+import useBadges from "./hooks/useBadges";
+import useUserBadges from "./hooks/useUserBadges";
 
 // Indexer services
-import { getWalletAge, getRecentTransactions, getUserNFTHoldings, getYuzuLiquidityPositions, getUserTokenBalances } from "./services/indexer";
+import { getWalletAge, getUserNFTHoldings, getYuzuLiquidityPositions, getUserTokenBalances } from "./services/indexer";
 
 // Components
-import Swap from "./components/Swap";
-import SwapPage from "./pages/Swap";
-import Home from "./pages/Home";
-import Profile from "./pages/Profile";
-import ProfileView from "./pages/ProfileView";
-import Settings from "./pages/Settings";
-import Badges from "./pages/Badges";
-import Leaderboard from "./pages/Leaderboard";
-import Admin from "./pages/Admin";
-import More from "./pages/More";
-import Level from "./pages/Level";
+const Layout = lazy(() => import("./components/Layout"));
+const SwapPage = lazy(() => import("./pages/Swap"));
+const Home = lazy(() => import("./pages/Home"));
+const Profile = lazy(() => import("./pages/Profile"));
+const ProfileView = lazy(() => import("./pages/ProfileView"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Badges = lazy(() => import("./pages/Badges"));
+const Leaderboard = lazy(() => import("./pages/Leaderboard"));
+const Admin = lazy(() => import("./pages/Admin"));
+const More = lazy(() => import("./pages/More"));
+const Level = lazy(() => import("./pages/Level"));
 import ProfileCard from "./components/ProfileCard";
 
 
@@ -71,52 +72,13 @@ import ProfileCard from "./components/ProfileCard";
 const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
   const tokenInfo = getTokenInfo(token.address);
   const isKnownToken = !!tokenInfo;
-  
-  // Token logo mapping
-  const TOKEN_LOGOS = {
-    'MOVE': '/movement-logo.svg',
-    'USDC': '/usdc.png',
-    'USDT': '/usdt.png',
-    'ETH': '/ETH.png',
-    'WETH': '/ETH.png',
-    'BTC': '/BTC.png',
-    'WBTC': '/BTC.png',
-    'CAPY': '/capy.png',
-    'MOVECAT': '/movecat.jfif',
-    'LBTC': '/LBTC.webp',
-    'EZETH': '/ezETH.webp',
-    'RSETH': '/rsETH.webp',
-    'SOLVBTC': '/SolvBTC.webp',
-    'USDE': '/USDe.webp',
-    'USDA': '/USDa.webp',
-    'WEETH': '/weETH.webp',
-  };
-
-  // Token colors for gradient effects
-  const TOKEN_COLORS = {
-    'MOVE': { primary: '#d4a574', secondary: '#e5c9a8' },
-    'USDC': { primary: '#2775ca', secondary: '#5a9fd4' },
-    'USDT': { primary: '#26a17b', secondary: '#4ecda0' },
-    'ETH': { primary: '#627eea', secondary: '#8fa3ef' },
-    'WETH': { primary: '#627eea', secondary: '#8fa3ef' },
-    'BTC': { primary: '#f7931a', secondary: '#ffb84d' },
-    'WBTC': { primary: '#f7931a', secondary: '#ffb84d' },
-    'CAPY': { primary: '#ff6b9d', secondary: '#ff9ec4' },
-    'MOVECAT': { primary: '#9b59b6', secondary: '#c39bd3' },
-    'LBTC': { primary: '#f7931a', secondary: '#ffb84d' }, // BTC orange
-    'EZETH': { primary: '#00d395', secondary: '#4eebb3' }, // Renzo green
-    'RSETH': { primary: '#4caf50', secondary: '#81c784' }, // Kelp green
-    'SOLVBTC': { primary: '#f7931a', secondary: '#ffc107' }, // Solv BTC orange
-    'USDE': { primary: '#171717', secondary: '#3d3d3d' }, // Ethena dark
-    'USDA': { primary: '#2196f3', secondary: '#64b5f6' }, // Angle blue
-    'WEETH': { primary: '#7c3aed', secondary: '#a78bfa' }, // EtherFi purple
-  };
 
   const symbol = (token.symbol || '').toUpperCase();
   // Strip .E suffix for logo/color lookup (e.g., WETH.E -> WETH, USDC.E -> USDC)
   const baseSymbol = symbol.replace(/\.E$/i, '');
-  const tokenLogo = TOKEN_LOGOS[baseSymbol] || TOKEN_LOGOS[symbol] || null;
-  const tokenColor = TOKEN_COLORS[baseSymbol] || TOKEN_COLORS[symbol] || { primary: '#d4a574', secondary: '#e5c9a8' };
+  const visual = TOKEN_VISUALS[baseSymbol] || TOKEN_VISUALS[symbol] || null;
+  const tokenLogo = visual?.logo || null;
+  const tokenColor = visual?.color || DEFAULT_TOKEN_COLOR;
 
   // Parse USD value
   const usdValueNum = parseFloat(token.formattedValue?.replace('$', '').replace(',', '') || '0');
@@ -257,35 +219,12 @@ const StakingCard = ({ name, value, type, delay }) => (
 
 // --- COMPONENT: DeFi Position Card (Professional Design) ---
 const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol }) => {
-  // Protocol logo and name mapping
-  const PROTOCOL_DATA = {
-    echelon: { logo: '/Echelon.png', name: 'Echelon Finance', color: '#6366f1', gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)' },
-    joule: { logo: '/joule-finance.png', name: 'Joule Finance', color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b, #fbbf24)' },
-    moveposition: { logo: '/moveposition.png', name: 'MovePosition', color: '#10b981', gradient: 'linear-gradient(135deg, #10b981, #34d399)' },
-    meridian: { logo: '/Meridian.png', name: 'Meridian', color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
-    canopy: { logo: '/canopy.png', name: 'Canopy', color: '#22c55e', gradient: 'linear-gradient(135deg, #22c55e, #4ade80)' },
-    layerbank: { logo: '/LayerBank.png', name: 'LayerBank', color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6, #60a5fa)' },
-    mosaic: { logo: '/mosaic.png', name: 'Mosaic', color: '#06b6d4', gradient: 'linear-gradient(135deg, #06b6d4, #22d3ee)' },
-    yuzu: { logo: '/yuzu.png', name: 'Yuzu Swap', color: '#eab308', gradient: 'linear-gradient(135deg, #eab308, #facc15)' },
-  };
-
-  // Token address mapping for price lookup
-  const TOKEN_ADDRESSES = {
-    'MOVE': '0xa',
-    'USDC': '0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39',
-    'USDT': '0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d',
-    'WETH': '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376',
-    'WBTC': '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c',
-    'ETH': '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376',
-    'BTC': '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c',
-  };
-
   // Get token price
   const getTokenPrice = (symbol) => {
     if (!priceMap) return 0;
     const upperSymbol = (symbol || '').toUpperCase();
     // Try direct symbol lookup in priceMap
-    const address = TOKEN_ADDRESSES[upperSymbol];
+    const address = getTokenAddressBySymbol(upperSymbol);
     if (address && priceMap[address]) return priceMap[address];
     // Stablecoin fallback
     if (upperSymbol === 'USDC' || upperSymbol === 'USDT') return 1.0;
@@ -296,19 +235,16 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
   const firstPos = protocolPositions[0];
   const getProtocolKey = () => {
     const searchText = `${firstPos.name} ${firstPos.protocolName || ''} ${firstPos.resourceType || ''}`.toLowerCase();
-    for (const key of Object.keys(PROTOCOL_DATA)) {
+    for (const key of Object.keys(DEFI_PROTOCOL_VISUALS)) {
       if (searchText.includes(key)) return key;
     }
     return null;
   };
 
   const protocolKey = getProtocolKey();
-  const protocol = protocolKey ? PROTOCOL_DATA[protocolKey] : { 
-    logo: '/movement-logo.svg', 
-    name: firstPos.protocolName || 'DeFi Protocol', 
-    color: '#d4a574',
-    gradient: 'linear-gradient(135deg, #d4a574, #e5c9a8)'
-  };
+  const protocol = protocolKey
+    ? DEFI_PROTOCOL_VISUALS[protocolKey]
+    : { ...DEFAULT_PROTOCOL_VISUAL, name: firstPos.protocolName || DEFAULT_PROTOCOL_VISUAL.name };
 
   // Separate positions by type
   const supplyPositions = protocolPositions.filter(p => p.type === 'Lending' || p.type === 'Staking' || p.type === 'Liquidity');
@@ -339,6 +275,35 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
     const amount = parseFloat(pos.value || 0);
     const price = getTokenPrice(pos.tokenSymbol);
     return amount * price;
+  };
+
+  const isMovementNativeStaking = (pos) => {
+    const protocolName = String(pos?.protocolName || "").toLowerCase();
+    const name = String(pos?.name || "").toLowerCase();
+    const source = String(pos?.source || "").toLowerCase();
+
+    return (
+      protocolName.includes("movement native staking") ||
+      name.includes("movement native staking") ||
+      source === "view"
+    );
+  };
+
+  const formatNativeStakingMeta = (pos) => {
+    if (!isMovementNativeStaking(pos)) return null;
+
+    const pool = String(pos?.poolAddress || "").toLowerCase();
+    const poolSuffix = pool.startsWith("0x") && pool.length > 10 ? `…${pool.slice(-6)}` : null;
+
+    const pendingStakeRaw = Number(pos?.pendingStakeAmount || 0);
+    const pendingWithdrawalRaw = Number(pos?.pendingWithdrawalAmount || 0);
+    const pendingMove = (pendingStakeRaw + pendingWithdrawalRaw) / 100000000;
+
+    const poolPart = poolSuffix ? `Pool ${poolSuffix}` : null;
+    const pendingPart = pendingMove > 0 ? `Pending ${formatValue(pendingMove)} MOVE` : null;
+
+    if (poolPart && pendingPart) return `${poolPart} · ${pendingPart}`;
+    return poolPart || pendingPart;
   };
 
   const totalSupplyUsd = supplyPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0);
@@ -383,14 +348,18 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
         {/* Supply Column */}
         <div className="defi-v2-column supply">
           <div className="defi-v2-column-header">
-            <span className="defi-v2-column-icon">📈</span>
             <span className="defi-v2-column-label">Supplied</span>
             <span className="defi-v2-column-total">{formatUsdValue(totalSupplyUsd)}</span>
           </div>
           <div className="defi-v2-column-items">
             {supplyPositions.length > 0 ? supplyPositions.map((pos, idx) => (
               <div key={idx} className="defi-v2-item">
-                <span className="defi-v2-item-token">{pos.tokenSymbol || 'Token'}</span>
+                <div className="defi-v2-item-token-wrap">
+                  <span className="defi-v2-item-token">{pos.tokenSymbol || 'Token'}</span>
+                  {formatNativeStakingMeta(pos) && (
+                    <span className="defi-v2-item-meta">{formatNativeStakingMeta(pos)}</span>
+                  )}
+                </div>
                 <div className="defi-v2-item-values">
                   <span className="defi-v2-item-amount supply">{formatValue(pos.value)}</span>
                   <span className="defi-v2-item-usd">{formatUsdValue(getPositionUsdValue(pos))}</span>
@@ -405,7 +374,6 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
         {/* Borrow Column */}
         <div className="defi-v2-column borrow">
           <div className="defi-v2-column-header">
-            <span className="defi-v2-column-icon">💳</span>
             <span className="defi-v2-column-label">Borrowed</span>
             <span className="defi-v2-column-total debt">{formatUsdValue(totalDebtUsd)}</span>
           </div>
@@ -804,13 +772,17 @@ const ErrorMessage = ({ message, onRetry }) => (
 
 );
 
+const RouteFallback = () => (
+  <div className="loading-indicator">Loading...</div>
+);
+
 
 
 // --- MAIN DASHBOARD ---
 
 const Dashboard = () => {
 
-  const { connect, disconnect, account, connected, wallets } = useWallet();
+  const { account, connected } = useWallet();
   const navigate = useNavigate();
   const location = useLocation();
   const { address: urlAddress } = useParams();
@@ -827,40 +799,36 @@ const Dashboard = () => {
 
   const [viewingAddress, setViewingAddress] = useState(null);
 
-  const [networkStatus, setNetworkStatus] = useState("checking");
-
   const [walletAge, setWalletAge] = useState(null); // { firstTxTimestamp, txCount }
   const [liquidityPositions, setLiquidityPositions] = useState([]); // LP/Vault positions
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  // Badges data
-  const badges = [
-    { id: 1, name: 'Early Member', icon: '⭐', earned: true },
-    { id: 2, name: 'Whale Hunter', icon: '🐋', earned: false },
-    { id: 3, name: 'DeFi Enthusiast', icon: '🚀', earned: true },
-    { id: 4, name: 'Liquidity Provider', icon: '💧', earned: false },
-    { id: 5, name: 'Portfolio Master', icon: '👑', earned: false },
-    { id: 6, name: 'Lending Guru', icon: '💰', earned: true }
-  ];
-
   // Custom Hooks - pass viewingAddress to support address search
-  const { positions, loading: defiLoading, error: defiError, refetch: refetchDefi } = useDeFiPositions(viewingAddress);
+  const { positions, loading: defiLoading } = useDeFiPositions(viewingAddress);
   const { prices: priceMap, priceChanges } = useTokenPrices();
-  const { currency, convertUSD, formatValue: formatCurrencyValue, currencySymbol } = useCurrency();
+  const { convertUSD, formatValue: formatCurrencyValue, currencySymbol } = useCurrency();
+
+  const visibleDeFiPositions = useMemo(() => {
+    if (!Array.isArray(positions) || positions.length === 0) return [];
+    return positions.filter((pos) => {
+      const protocolName = String(pos?.protocolName || "").toLowerCase();
+      return protocolName !== "meridian";
+    });
+  }, [positions]);
   
   // Use indexer for balances (optimized for token queries)
   const { 
     balances: indexerBalances, 
     loading: indexerLoading, 
     error: indexerError,
-    refetch: refetchIndexer 
   } = useIndexerBalances(viewingAddress);
 
   // Use profile hook to get user profile data
   const { profile: userProfile } = useProfile(viewingAddress);
 
-  // Use level hook to calculate user level from badges
-  const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(viewingAddress);
+  const modalProfileAddress = showProfileModal ? viewingAddress : null;
+  // Calculate level only when profile modal is open
+  const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(modalProfileAddress);
 
   // Initialize viewingAddress from URL param — this is the primary source of truth
   useEffect(() => {
@@ -892,24 +860,19 @@ const Dashboard = () => {
 
   })), [currentNetwork]);
 
-  // Token address mapping for DeFi price lookup
-  const TOKEN_ADDRESSES = useMemo(() => ({
-    'MOVE': '0xa',
-    'USDC': '0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39',
-    'USDT': '0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d',
-    'WETH': '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376',
-    'WBTC': '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c',
-    'ETH': '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376',
-    'BTC': '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c',
-  }), []);
+  const modalBadgeAddress = modalProfileAddress;
+  // Load badge data only when profile modal is open to avoid global navigation overhead
+  const { badges: onchainBadges, loading: onchainBadgesLoading } = useBadges(modalBadgeAddress, { client: movementClient, enablePolling: false });
+  // Persisted user badges from backend (if you run a server worker that stores `user_badges`)
+  const { earnedBadges: persistedBadges } = useUserBadges(modalBadgeAddress);
 
   // Calculate total DeFi net value (supply - debt) in USD
   const defiNetValue = useMemo(() => {
-    if (!positions || positions.length === 0 || !priceMap) return 0;
+    if (!visibleDeFiPositions || visibleDeFiPositions.length === 0 || !priceMap) return 0;
     
     const getTokenPrice = (symbol) => {
       const upperSymbol = (symbol || '').toUpperCase();
-      const address = TOKEN_ADDRESSES[upperSymbol];
+      const address = getTokenAddressBySymbol(upperSymbol);
       if (address && priceMap[address]) return priceMap[address];
       if (upperSymbol === 'USDC' || upperSymbol === 'USDT') return 1.0;
       return 0;
@@ -918,7 +881,7 @@ const Dashboard = () => {
     let totalSupply = 0;
     let totalDebt = 0;
     
-    positions.forEach(pos => {
+    visibleDeFiPositions.forEach(pos => {
       const amount = parseFloat(pos.value || 0);
       const price = getTokenPrice(pos.tokenSymbol);
       const usdValue = amount * price;
@@ -931,7 +894,7 @@ const Dashboard = () => {
     });
     
     return totalSupply - totalDebt;
-  }, [positions, priceMap, TOKEN_ADDRESSES]);
+  }, [visibleDeFiPositions, priceMap]);
 
   // Calculate total LP/Liquidity positions value
   const liquidityTotalValue = useMemo(() => {
@@ -976,34 +939,6 @@ const Dashboard = () => {
 
     return null;
   }, [balances, priceChanges, combinedNetWorth]);
-
-  // Network Health
-
-  useEffect(() => {
-
-    const checkNetworkHealth = async () => {
-
-      try {
-
-        const ledgerInfo = await movementClient.getLedgerInfo();
-
-        setNetworkStatus(ledgerInfo ? "online" : "offline");
-
-      } catch (_e) {
-
-        setNetworkStatus("offline");
-
-      }
-
-    };
-
-    checkNetworkHealth();
-
-    const interval = setInterval(checkNetworkHealth, INTERVALS.NETWORK_CHECK);
-
-    return () => clearInterval(interval);
-
-  }, [movementClient]);
 
   const toRawCoinString = useCallback((value) => {
     if (value === null || value === undefined) return null;
@@ -1277,9 +1212,9 @@ const Dashboard = () => {
         normalizedAddress = String(address).trim();
       }
       
-      console.log("Fetching assets for address:", normalizedAddress);
-      console.log("Original address type:", typeof address, address);
-      console.log("Using RPC endpoint:", currentNetwork.rpc);
+      devLog("Fetching assets for address:", normalizedAddress);
+      devLog("Original address type:", typeof address, address);
+      devLog("Using RPC endpoint:", currentNetwork.rpc);
       
       // Always fetch from RPC (most reliable source)
       // Movement Network uses Aptos-compatible API
@@ -1287,12 +1222,12 @@ const Dashboard = () => {
         accountAddress: normalizedAddress 
       });
       
-      console.log("=== BALANCE DEBUG ===");
-      console.log("Normalized address:", normalizedAddress);
-      console.log("RPC endpoint:", currentNetwork.rpc);
-      console.log("RPC Resources fetched:", resources.length);
-      console.log("All resource types:", resources.map(r => r.type).join("\n"));
-      console.log("=== END DEBUG ===");
+      devLog("=== BALANCE DEBUG ===");
+      devLog("Normalized address:", normalizedAddress);
+      devLog("RPC endpoint:", currentNetwork.rpc);
+      devLog("RPC Resources fetched:", resources.length);
+      devLog("All resource types:", resources.map(r => r.type).join("\n"));
+      devLog("=== END DEBUG ===");
       
       // Filter for coin resources - Movement Network can have CoinStore in different modules
       // Standard: ::coin::CoinStore
@@ -1302,14 +1237,14 @@ const Dashboard = () => {
         r.type.includes("CoinStore") && r.type.includes("<")
       );
       
-      console.log("Coin resources found:", coinResources.length);
+      devLog("Coin resources found:", coinResources.length);
       
       // If no CoinStore found, log all resource types for debugging
       if (coinResources.length === 0) {
         console.warn("❌ NO COINSTORES FOUND!");
         console.warn("All resource types returned from RPC:");
         resources.forEach((r, idx) => {
-          console.log(`  ${idx + 1}. ${r.type}`);
+          devLog(`  ${idx + 1}. ${r.type}`);
         });
         console.warn("This means either:");
         console.warn("  1. The RPC endpoint isn't returning coin resources");
@@ -1327,7 +1262,7 @@ const Dashboard = () => {
         );
         
         if (potentialTokenResources.length > 0) {
-          console.log("Found potential token-related resources:", potentialTokenResources.map(r => ({
+          devLog("Found potential token-related resources:", potentialTokenResources.map(r => ({
             type: r.type,
             hasData: !!r.data,
             dataKeys: r.data ? Object.keys(r.data) : []
@@ -1336,7 +1271,7 @@ const Dashboard = () => {
           // If we found CoinStore resources but they weren't caught by our filter, log them
           const coinStoreResources = potentialTokenResources.filter(r => r.type.includes("CoinStore"));
           if (coinStoreResources.length > 0) {
-            console.log("⚠️ Found CoinStore resources that should be processed:", coinStoreResources.map(r => ({
+            devLog("⚠️ Found CoinStore resources that should be processed:", coinStoreResources.map(r => ({
               type: r.type,
               data: r.data
             })));
@@ -1346,7 +1281,7 @@ const Dashboard = () => {
       
       // Log first coin resource structure for debugging
       if (coinResources.length > 0) {
-        console.log("Sample coin resource:", {
+        devLog("Sample coin resource:", {
           type: coinResources[0].type,
           data: coinResources[0].data,
           dataKeys: coinResources[0].data ? Object.keys(coinResources[0].data) : []
@@ -1381,7 +1316,7 @@ const Dashboard = () => {
               return null;
             }
             
-            console.log(`Processing ${tokenMeta.symbol}: raw=${coinValue}, decimals=${decimals}`);
+            devLog(`Processing ${tokenMeta.symbol}: raw=${coinValue}, decimals=${decimals}`);
 
             const numericValue = BigInt(coinValue);
             const divisor = BigInt(10) ** BigInt(decimals);
@@ -1398,15 +1333,11 @@ const Dashboard = () => {
             if (priceMap[tokenMeta.address]) {
               price = priceMap[tokenMeta.address];
             }
-            // 2. Try normalized short address (0xa, 0x1)
-            else if (tokenMeta.address.length <= 4 && priceMap[tokenMeta.address]) {
-              price = priceMap[tokenMeta.address];
-            }
-            // 3. Try symbol-based fallback for stablecoins
+            // 2. Try symbol-based fallback for stablecoins
             else if (tokenMeta.symbol === "USDT" || tokenMeta.symbol === "USDC") {
               price = 1.0;
             }
-            // 4. Try full type as fallback
+            // 3. Try full type as fallback
             else {
               price = priceMap[tokenMeta.fullType] ?? 0;
             }
@@ -1484,13 +1415,13 @@ const Dashboard = () => {
       // Only keep verified tokens from registry
       processed = processed.filter((t) => t && t.isKnown);
 
-      console.log("Processed verified tokens:", processed.length);
+      devLog("Processed verified tokens:", processed.length);
 
       // Sort by USD value and calculate total
       processed.sort((a, b) => b.usdValue - a.usdValue);
       const totalUsd = processed.reduce((sum, token) => sum + token.usdValue, 0);
 
-      console.log("Total USD value (verified):", totalUsd);
+      devLog("Total USD value (verified):", totalUsd);
 
       setBalances(processed);
       setTotalUsdValue(totalUsd);
@@ -1580,22 +1511,29 @@ const Dashboard = () => {
     return null;
   };
 
+  const connectedWalletAddress = connected ? getAddressString(account) : null;
+  const canEditProfile = Boolean(
+    connectedWalletAddress &&
+    viewingAddress &&
+    connectedWalletAddress.toLowerCase() === viewingAddress.toLowerCase()
+  );
+
   // Trigger Fetch when wallet connects/disconnects
   // Only reacts to actual wallet connect/disconnect events (account, connected)
   // NOT to location changes — URL-driven address is handled by the urlAddress effect above
   useEffect(() => {
     if (account && connected) {
       const addressString = getAddressString(account);
-      console.log("=== WALLET CONNECTED ===");
-      console.log("Extracted address string:", addressString);
-      console.log("========================");
+      devLog("=== WALLET CONNECTED ===");
+      devLog("Extracted address string:", addressString);
+      devLog("========================");
       
       if (addressString) {
         // Only auto-navigate to wallet address if user isn't viewing a different searched address
         if (!urlAddress || urlAddress.toLowerCase() === addressString.toLowerCase()) {
           setViewingAddress(addressString);
           navigate(`/wallet/${addressString}`, { replace: true });
-          console.log("✅ Address set, indexer will fetch balances");
+          devLog("✅ Address set, indexer will fetch balances");
         }
       } else {
         console.error("Could not extract address from account object:", account);
@@ -1617,7 +1555,7 @@ const Dashboard = () => {
   // Note: Removed fetchAssets call - indexer hook handles this automatically
   useEffect(() => {
     if (viewingAddress && (!account || viewingAddress !== account.address)) {
-      console.log("📍 Viewing searched address:", viewingAddress, "(indexer will fetch)");
+      devLog("📍 Viewing searched address:", viewingAddress, "(indexer will fetch)");
     }
   }, [viewingAddress, account]);
 
@@ -1629,7 +1567,7 @@ const Dashboard = () => {
       if (balances.length === 0) {
         setAssetsLoading(true);
       }
-      console.log("⏳ Indexer loading...");
+      devLog("⏳ Indexer loading...");
       return; // Early return - don't process yet
     }
     
@@ -1641,7 +1579,7 @@ const Dashboard = () => {
     }
     
     if (indexerBalances && indexerBalances.length > 0) {
-      console.log("✅ Using indexer balances:", indexerBalances.length, "tokens");
+      devLog("✅ Using indexer balances:", indexerBalances.length, "tokens");
       
       // Calculate total USD value with price map
       const withPrices = indexerBalances.map(balance => {
@@ -1652,20 +1590,16 @@ const Dashboard = () => {
         if (priceMap[balance.address]) {
           price = priceMap[balance.address];
         }
-        // 2. Try normalized short address (0xa, 0x1)
-        else if (balance.address && balance.address.length <= 4 && priceMap[balance.address]) {
-          price = priceMap[balance.address];
-        }
-        // 3. Try symbol-based fallback for MOVE token
+        // 2. Try symbol-based fallback for MOVE token
         else if (balance.symbol === "MOVE" || balance.symbol === "move") {
           // MOVE token - use 0xa price
           price = priceMap["0xa"] || priceMap["0x1"] || 0;
         }
-        // 4. Try symbol-based fallback for stablecoins
+        // 3. Try symbol-based fallback for stablecoins
         else if (balance.symbol === "USDT" || balance.symbol === "USDC") {
           price = 1.0;
         }
-        // 5. Try full type as fallback
+        // 4. Try full type as fallback
         else {
           price = priceMap[balance.fullType] ?? 0;
         }
@@ -1763,12 +1697,12 @@ const Dashboard = () => {
         // For Meridian LP tokens, collect composition data from positions hook
         let meridianCompositions = [];
         if (positions && positions.length > 0) {
-          console.log('🔷 All positions from hook:', positions.map(p => ({ id: p.id, protocolName: p.protocolName, type: p.type, liquidityX: p.liquidityX })));
+          devLog('🔷 All positions from hook:', positions.map(p => ({ id: p.id, protocolName: p.protocolName, type: p.type, liquidityX: p.liquidityX })));
           meridianCompositions = positions.filter(pos => 
             pos.protocolName === 'Meridian' && 
             (pos.liquidityX !== undefined || pos.liquidityY !== undefined || pos.liquidityTokens !== undefined || pos.stakedAmount !== undefined)
           );
-          console.log('🔷 Meridian positions with composition:', meridianCompositions.length, 
+          devLog('🔷 Meridian positions with composition:', meridianCompositions.length, 
             meridianCompositions.map(p => ({ liquidityX: p.liquidityX, liquidityY: p.liquidityY, liquidityTokens: p.liquidityTokens, tokenX: p.tokenX, tokenY: p.tokenY })));
         }
 
@@ -1889,7 +1823,7 @@ const Dashboard = () => {
                 if (!meridianComposition.liquidityTokens || meridianComposition.liquidityTokens <= 0) {
                   meridianComposition.liquidityTokens = Math.round(amount * 1_000_000);
                 }
-                console.log('🔷 Adding Meridian LP #' + meridianLPIndex + ' with composition:', meridianComposition);
+                devLog('🔷 Adding Meridian LP #' + meridianLPIndex + ' with composition:', meridianComposition);
                 meridianLPIndex++;
               } else if (protocol === 'meridian') {
                 meridianComposition = {
@@ -2014,11 +1948,11 @@ const Dashboard = () => {
                   };
                 }
               }
-            } catch (_e) {
+            } catch {
               // Skip malformed events
             }
           }
-          console.log('🍋 Yuzu liquidity map from events:', yuzuLiquidityMap);
+          devLog('🍋 Yuzu liquidity map from events:', yuzuLiquidityMap);
           
           // Filter for Yuzu position NFTs
           // Yuzu NFT manager address: 0x1d0434ae92598710f5ccbfbf51cf66cf2fe8ba8e77381bed92f45bb32d237bc2
@@ -2037,7 +1971,7 @@ const Dashboard = () => {
               creatorAddress.toLowerCase() === YUZU_NFT_MANAGER;
             
             if (isYuzuPosition) {
-              console.log("🍋 Processing Yuzu NFT:", { tokenName, collectionName, creatorAddress, tokenDataId: nft.token_data_id });
+              devLog("🍋 Processing Yuzu NFT:", { tokenName, collectionName, creatorAddress, tokenDataId: nft.token_data_id });
               
               // Token name IS the position ID (e.g., "2450", "9410", "61152")
               const positionId = tokenName;
@@ -2054,10 +1988,10 @@ const Dashboard = () => {
               const collectionMatch = collectionName.match(/\|\s*([A-Za-z0-9.]+\/[A-Za-z0-9.]+)\s*\|/i);
               if (collectionMatch) {
                 poolPair = collectionMatch[1].replace('/', ' / ');
-                console.log("🍋 Parsed pool pair from collection:", poolPair);
+                devLog("🍋 Parsed pool pair from collection:", poolPair);
               }
               
-              console.log("🍋 Position info:", { positionId, poolPair, poolAddress: poolAddress.substring(0, 20) + '...' });
+              devLog("🍋 Position info:", { positionId, poolPair, poolAddress: poolAddress.substring(0, 20) + '...' });
               
               // Fetch position value from Yuzu view function
               let liquidityValue = 0;
@@ -2076,7 +2010,7 @@ const Dashboard = () => {
               // Try view function with pool address (creatorAddress) and position ID
               if (poolAddress && positionId) {
                 try {
-                  console.log('🍋 Trying get_position_token_amounts with:', { poolAddress: poolAddress.substring(0, 20), positionId });
+                  devLog('🍋 Trying get_position_token_amounts with:', { poolAddress: poolAddress.substring(0, 20), positionId });
                   const response = await fetch(`${DEFAULT_NETWORK.rpc}/view`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2089,7 +2023,7 @@ const Dashboard = () => {
                   
                   if (response.ok) {
                     const result = await response.json();
-                    console.log('🍋 Yuzu view function result:', result);
+                    devLog('🍋 Yuzu view function result:', result);
                     // Result is [amount_0, amount_1] in smallest units
                     if (Array.isArray(result) && result.length >= 2) {
                       // Parse token symbols from pool pair (e.g., "MOVE / USDC.e" -> ["MOVE", "USDC.e"])
@@ -2108,7 +2042,7 @@ const Dashboard = () => {
                       const decimals0 = tokens[0] ? getTokenDecimals(tokens[0]) : 8;
                       const decimals1 = tokens[1] ? getTokenDecimals(tokens[1]) : 8;
                       
-                      console.log('🍋 Token decimals:', { token0: tokens[0], decimals0, token1: tokens[1], decimals1 });
+                      devLog('🍋 Token decimals:', { token0: tokens[0], decimals0, token1: tokens[1], decimals1 });
                       
                       token0Amount = Number(result[0]) / Math.pow(10, decimals0);
                       token1Amount = Number(result[1]) / Math.pow(10, decimals1);
@@ -2129,7 +2063,7 @@ const Dashboard = () => {
                       if (isMeme0 || isMeme1) {
                         // Meme token pair - don't calculate USD value
                         liquidityValue = 0;
-                        console.log('🍋 Meme token detected, skipping USD calculation:', { token0Symbol, token1Symbol });
+                        devLog('🍋 Meme token detected, skipping USD calculation:', { token0Symbol, token1Symbol });
                       } else if (isStable0 && isStable1) {
                         // Pure stablecoin pair
                         liquidityValue = token0Amount + token1Amount;
@@ -2137,18 +2071,18 @@ const Dashboard = () => {
                         // MOVE/stablecoin pair
                         const movePrice = getMovePrice();
                         liquidityValue = (token0Amount * movePrice) + token1Amount;
-                        console.log('🍋 MOVE pair calculation (token0):', { token0Amount, movePrice, token1Amount, liquidityValue });
+                        devLog('🍋 MOVE pair calculation (token0):', { token0Amount, movePrice, token1Amount, liquidityValue });
                       } else if (token1Symbol === 'MOVE' && isStable0) {
                         // stablecoin/MOVE pair
                         const movePrice = getMovePrice();
                         liquidityValue = token0Amount + (token1Amount * movePrice);
-                        console.log('🍋 MOVE pair calculation (token1):', { token0Amount, token1Amount, movePrice, liquidityValue });
+                        devLog('🍋 MOVE pair calculation (token1):', { token0Amount, token1Amount, movePrice, liquidityValue });
                       } else {
                         // Unknown pair without stablecoin reference - can't accurately price
                         liquidityValue = 0;
-                        console.log('🍋 No stablecoin or known token for pricing, skipping USD calculation');
+                        devLog('🍋 No stablecoin or known token for pricing, skipping USD calculation');
                       }
-                      console.log('🍋 Yuzu position values:', { token0Amount, token1Amount, liquidityValue });
+                      devLog('🍋 Yuzu position values:', { token0Amount, token1Amount, liquidityValue });
                     }
                   } else {
                     const errText = await response.text();
@@ -2161,7 +2095,7 @@ const Dashboard = () => {
               
               // Log final status
               if (liquidityValue === 0) {
-                console.log('🍋 Yuzu position - value unavailable, showing as active position');
+                devLog('🍋 Yuzu position - value unavailable, showing as active position');
               }
               
               lpPositions.push({
@@ -2183,7 +2117,7 @@ const Dashboard = () => {
                 tokenDataId: nft.token_data_id,
               });
               
-              console.log("🍋 Found Yuzu NFT position:", { positionId, poolPair, liquidityValue, token0Amount, token1Amount });
+              devLog("🍋 Found Yuzu NFT position:", { positionId, poolPair, liquidityValue, token0Amount, token1Amount });
             }
           }
         } catch (error) {
@@ -2191,7 +2125,7 @@ const Dashboard = () => {
         }
       }
 
-      console.log("💧 Detected LP/Vault positions:", lpPositions.length);
+      devLog("💧 Detected LP/Vault positions:", lpPositions.length);
       if (!cancelled) {
         setLiquidityPositions(lpPositions);
       }
@@ -2213,7 +2147,7 @@ const Dashboard = () => {
         // Fetch wallet age
         const ageData = await getWalletAge(viewingAddress);
         setWalletAge(ageData);
-        console.log("📅 Wallet age data:", ageData);
+        devLog("📅 Wallet age data:", ageData);
       } catch (err) {
         console.warn("Failed to fetch wallet data:", err);
       }
@@ -2241,7 +2175,7 @@ const Dashboard = () => {
 
   const handleRefresh = () => {
     if (viewingAddress) {
-      console.log("Refreshing assets for:", viewingAddress);
+      devLog("Refreshing assets for:", viewingAddress);
       fetchAssets(viewingAddress);
     }
   };
@@ -2528,7 +2462,7 @@ const Dashboard = () => {
 
 
 
-                {!defiLoading && positions.length === 0 && viewingAddress && (
+                {!defiLoading && visibleDeFiPositions.length === 0 && viewingAddress && (
 
                     <div className="empty-state">No active DeFi positions found</div>
 
@@ -2536,7 +2470,7 @@ const Dashboard = () => {
 
                
 
-                {!defiLoading && positions.length === 0 && !viewingAddress && (
+                {!defiLoading && visibleDeFiPositions.length === 0 && !viewingAddress && (
 
                     <div className="empty-state">Connect wallet to view DeFi positions</div>
 
@@ -2544,16 +2478,52 @@ const Dashboard = () => {
 
 
 
-                {!defiLoading && positions.length > 0 && (() => {
+                {!defiLoading && visibleDeFiPositions.length > 0 && (() => {
                     // Group positions by protocol
-                    const groupedByProtocol = positions.reduce((acc, pos) => {
+                  const groupedByProtocol = visibleDeFiPositions.reduce((acc, pos) => {
                       const key = pos.protocolName || 'Unknown';
                       if (!acc[key]) acc[key] = [];
                       acc[key].push(pos);
                       return acc;
                     }, {});
-                    
-                    return Object.entries(groupedByProtocol).map(([protocolName, protocolPositions], index) => (
+
+                    const getProtocolPositionUsd = (pos) => {
+                      if (!pos) return 0;
+
+                      if (Number.isFinite(pos.usdValue) && pos.usdValue > 0) {
+                        return pos.usdValue;
+                      }
+
+                      const amount = parseFloat(pos.value || 0);
+                      if (!Number.isFinite(amount) || amount <= 0) return 0;
+
+                      const symbol = (pos.tokenSymbol || '').toUpperCase();
+                      const address = getTokenAddressBySymbol(symbol);
+
+                      if (address && priceMap?.[address]) {
+                        return amount * Number(priceMap[address]);
+                      }
+
+                      if (symbol === 'USDC' || symbol === 'USDT' || symbol === 'USDA' || symbol === 'USDE' || symbol === 'SUSDE') {
+                        return amount;
+                      }
+
+                      return 0;
+                    };
+
+                    const sortedProtocolEntries = Object.entries(groupedByProtocol)
+                      .map(([protocolName, protocolPositions]) => {
+                        const netUsd = protocolPositions.reduce((sum, pos) => {
+                          const usdValue = getProtocolPositionUsd(pos);
+                          const isDebt = pos.type === 'Debt';
+                          return sum + (isDebt ? -usdValue : usdValue);
+                        }, 0);
+
+                        return { protocolName, protocolPositions, netUsd };
+                      })
+                      .sort((a, b) => b.netUsd - a.netUsd);
+
+                    return sortedProtocolEntries.map(({ protocolName, protocolPositions }, index) => (
                       <DeFiPositionCard
                         key={protocolName}
                         protocolPositions={protocolPositions}
@@ -2611,88 +2581,116 @@ const Dashboard = () => {
             <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setShowProfileModal(false)}>×</button>
               
-              {/* Profile Picture */}
-              <div className="modal-avatar-section">
-                <img 
-                  src={userProfile?.pfp || '/pfp.PNG'} 
-                  alt="User" 
-                  className="modal-avatar-image" 
-                />
-              </div>
+              <div className="profile-modal-content">
+                <div className="profile-modal-main">
+                  {/* Profile Picture */}
+                  <div className="modal-avatar-section">
+                    <img 
+                      src={userProfile?.pfp || '/pfp.PNG'} 
+                      alt="User" 
+                      className="modal-avatar-image" 
+                    />
+                  </div>
 
-              {/* User Info */}
-              <div className="modal-info-section">
-                <h2 className="modal-username">{userProfile?.username || 'Anonymous User'}</h2>
-                <div className="modal-address">
-                  {viewingAddress && (
-                    <>
-                      <span>{viewingAddress.slice(0, 6)}...{viewingAddress.slice(-4)}</span>
+                  {/* User Info */}
+                  <div className="modal-info-section">
+                    <h2 className="modal-username">{userProfile?.username || 'Anonymous User'}</h2>
+                    <div className="modal-address">
+                      {viewingAddress && (
+                        <>
+                          <span>{viewingAddress.slice(0, 6)}...{viewingAddress.slice(-4)}</span>
+                          <button 
+                            className="modal-copy-btn"
+                            onClick={(e) => {
+                              navigator.clipboard.writeText(viewingAddress);
+                              const btn = e.currentTarget;
+                              btn.classList.add('copied');
+                              setTimeout(() => btn.classList.remove('copied'), 1000);
+                            }}
+                            title="Copy address"
+                          >
+                            <img src="/copy.png" alt="Copy" className="copy-icon-img" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {userProfile?.bio && (
+                      <p className="modal-bio">{userProfile.bio}</p>
+                    )}
+                    {canEditProfile && (
                       <button 
-                        className="modal-copy-btn"
-                        onClick={(e) => {
-                          navigator.clipboard.writeText(viewingAddress);
-                          const btn = e.currentTarget;
-                          btn.classList.add('copied');
-                          setTimeout(() => btn.classList.remove('copied'), 1000);
+                        className="modal-edit-btn"
+                        onClick={() => {
+                          setShowProfileModal(false);
+                          navigate('/profile');
                         }}
-                        title="Copy address"
                       >
-                        <img src="/copy.png" alt="Copy" className="copy-icon-img" />
+                        Edit Profile
                       </button>
-                    </>
+                    )}
+                  </div>
+
+                  {/* Level Details Section */}
+                  {!levelLoading && (
+                    <div className="modal-level-section">
+                      <div className="modal-level-row">
+                        <span className="modal-level-label">Current Level</span>
+                        <span className="modal-level-value">{level}</span>
+                      </div>
+                      <div className="modal-xp-row">
+                        <span className="modal-xp-label">Experience Points</span>
+                        <span className="modal-xp-value">{xp} / {nextLevelXP}</span>
+                      </div>
+                      <div className="modal-xp-bar-container">
+                        <div className="modal-xp-bar-fill" style={{ width: `${xpProgress}%` }} />
+                      </div>
+                    </div>
                   )}
                 </div>
-                {userProfile?.bio && (
-                  <p className="modal-bio">{userProfile.bio}</p>
-                )}
-                <button 
-                  className="modal-edit-btn"
-                  onClick={() => {
-                    setShowProfileModal(false);
-                    navigate('/profile');
-                  }}
-                >
-                  Edit Profile
-                </button>
-              </div>
 
-              {/* Level Details Section */}
-              {!levelLoading && (
-                <div className="modal-level-section">
-                  <div className="modal-level-row">
-                    <span className="modal-level-label">Current Level</span>
-                    <span className="modal-level-value">{level}</span>
-                  </div>
-                  <div className="modal-xp-row">
-                    <span className="modal-xp-label">Experience Points</span>
-                    <span className="modal-xp-value">{xp} / {nextLevelXP}</span>
-                  </div>
-                  <div className="modal-xp-bar-container">
-                    <div className="modal-xp-bar-fill" style={{ width: `${xpProgress}%` }} />
-                  </div>
-                </div>
-              )}
+                {/* Badges Section */}
+                <div className="modal-badges-section">
+                  <h3 className="modal-badges-title">Collected Badges ({userBadges.length})</h3>
 
-              {/* Badges Section */}
-              <div className="modal-badges-section">
-                <h3 className="modal-badges-title">Collected Badges ({userBadges.length})</h3>
-                {userBadges.length > 0 ? (
-                  <div className="modal-badges-grid">
-                    {userBadges.map(badge => (
-                      <div key={badge.id} className="modal-badge-item">
-                        <div className="modal-badge-icon-box">
-                          <span className="modal-badge-icon">{badge.icon || '🏆'}</span>
-                        </div>
-                        <div className="modal-badge-info">
-                          <div className="modal-badge-name">{badge.name}</div>
-                          <div className="modal-badge-description">{badge.description}</div>
-                        </div>
+                  {/* On-chain badges (available in module) */}
+                  <div className="modal-onchain-badges">
+                    <h4 className="modal-onchain-title">Available Badges</h4>
+                    {onchainBadgesLoading ? (
+                      <div className="modal-onchain-loading">Loading badges...</div>
+                    ) : onchainBadges && onchainBadges.length > 0 ? (
+                      <div className="modal-onchain-badges-grid">
+                        {onchainBadges.map((b) => (
+                          <div key={b.id} className={`modal-onchain-badge ${b.earned ? 'owned' : 'locked'}`}>
+                            <div className="modal-onchain-badge-icon">{b.imageUrl ? <img src={b.imageUrl} alt={b.name} onError={(e)=>{e.target.style.display='none'}}/> : (b.name ? b.name[0] : '🏅')}</div>
+                            <div className="modal-onchain-badge-info">
+                              <div className="modal-onchain-badge-name">{b.name}</div>
+                              <div className="modal-onchain-badge-meta">{b.earned ? 'Owned' : 'Not owned'}</div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <div className="modal-onchain-empty">No on-chain badges</div>
+                    )}
                   </div>
-                ) : (
-                  <p className="modal-no-badges">No badges earned yet. Mint badges to level up!</p>
-                )}
+                  {(persistedBadges && persistedBadges.length > 0) || userBadges.length > 0 ? (
+                    <div className="modal-badges-grid">
+                      {(persistedBadges && persistedBadges.length > 0 ? persistedBadges : userBadges).map(badge => (
+                        <div key={badge.id} className="modal-badge-item">
+                          <div className="modal-badge-icon-box">
+                            <span className="modal-badge-icon">{badge.icon || '🏆'}</span>
+                          </div>
+                          <div className="modal-badge-info">
+                            <div className="modal-badge-name">{badge.name}</div>
+                            <div className="modal-badge-description">{badge.description}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="modal-no-badges">No badges earned yet. Mint badges to level up!</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -2750,23 +2748,35 @@ const App = () => {
       <AptosWalletAdapterProvider plugins={wallets} autoConnect={true}>
 
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/*" element={
-            <Layout>
-              <Routes>
-                <Route path="/wallet/:address" element={<Dashboard />} />
-                <Route path="/swap" element={<SwapPageWrapper />} />
-                <Route path="/badges" element={<Badges />} />
-                <Route path="/leaderboard" element={<Leaderboard />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/profile/:address" element={<ProfileView />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/more" element={<More />} />
-                <Route path="/level" element={<Level />} />
-              </Routes>
-            </Layout>
-          } />
+          <Route
+            path="/"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Home />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/*"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Layout>
+                  <Routes>
+                    <Route path="/wallet/:address" element={<Dashboard />} />
+                    <Route path="/swap" element={<SwapPageWrapper />} />
+                    <Route path="/badges" element={<Badges />} />
+                    <Route path="/leaderboard" element={<Leaderboard />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/profile/:address" element={<ProfileView />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/admin" element={<Admin />} />
+                    <Route path="/more" element={<More />} />
+                    <Route path="/level" element={<Level />} />
+                  </Routes>
+                </Layout>
+              </Suspense>
+            }
+          />
         </Routes>
 
       </AptosWalletAdapterProvider>

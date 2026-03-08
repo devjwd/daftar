@@ -5,7 +5,6 @@ import {
   deleteProfile,
   getAllProfiles,
   searchProfiles,
-  normalizeAddress,
   imageToBase64,
   compressImage,
 } from '../services/profileService';

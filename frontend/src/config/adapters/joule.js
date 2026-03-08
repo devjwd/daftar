@@ -13,7 +13,7 @@ export const jouleAdapter = [
     // Joule stores user positions in pool::UserPositionsMap resource
     searchString: "::pool::UserPositionsMap", 
 
-    parse: (data, resourceType) => {
+    parse: (data) => {
       const positions = [];
       
       // UserPositionsMap has positions_map.data array
@@ -52,7 +52,7 @@ export const jouleAdapter = [
     protocol: "Joule",
     searchString: "::pool::UserPositionsMap", 
 
-    parse: (data, resourceType) => {
+    parse: (data) => {
       const positions = [];
       
       // UserPositionsMap has positions_map.data array
@@ -93,7 +93,7 @@ export const jouleAdapter = [
     protocol: "Joule",
     searchString: "::rewards::UserPoolsMap",
 
-    parse: (data, resourceType) => {
+    parse: (data) => {
       const positions = [];
       
       // UserPoolsMap has user_pools_map.data array

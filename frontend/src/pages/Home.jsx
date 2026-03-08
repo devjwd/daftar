@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { formatAddress, isValidAddress } from '../utils/tokenUtils';
+import { isValidAddress } from '../utils/tokenUtils';
+import { getStoredLanguagePreference, t } from '../utils/language';
 import './Home.css';
 
 export default function Home() {
@@ -10,6 +11,25 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchError, setSearchError] = useState('');
   const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const [language, setLanguage] = useState(() => getStoredLanguagePreference());
+
+  useEffect(() => {
+    const syncLanguage = () => setLanguage(getStoredLanguagePreference());
+    const onLanguageChange = (event) => {
+      if (event?.detail?.language) {
+        setLanguage(event.detail.language);
+      } else {
+        syncLanguage();
+      }
+    };
+
+    window.addEventListener('languagechange', onLanguageChange);
+    window.addEventListener('storage', syncLanguage);
+    return () => {
+      window.removeEventListener('languagechange', onLanguageChange);
+      window.removeEventListener('storage', syncLanguage);
+    };
+  }, []);
 
   const handleConnectWallet = async (walletName) => {
     try {
@@ -67,29 +87,28 @@ export default function Home() {
             </div>
             
             <h1 className="home-title">
-              Your Complete
-              <span className="title-gradient"> DeFi Portfolio</span>
+              {t(language, 'homeTitleLead')}
+              <span className="title-gradient">{t(language, 'homeTitleAccent')}</span>
             </h1>
             
             <p className="home-subtitle">
-              Track, analyze, and manage your Movement Network assets in real time.
-              Monitor DeFi positions, token balances, and earn social reputation all in one place.
+              {t(language, 'homeSubtitle')}
             </p>
 
             <div className="home-stats">
               <div className="stat-item">
                 <div className="stat-value">10+</div>
-                <div className="stat-label">Protocols Supported</div>
+                <div className="stat-label">{t(language, 'homeProtocolsSupported')}</div>
               </div>
               <div className="stat-divider"></div>
               <div className="stat-item">
                 <div className="stat-value">Real-time</div>
-                <div className="stat-label">On-chain Data</div>
+                <div className="stat-label">{t(language, 'homeRealtimeData')}</div>
               </div>
               <div className="stat-divider"></div>
               <div className="stat-item">
                 <div className="stat-value">24/7</div>
-                <div className="stat-label">Portfolio Tracking</div>
+                <div className="stat-label">{t(language, 'homePortfolioTracking')}</div>
               </div>
             </div>
           </div>
@@ -104,7 +123,7 @@ export default function Home() {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Enter movement wallet address or username..."
+                  placeholder={t(language, 'searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -132,12 +151,13 @@ export default function Home() {
             </form>
 
             <div className="home-divider">
-              <span className="home-divider-text">or connect your wallet</span>
+              <span className="home-divider-text">{t(language, 'homeConnectWalletPrompt')}</span>
             </div>
 
             <div className="home-wallet-section">
               <button 
                 className="home-connect-btn"
+                type="button"
                 onClick={() => setShowWalletPicker(!showWalletPicker)}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -145,14 +165,14 @@ export default function Home() {
                   <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                   <circle cx="16" cy="14" r="1" fill="currentColor"/>
                 </svg>
-                <span>Connect Wallet</span>
+                <span>{t(language, 'connectWallet')}</span>
               </button>
 
               {showWalletPicker && (
                 <div className="home-wallet-picker">
                   <div className="wallet-picker-header">
-                    <h4>Choose Wallet</h4>
-                    <button className="wallet-close" onClick={() => setShowWalletPicker(false)}>
+                    <h4>{t(language, 'homeChooseWallet')}</h4>
+                    <button className="wallet-close" type="button" onClick={() => setShowWalletPicker(false)}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>
                         <line x1="6" y1="6" x2="18" y2="18"/>
@@ -177,6 +197,7 @@ export default function Home() {
                           <button
                             key={wallet.name}
                             className="home-wallet-option"
+                            type="button"
                             onClick={() => handleConnectWallet(wallet.name)}
                           >
                             <div className="wallet-option-content">
@@ -214,8 +235,8 @@ export default function Home() {
                   <line x1="6" y1="20" x2="6" y2="16"/>
                 </svg>
               </div>
-              <h3>Portfolio Analytics</h3>
-              <p>Track your complete portfolio with real time balance updates and historical performance charts</p>
+              <h3>{t(language, 'homeFeatureAnalyticsTitle')}</h3>
+              <p>{t(language, 'homeFeatureAnalyticsDesc')}</p>
             </div>
             
             <div className="home-feature">
@@ -226,8 +247,8 @@ export default function Home() {
                   <polyline points="2 12 12 17 22 12"/>
                 </svg>
               </div>
-              <h3>DeFi Positions</h3>
-              <p>Monitor lending, staking, and liquidity positions across all Movement protocols</p>
+              <h3>{t(language, 'homeFeatureDefiTitle')}</h3>
+              <p>{t(language, 'homeFeatureDefiDesc')}</p>
             </div>
             
             <div className="home-feature">
@@ -237,8 +258,8 @@ export default function Home() {
                   <polyline points="17 6 23 6 23 12"/>
                 </svg>
               </div>
-              <h3>Live Prices</h3>
-              <p>Get accurate token pricing with automatic USD conversion and market data</p>
+              <h3>{t(language, 'homeFeaturePricesTitle')}</h3>
+              <p>{t(language, 'homeFeaturePricesDesc')}</p>
             </div>
             
             <div className="home-feature">
@@ -248,19 +269,18 @@ export default function Home() {
                   <path d="M12 1v6m0 6v6m5.2-13.2l-4.2 4.2m0 6l4.2 4.2M1 12h6m6 0h6m-13.2 5.2l4.2-4.2m0-6l-4.2-4.2"/>
                 </svg>
               </div>
-              <h3>Token Swaps</h3>
-              <p>Seamlessly swap tokens within the app with competitive rates and low fees</p>
+              <h3>{t(language, 'homeFeatureSwapTitle')}</h3>
+              <p>{t(language, 'homeFeatureSwapDesc')}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Footer Section */}
-      <div className="home-footer">
-        <div className="footer-content">
-          <p className="footer-text">Built with love for the Movement Network ecosystem</p>
-        </div>
-      </div>
+      <footer className="home-footer-min" aria-label="Home footer">
+        <span>{t(language, 'homeFooterTitle')}</span>
+        <span>•</span>
+        <span>{t(language, 'homeFooterBuiltOn')}</span>
+      </footer>
     </div>
   );
 }

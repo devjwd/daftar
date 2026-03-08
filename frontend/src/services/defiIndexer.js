@@ -5,60 +5,13 @@
  */
 
 import { DEFAULT_NETWORK } from "../config/network";
+import { DEFI_PROTOCOLS as SHARED_DEFI_PROTOCOLS } from "../config/protocols";
 
 /**
  * Known DeFi protocol contract addresses on Movement Network
  * These are verified mainnet addresses for major protocols
  */
-export const DEFI_PROTOCOLS = {
-  // Echelon Finance - Lending Protocol
-  ECHELON: {
-    name: "Echelon",
-    address: "0x6a01d5761d43a5b5a0ccbfc42edf2d02c0611464aae99a2ea0e0d4819f0550b5",
-    type: "Lending",
-    website: "https://echelon.finance",
-  },
-  
-  // Joule Finance - Lending & Borrowing
-  JOULE: {
-    name: "Joule Finance",
-    address: "0x2fe576faa841347a9b1b32c869685deb75a15e3f62dfe37cbd6d52cc403a16f6",
-    type: "Lending",
-    website: "https://joule.finance",
-  },
-  
-  // MovePosition - Lending Protocol
-  MOVEPOSITION: {
-    name: "MovePosition",
-    address: "0xccd2621d2897d407e06d18e6ebe3be0e6d9b61f1e809dd49360522b9105812cf",
-    type: "Lending",
-    website: "https://moveposition.xyz",
-  },
-  
-  // Meridian - Stablecoin & CDP Protocol
-  MERIDIAN: {
-    name: "Meridian",
-    address: "0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82",
-    type: "CDP",
-    website: "https://app.meridian.money/",
-  },
-  
-  // Razor DEX - AMM
-  RAZOR: {
-    name: "Razor DEX",
-    address: "0x7730cd28ee1cdc9e999336cbc430f99e7c44397c0aa77516f6f23a78559bb5",
-    type: "DEX",
-    website: "https://razor.exchange",
-  },
-  
-  // Yuzu Swap - CLMM DEX
-  YUZU: {
-    name: "Yuzu Swap",
-    address: "0x4bf51972879e3b95c4781a5cdcb9e1ee24ef483e7d22f2d903626f126df62bd1",
-    type: "DEX",
-    website: "https://yuzu.swap",
-  },
-};
+export const DEFI_PROTOCOLS = SHARED_DEFI_PROTOCOLS;
 
 /**
  * Get indexer endpoint
@@ -240,7 +193,7 @@ export const detectUserProtocols = async (address) => {
       
       // Check against known protocol addresses
       Object.entries(DEFI_PROTOCOLS).forEach(([key, protocol]) => {
-        if (assetType.includes(protocol.address.toLowerCase())) {
+        if (protocol.address && assetType.includes(protocol.address.toLowerCase())) {
           detectedProtocols.add(key);
         }
       });

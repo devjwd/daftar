@@ -1,85 +1,67 @@
+/**
+ * useUserLevel Hook
+ * 
+ * Calculates user level based on earned badge XP.
+ */
 import { useState, useEffect, useMemo } from 'react';
-import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
-import { DEFAULT_NETWORK } from '../config/network';
-import { fetchBadges, hasBadge } from '../services/badgeService';
-import { getLevelFromXP, getNextLevelXP, getRarityInfo } from '../config/badges';
+import { getUserAwards, getBadgeById, subscribe } from '../services/badges/badgeStore.js';
+import {
+  calculateTotalXP,
+  getLevelFromXP,
+  getNextLevelXP,
+  getLevelProgress,
+} from '../config/badges.js';
 
 /**
- * Hook to calculate user level based on earned badges
- * @param {string} address - User's wallet address
- * @returns {Object} { level, xp, nextLevelXP, xpProgress, badges, loading }
+ * @param {string} address - User wallet address
  */
 export function useUserLevel(address) {
-  const [level, setLevel] = useState(1);
-  const [xp, setXP] = useState(0);
   const [badges, setBadges] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const movementClient = useMemo(
-    () =>
-      new Aptos(
-        new AptosConfig({
-          network: Network.CUSTOM,
-          fullnode: DEFAULT_NETWORK.rpc,
-        })
-      ),
-    []
-  );
-
   useEffect(() => {
     if (!address) {
-      setLevel(1);
-      setXP(0);
       setBadges([]);
       return;
     }
 
-    const calculateLevel = async () => {
-      setLoading(true);
-      try {
-        // Fetch all available badges
-        const allBadges = await fetchBadges(movementClient);
-        
-        // Check which badges user has earned
-        let totalXP = 0;
-        const userBadges = [];
+    setLoading(true);
 
-        for (const badge of allBadges) {
-          const earned = await hasBadge(movementClient, badge.id, address);
-          if (earned) {
-            userBadges.push(badge);
-            // Calculate XP for this badge
-            const rarity = getRarityInfo(badge.rarity || 'COMMON');
-            const badgeXP = badge.xp || (rarity.level * 10);
-            totalXP += badgeXP;
-          }
-        }
+    const compute = () => {
+      const awards = getUserAwards(address);
+      const earned = awards
+        .map(award => {
+          const badge = getBadgeById(award.badgeId);
+          return badge ? { ...badge, earnedAt: award.awardedAt } : null;
+        })
+        .filter(Boolean);
 
-        setBadges(userBadges);
-        setXP(totalXP);
-        setLevel(getLevelFromXP(totalXP));
-      } catch (err) {
-        console.error('Failed to calculate user level:', err);
-        setLevel(1);
-        setXP(0);
-        setBadges([]);
-      } finally {
-        setLoading(false);
-      }
+      setBadges(earned);
+      setLoading(false);
     };
 
-    calculateLevel();
-  }, [address, movementClient]);
+    compute();
 
-  const nextLevelXP = getNextLevelXP(xp);
-  const xpProgress = ((xp % 100) / 100) * 100;
+    const unsub = subscribe('awards:changed', compute);
+    return unsub;
+  }, [address]);
+
+  const xp = useMemo(() => calculateTotalXP(badges), [badges]);
+  const level = useMemo(() => getLevelFromXP(xp), [xp]);
+  const nextLevelXP = useMemo(() => getNextLevelXP(xp), [xp]);
+  const progress = useMemo(() => getLevelProgress(xp), [xp]);
 
   return {
     level,
     xp,
     nextLevelXP,
-    xpProgress,
+    xpProgress: progress.percentage,
+    progressXP: progress.progressXP,
+    requiredXP: progress.requiredXP,
     badges,
     loading,
+    badgeCount: badges.length,
   };
 }
+
+export default useUserLevel;

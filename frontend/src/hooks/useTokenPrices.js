@@ -105,13 +105,13 @@ export const useTokenPrices = () => {
       try {
         // Try direct fetch first
         response = await fetch(coingeckoUrl, { signal: controller.signal });
-      } catch (_e) {
+      } catch {
         // If CORS error, try CORS proxy
         console.warn("Direct CoinGecko fetch failed, attempting CORS proxy...");
         try {
           const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(coingeckoUrl)}`;
           response = await fetch(proxyUrl, { signal: controller.signal });
-        } catch (_e) {
+        } catch {
           console.warn("CORS proxy also failed. Using fallback prices.");
           throw new Error("Price API unavailable (CORS/network). Using fallback prices.");
         }

@@ -138,6 +138,31 @@ export const MOVEMENT_TOKENS = {
   },
 };
 
+const normalizeTokenKey = (value) => {
+  if (!value) return "";
+
+  let normalized = String(value).trim().toLowerCase();
+
+  // Handle generic wrappers like CoinStore<0x1::aptos_coin::AptosCoin>
+  const genericMatch = normalized.match(/<\s*([^>]+)\s*>/);
+  if (genericMatch?.[1]) {
+    normalized = genericMatch[1].trim().toLowerCase();
+  }
+
+  // Keep only the account portion when a full type is provided
+  if (normalized.includes("::")) {
+    normalized = normalized.split("::")[0];
+  }
+
+  if (!normalized.startsWith("0x")) {
+    normalized = `0x${normalized}`;
+  }
+
+  // Compact padded addresses (0x000...001 -> 0x1)
+  const compact = normalized.slice(2).replace(/^0+/, "") || "0";
+  return `0x${compact}`;
+};
+
 /**
  * Get token info by address (normalized)
  * @param {string} address - Token address
@@ -145,12 +170,8 @@ export const MOVEMENT_TOKENS = {
  */
 export function getTokenInfo(address) {
   if (!address) return null;
-  
-  // Normalize address (lowercase, ensure 0x prefix)
-  let normalized = String(address).toLowerCase().trim();
-  if (!normalized.startsWith("0x")) {
-    normalized = `0x${normalized}`;
-  }
+
+  const normalized = normalizeTokenKey(address);
   
   // Check exact match first
   if (MOVEMENT_TOKENS[normalized]) {
@@ -180,5 +201,56 @@ export function getTokenInfo(address) {
  */
 export function isKnownToken(address) {
   return getTokenInfo(address) !== null;
+}
+
+/**
+ * Resolve canonical token address by symbol
+ * @param {string} symbol - Token symbol (e.g. MOVE, USDC, ETH)
+ * @returns {string|null} Canonical address or null
+ */
+export function getTokenAddressBySymbol(symbol) {
+  if (!symbol) return null;
+
+  const normalized = String(symbol).toUpperCase().replace(/\.E$/i, "").trim();
+  const alias = {
+    ETH: "WETH",
+    BTC: "WBTC",
+  };
+  const target = alias[normalized] || normalized;
+
+  for (const [address, token] of Object.entries(MOVEMENT_TOKENS)) {
+    if (token?.symbol?.toUpperCase() === target) {
+      return address;
+    }
+  }
+
+  if (target === "MOVE") return "0xa";
+  return null;
+}
+
+/**
+ * Resolve full asset type used by swap routers from symbol
+ * @param {string} symbol - Token symbol (e.g. MOVE, USDC, WETH)
+ * @returns {string|null} Full asset type or null
+ */
+export function getSwapAssetTypeBySymbol(symbol) {
+  if (!symbol) return null;
+
+  const normalized = String(symbol).toUpperCase().replace(/\.E$/i, "").trim();
+  const alias = {
+    ETH: "WETH",
+    BTC: "WBTC",
+  };
+  const target = alias[normalized] || normalized;
+
+  const typeMap = {
+    MOVE: "0x1::aptos_coin::AptosCoin",
+    USDC: "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39::asset::USDC",
+    USDT: "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d::asset::USDT",
+    WETH: "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376::asset::WETH",
+    WBTC: "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c::asset::WBTC",
+  };
+
+  return typeMap[target] || null;
 }
 

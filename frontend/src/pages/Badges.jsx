@@ -1,342 +1,267 @@
+/**
+ * Badges Page
+ * 
+ * Displays all SBT badges categorized by state:
+ * - Eligible to Claim (with mint action)
+ * - Earned Badges  
+ * - Locked (in progress)
+ * 
+ * Features real-time eligibility polling and category filtering.
+ */
 import './Badges.css';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
-import { DEFAULT_NETWORK } from '../config/network';
-import {
-  fetchBadges,
-  hasBadge,
-  isAllowlisted,
-  getCoinBalance,
-  mintBadge,
-  mintBadgeWithBalance,
-  ruleLabel,
-} from '../services/badgeService';
-import {
-  BADGE_RULES,
-  ACTIVITY_BADGE_TIERS,
-  LONGEVITY_BADGE_TIERS,
-} from '../config/badges';
-import {
-  getTransactionCount,
-  getDaysOnchain,
-} from '../services/eligibilityService';
-import BadgeCard from '../components/BadgeCard';
+import { DEFAULT_NETWORK } from '../config/network.js';
+import { BADGE_CATEGORIES } from '../config/badges.js';
+import { awardBadge } from '../services/badges/badgeStore.js';
+import { mintBadge, mintBadgeWithBalance } from '../services/badgeService.js';
+import useBadges from '../hooks/useBadges.js';
+import BadgeCard from '../components/BadgeCard.jsx';
 
 export default function Badges() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
-  const [onChainBadges, setOnChainBadges] = useState([]);
-  const [userBadges, setUserBadges] = useState(new Set());
-  const [eligibilityMap, setEligibilityMap] = useState({});
-  const [loadingBadges, setLoadingBadges] = useState(false);
-  const [minting, setMinting] = useState({});
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [mintingIds, setMintingIds] = useState(new Set());
   const [error, setError] = useState('');
-  const [userTxCount, setUserTxCount] = useState(0);
-  const [userDaysOnchain, setUserDaysOnchain] = useState(0);
+  const [successMsg, setSuccessMsg] = useState('');
 
   const movementClient = useMemo(
-    () =>
-      new Aptos(
-        new AptosConfig({
-          network: Network.CUSTOM,
-          fullnode: DEFAULT_NETWORK.rpc,
-        })
-      ),
+    () => new Aptos(new AptosConfig({ network: Network.CUSTOM, fullnode: DEFAULT_NETWORK.rpc })),
     []
   );
 
-  // Load badges on mount
-  useEffect(() => {
-    const loadBadgesData = async () => {
-      setLoadingBadges(true);
-      try {
-        const badges = await fetchBadges(movementClient);
-        setOnChainBadges(badges);
-      } catch (err) {
-        console.error('Failed to load badges:', err);
-      } finally {
-        setLoadingBadges(false);
-      }
-    };
+  const address = connected && account?.address
+    ? (typeof account.address === 'string' ? account.address : account.address.toString())
+    : null;
 
-    loadBadgesData();
-  }, []);
+  const {
+    badges,
+    totalBadges,
+    earnedCount,
+    eligibleCount,
+    completionPercent,
+    loading,
+    refresh,
+  } = useBadges(address, {
+    client: movementClient,
+    enablePolling: true,
+  });
 
-  // Load user stats and eligibility
-  useEffect(() => {
-    if (!account?.address || !onChainBadges.length) return;
+  const earnedLabel = `${earnedCount} of ${totalBadges} Earned`;
 
-    const checkEligibility = async () => {
-      const owned = new Set();
-      const eligible = {};
+  // Category filter
+  const categoryList = useMemo(() => {
+    const cats = [{ id: 'all', name: 'All', icon: '🏅' }];
+    Object.values(BADGE_CATEGORIES).forEach(cat => {
+      const count = badges.filter(b => b.category === cat.id).length;
+      if (count > 0) cats.push({ ...cat, count });
+    });
+    return cats;
+  }, [badges]);
 
-      try {
-        for (const badge of onChainBadges) {
-          // Check if already minted
-          const hasMinted = await hasBadge(movementClient, badge.id, account.address.toString());
-          if (hasMinted) {
-            owned.add(badge.id);
-          }
+  const filteredBadges = useMemo(() => {
+    if (activeCategory === 'all') return badges;
+    return badges.filter(b => b.category === activeCategory);
+  }, [badges, activeCategory]);
 
-          // Check eligibility based on rule type
-          if (badge.ruleType === BADGE_RULES.ALLOWLIST) {
-            const allowlisted = await isAllowlisted(movementClient, badge.id, account.address.toString());
-            eligible[badge.id] = allowlisted && !hasMinted;
-          } else if (badge.ruleType === BADGE_RULES.MIN_BALANCE) {
-            const balance = await getCoinBalance(movementClient, account.address.toString(), badge.coinTypeStr);
-            eligible[badge.id] = balance >= badge.minBalance && !hasMinted;
-          } else {
-            eligible[badge.id] = false;
-          }
-        }
+  const filteredEarned = useMemo(() => filteredBadges.filter(b => b.earned), [filteredBadges]);
+  const filteredEligible = useMemo(() => filteredBadges.filter(b => b.eligible && !b.earned), [filteredBadges]);
+  const filteredLocked = useMemo(() => filteredBadges.filter(b => b.locked), [filteredBadges]);
 
-        setUserBadges(owned);
-        setEligibilityMap(eligible);
-      } catch (err) {
-        console.error('Failed to check eligibility:', err);
-      }
-    };
-
-    checkEligibility();
-  }, [account, onChainBadges]);
-
-  useEffect(() => {
-    if (!account?.address) return;
-
-    const loadUserProgressStats = async () => {
-      try {
-        const userAddress = account.address.toString();
-        const [txCount, daysOnchain] = await Promise.all([
-          getTransactionCount(userAddress),
-          getDaysOnchain(userAddress),
-        ]);
-
-        setUserTxCount(Number(txCount) || 0);
-        setUserDaysOnchain(Number(daysOnchain) || 0);
-      } catch (err) {
-        console.error('Failed to load user progression stats:', err);
-        setUserTxCount(0);
-        setUserDaysOnchain(0);
-      }
-    };
-
-    loadUserProgressStats();
-  }, [account]);
-
-  const handleMintBadge = async (badge) => {
+  // Mint handler
+  const handleMint = useCallback(async (badge) => {
     if (!connected || !account || !signAndSubmitTransaction) {
-      setError('Please connect your wallet');
+      setError('Please connect your wallet to claim badges');
       return;
     }
 
-    setMinting((prev) => ({ ...prev, [badge.id]: true }));
     setError('');
+    setSuccessMsg('');
+    setMintingIds(prev => new Set([...prev, badge.id]));
 
     try {
-      if (badge.ruleType === BADGE_RULES.MIN_BALANCE) {
-        await mintBadgeWithBalance({
-          signAndSubmitTransaction,
-          sender: account.address,
-          badgeId: badge.id,
-          coinType: badge.coinTypeStr,
-        });
-      } else {
-        await mintBadge({
-          signAndSubmitTransaction,
-          sender: account.address,
-          badgeId: badge.id,
-        });
+      // If badge has on-chain ID, do on-chain mint
+      if (badge.onChainBadgeId != null) {
+        const senderAddress = typeof account.address === 'string' ? account.address : account.address.toString();
+        if (badge.criteria?.some(c => c.type === 'min_balance')) {
+          const balanceCriteria = badge.criteria.find(c => c.type === 'min_balance');
+          await mintBadgeWithBalance({
+            signAndSubmitTransaction,
+            sender: senderAddress,
+            badgeId: badge.onChainBadgeId,
+            coinType: balanceCriteria.params.coinType,
+          });
+        } else {
+          await mintBadge({
+            signAndSubmitTransaction,
+            sender: senderAddress,
+            badgeId: badge.onChainBadgeId,
+          });
+        }
       }
 
-      // Refresh eligibility
-      const owned = new Set([...userBadges, badge.id]);
-      setUserBadges(owned);
-      setEligibilityMap((prev) => ({ ...prev, [badge.id]: false }));
+      // Record the award locally
+      awardBadge(address, badge.id, {
+        txHash: null,
+        metadata: { mintedAt: Date.now() },
+      });
+
+      setSuccessMsg(`"${badge.name}" badge claimed!`);
+      setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       console.error('Mint error:', err);
-      setError(err.message || 'Failed to mint badge');
+      setError(err.message || 'Failed to claim badge. Please try again.');
     } finally {
-      setMinting((prev) => ({ ...prev, [badge.id]: false }));
+      setMintingIds(prev => {
+        const next = new Set(prev);
+        next.delete(badge.id);
+        return next;
+      });
     }
-  };
-
-  const getNumericThreshold = (badge) => {
-    if (typeof badge.minBalance === 'number' && badge.minBalance > 0) {
-      return badge.minBalance;
-    }
-
-    if (!badge.ruleNote) return 0;
-
-    const matched = String(badge.ruleNote).match(/\d+(\.\d+)?/);
-    return matched ? Number(matched[0]) : 0;
-  };
-
-  const getGamificationMeta = (badge) => {
-    if (badge.ruleType === BADGE_RULES.TRANSACTION_COUNT) {
-      const threshold = getNumericThreshold(badge) || 1;
-      const tier = ACTIVITY_BADGE_TIERS.find((item) => item.count === threshold);
-
-      return {
-        rarity: tier?.rarity || 'COMMON',
-        xp: tier?.xp || 10,
-        percentile: tier?.percentileThreshold ?? null,
-        progress: userTxCount,
-        progressMax: threshold,
-        nextMilestone: threshold,
-      };
-    }
-
-    if (badge.ruleType === BADGE_RULES.DAYS_ONCHAIN) {
-      const threshold = getNumericThreshold(badge) || 1;
-      const tier = LONGEVITY_BADGE_TIERS.find((item) => item.days === threshold);
-
-      return {
-        rarity: tier?.rarity || 'COMMON',
-        xp: tier?.xp || 10,
-        percentile: tier?.percentileThreshold ?? null,
-        progress: userDaysOnchain,
-        progressMax: threshold,
-        nextMilestone: threshold,
-      };
-    }
-
-    return {
-      rarity: badge.rarity || 'COMMON',
-      xp: badge.xp || 10,
-      percentile: null,
-      progress: 0,
-      progressMax: 0,
-      nextMilestone: null,
-    };
-  };
-
-  // Enhance badges with criteria and gamification meta
-  const enhancedBadges = onChainBadges.map((badge) => {
-    let criteria = ruleLabel(badge.ruleType);
-    if (badge.ruleNote) {
-      criteria += ` - ${badge.ruleNote}`;
-    }
-
-    const gamification = getGamificationMeta(badge);
-
-    return {
-      ...badge,
-      criteria,
-      ...gamification,
-    };
-  });
-
-  const handleEarnedBadges = enhancedBadges.filter((b) => userBadges.has(b.id));
-  const handleLocked = enhancedBadges.filter((b) => !userBadges.has(b.id) && !eligibilityMap[b.id]);
-  const handleEligible = enhancedBadges.filter((b) => eligibilityMap[b.id]);
-
-  const completionPercent = onChainBadges.length > 0 ? (handleEarnedBadges.length / onChainBadges.length) * 100 : 0;
+  }, [connected, account, signAndSubmitTransaction, address]);
 
   return (
     <div className="badges-page">
       <div className="badges-container">
-        {/* Header */}
-        <div className="badges-header">
+        <header className="badges-header">
           <div className="badges-header-text">
             <span className="badges-eyebrow">Achievements</span>
             <h1>Badges</h1>
-            <p>Earn SBT achievements by participating in the Movement Network</p>
+            <p>Earn SBT achievements by participating in the Movement Network.</p>
           </div>
-          <div className="badges-progress">
-            <span className="progress-text">
-              {handleEarnedBadges.length} of {onChainBadges.length} Earned
-            </span>
+
+          <div className="badges-progress" aria-label="Badge progress summary">
+            <span className="progress-text">{earnedLabel}</span>
             <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{
-                  width: `${completionPercent}%`,
-                }}
-              />
+              <div className="progress-fill" style={{ width: `${completionPercent}%` }} />
             </div>
           </div>
-        </div>
+        </header>
 
-        {error && (
-          <div className="badges-error" style={{ marginBottom: '20px' }}>
-            {error}
+        {/* Messages */}
+        {successMsg && <div className="badges-msg badges-msg-success">{successMsg}</div>}
+        {error && <div className="badges-msg badges-msg-error">{error}</div>}
+
+        {/* Category Filters */}
+        {categoryList.length > 2 && (
+          <div className="badges-categories">
+            {categoryList.map(cat => (
+              <button
+                key={cat.id}
+                className={`badges-cat-btn ${activeCategory === cat.id ? 'active' : ''}`}
+                onClick={() => setActiveCategory(cat.id)}
+              >
+                {cat.icon} {cat.name}
+                {cat.count != null && <span className="badges-cat-count">{cat.count}</span>}
+              </button>
+            ))}
           </div>
         )}
 
-        {loadingBadges ? (
-          <div className="badges-loading">Loading badges...</div>
-        ) : onChainBadges.length === 0 ? (
-          <div className="badges-empty">No badges available yet</div>
-        ) : (
+        {/* Not connected */}
+        {!connected && (
+          <div className="badges-connect-prompt">
+            <div className="badges-connect-icon">🔐</div>
+            <p>Connect your wallet to view your badge progress and claim earned badges.</p>
+          </div>
+        )}
+
+        {/* Loading */}
+        {connected && loading && totalBadges > 0 && filteredBadges.length === 0 && (
+          <div className="badges-loading">
+            <div className="badges-spinner" />
+            <p>Checking eligibility...</p>
+          </div>
+        )}
+
+        {/* No badges defined yet */}
+        {connected && !loading && totalBadges === 0 && (
+          <div className="badges-empty">
+            <p>No badges available yet</p>
+          </div>
+        )}
+
+        {/* Badge Sections */}
+        {connected && filteredBadges.length > 0 && (
           <>
-            {/* Eligible to Mint */}
-            {handleEligible.length > 0 && (
-              <section className="badges-section">
-                <h2>🎁 Eligible to Mint</h2>
-                <div className="badges-grid">
-                  {handleEligible.map((badge) => (
-                    <div key={badge.id} className="badge-action-card">
-                      <BadgeCard
-                        badge={badge}
-                        earned={false}
-                        progress={badge.progress}
-                        progressMax={badge.progressMax}
-                        nextMilestone={badge.nextMilestone}
-                        percentile={badge.percentile}
-                        xp={badge.xp}
-                        showEligibility
-                      />
-                      <button
-                        className="mint-btn"
-                        onClick={() => handleMintBadge(badge)}
-                        disabled={minting[badge.id]}
-                      >
-                        {minting[badge.id] ? '⏳ Minting...' : '✨ Mint SBT'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
+            {/* Real-time indicator */}
+            {loading && (
+              <div className="badges-realtime-indicator">
+                <span className="badges-pulse-dot" />
+                Updating eligibility...
+              </div>
             )}
 
-            {/* Your Badges */}
-            {handleEarnedBadges.length > 0 && (
+            {/* Refresh button */}
+            <div className="badges-toolbar">
+              <button className="badges-refresh-btn" onClick={refresh} disabled={loading}>
+                ↻ Refresh
+              </button>
+            </div>
+
+            {/* Eligible */}
+            {filteredEligible.length > 0 && (
               <section className="badges-section">
-                <h2>✅ Your Badges</h2>
+                <h2 className="badges-section-title">
+                  <span className="badges-section-icon">🎁</span>
+                  Ready to Claim
+                  <span className="badges-section-count">{filteredEligible.length}</span>
+                </h2>
                 <div className="badges-grid">
-                  {handleEarnedBadges.map((badge) => (
+                  {filteredEligible.map(badge => (
                     <BadgeCard
                       key={badge.id}
                       badge={badge}
-                      earned
+                      eligible
                       progress={badge.progress}
-                      progressMax={badge.progressMax}
-                      nextMilestone={badge.nextMilestone}
-                      percentile={badge.percentile}
-                      xp={badge.xp}
-                      showEligibility
+                      criteriaResults={badge.criteriaResults}
+                      onMint={handleMint}
+                      minting={mintingIds.has(badge.id)}
                     />
                   ))}
                 </div>
               </section>
             )}
 
-            {/* Locked Badges */}
-            {handleLocked.length > 0 && (
+            {/* Earned */}
+            {filteredEarned.length > 0 && (
               <section className="badges-section">
-                <h2>🔒 Locked</h2>
+                <h2 className="badges-section-title">
+                  <span className="badges-section-icon">✅</span>
+                  Your Badges
+                  <span className="badges-section-count">{filteredEarned.length}</span>
+                </h2>
                 <div className="badges-grid">
-                  {handleLocked.map((badge) => (
+                  {filteredEarned.map(badge => (
                     <BadgeCard
                       key={badge.id}
                       badge={badge}
-                      earned={false}
+                      earned
+                      earnedDate={badge.earnedDate}
+                      progress={100}
+                      criteriaResults={badge.criteriaResults}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Locked */}
+            {filteredLocked.length > 0 && (
+              <section className="badges-section">
+                <h2 className="badges-section-title">
+                  <span className="badges-section-icon">🔒</span>
+                  In Progress
+                  <span className="badges-section-count">{filteredLocked.length}</span>
+                </h2>
+                <div className="badges-grid">
+                  {filteredLocked.map(badge => (
+                    <BadgeCard
+                      key={badge.id}
+                      badge={badge}
                       progress={badge.progress}
-                      progressMax={badge.progressMax}
-                      nextMilestone={badge.nextMilestone}
-                      percentile={badge.percentile}
-                      xp={badge.xp}
-                      showEligibility
+                      criteriaResults={badge.criteriaResults}
                     />
                   ))}
                 </div>

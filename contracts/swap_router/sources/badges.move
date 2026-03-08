@@ -19,6 +19,8 @@ module swap_router::badges {
     const RULE_ALLOWLIST: u8 = 1;
     const RULE_MIN_COIN_BALANCE: u8 = 2;
     const RULE_OFFCHAIN_ALLOWLIST: u8 = 3;
+    const RULE_TRANSACTION_COUNT: u8 = 4;
+    const RULE_PROTOCOL_COUNT: u8 = 6;
 
     struct BadgeMetadata has store, drop {
         name: vector<u8>,
@@ -174,6 +176,96 @@ module swap_router::badges {
         table::add(&mut registry.allowlists, badge_id, allowlist);
     }
 
+    /// Create a badge with off-chain transaction-count eligibility (admin-attested via allowlist)
+    public entry fun create_badge_tx_count(
+        admin: &signer,
+        name: vector<u8>,
+        description: vector<u8>,
+        image_uri: vector<u8>,
+        metadata_uri: vector<u8>,
+        metadata_hash: vector<u8>,
+        min_tx_count: u64,
+        rule_note: vector<u8>,
+    ) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+
+        let badge_id = registry.next_id;
+        registry.next_id = registry.next_id + 1;
+        vector::push_back(&mut registry.badge_ids, badge_id);
+
+        let now = timestamp::now_seconds();
+        let metadata = BadgeMetadata {
+            name,
+            description,
+            image_uri,
+            metadata_uri,
+            metadata_hash,
+        };
+
+        let definition = BadgeDefinition {
+            id: badge_id,
+            metadata,
+            rule_type: RULE_TRANSACTION_COUNT,
+            rule_note,
+            min_balance: min_tx_count,
+            coin_type: type_info::type_of<aptos_coin::AptosCoin>(),
+            coin_type_str: b"",
+            created_at: now,
+            updated_at: now,
+        };
+
+        let allowlist = BadgeAllowlist { entries: table::new<address, bool>(admin_addr) };
+        table::add(&mut registry.badges, badge_id, definition);
+        table::add(&mut registry.allowlists, badge_id, allowlist);
+    }
+
+    /// Create a badge with off-chain protocol-count eligibility (admin-attested via allowlist)
+    public entry fun create_badge_protocol_count(
+        admin: &signer,
+        name: vector<u8>,
+        description: vector<u8>,
+        image_uri: vector<u8>,
+        metadata_uri: vector<u8>,
+        metadata_hash: vector<u8>,
+        min_protocol_count: u64,
+        rule_note: vector<u8>,
+    ) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+
+        let badge_id = registry.next_id;
+        registry.next_id = registry.next_id + 1;
+        vector::push_back(&mut registry.badge_ids, badge_id);
+
+        let now = timestamp::now_seconds();
+        let metadata = BadgeMetadata {
+            name,
+            description,
+            image_uri,
+            metadata_uri,
+            metadata_hash,
+        };
+
+        let definition = BadgeDefinition {
+            id: badge_id,
+            metadata,
+            rule_type: RULE_PROTOCOL_COUNT,
+            rule_note,
+            min_balance: min_protocol_count,
+            coin_type: type_info::type_of<aptos_coin::AptosCoin>(),
+            coin_type_str: b"",
+            created_at: now,
+            updated_at: now,
+        };
+
+        let allowlist = BadgeAllowlist { entries: table::new<address, bool>(admin_addr) };
+        table::add(&mut registry.badges, badge_id, definition);
+        table::add(&mut registry.allowlists, badge_id, allowlist);
+    }
+
     /// Update badge metadata (admin only)
     public entry fun update_badge_metadata(
         admin: &signer,
@@ -270,7 +362,13 @@ module swap_router::badges {
         assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
 
         let badge = table::borrow(&registry.badges, badge_id);
-        assert!(badge.rule_type == RULE_ALLOWLIST || badge.rule_type == RULE_OFFCHAIN_ALLOWLIST, E_BAD_RULE);
+        assert!(
+            badge.rule_type == RULE_ALLOWLIST
+                || badge.rule_type == RULE_OFFCHAIN_ALLOWLIST
+                || badge.rule_type == RULE_TRANSACTION_COUNT
+                || badge.rule_type == RULE_PROTOCOL_COUNT,
+            E_BAD_RULE
+        );
 
         let allowlist = table::borrow(&registry.allowlists, badge_id);
         assert!(table::contains(&allowlist.entries, user_addr), E_NOT_ELIGIBLE);

@@ -2,7 +2,7 @@
  * Movement Network Configuration
  * Documentation: https://docs.movementnetwork.xyz
  */
-import { getEnv } from "./envValidator";
+import { getEnv } from "./envValidator.js";
 
 export const NETWORKS = {
   MAINNET: {
@@ -47,11 +47,10 @@ export const SWAP_ROUTER_ADDRESS = _env.VITE_SWAP_ROUTER_ADDRESS || null;
 
 /**
  * Badge System Configuration
- * The badges module is deployed at SWAP_ROUTER_ADDRESS (same as swap router)
- * Set VITE_BADGE_MODULE_ADDRESS in .env to override
+ * Set VITE_BADGE_SBT_MODULE_ADDRESS (preferred) or VITE_BADGE_MODULE_ADDRESS in .env
  */
 export const BADGE_MODULE_ADDRESS =
-  _env.VITE_BADGE_MODULE_ADDRESS || SWAP_ROUTER_ADDRESS || null;
+  _env.VITE_BADGE_SBT_MODULE_ADDRESS || _env.VITE_BADGE_MODULE_ADDRESS || null;
 
 /**
  * Mosaic DEX Aggregator Configuration

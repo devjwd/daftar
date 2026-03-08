@@ -1,139 +1,138 @@
+/**
+ * BadgeCard Component
+ * 
+ * Displays a single SBT badge with rarity styling, progress tracking,
+ * criteria breakdown, and earned/eligible/locked states.
+ */
 import React, { useMemo } from 'react';
-import { getRarityInfo } from '../config/badges';
+import { getRarityInfo, CRITERIA_LABELS } from '../config/badges.js';
 import './BadgeCard.css';
 
-/**
- * Gamified Badge Card Component
- * Displays badge with rarity, progress, XP, and eligibility info
- */
 const BadgeCard = ({
   badge,
   earned = false,
   earnedDate = null,
+  eligible = false,
   progress = 0,
-  progressMax = 100,
-  nextMilestone = null,
-  percentile = null,
-  xp = 0,
+  criteriaResults = [],
+  onMint = null,
+  minting = false,
   onClick = null,
-  showEligibility = true,
+  compact = false,
 }) => {
   const rarity = useMemo(() => getRarityInfo(badge.rarity || 'COMMON'), [badge.rarity]);
-  
-  const progressPercent = useMemo(() => {
-    if (progressMax === 0) return 0;
-    return Math.min(100, Math.max(0, (progress / progressMax) * 100));
-  }, [progress, progressMax]);
 
-  const isUnlocked = earned || progressPercent >= 100;
-  const daysUntilMilestone = nextMilestone ? Math.max(0, nextMilestone - progress) : null;
+  const progressClamped = Math.min(100, Math.max(0, progress));
+  const locked = !earned && !eligible;
 
   return (
     <div
-      className={`badge-card ${earned ? 'earned' : 'unearned'} rarity-${badge.rarity || 'COMMON'}`}
+      className={`bc-card ${earned ? 'bc-earned' : eligible ? 'bc-eligible' : 'bc-locked'} bc-rarity-${(badge.rarity || 'COMMON').toLowerCase()}`}
       style={{
-        '--rarity-color': rarity.color,
-        '--rarity-border': rarity.borderColor,
-        '--rarity-glow': rarity.glowColor,
-        '--rarity-bg': rarity.bgGradient,
+        '--rc': rarity.color,
+        '--rb': rarity.borderColor,
+        '--rg': rarity.glowColor,
+        '--rbg': rarity.bgGradient,
       }}
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
     >
-      {/* Rarity Glow Effect */}
-      <div className="badge-glow" />
+      {/* Glow layer for earned badges */}
+      {earned && <div className="bc-glow" />}
 
-      {/* Earned Badge */}
-      {earned && <div className="badge-earned-overlay">✓ EARNED</div>}
+      {/* Status indicator */}
+      {earned && <div className="bc-status bc-status-earned">Earned</div>}
+      {eligible && !earned && <div className="bc-status bc-status-eligible">Eligible</div>}
 
-      {/* Badge Image Section */}
-      <div className="badge-image-section">
-        {badge.imageUri ? (
-          <img src={badge.imageUri} alt={badge.name} className="badge-image" />
-        ) : (
-          <div className="badge-placeholder">{badge.emoji || '🏆'}</div>
-        )}
-        
-        {/* Rarity Badge */}
-        <div className="rarity-badge" style={{ backgroundColor: rarity.color }}>
-          <span className="rarity-text">{rarity.name}</span>
+      {/* Badge Image */}
+      <div className="bc-image-wrap">
+        {badge.imageUrl ? (
+          <img
+            src={badge.imageUrl}
+            alt={badge.name}
+            className="bc-image"
+            loading="lazy"
+            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+          />
+        ) : null}
+        <div className="bc-image-fallback" style={{ display: badge.imageUrl ? 'none' : 'flex' }}>
+          {badge.emoji || (badge.category === 'activity' ? '⚡' : badge.category === 'longevity' ? '🕐' : '🏆')}
         </div>
 
-        {/* XP Badge */}
-        {xp > 0 && (
-          <div className="xp-badge">
-            <span className="xp-text">+{xp} XP</span>
-          </div>
+        {/* Rarity pill */}
+        <span className="bc-rarity-pill" style={{ background: rarity.color }}>
+          {rarity.name}
+        </span>
+
+        {/* XP pill */}
+        {badge.xp > 0 && (
+          <span className="bc-xp-pill">+{badge.xp} XP</span>
         )}
       </div>
 
-      {/* Content Section */}
-      <div className="badge-content">
-        {/* Header */}
-        <div className="badge-header">
-          <h3 className="badge-name">{badge.name}</h3>
-          {percentile !== null && percentile !== undefined && (
-            <div className="percentile-badge">
-              Top {percentile}%
-            </div>
-          )}
-        </div>
+      {/* Content */}
+      <div className="bc-content">
+        <h3 className="bc-name">{badge.name}</h3>
+        {!compact && <p className="bc-desc">{badge.description}</p>}
 
-        {/* Description */}
-        <p className="badge-description">{badge.description}</p>
-
-        {/* Criteria/Eligibility */}
-        {showEligibility && badge.criteria && (
-          <div className="badge-criteria">
-            <strong>Requirements:</strong>
-            <p>{badge.criteria}</p>
-          </div>
-        )}
-
-        {/* Progress Section */}
-        {!isUnlocked && progressMax > 0 && (
-          <div className="progress-section">
-            <div className="progress-header">
-              <span className="progress-label">Progress</span>
-              <span className="progress-value">{progress}/{progressMax}</span>
-            </div>
-            <div className="progress-bar-container">
-              <div
-                className="progress-bar-fill"
-                style={{ width: `${progressPercent}%` }}
-              />
-              <div className="progress-bar-animation" />
-            </div>
-            <div className="progress-percent">{Math.round(progressPercent)}%</div>
-
-            {/* Next Milestone */}
-            {nextMilestone && daysUntilMilestone !== null && (
-              <div className="next-milestone">
-                <span className="milestone-label">Next Milestone:</span>
-                <span className="milestone-value">
-                  {daysUntilMilestone === 0 ? 'Ready!' : `${daysUntilMilestone} remaining`}
-                </span>
+        {/* Criteria breakdown */}
+        {!compact && criteriaResults.length > 0 && (
+          <div className="bc-criteria-list">
+            {criteriaResults.map((cr, i) => (
+              <div key={i} className={`bc-criterion ${cr.eligible ? 'bc-criterion-met' : 'bc-criterion-unmet'}`}>
+                <span className="bc-criterion-icon">{cr.eligible ? '✓' : '○'}</span>
+                <span className="bc-criterion-label">{CRITERIA_LABELS[cr.type] || cr.type}</span>
+                <span className="bc-criterion-value">{cr.label || `${cr.current}/${cr.required}`}</span>
               </div>
-            )}
+            ))}
           </div>
         )}
 
-        {/* Earned Date */}
+        {/* Progress bar (for non-earned badges) */}
+        {!earned && progressClamped > 0 && progressClamped < 100 && !compact && (
+          <div className="bc-progress-section">
+            <div className="bc-progress-header">
+              <span className="bc-progress-label">Progress</span>
+              <span className="bc-progress-pct">{Math.round(progressClamped)}%</span>
+            </div>
+            <div className="bc-progress-track">
+              <div className="bc-progress-fill" style={{ width: `${progressClamped}%` }}>
+                <div className="bc-progress-shimmer" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Earned date */}
         {earned && earnedDate && (
-          <div className="earned-date">
-            🎉 Unlocked {new Date(earnedDate).toLocaleDateString()}
+          <div className="bc-earned-date">
+            Unlocked {new Date(earnedDate).toLocaleDateString()}
           </div>
         )}
 
-        {/* Completed Indicator */}
-        {isUnlocked && !earned && (
-          <div className="ready-to-claim">
-            ✨ Ready to Claim!
+        {/* Mint button */}
+        {eligible && !earned && onMint && (
+          <button
+            className="bc-mint-btn"
+            onClick={(e) => { e.stopPropagation(); onMint(badge); }}
+            disabled={minting}
+          >
+            {minting ? 'Minting...' : 'Claim Badge'}
+          </button>
+        )}
+
+        {/* Locked state */}
+        {locked && !compact && (
+          <div className="bc-locked-label">
+            <span className="bc-lock-icon">🔒</span>
+            Complete criteria to unlock
           </div>
         )}
       </div>
 
-      {/* Badge Effect - Shimmer on earned */}
-      {earned && <div className="badge-shimmer" />}
+      {/* Shimmer animation for earned */}
+      {earned && <div className="bc-shimmer" />}
     </div>
   );
 };

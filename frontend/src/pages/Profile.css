@@ -8,6 +8,61 @@
   position: relative;
 }
 
+body[data-theme='light'] .profile-page {
+  background: #f4f5f7;
+}
+
+body[data-theme='light'] .profile-container,
+body[data-theme='light'] .stat-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
+}
+
+body[data-theme='light'] .profile-header h1,
+body[data-theme='light'] .section-title,
+body[data-theme='light'] .form-group label,
+body[data-theme='light'] .stat-value {
+  color: #0f172a;
+}
+
+body[data-theme='light'] .profile-address,
+body[data-theme='light'] .stat-label,
+body[data-theme='light'] .char-count,
+body[data-theme='light'] .profile-page .image-error,
+body[data-theme='light'] .profile-page .error-message {
+  color: #64748b;
+}
+
+body[data-theme='light'] .form-input,
+body[data-theme='light'] .form-textarea,
+body[data-theme='light'] .statement-btn,
+body[data-theme='light'] .back-btn {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+body[data-theme='light'] .save-btn {
+  background: linear-gradient(135deg, #0f172a, #334155);
+  color: #ffffff;
+}
+
+body[data-theme='light'] .avatar-image {
+  border-color: rgba(15, 23, 42, 0.2);
+}
+
+.profile-page .back-btn:focus-visible,
+.profile-page .upload-btn:focus-visible,
+.profile-page .remove-btn:focus-visible,
+.profile-page .save-btn:focus-visible,
+.profile-page .statement-btn:focus-visible,
+.profile-page .form-input:focus-visible,
+.profile-page .form-textarea:focus-visible {
+  outline: 2px solid #e6c49a;
+  outline-offset: 2px;
+}
+
 .page-nav {
   width: 100%;
   max-width: 900px;

@@ -6,6 +6,44 @@
   justify-content: center;
 }
 
+body[data-theme='light'] .level-page {
+  background: radial-gradient(circle at 85% 85%, rgba(15, 23, 42, 0.08), transparent 35%), #f4f5f7;
+}
+
+body[data-theme='light'] .level-identity-card,
+body[data-theme='light'] .level-stats-card,
+body[data-theme='light'] .level-main-panel,
+body[data-theme='light'] .level-empty-card,
+body[data-theme='light'] .level-roadmap-card,
+body[data-theme='light'] .level-stat-box {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+body[data-theme='light'] .level-header h1,
+body[data-theme='light'] .level-roadmap-header h2,
+body[data-theme='light'] .level-roadmap-level,
+body[data-theme='light'] .level-stat-value,
+body[data-theme='light'] .level-roadmap-reward {
+  color: #0f172a;
+}
+
+body[data-theme='light'] .level-roadmap-header p,
+body[data-theme='light'] .level-stat-key,
+body[data-theme='light'] .level-progress-text,
+body[data-theme='light'] .level-roadmap-xp,
+body[data-theme='light'] .level-empty,
+body[data-theme='light'] .level-card-label {
+  color: #64748b;
+}
+
+.level-back-btn:focus-visible,
+.level-leaderboard-btn:focus-visible {
+  outline: 2px solid #e6c49a;
+  outline-offset: 2px;
+}
+
 .level-container {
   width: 100%;
   max-width: 1180px;

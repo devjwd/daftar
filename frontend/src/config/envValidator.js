@@ -217,7 +217,14 @@ export function getEnv(key, defaultValue = undefined) {
     return defaultValue;
   }
 
-  const value = import.meta.env[key] || schema.default;
+  // prefer Vite import.meta.env if available, otherwise fall back to Node process.env
+  let value;
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    value = import.meta.env[key];
+  } else if (typeof process !== 'undefined' && process.env) {
+    value = process.env[key];
+  }
+  value = value ?? schema.default;
   return convertEnvValue(value, schema.type) ?? defaultValue;
 }
 

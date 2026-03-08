@@ -3,6 +3,7 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../hooks/useProfile';
 import { normalizeAddress } from '../services/profileService';
+import { getStoredLanguagePreference, t } from '../utils/language';
 import './Profile.css';
 
 export default function Profile() {
@@ -11,7 +12,7 @@ export default function Profile() {
   const fileInputRef = useRef(null);
   
   const address = normalizeAddress(account?.address);
-  const { profile, loading, saving, updateProfile, uploadProfilePicture, removeProfilePicture, error } = useProfile(address);
+  const { profile, loading, saving, updateProfile, uploadProfilePicture, error } = useProfile(address);
   
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
@@ -21,6 +22,25 @@ export default function Profile() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [language, setLanguage] = useState(() => getStoredLanguagePreference());
+
+  useEffect(() => {
+    const syncLanguage = () => setLanguage(getStoredLanguagePreference());
+    const onLanguageChange = (event) => {
+      if (event?.detail?.language) {
+        setLanguage(event.detail.language);
+      } else {
+        syncLanguage();
+      }
+    };
+
+    window.addEventListener('languagechange', onLanguageChange);
+    window.addEventListener('storage', syncLanguage);
+    return () => {
+      window.removeEventListener('languagechange', onLanguageChange);
+      window.removeEventListener('storage', syncLanguage);
+    };
+  }, []);
 
   // Load profile data when it changes
   useEffect(() => {
@@ -86,7 +106,7 @@ export default function Profile() {
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       console.error('Error saving profile:', err);
-      alert('Failed to save profile: ' + err.message);
+      alert(t(language, 'profileSaveFailed') + err.message);
     }
   };
 
@@ -104,7 +124,7 @@ export default function Profile() {
     <div className="profile-page">
       {showSuccess && (
         <div className="success-banner">
-          Profile saved successfully!
+          {t(language, 'profileSavedSuccess')}
         </div>
       )}
       
@@ -137,7 +157,7 @@ export default function Profile() {
                 className="upload-btn"
                 disabled={uploadingImage}
               >
-                {pfp ? 'Change Photo' : 'Upload Photo'}
+                {pfp ? t(language, 'profileChangePhoto') : t(language, 'profileUploadPhoto')}
               </button>
               {pfp && (
                 <button
@@ -145,7 +165,7 @@ export default function Profile() {
                   className="remove-btn"
                   disabled={uploadingImage}
                 >
-                  Remove
+                  {t(language, 'profileRemovePhoto')}
                 </button>
               )}
             </div>
@@ -155,19 +175,19 @@ export default function Profile() {
             )}
           </div>
           
-          <h1>Your Profile</h1>
+          <h1>{t(language, 'profileTitle')}</h1>
           <p className="profile-address">{formatAddress(address)}</p>
         </div>
 
         <div className="profile-form">
           <div className="form-section">
-            <h2 className="section-title">Basic Information</h2>
+            <h2 className="section-title">{t(language, 'profileBasicInfo')}</h2>
             
             <div className="form-group">
-              <label>Display Name</label>
+              <label>{t(language, 'profileDisplayName')}</label>
               <input
                 type="text"
-                placeholder="Enter your display name"
+                placeholder={t(language, 'profileDisplayNamePlaceholder')}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="form-input"
@@ -177,9 +197,9 @@ export default function Profile() {
             </div>
 
             <div className="form-group">
-              <label>Bio</label>
+              <label>{t(language, 'profileBio')}</label>
               <textarea
-                placeholder="Tell us about yourself..."
+                placeholder={t(language, 'profileBioPlaceholder')}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 className="form-textarea"
@@ -191,7 +211,7 @@ export default function Profile() {
           </div>
 
           <div className="form-section">
-            <h2 className="section-title">Social Links</h2>
+            <h2 className="section-title">{t(language, 'profileSocialLinks')}</h2>
             
             <div className="form-group">
               <label>
@@ -229,10 +249,10 @@ export default function Profile() {
               className="save-btn"
               disabled={saving || uploadingImage}
             >
-              {saving ? 'Saving...' : 'Save Profile'}
+              {saving ? t(language, 'profileSaving') : t(language, 'profileSave')}
             </button>
             <button className="statement-btn" type="button">
-              Download Wallet Statement
+              {t(language, 'profileDownloadStatement')}
             </button>
           </div>
           
@@ -243,7 +263,7 @@ export default function Profile() {
 
         <div className="profile-stats">
           <div className="stat-card">
-            <span className="stat-label">Profile Created</span>
+            <span className="stat-label">{t(language, 'profileProfileCreated')}</span>
             <span className="stat-value">
               {profile?.createdAt
                 ? new Date(profile.createdAt).toLocaleDateString()
@@ -251,7 +271,7 @@ export default function Profile() {
             </span>
           </div>
           <div className="stat-card">
-            <span className="stat-label">Last Updated</span>
+            <span className="stat-label">{t(language, 'profileLastUpdated')}</span>
             <span className="stat-value">
               {profile?.updatedAt
                 ? new Date(profile.updatedAt).toLocaleDateString()
@@ -259,8 +279,8 @@ export default function Profile() {
             </span>
           </div>
           <div className="stat-card">
-            <span className="stat-label">Profile Views</span>
-            <span className="stat-value">Coming Soon</span>
+            <span className="stat-label">{t(language, 'profileProfileViews')}</span>
+            <span className="stat-value">{t(language, 'profileComingSoon')}</span>
           </div>
         </div>
       </div>

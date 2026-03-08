@@ -232,6 +232,70 @@ export const createBadgeMinBalance = async ({
   });
 };
 
+export const createBadgeTxCount = async ({
+  signAndSubmitTransaction,
+  sender,
+  name,
+  description,
+  imageUri,
+  metadataUri,
+  metadataHash,
+  minTxCount,
+  ruleNote,
+}) => {
+  const fn = getBadgeFunction("create_badge_tx_count");
+  if (!fn) throw new Error("Badge module address not configured");
+
+  return await signAndSubmitTransaction({
+    sender,
+    data: {
+      function: fn,
+      typeArguments: [],
+      functionArguments: [
+        name,
+        description,
+        imageUri,
+        metadataUri,
+        metadataHash,
+        minTxCount,
+        ruleNote,
+      ],
+    },
+  });
+};
+
+export const createBadgeProtocolCount = async ({
+  signAndSubmitTransaction,
+  sender,
+  name,
+  description,
+  imageUri,
+  metadataUri,
+  metadataHash,
+  minProtocolCount,
+  ruleNote,
+}) => {
+  const fn = getBadgeFunction("create_badge_protocol_count");
+  if (!fn) throw new Error("Badge module address not configured");
+
+  return await signAndSubmitTransaction({
+    sender,
+    data: {
+      function: fn,
+      typeArguments: [],
+      functionArguments: [
+        name,
+        description,
+        imageUri,
+        metadataUri,
+        metadataHash,
+        minProtocolCount,
+        ruleNote,
+      ],
+    },
+  });
+};
+
 export const addAllowlistEntries = async ({
   signAndSubmitTransaction,
   sender,

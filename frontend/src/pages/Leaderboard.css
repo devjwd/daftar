@@ -7,6 +7,32 @@
   background: #1a1614;
 }
 
+body[data-theme='light'] .leaderboard-page {
+  background: #f4f5f7;
+}
+
+body[data-theme='light'] .leaderboard-table,
+body[data-theme='light'] .leaderboard-info,
+body[data-theme='light'] .leaderboard-empty {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+body[data-theme='light'] .leaderboard-header h1,
+body[data-theme='light'] .username,
+body[data-theme='light'] .worth,
+body[data-theme='light'] .leaderboard-info h2 {
+  color: #0f172a;
+}
+
+body[data-theme='light'] .address,
+body[data-theme='light'] .leaderboard-info p,
+body[data-theme='light'] .leaderboard-info li,
+body[data-theme='light'] .empty-message {
+  color: #64748b;
+}
+
 .leaderboard-container {
   max-width: 1000px;
   width: 100%;

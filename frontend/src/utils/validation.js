@@ -127,7 +127,12 @@ export function sanitizeString(input, maxLength = 500) {
     .slice(0, maxLength);
 
   // Remove control characters and null bytes
-  sanitized = sanitized.replace(/[\x00-\x1F\x7F]/g, '');
+  sanitized = [...sanitized]
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('');
 
   // Encode HTML entities to prevent XSS
   const entityMap = {
@@ -139,7 +144,7 @@ export function sanitizeString(input, maxLength = 500) {
     '/': '&#x2F;'
   };
 
-  sanitized = sanitized.replace(/[&<>"'\/]/g, char => entityMap[char]);
+  sanitized = sanitized.replace(/[&<>"'/]/g, char => entityMap[char]);
 
   return sanitized;
 }
@@ -164,7 +169,7 @@ export function isValidUrl(url) {
     }
 
     // Block localhost in production
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.PROD) {
       if (['localhost', '127.0.0.1', '0.0.0.0'].includes(urlObj.hostname)) {
         return false;
       }

@@ -56,7 +56,7 @@ const parseRawAmount = (value) => {
     if (typeof value === "number") return Number.isFinite(value) ? Math.max(0, value) : 0;
     if (!value) return 0;
     return Number(value);
-  } catch (_e) {
+  } catch {
     return 0;
   }
 };

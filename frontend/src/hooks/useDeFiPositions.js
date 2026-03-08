@@ -3,6 +3,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { DEFAULT_NETWORK } from "../config/network";
 import { ALL_ADAPTERS } from "../config/adapters/index";
+import { DEFI_PROTOCOLS as PROTOCOL_REGISTRY } from "../config/protocols";
 
 /**
  * =============================================================================
@@ -32,77 +33,10 @@ import { ALL_ADAPTERS } from "../config/adapters/index";
  * - Yuzu Swap (LP/CLMM)
  */
 
-// =============================================================================
-// PROTOCOL REGISTRY - Verified Movement Network Contract Addresses
-// =============================================================================
-const PROTOCOL_REGISTRY = {
-  ECHELON: {
-    name: "Echelon",
-    website: "https://app.echelon.market",
-    type: "Lending",
-    addresses: [
-      "0x6a01d5761d43a5b5a0ccbfc42edf2d02c0611464aae99a2ea0e0d4819f0550b5",
-    ],
-    keywords: ["echelon", "ec_"],
-  },
-  
-  JOULE: {
-    name: "Joule Finance", 
-    website: "https://app.joule.finance",
-    type: "Lending",
-    addresses: [
-      "0x6a164188af7bb6a8268339343a5afe0242292713709af8801dafba3a054dc2f2",
-    ],
-    keywords: ["joule"],
-  },
-  
-  MOVEPOSITION: {
-    name: "MovePosition",
-    website: "https://moveposition.xyz",
-    type: "Lending",
-    addresses: [
-      "0xccd2621d2897d407e06d18e6ebe3be0e6d9b61f1e809dd49360522b9105812cf",
-    ],
-    keywords: ["moveposition"],
-  },
-  
-  CANOPY: {
-    name: "Canopy",
-    website: "https://app.canopyhub.xyz/",
-    type: "Liquid Staking",
-    addresses: [],
-    keywords: ["canopy", "stmove", "staked_move", "smove"],
-  },
-  
-  LAYERBANK: {
-    name: "LayerBank",
-    website: "https://app.layerbank.finance",
-    type: "Lending",
-    addresses: [
-      "0xf257d40859456809be19dfee7f4c55c4d033680096aeeb4228b7a15749ab68ea",
-    ],
-    keywords: ["layerbank", "layer_bank"],
-  },
-  
-  MOSAIC: {
-    name: "Mosaic",
-    website: "https://mosaic.ag",
-    type: "DEX",
-    addresses: [
-      "0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c",
-    ],
-    keywords: ["mosaic"],
-  },
-  
-  YUZU: {
-    name: "Yuzu Swap",
-    website: "https://yuzu.swap",
-    type: "DEX",
-    addresses: [
-      "0x4bf51972879e3b95c4781a5cdcb9e1ee24ef483e7d22f2d903626f126df62bd1",
-    ],
-    keywords: ["yuzu"],
-  },
+const devLog = (...args) => {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
 };
 
 // =============================================================================
@@ -578,7 +512,7 @@ export const useDeFiPositions = (searchAddress = null) => {
                     processedTypes.add(typeKey);
                     const protocolInfo = PROTOCOL_REGISTRY[protocol];
                     
-                    console.log(`  ✅ Receipt Token: ${protocolInfo?.name || protocol}`);
+                    devLog(`  ✅ Receipt Token: ${protocolInfo?.name || protocol}`);
                     
                     detectedPositions.push({
                       id: `${protocol.toLowerCase()}_receipt_${detectedPositions.length}`,
@@ -684,8 +618,8 @@ export const useDeFiPositions = (searchAddress = null) => {
               // Skip dust amounts
               if (value < 0.001) continue;
               
-              console.log(`  ✅ Found: MovePosition Supply - ${tokenInfo.symbol}`);
-              console.log(`     Notes: ${rawNotes} → Actual: ${value.toFixed(4)} ${tokenInfo.symbol}`);
+              devLog(`  ✅ Found: MovePosition Supply - ${tokenInfo.symbol}`);
+              devLog(`     Notes: ${rawNotes} → Actual: ${value.toFixed(4)} ${tokenInfo.symbol}`);
               
               detectedPositions.push({
                 id: `moveposition_supply_${tokenInfo.symbol.toLowerCase()}_${detectedPositions.length}`,
@@ -701,7 +635,7 @@ export const useDeFiPositions = (searchAddress = null) => {
                 protocolWebsite: "https://moveposition.xyz",
               });
             } catch (err) {
-              console.log(`  ⚠️ Could not get actual value for ${tokenInfo.symbol}:`, err.message);
+              devLog(`  ⚠️ Could not get actual value for ${tokenInfo.symbol}:`, err.message);
             }
           }
           
@@ -733,8 +667,8 @@ export const useDeFiPositions = (searchAddress = null) => {
               // Skip dust amounts
               if (value < 0.001) continue;
               
-              console.log(`  ✅ Found: MovePosition Debt - ${tokenInfo.symbol}`);
-              console.log(`     Notes: ${rawNotes} → Actual: ${value.toFixed(4)} ${tokenInfo.symbol}`);
+              devLog(`  ✅ Found: MovePosition Debt - ${tokenInfo.symbol}`);
+              devLog(`     Notes: ${rawNotes} → Actual: ${value.toFixed(4)} ${tokenInfo.symbol}`);
               
               detectedPositions.push({
                 id: `moveposition_debt_${tokenInfo.symbol.toLowerCase()}_${detectedPositions.length}`,
@@ -750,7 +684,7 @@ export const useDeFiPositions = (searchAddress = null) => {
                 protocolWebsite: "https://moveposition.xyz",
               });
             } catch (err) {
-              console.log(`  ⚠️ Could not get actual value for ${tokenInfo.symbol}:`, err.message);
+              devLog(`  ⚠️ Could not get actual value for ${tokenInfo.symbol}:`, err.message);
             }
           }
           
@@ -766,15 +700,37 @@ export const useDeFiPositions = (searchAddress = null) => {
           
           const ECHELON_CONTRACT = "0x6a01d5761d43a5b5a0ccbfc42edf2d02c0611464aae99a2ea0e0d4819f0550b5";
           
-          // Helper to get decimals and symbol from asset name
+          // Only include supported Echelon assets and keep exact token identities
+          const ECHELON_SUPPORTED_ASSETS = new Set([
+            "MOVE", "WETH", "RSETH", "USDC", "USDT", "SUSDE", "WBTC", "LBTC", "SOLVBTC", "EZETH"
+          ]);
+
+          // Helper to get decimals and symbol from market asset name
           const getAssetInfo = (assetName) => {
-            const nameUpper = (assetName || "").toUpperCase();
-            if (nameUpper.includes("USDC")) return { symbol: "USDC", decimals: 6 };
-            if (nameUpper.includes("USDT") || nameUpper.includes("USDt")) return { symbol: "USDT", decimals: 6 };
-            if (nameUpper.includes("MOVE") || nameUpper.includes("APTOS")) return { symbol: "MOVE", decimals: 8 };
-            if (nameUpper.includes("ETH") || nameUpper.includes("WETH")) return { symbol: "WETH", decimals: 8 };
-            if (nameUpper.includes("BTC") || nameUpper.includes("WBTC")) return { symbol: "WBTC", decimals: 8 };
-            return { symbol: assetName || "UNKNOWN", decimals: 8 };
+            const normalized = String(assetName || "").trim();
+            const nameUpper = normalized.toUpperCase();
+
+            // Specific mappings first (avoid collapsing all BTC/ETH to one symbol)
+            if (nameUpper.includes("SUSDE")) return { symbol: "sUSDe", decimals: 6, supported: true };
+            if (nameUpper.includes("USDC")) return { symbol: "USDC", decimals: 6, supported: true };
+            if (nameUpper.includes("USDT") || nameUpper.includes("USDT.E")) return { symbol: "USDT", decimals: 6, supported: true };
+
+            if (nameUpper.includes("RSETH")) return { symbol: "rsETH", decimals: 8, supported: true };
+            if (nameUpper.includes("EZETH")) return { symbol: "ezETH", decimals: 8, supported: true };
+            if (nameUpper.includes("WETH")) return { symbol: "WETH", decimals: 8, supported: true };
+
+            if (nameUpper.includes("SOLVBTC")) return { symbol: "SolvBTC", decimals: 8, supported: true };
+            if (nameUpper.includes("LBTC")) return { symbol: "LBTC", decimals: 8, supported: true };
+            if (nameUpper.includes("WBTC") || nameUpper.includes("WBTC.E")) return { symbol: "WBTC", decimals: 8, supported: true };
+
+            if (nameUpper.includes("MOVE") || nameUpper.includes("APTOS")) return { symbol: "MOVE", decimals: 8, supported: true };
+
+            const fallbackSymbol = normalized || "UNKNOWN";
+            return {
+              symbol: fallbackSymbol,
+              decimals: 8,
+              supported: ECHELON_SUPPORTED_ASSETS.has(fallbackSymbol.toUpperCase()),
+            };
           };
           
           // Process collateral (supply) positions
@@ -796,7 +752,8 @@ export const useDeFiPositions = (searchAddress = null) => {
                 }
               });
               const assetName = nameResult[0] || "Unknown";
-              const { symbol, decimals } = getAssetInfo(assetName);
+              const { symbol, decimals, supported } = getAssetInfo(assetName);
+              if (!supported) continue;
               
               // Get actual coin amount using account_coins view function
               const coinsResult = await client.view({
@@ -810,17 +767,17 @@ export const useDeFiPositions = (searchAddress = null) => {
               const actualAmount = Number(coinsResult[0]);
               const value = actualAmount / Math.pow(10, decimals);
               
-              // Skip dust amounts
-              if (value < 0.001) continue;
+              // Keep tiny amounts for Echelon (e.g. 0.00000018 WBTC)
+              if (value <= 0) continue;
               
-              console.log(`  ✅ Found: Echelon Supply - ${symbol}`);
-              console.log(`     Shares: ${shares} → Actual: ${value.toFixed(4)} ${symbol}`);
+              devLog(`  ✅ Found: Echelon Supply - ${symbol}`);
+              devLog(`     Shares: ${shares} → Actual: ${value.toFixed(4)} ${symbol}`);
               
               detectedPositions.push({
                 id: `echelon_supply_${symbol.toLowerCase()}_${detectedPositions.length}`,
                 name: `Echelon Supply`,
                 type: "Lending",
-                value: value.toFixed(4),
+                value: value < 0.01 ? value.toFixed(8) : value.toFixed(4),
                 numericValue: value,
                 tokenSymbol: symbol,
                 resourceType: resourceType,
@@ -830,7 +787,7 @@ export const useDeFiPositions = (searchAddress = null) => {
                 protocolWebsite: "https://app.echelon.market",
               });
             } catch (err) {
-              console.log(`  ⚠️ Could not get Echelon supply for market ${marketAddr}:`, err.message);
+              devLog(`  ⚠️ Could not get Echelon supply for market ${marketAddr}:`, err.message);
             }
           }
           
@@ -854,7 +811,8 @@ export const useDeFiPositions = (searchAddress = null) => {
                 }
               });
               const assetName = nameResult[0] || "Unknown";
-              const { symbol, decimals } = getAssetInfo(assetName);
+              const { symbol, decimals, supported } = getAssetInfo(assetName);
+              if (!supported) continue;
               
               // Get actual liability amount using account_liability view function
               const debtResult = await client.view({
@@ -868,17 +826,17 @@ export const useDeFiPositions = (searchAddress = null) => {
               const actualDebt = Number(debtResult[0]);
               const value = actualDebt / Math.pow(10, decimals);
               
-              // Skip dust amounts
-              if (value < 0.001) continue;
+              // Keep tiny amounts for Echelon (e.g. very small borrow balances)
+              if (value <= 0) continue;
               
-              console.log(`  ✅ Found: Echelon Debt - ${symbol}`);
-              console.log(`     Principal: ${principal} → Actual: ${value.toFixed(4)} ${symbol}`);
+              devLog(`  ✅ Found: Echelon Debt - ${symbol}`);
+              devLog(`     Principal: ${principal} → Actual: ${value.toFixed(4)} ${symbol}`);
               
               detectedPositions.push({
                 id: `echelon_debt_${symbol.toLowerCase()}_${detectedPositions.length}`,
                 name: `Echelon Debt`,
                 type: "Debt",
-                value: value.toFixed(4),
+                value: value < 0.01 ? value.toFixed(8) : value.toFixed(4),
                 numericValue: value,
                 tokenSymbol: symbol,
                 resourceType: resourceType,
@@ -888,7 +846,7 @@ export const useDeFiPositions = (searchAddress = null) => {
                 protocolWebsite: "https://app.echelon.market",
               });
             } catch (err) {
-              console.log(`  ⚠️ Could not get Echelon debt for market ${marketAddr}:`, err.message);
+              devLog(`  ⚠️ Could not get Echelon debt for market ${marketAddr}:`, err.message);
             }
           }
           
@@ -904,7 +862,7 @@ export const useDeFiPositions = (searchAddress = null) => {
         
         if (resourceType.includes(`${JOULE_CONTRACT}::pool::UserPositionsMap`)) {
           processedTypes.add(typeKey);
-          console.log("  🏦 Processing Joule Finance positions...");
+          devLog("  🏦 Processing Joule Finance positions...");
           
           // Token map for Joule
           const JOULE_TOKEN_MAP = {
@@ -947,7 +905,7 @@ export const useDeFiPositions = (searchAddress = null) => {
                 const value = amount / Math.pow(10, decimals);
                 
                 if (value >= 0.0001) {  // Skip dust
-                  console.log(`  ✅ Joule Supply: ${value.toFixed(4)} ${symbol}`);
+                  devLog(`  ✅ Joule Supply: ${value.toFixed(4)} ${symbol}`);
                   
                   detectedPositions.push({
                     id: `joule_supply_${symbol.toLowerCase()}_${detectedPositions.length}`,
@@ -979,7 +937,7 @@ export const useDeFiPositions = (searchAddress = null) => {
                 const value = amount / Math.pow(10, decimals);
                 
                 if (value >= 0.0001) {  // Skip dust
-                  console.log(`  ✅ Joule Debt: ${value.toFixed(4)} ${symbol}`);
+                  devLog(`  ✅ Joule Debt: ${value.toFixed(4)} ${symbol}`);
                   
                   detectedPositions.push({
                     id: `joule_debt_${symbol.toLowerCase()}_${detectedPositions.length}`,
@@ -1013,7 +971,7 @@ export const useDeFiPositions = (searchAddress = null) => {
         
         // Skip zero-value positions
         if (value <= 0) {
-          console.log(`  ⚪ Zero-value: ${resourceType.substring(0, 60)}...`);
+          devLog(`  ⚪ Zero-value: ${resourceType.substring(0, 60)}...`);
           continue;
         }
         
@@ -1023,8 +981,8 @@ export const useDeFiPositions = (searchAddress = null) => {
         const category = categorizePosition(resourceType, resourceData);
         const positionName = extractPositionName(resourceType, protocol);
         
-        console.log(`  ✅ Found: ${positionName}`);
-        console.log(`     Type: ${category} | Value: ${value.toFixed(4)} | Protocol: ${protocol?.name || "Unknown"}`);
+        devLog(`  ✅ Found: ${positionName}`);
+        devLog(`     Type: ${category} | Value: ${value.toFixed(4)} | Protocol: ${protocol?.name || "Unknown"}`);
         
         detectedPositions.push({
           id: `${protocol?.key?.toLowerCase() || "defi"}_${category.toLowerCase()}_${detectedPositions.length}`,
@@ -1047,7 +1005,7 @@ export const useDeFiPositions = (searchAddress = null) => {
       // =================================================================
       {
         const LAYERBANK_CONTRACT = "0xf257d40859456809be19dfee7f4c55c4d033680096aeeb4228b7a15749ab68ea";
-        console.log("  🏦 Scanning LayerBank positions...");
+        devLog("  🏦 Scanning LayerBank positions...");
         
         try {
           const reservesResult = await client.view({
@@ -1114,7 +1072,102 @@ export const useDeFiPositions = (searchAddress = null) => {
             }
           }
         } catch (err) {
-          console.log(`  ⚠️ LayerBank scan error:`, err.message);
+          devLog(`  ⚠️ LayerBank scan error:`, err.message);
+        }
+      }
+
+      // =================================================================
+      // PHASE 1.6: Native Movement Staking (delegation pool)
+      // Uses account transaction history to discover pool addresses,
+      // then reads current stake via 0x1::delegation_pool::get_stake.
+      // =================================================================
+      {
+        const MOVEMENT_STAKING = PROTOCOL_REGISTRY.MOVEMENT || {
+          name: "Movement Native Staking",
+          website: "https://explorer.movementnetwork.xyz",
+        };
+
+        devLog("  🏛️ Scanning native delegation pool staking...");
+
+        try {
+          const accountTxns = await client.getAccountTransactions({
+            accountAddress: targetAddress,
+            options: { limit: 100 },
+          });
+
+          const poolAddresses = new Set();
+
+          for (const tx of accountTxns || []) {
+            const fn = String(tx?.payload?.function || "").toLowerCase();
+            if (!fn.startsWith("0x1::delegation_pool::")) continue;
+
+            const args = tx?.payload?.arguments;
+            const maybePool = String(Array.isArray(args) ? args[0] || "" : "").toLowerCase();
+            if (/^0x[0-9a-f]+$/.test(maybePool)) {
+              poolAddresses.add(maybePool);
+            }
+          }
+
+          devLog(`     Found ${poolAddresses.size} delegation pool candidate(s)`);
+
+          for (const poolAddress of poolAddresses) {
+            try {
+              const stakeResult = await client.view({
+                payload: {
+                  function: "0x1::delegation_pool::get_stake",
+                  typeArguments: [],
+                  functionArguments: [poolAddress, targetAddress],
+                },
+              });
+
+              const activeStakeRaw = Number(stakeResult?.[0] || 0);
+              const inactiveStakeRaw = Number(stakeResult?.[1] || 0);
+              const pendingActiveRaw = Number(stakeResult?.[2] || 0);
+
+              let pendingWithdrawalRaw = 0;
+              try {
+                const pendingWithdrawalResult = await client.view({
+                  payload: {
+                    function: "0x1::delegation_pool::get_pending_withdrawal",
+                    typeArguments: [],
+                    functionArguments: [poolAddress, targetAddress],
+                  },
+                });
+                pendingWithdrawalRaw = Number(pendingWithdrawalResult?.[0] || 0);
+              } catch {
+                // optional path; some pools may return no pending withdrawal
+              }
+
+              const totalRaw = activeStakeRaw + inactiveStakeRaw + pendingActiveRaw + pendingWithdrawalRaw;
+              const numericValue = totalRaw / 100000000;
+
+              if (numericValue > 0.0001) {
+                detectedPositions.push({
+                  id: `movement_native_staking_${poolAddress.slice(2, 10)}_${detectedPositions.length}`,
+                  name: "Movement Native Staking",
+                  type: "Staking",
+                  value: numericValue.toFixed(4),
+                  numericValue,
+                  tokenSymbol: "MOVE",
+                  resourceType: `0x1::delegation_pool::get_stake<${poolAddress}>`,
+                  source: "view",
+                  protocol: MOVEMENT_STAKING,
+                  protocolName: MOVEMENT_STAKING.name,
+                  protocolWebsite: MOVEMENT_STAKING.website,
+                  stakedAmount: activeStakeRaw,
+                  pendingStakeAmount: inactiveStakeRaw + pendingActiveRaw,
+                  pendingWithdrawalAmount: pendingWithdrawalRaw,
+                  poolAddress,
+                });
+
+                devLog(`  ✅ Native staking: ${numericValue.toFixed(4)} MOVE @ ${poolAddress.slice(0, 12)}...`);
+              }
+            } catch (poolError) {
+              devLog(`  ⚠️ Could not read native stake for pool ${poolAddress.slice(0, 12)}...:`, poolError?.message || poolError);
+            }
+          }
+        } catch (err) {
+          devLog("  ⚠️ Native staking scan error:", err?.message || err);
         }
       }
 
@@ -1123,7 +1176,7 @@ export const useDeFiPositions = (searchAddress = null) => {
       // Processes resources using ALL_ADAPTERS patterns for protocols
       // like Yuzu, Mosaic, Canopy, Meridian, Razor, etc.
       // =================================================================
-      console.log("\n  🔌 Scanning with protocol adapters...");
+      devLog("\n  🔌 Scanning with protocol adapters...");
       
       for (const resource of resources) {
         const resourceType = resource.type;
@@ -1131,52 +1184,103 @@ export const useDeFiPositions = (searchAddress = null) => {
         
         // Enhanced debug logging for all Meridian resources
         if (resourceType.includes("8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82")) {
-          console.log(`  🔷 MERIDIAN RESOURCE:`);
-          console.log(`     Type: ${resourceType.substring(0, 120)}...`);
-          console.log(`     Data keys: ${Object.keys(resourceData).join(", ")}`);
+          devLog(`  🔷 MERIDIAN RESOURCE:`);
+          devLog(`     Type: ${resourceType.substring(0, 120)}...`);
+          devLog(`     Data keys: ${Object.keys(resourceData).join(", ")}`);
         }
         
         // Specific logging for UserPoolsMap and UserPositionsMap
         if (resourceType.includes("UserPoolsMap") || resourceType.includes("UserPositionsMap")) {
-          console.log(`  🎯 MERIDIAN POSITION RESOURCE FOUND`);
-          console.log(`     Type: ${resourceType.substring(0, 150)}`);
-          console.log(`     Keys: ${Object.keys(resourceData).join(", ")}`);
+          devLog(`  🎯 MERIDIAN POSITION RESOURCE FOUND`);
+          devLog(`     Type: ${resourceType.substring(0, 150)}`);
+          devLog(`     Keys: ${Object.keys(resourceData).join(", ")}`);
           if (resourceData.data) {
-            console.log(`     Has data array: length=${Array.isArray(resourceData.data) ? resourceData.data.length : "not-array"}`);
+            devLog(`     Has data array: length=${Array.isArray(resourceData.data) ? resourceData.data.length : "not-array"}`);
           }
         }
         
         // Check each adapter for a match
         for (const adapter of ALL_ADAPTERS) {
           if (!adapter.searchString || !adapter.parse) continue;
+
+          if (
+            adapter.id === "movement_native_staking" &&
+            detectedPositions.some((position) => position.source === "view" && position.protocolName === "Movement Native Staking")
+          ) {
+            continue;
+          }
           
           // Check if resource type matches the adapter's search pattern
           if (resourceType.includes(adapter.searchString)) {
+            if (typeof adapter.filterType === "function" && !adapter.filterType(resourceType)) {
+              continue;
+            }
+
             try {
               const parsedValue = adapter.parse(resourceData);
               
               // Debug for Meridian adapters
               if (adapter.id.includes("meridian")) {
-                console.log(`  ✨ Meridian adapter matched: ${adapter.id}`);
-                console.log(`     Resource: ${resourceType.substring(0, 100)}...`);
-                console.log(`     Parsed value: ${parsedValue}`);
+                devLog(`  ✨ Meridian adapter matched: ${adapter.id}`);
+                devLog(`     Resource: ${resourceType.substring(0, 100)}...`);
+                devLog(`     Parsed value: ${parsedValue}`);
               }
               
-              // Skip if parser returns null, undefined, or "0"
+              // Handle array returns from adapters (e.g., MovePosition with multiple tokens)
+              if (Array.isArray(parsedValue)) {
+                // Process each token position in the array
+                parsedValue.forEach((tokenPosition) => {
+                  const numericValue = tokenPosition.amount ? 
+                    tokenPosition.amount / Math.pow(10, tokenPosition.decimals) : 
+                    parseFloat(tokenPosition.formattedAmount || 0);
+                  
+                  // Accept any positive amount (even tiny amounts like 0.00000001 BTC)
+                  if (numericValue <= 0) {
+                    return;
+                  }
+                  
+                  // Determine protocol from adapter ID
+                  const protocolKey = adapter.id.split('_')[0].toUpperCase();
+                  const protocol = PROTOCOL_REGISTRY[protocolKey] || null;
+                  
+                  devLog(`  ✅ Adapter Match: ${adapter.name} - ${tokenPosition.symbol} (${adapter.type})`);
+                  devLog(`     Value: ${numericValue} ${tokenPosition.symbol}`);
+                  
+                  detectedPositions.push({
+                    id: `${adapter.id}_${tokenPosition.symbol.toLowerCase()}_${detectedPositions.length}`,
+                    name: `${adapter.name} (${tokenPosition.symbol})`,
+                    type: adapter.type,
+                    value: numericValue.toFixed(6),
+                    numericValue: numericValue,
+                    tokenSymbol: tokenPosition.symbol,
+                    coinType: tokenPosition.coinType,
+                    resourceType: resourceType,
+                    source: "adapter",
+                    protocol: protocol,
+                    protocolName: protocol?.name || adapter.protocol || adapter.name.split(' ')[0],
+                    protocolWebsite: protocol?.website || null,
+                  });
+                });
+                
+                // Continue to next resource after processing array
+                break;
+              }
+              
+              // Skip if parser returns null, undefined, or "0" (string type)
               if (!parsedValue || parsedValue === "0" || parsedValue === "0.0000") {
                 if (adapter.id.includes("meridian")) {
-                  console.log(`     ⚠️ Skipped (zero value or parsing issue)`);
+                  devLog(`     ⚠️ Skipped (zero value or parsing issue)`);
                 }
                 continue;
               }
               
-              // Convert parsed value to number for sorting
+              // Convert parsed value to number for sorting (string type)
               const numericValue = parseFloat(parsedValue.replace(/,/g, '')) || 0;
               
               // Skip zero/dust values
               if (numericValue <= 0 || numericValue < 0.0001) {
                 if (adapter.id.includes("meridian")) {
-                  console.log(`     ⚠️ Skipped (dust value: ${numericValue})`);
+                  devLog(`     ⚠️ Skipped (dust value: ${numericValue})`);
                 }
                 continue;
               }
@@ -1234,11 +1338,11 @@ export const useDeFiPositions = (searchAddress = null) => {
                 }
               }
               
-              console.log(`  ✅ Adapter Match: ${adapter.name} (${adapter.type})`);
-              console.log(`     Value: ${parsedValue} | Pattern: ${adapter.searchString}`);
+              devLog(`  ✅ Adapter Match: ${adapter.name} (${adapter.type})`);
+              devLog(`     Value: ${parsedValue} | Pattern: ${adapter.searchString}`);
               
               if (adapter.id.includes("meridian")) {
-                console.log('     🔷 Meridian Adapter additionalData:', additionalData);
+                devLog('     🔷 Meridian Adapter additionalData:', additionalData);
               }
               
               detectedPositions.push({
@@ -1258,7 +1362,7 @@ export const useDeFiPositions = (searchAddress = null) => {
               // Only use first matching adapter per resource
               break;
             } catch (err) {
-              console.log(`  ⚠️ Adapter ${adapter.id} parse error:`, err.message);
+              devLog(`  ⚠️ Adapter ${adapter.id} parse error:`, err.message);
             }
           }
         }
@@ -1278,9 +1382,9 @@ export const useDeFiPositions = (searchAddress = null) => {
         return b.numericValue - a.numericValue;
       });
 
-      console.log("\n═══════════════════════════════════════════════════════════════════");
-      console.log(`🎯 SCAN COMPLETE: Found ${detectedPositions.length} DeFi positions`);
-      console.log("═══════════════════════════════════════════════════════════════════\n");
+      devLog("\n═══════════════════════════════════════════════════════════════════");
+      devLog(`🎯 SCAN COMPLETE: Found ${detectedPositions.length} DeFi positions`);
+      devLog("═══════════════════════════════════════════════════════════════════\n");
 
       setPositions(detectedPositions);
       setError(null);
@@ -1312,7 +1416,7 @@ export const useDeFiPositions = (searchAddress = null) => {
       setLoading(false);
       lastFetchedAddress.current = null;
     }
-  }, [targetAddress]); // Intentionally only depend on targetAddress
+  }, [fetchPositions, targetAddress]);
 
   // Expose a refetch that always forces a fresh scan
   const forceRefetch = useCallback(() => {

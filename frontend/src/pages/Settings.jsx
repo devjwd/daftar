@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { useNavigate } from 'react-router-dom';
 import { getStoredLanguagePreference, saveLanguagePreference, t } from '../utils/language';
 import { applyTheme, getStoredThemePreference, saveThemePreference } from '../utils/theme';
 import './Settings.css';
 
 export default function Settings() {
   const { account } = useWallet();
-  const navigate = useNavigate();
   const [currency, setCurrency] = useState('USD');
   const [notifications, setNotifications] = useState(true);
   const [priceAlerts, setPriceAlerts] = useState(false);
@@ -39,6 +37,7 @@ export default function Settings() {
     return settingsData;
   };
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     // Load settings from localStorage
     const saved = localStorage.getItem(settingsKey);
@@ -59,6 +58,7 @@ export default function Settings() {
       setLanguage(getStoredLanguagePreference(settingsKey));
     }
   }, [settingsKey]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSave = () => {
     persistSettings();

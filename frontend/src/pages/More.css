@@ -7,6 +7,51 @@
   background: #1a1614;
 }
 
+body[data-theme='light'] .more-page {
+  background: #f4f5f7;
+}
+
+body[data-theme='light'] .more-container {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
+}
+
+body[data-theme='light'] .more-header,
+body[data-theme='light'] .social-links,
+body[data-theme='light'] .more-footer {
+  background: rgba(248, 250, 252, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+body[data-theme='light'] .more-header h1,
+body[data-theme='light'] .more-option,
+body[data-theme='light'] .more-option-left span,
+body[data-theme='light'] .footer-link {
+  color: #0f172a;
+}
+
+body[data-theme='light'] .more-option-right,
+body[data-theme='light'] .footer-separator {
+  color: #64748b;
+}
+
+body[data-theme='light'] .more-icon,
+body[data-theme='light'] .social-link,
+body[data-theme='light'] .language-badge {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #0f172a;
+}
+
+.more-back-btn:focus-visible,
+.more-option:focus-visible,
+.social-link:focus-visible,
+.footer-link:focus-visible {
+  outline: 2px solid #e6c49a;
+  outline-offset: 2px;
+}
+
 .more-container {
   max-width: 500px;
   width: 100%;

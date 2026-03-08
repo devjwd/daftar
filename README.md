@@ -81,6 +81,59 @@ Movement Portfolio Manager/
     └── README.md          # This file
 ```
 
+## 🪙 Badge & Achievement System
+
+A new subsystem to reward on‑chain activity, longevity, and balances using customizable badges. The frontend and toolchain include:
+
+- `frontend/src/config/badges.js` – badge definitions, rarity, XP values, and rule identifiers.
+- `frontend/src/services/badgeService.js` – helpers for on‑chain badge metadata and transaction builders.
+- `frontend/src/services/badgeApi.js` – optional client for a backend that persists awarded badges.
+- `frontend/src/services/badgeAdapters/` – pluggable eligibility rules (transaction count, longevity, min balance).
+- Hooks: `useBadges`, `useUserBadges` load on‑chain and backend badges for the UI.
+- UI changes: updated profile modal, global footer, badges grid.
+
+### Running the Badge Worker
+
+If you host a backend, you can periodically evaluate addresses against your badge configuration and call the award API. A simple Node script lives in `scripts/badgeEligibilityRunner.js`:
+
+```bash
+# check a single address (prints candidates)
+node scripts/badgeEligibilityRunner.js 0xabc123
+
+# use a config file and actually POST awards to your server
+node scripts/badgeEligibilityRunner.js 0xabc123 --config=scripts/badgeConfigs.json --award
+```
+
+The script loads adapter rules from `badgeAdapters` and can be expanded to read your badgeConfig from a database or schedule via cron/worker process.
+\
+### Optional Backend Service
+\
+For a full production setup you can deploy a simple Node/Express service that
+persists awarded badges and runs the scanning worker automatically. The
+repository includes a minimal implementation under `server/`.
+\
+```bash
+# install dependencies at project root
+npm install
+\
+# start service (runs Express API and hourly scan)
+npm run start
+\
+# manually trigger worker scan
+curl http://localhost:4000/api/badges/scan
+\
+# add an address to be tracked (worker will evaluate it each hour)
+curl -X POST http://localhost:4000/api/badges/track \
+  -H "Content-Type: application/json" \
+  -d '{"address":"0xabc..."}'
+```
+\
+The backend exposes the same endpoints consumed by the frontend's
+`badgeApi.js` client (`/api/badges`, `/api/badges/user/:address`,
+`/api/badges/award`).  It keeps data in memory but shows how to wire a
+real database; feel free to swap `userAwards` and `trackedAddresses` with
+persistent stores.
+
 ## 🛠️ Technology Stack
 
 ### Smart Contracts

@@ -1,0 +1,517 @@
+/* ═══════════════════════════════════════════════════════════════════
+   BadgeAdmin — Admin badge management styles
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ba-container {
+  width: 100%;
+}
+
+/* ─── Messages ────────────────────────────────────────────────────── */
+.ba-message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 20px;
+  animation: ba-slideDown 0.3s ease-out;
+}
+.ba-message-success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+.ba-message-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+/* ─── Sub-tabs ────────────────────────────────────────────────────── */
+.ba-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(212, 165, 116, 0.15);
+  padding-bottom: 12px;
+  flex-wrap: wrap;
+}
+.ba-subtab {
+  padding: 8px 16px;
+  border: 1px solid rgba(212, 165, 116, 0.15);
+  border-radius: 8px;
+  background: transparent;
+  color: #8a7d6f;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.ba-subtab:hover {
+  background: rgba(212, 165, 116, 0.08);
+  color: #d4a574;
+}
+.ba-subtab.active {
+  background: rgba(212, 165, 116, 0.12);
+  border-color: #d4a574;
+  color: #e6c49a;
+}
+
+/* ─── Common Controls ─────────────────────────────────────────────── */
+.ba-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.ba-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ba-btn-primary {
+  background: linear-gradient(135deg, #d4a574, #e6c49a);
+  color: #1a1614;
+}
+.ba-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(212, 165, 116, 0.3);
+}
+.ba-btn-secondary {
+  background: rgba(212, 165, 116, 0.1);
+  color: #c8ad8e;
+  border: 1px solid rgba(212, 165, 116, 0.2);
+}
+.ba-btn-secondary:hover:not(:disabled) {
+  background: rgba(212, 165, 116, 0.15);
+}
+.ba-btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.ba-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+}
+.ba-btn-sm {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+}
+.ba-btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.ba-btn-icon:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ba-btn-remove {
+  color: #ef4444;
+  font-size: 1.3rem;
+  font-weight: bold;
+}
+
+.ba-input, .ba-select, .ba-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(212, 165, 116, 0.2);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e6c49a;
+  font-size: 0.875rem;
+  transition: border-color 0.2s ease;
+  font-family: inherit;
+}
+.ba-input:focus, .ba-select:focus, .ba-textarea:focus {
+  outline: none;
+  border-color: #d4a574;
+  box-shadow: 0 0 0 2px rgba(212, 165, 116, 0.1);
+}
+.ba-input::placeholder, .ba-textarea::placeholder {
+  color: rgba(212, 165, 116, 0.35);
+}
+.ba-select option {
+  background: #2a2420;
+  color: #e6c49a;
+}
+
+.ba-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.ba-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #c8ad8e;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ba-required {
+  color: #ef4444;
+  margin-left: 3px;
+}
+.ba-hint {
+  font-size: 0.8rem;
+  color: #8a7d6f;
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+.ba-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.ba-field-toggle {
+  margin-bottom: 16px;
+}
+.ba-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  color: #c8ad8e;
+  font-size: 0.85rem;
+}
+.ba-toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #d4a574;
+}
+
+/* ─── Manage Tab ──────────────────────────────────────────────────── */
+.ba-manage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.ba-manage-header h3 {
+  color: #e6c49a;
+  font-size: 1.1rem;
+  margin: 0;
+}
+.ba-manage-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ba-empty {
+  text-align: center;
+  padding: 40px;
+  color: #8a7d6f;
+}
+.ba-empty p {
+  margin: 0;
+}
+
+.ba-badge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ba-badge-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(212, 165, 116, 0.1);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+.ba-badge-item:hover {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(212, 165, 116, 0.2);
+}
+.ba-badge-item.disabled {
+  opacity: 0.55;
+}
+
+.ba-badge-preview {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+}
+.ba-badge-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid rgba(212, 165, 116, 0.2);
+}
+.ba-badge-placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 2px dashed;
+}
+
+.ba-badge-info {
+  flex: 1;
+  min-width: 0;
+}
+.ba-badge-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.ba-badge-title-row h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #e6c49a;
+}
+.ba-rarity-pill {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fff;
+  letter-spacing: 0.3px;
+}
+.ba-xp-pill {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+.ba-badge-desc {
+  margin: 0 0 6px 0;
+  font-size: 0.8rem;
+  color: #8a7d6f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ba-badge-criteria-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ba-criteria-tag {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  background: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+.ba-category-tag {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.ba-badge-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+.ba-delete-confirm {
+  display: flex;
+  gap: 6px;
+}
+
+/* ─── Create / Edit Form ──────────────────────────────────────────── */
+.ba-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+.ba-form-left h3, .ba-form-right h3 {
+  color: #e6c49a;
+  font-size: 1rem;
+  margin: 0 0 16px 0;
+}
+
+.ba-image-preview {
+  margin-top: 8px;
+  width: 120px;
+  height: 120px;
+  border: 2px dashed rgba(212, 165, 116, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ba-image-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.ba-criterion-block {
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(212, 165, 116, 0.1);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+.ba-criterion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.ba-criterion-num {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #d4a574;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ba-btn-add-criterion {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.ba-form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(212, 165, 116, 0.1);
+}
+
+/* ─── Templates Tab ───────────────────────────────────────────────── */
+.ba-template-section {
+  margin-bottom: 40px;
+}
+.ba-template-section h3 {
+  color: #e6c49a;
+  font-size: 1rem;
+  margin: 0 0 8px 0;
+}
+.ba-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.ba-template-card {
+  padding: 20px 16px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(212, 165, 116, 0.1);
+  border-radius: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+.ba-template-card:hover {
+  border-color: rgba(212, 165, 116, 0.3);
+}
+.ba-template-card.exists {
+  opacity: 0.5;
+}
+.ba-template-emoji {
+  font-size: 2rem;
+}
+.ba-template-card h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #e6c49a;
+}
+.ba-template-card p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #8a7d6f;
+}
+.ba-template-meta {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+/* ─── Import/Export Tab ───────────────────────────────────────────── */
+.ba-import-export {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.ba-ie-section {
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(212, 165, 116, 0.1);
+  border-radius: 12px;
+}
+.ba-ie-section h3 {
+  color: #e6c49a;
+  font-size: 1rem;
+  margin: 0 0 8px 0;
+}
+.ba-import-textarea {
+  margin-bottom: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+}
+.ba-danger-zone {
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.ba-danger-zone h3 {
+  color: #ef4444;
+}
+
+/* ─── Animations ──────────────────────────────────────────────────── */
+@keyframes ba-slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .ba-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .ba-field-row {
+    grid-template-columns: 1fr;
+  }
+  .ba-badge-item {
+    flex-wrap: wrap;
+  }
+  .ba-template-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .ba-subtabs {
+    flex-wrap: wrap;
+  }
+  .ba-subtab {
+    font-size: 0.78rem;
+    padding: 6px 12px;
+  }
+  .ba-manage-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}

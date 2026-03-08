@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStoredLanguagePreference } from '../utils/language';
+import { getStoredLanguagePreference, t } from '../utils/language';
 import { getStoredThemePreference, saveThemePreference } from '../utils/theme';
 import './More.css';
 
@@ -56,7 +56,7 @@ export default function More() {
           <button onClick={() => navigate(-1)} className="more-back-btn">
             ←
           </button>
-          <h1>More</h1>
+          <h1>{t(language, 'moreTitle')}</h1>
         </div>
 
         <div className="more-options">
@@ -67,7 +67,7 @@ export default function More() {
                   <path d="M17 7H7V3H17V7ZM5 9H19V11H5V9ZM7 13H17V21H7V13Z" fill="currentColor"/>
                 </svg>
               </div>
-              <span>Level</span>
+              <span>{t(language, 'profileLevel')}</span>
             </div>
             <div className="more-option-right">→</div>
           </button>
@@ -78,7 +78,7 @@ export default function More() {
                   <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 19H11V17H13V19ZM15.07 11.25L14.17 12.17C13.45 12.9 13 13.5 13 15H11V14.5C11 13.4 11.45 12.4 12.17 11.67L13.41 10.41C13.78 10.05 14 9.55 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9H8C8 6.79 9.79 5 12 5C14.21 5 16 6.79 16 9C16 9.88 15.64 10.68 15.07 11.25Z" fill="currentColor"/>
                 </svg>
               </div>
-              <span>Support</span>
+              <span>{t(language, 'moreSupport')}</span>
             </div>
           </button>
 
@@ -89,7 +89,7 @@ export default function More() {
                   <path d="M12 3C11.45 3 11 3.45 11 4V5C11 5.55 11.45 6 12 6C12.55 6 13 5.55 13 5V4C13 3.45 12.55 3 12 3ZM18 12C18 11.45 18.45 11 19 11H20C20.55 11 21 11.45 21 12C21 12.55 20.55 13 20 13H19C18.45 13 18 12.55 18 12ZM6 12C6 11.45 5.55 11 5 11H4C3.45 11 3 11.45 3 12C3 12.55 3.45 13 4 13H5C5.55 13 6 12.55 6 12ZM12 18C11.45 18 11 18.45 11 19V20C11 20.55 11.45 21 12 21C12.55 21 13 20.55 13 20V19C13 18.45 12.55 18 12 18ZM17.66 6.34C17.27 5.95 16.64 5.95 16.25 6.34L15.54 7.05C15.15 7.44 15.15 8.07 15.54 8.46C15.93 8.85 16.56 8.85 16.95 8.46L17.66 7.75C18.05 7.36 18.05 6.73 17.66 6.34ZM6.34 17.66C5.95 17.27 5.95 16.64 6.34 16.25L7.05 15.54C7.44 15.15 8.07 15.15 8.46 15.54C8.85 15.93 8.85 16.56 8.46 16.95L7.75 17.66C7.36 18.05 6.73 18.05 6.34 17.66ZM8.46 8.46C8.85 8.07 8.85 7.44 8.46 7.05L7.75 6.34C7.36 5.95 6.73 5.95 6.34 6.34C5.95 6.73 5.95 7.36 6.34 7.75L7.05 8.46C7.44 8.85 8.07 8.85 8.46 8.46ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z" fill="currentColor"/>
                 </svg>
               </div>
-              <span>Theme</span>
+              <span>{t(language, 'theme')}</span>
             </div>
             <div className="more-option-right">
               →
@@ -103,7 +103,7 @@ export default function More() {
                   <path d="M11.99 2C6.47 2 2 6.48 2 12C2 17.52 6.47 22 11.99 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 11.99 2ZM18.92 8H15.97C15.65 6.75 15.19 5.55 14.59 4.44C16.43 5.07 17.96 6.35 18.92 8ZM12 4.04C12.83 5.24 13.48 6.57 13.91 8H10.09C10.52 6.57 11.17 5.24 12 4.04ZM4.26 14C4.1 13.36 4 12.69 4 12C4 11.31 4.1 10.64 4.26 10H7.64C7.56 10.66 7.5 11.32 7.5 12C7.5 12.68 7.56 13.34 7.64 14H4.26ZM5.08 16H8.03C8.35 17.25 8.81 18.45 9.41 19.56C7.57 18.93 6.04 17.66 5.08 16ZM8.03 8H5.08C6.04 6.34 7.57 5.07 9.41 4.44C8.81 5.55 8.35 6.75 8.03 8ZM12 19.96C11.17 18.76 10.52 17.43 10.09 16H13.91C13.48 17.43 12.83 18.76 12 19.96ZM14.34 14H9.66C9.57 13.34 9.5 12.68 9.5 12C9.5 11.32 9.57 10.65 9.66 10H14.34C14.43 10.65 14.5 11.32 14.5 12C14.5 12.68 14.43 13.34 14.34 14ZM14.59 19.56C15.19 18.45 15.65 17.25 15.97 16H18.92C17.96 17.65 16.43 18.93 14.59 19.56ZM16.36 14C16.44 13.34 16.5 12.68 16.5 12C16.5 11.32 16.44 10.66 16.36 10H19.74C19.9 10.64 20 11.31 20 12C20 12.69 19.9 13.36 19.74 14H16.36Z" fill="currentColor"/>
                 </svg>
               </div>
-              <span>Language</span>
+              <span>{t(language, 'language')}</span>
             </div>
             <div className="more-option-right">
               <span className="language-badge">{language.toUpperCase()}</span>
@@ -118,7 +118,7 @@ export default function More() {
                   <path d="M20 6H12L10 4H4C2.9 4 2.01 4.9 2.01 6L2 18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6ZM20 18H4V8H20V18Z" fill="currentColor"/>
                 </svg>
               </div>
-              <span>Resources</span>
+              <span>{t(language, 'moreResources')}</span>
             </div>
             <div className="more-option-right">
               →
@@ -175,11 +175,11 @@ export default function More() {
 
         <div className="more-footer">
           <a href="https://movementlabs.xyz/terms" target="_blank" rel="noopener noreferrer" className="footer-link">
-            Terms Of Business
+            {t(language, 'moreTerms')}
           </a>
           <span className="footer-separator">•</span>
           <a href="https://movementlabs.xyz/privacy" target="_blank" rel="noopener noreferrer" className="footer-link">
-            Privacy Policy
+            {t(language, 'morePrivacy')}
           </a>
         </div>
       </div>

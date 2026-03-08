@@ -4,6 +4,38 @@
   background: #1a1614;
 }
 
+body[data-theme='light'] .profile-view-page {
+  background: #f4f5f7;
+}
+
+body[data-theme='light'] .error-container,
+body[data-theme='light'] .no-profile-container,
+body[data-theme='light'] .profile-view-details,
+body[data-theme='light'] .detail-item {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+body[data-theme='light'] .profile-view-details h2,
+body[data-theme='light'] .no-profile-container h2,
+body[data-theme='light'] .error-container h2,
+body[data-theme='light'] .detail-value {
+  color: #0f172a;
+}
+
+body[data-theme='light'] .detail-label,
+body[data-theme='light'] .no-profile-container p,
+body[data-theme='light'] .error-container p,
+body[data-theme='light'] .loading-state {
+  color: #64748b;
+}
+
+.back-btn-primary:focus-visible {
+  outline: 2px solid #e6c49a;
+  outline-offset: 2px;
+}
+
 .profile-view-container {
   max-width: 900px;
   margin: 0 auto;

@@ -200,7 +200,7 @@ export function setupGlobalErrorHandlers() {
       });
 
       observer.observe({ entryTypes: ['measure', 'navigation'] });
-    } catch (e) {
+    } catch {
       // PerformanceObserver not available or error
     }
   }

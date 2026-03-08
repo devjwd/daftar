@@ -1,11 +1,56 @@
 // Admin Service: Manages token and badge data persistence
 // Uses localStorage for persistence (can be replaced with backend later)
 
+import {
+  DEFAULT_ENABLED_LIQUIDITY_SOURCE_IDS,
+  normalizeLiquiditySourceIds,
+} from "../config/liquiditySources";
+
 const ADMIN_STORAGE_KEY = 'movement_admin_data';
 
 const DEFAULT_SWAP_SETTINGS = {
+  feeInBps: 0,
+  feeReceiver: '',
+  isFeeIn: true,
+  defaultSlippagePercent: 0.5,
+  mosaicApiKey: '',
+  routingMode: 'mosaic',
+  enabledLiquiditySources: [...DEFAULT_ENABLED_LIQUIDITY_SOURCE_IDS],
+  // Legacy compatibility fields
   protocolFeeBps: 0,
   referrer: '',
+};
+
+const normalizeSwapSettings = (settings = {}) => {
+  const feeInBpsValue = settings.feeInBps ?? settings.protocolFeeBps ?? 0;
+  const feeInBps = Math.max(0, Math.min(1000, Math.round(Number(feeInBpsValue) || 0)));
+  const feeReceiver = String(settings.feeReceiver ?? settings.referrer ?? '').trim();
+
+  const slippageRaw = Number(settings.defaultSlippagePercent);
+  const defaultSlippagePercent = Number.isFinite(slippageRaw)
+    ? Math.max(0.01, Math.min(50, slippageRaw))
+    : DEFAULT_SWAP_SETTINGS.defaultSlippagePercent;
+
+  const normalized = {
+    ...DEFAULT_SWAP_SETTINGS,
+    ...settings,
+    feeInBps,
+    feeReceiver,
+    isFeeIn: Boolean(settings.isFeeIn ?? DEFAULT_SWAP_SETTINGS.isFeeIn),
+    defaultSlippagePercent,
+    mosaicApiKey: String(settings.mosaicApiKey || '').trim(),
+    routingMode: ['mosaic'].includes(String(settings.routingMode || '').toLowerCase())
+      ? String(settings.routingMode || '').toLowerCase()
+      : DEFAULT_SWAP_SETTINGS.routingMode,
+    enabledLiquiditySources: normalizeLiquiditySourceIds(
+      settings.enabledLiquiditySources ?? DEFAULT_SWAP_SETTINGS.enabledLiquiditySources
+    ),
+  };
+
+  normalized.protocolFeeBps = feeInBps;
+  normalized.referrer = feeReceiver;
+
+  return normalized;
 };
 
 // Load admin data from localStorage
@@ -14,21 +59,18 @@ export const loadAdminData = () => {
     const stored = localStorage.getItem(ADMIN_STORAGE_KEY);
     if (!stored) {
       return {
-        tokens: [],
         badges: [],
         swapSettings: { ...DEFAULT_SWAP_SETTINGS },
       };
     }
     const parsed = JSON.parse(stored);
     return {
-      tokens: parsed.tokens || [],
       badges: parsed.badges || [],
-      swapSettings: parsed.swapSettings || { ...DEFAULT_SWAP_SETTINGS },
+      swapSettings: normalizeSwapSettings(parsed.swapSettings || {}),
     };
   } catch (error) {
     console.error('Failed to load admin data:', error);
     return {
-      tokens: [],
       badges: [],
       swapSettings: { ...DEFAULT_SWAP_SETTINGS },
     };
@@ -44,67 +86,6 @@ export const saveAdminData = (data) => {
     console.error('Failed to save admin data:', error);
     return false;
   }
-};
-
-// Add a new token
-export const addToken = (token) => {
-  const data = loadAdminData();
-  
-  // Validate required fields
-  if (!token.address || !token.symbol || !token.name) {
-    throw new Error('Missing required fields: address, symbol, name');
-  }
-  
-  // Check for duplicates
-  if (data.tokens.some(t => t.address.toLowerCase() === token.address.toLowerCase())) {
-    throw new Error('Token with this address already exists');
-  }
-  
-  // Add timestamp and ID
-  const newToken = {
-    ...token,
-    id: Date.now().toString(),
-    createdAt: new Date().toISOString(),
-    decimals: token.decimals || 8,
-    isNative: token.isNative || false,
-  };
-  
-  data.tokens.push(newToken);
-  saveAdminData(data);
-  
-  return newToken;
-};
-
-// Update token
-export const updateToken = (tokenId, updates) => {
-  const data = loadAdminData();
-  const index = data.tokens.findIndex(t => t.id === tokenId);
-  
-  if (index === -1) {
-    throw new Error('Token not found');
-  }
-  
-  data.tokens[index] = {
-    ...data.tokens[index],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
-  
-  saveAdminData(data);
-  return data.tokens[index];
-};
-
-// Delete token
-export const deleteToken = (tokenId) => {
-  const data = loadAdminData();
-  data.tokens = data.tokens.filter(t => t.id !== tokenId);
-  saveAdminData(data);
-};
-
-// Get all custom tokens
-export const getCustomTokens = () => {
-  const data = loadAdminData();
-  return data.tokens;
 };
 
 // Add a new badge
@@ -172,17 +153,17 @@ export const getCustomBadges = () => {
 // Swap settings (Mosaic integrator fees, referrer, etc.)
 export const getSwapSettings = () => {
   const data = loadAdminData();
-  return data.swapSettings || { ...DEFAULT_SWAP_SETTINGS };
+  return normalizeSwapSettings(data.swapSettings || {});
 };
 
 export const updateSwapSettings = (updates) => {
   const data = loadAdminData();
-  const current = data.swapSettings || { ...DEFAULT_SWAP_SETTINGS };
-  const next = {
+  const current = normalizeSwapSettings(data.swapSettings || {});
+  const next = normalizeSwapSettings({
     ...current,
     ...updates,
     updatedAt: new Date().toISOString(),
-  };
+  });
   const nextData = {
     ...data,
     swapSettings: next,
@@ -201,13 +182,13 @@ export const exportAdminData = () => {
 export const importAdminData = (jsonData) => {
   try {
     const data = JSON.parse(jsonData);
-    
-    // Validate structure
-    if (!Array.isArray(data.tokens) || !Array.isArray(data.badges)) {
-      throw new Error('Invalid data structure');
-    }
-    
-    saveAdminData(data);
+
+    const normalized = {
+      badges: Array.isArray(data.badges) ? data.badges : [],
+      swapSettings: normalizeSwapSettings(data.swapSettings || {}),
+    };
+
+    saveAdminData(normalized);
     return true;
   } catch (error) {
     console.error('Failed to import admin data:', error);
