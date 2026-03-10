@@ -9,7 +9,7 @@
   --swap-text: var(--text-primary);
   --swap-accent: var(--primary);
   --swap-accent-2: var(--primary-light);
-  --swap-warn: #f59e0b;
+  --swap-warn: #e57c23;
   --swap-danger: #ef6a6a;
   --swap-success: #32c48d;
   display: flex;
@@ -24,7 +24,7 @@
   border-radius: 24px;
   border: 1px solid var(--swap-border);
   background:
-    radial-gradient(circle at 85% -5%, rgba(212, 165, 116, 0.12), transparent 40%),
+    radial-gradient(circle at 85% -5%, rgba(205, 161, 105, 0.12), transparent 40%),
     radial-gradient(circle at -5% 110%, rgba(255, 221, 187, 0.08), transparent 45%),
     linear-gradient(165deg, var(--swap-bg-1), var(--swap-bg-2));
   backdrop-filter: blur(18px);
@@ -70,7 +70,7 @@
 .settings-btn:hover {
   transform: translateY(-1px);
   border-color: var(--swap-border-strong);
-  box-shadow: 0 0 0 4px rgba(212, 165, 116, 0.12);
+  box-shadow: 0 0 0 4px rgba(205, 161, 105, 0.12);
 }
 
 .swap-header-actions {
@@ -207,7 +207,7 @@
 .quick-fill-btn {
   border: none;
   background: transparent;
-  color: #e6c49a;
+  color: #deb884;
   font: 700 0.6rem/1 "Space Grotesk", "Avenir Next", sans-serif;
   letter-spacing: 0.05em;
   padding: 0;
@@ -219,13 +219,13 @@
 }
 
 .quick-fill-btn:focus-visible {
-  outline: 2px solid #e6c49a;
+  outline: 2px solid #deb884;
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 .quick-fill-separator {
-  color: rgba(212, 165, 116, 0.65);
+  color: rgba(205, 161, 105, 0.65);
   font-size: 0.6rem;
   font-weight: 700;
 }
@@ -250,8 +250,8 @@
 
 .max-btn {
   border-radius: 8px;
-  border: 1px solid rgba(212, 165, 116, 0.58);
-  background: rgba(212, 165, 116, 0.14);
+  border: 1px solid rgba(205, 161, 105, 0.58);
+  background: rgba(205, 161, 105, 0.14);
   color: #ffe3c2;
   font: 700 0.64rem/1 "Space Grotesk", "Avenir Next", sans-serif;
   letter-spacing: 0.08em;
@@ -261,7 +261,7 @@
 }
 
 .max-btn:hover {
-  background: rgba(212, 165, 116, 0.24);
+  background: rgba(205, 161, 105, 0.24);
 }
 
 .select-token {
@@ -278,7 +278,7 @@
 }
 
 .token-icon-mini {
-  background: linear-gradient(135deg, #d4a574, #ffddb8);
+  background: linear-gradient(135deg, #cda169, #ffddb8);
   color: #2a1f1a;
   display: grid;
   place-items: center;
@@ -375,7 +375,7 @@
   border: none;
   border-radius: 14px;
   padding: 0.9rem;
-  background: linear-gradient(100deg, #c79665 0%, #d4a574 52%, #f0c899 100%);
+  background: linear-gradient(100deg, #c79665 0%, #cda169 52%, #f0c899 100%);
   color: #221a16;
   font: 700 0.9rem/1 "Space Grotesk", "Avenir Next", sans-serif;
   letter-spacing: 0.01em;
@@ -443,7 +443,7 @@
   margin-top: 0.25rem;
   padding: 0.55rem 0.55rem;
   border-radius: 10px;
-  background: linear-gradient(120deg, rgba(212, 165, 116, 0.2), rgba(255, 221, 187, 0.1));
+  background: linear-gradient(120deg, rgba(205, 161, 105, 0.2), rgba(255, 221, 187, 0.1));
 }
 
 .mosaic-router {
@@ -547,7 +547,7 @@
 
 .token-option.selected {
   border-color: var(--swap-border-strong);
-  background: rgba(212, 165, 116, 0.12);
+  background: rgba(205, 161, 105, 0.12);
 }
 
 .token-option.disabled {
@@ -569,7 +569,7 @@
 }
 
 .token-icon-small {
-  background: linear-gradient(135deg, #d4a574, #ffddb8);
+  background: linear-gradient(135deg, #cda169, #ffddb8);
   color: #2a1f1a;
   display: grid;
   place-items: center;
@@ -674,7 +674,7 @@
 
 .slippage-btn.active {
   border-color: var(--swap-border-strong);
-  background: rgba(212, 165, 116, 0.2);
+  background: rgba(205, 161, 105, 0.2);
   color: #ffe6cb;
 }
 
@@ -713,16 +713,16 @@
 }
 
 .slippage-custom span {
-  color: #9bb0bf;
+  color: #76a6c3;
   font-size: 0.8rem;
 }
 
 .slippage-warning {
   margin-top: 0.62rem;
   border-radius: 10px;
-  border: 1px solid rgba(245, 158, 11, 0.46);
-  background: rgba(107, 71, 20, 0.35);
-  color: #ffd48f;
+  border: 1px solid rgba(229, 124, 35, 0.46);
+  background: rgba(76, 43, 18, 0.35);
+  color: #e57c23;
   padding: 0.55rem 0.65rem;
   font-size: 0.77rem;
   display: inline-flex;
@@ -809,7 +809,7 @@
 
 .settings-save-btn {
   border: 1px solid var(--swap-border-strong);
-  background: rgba(212, 165, 116, 0.18);
+  background: rgba(205, 161, 105, 0.18);
   color: #ffe6cb;
 }
 
