@@ -453,14 +453,14 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
   const protocol = LP_PROTOCOLS[position.protocol] || {
     logo: '/movement-logo.svg',
     name: position.protocolName || 'DeFi Protocol',
-    color: '#d4a574',
-    gradient: 'linear-gradient(135deg, #d4a574, #e5c9a8)',
+    color: '#cda169',
+    gradient: 'linear-gradient(135deg, #cda169, #deb884)',
     type: 'LP Token',
     website: null
   };
 
   const LP_TOKEN_COLORS = {
-    MOVE: '#d4a574',
+    MOVE: '#cda169',
     USDC: '#2775ca',
     USDT: '#26a17b',
     ETH: '#627eea',
