@@ -74,13 +74,35 @@ export default function Admin() {
         {errorMessage && <div className="admin-message error">{errorMessage}</div>}
         {successMessage && <div className="admin-message success">{successMessage}</div>}
 
-        <div className="admin-tabs">
-          <button className={`admin-tab ${activeTab === 'badges' ? 'active' : ''}`} onClick={() => setActiveTab('badges')}>
-            🏅 Badges
-          </button>
-          <button className={`admin-tab ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
-            ⚙️ Settings
-          </button>
+        <div className="admin-tabs-shell">
+          <div className="admin-tabs" role="tablist" aria-label="Admin sections">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'badges'}
+              className={`admin-tab ${activeTab === 'badges' ? 'active' : ''}`}
+              onClick={() => setActiveTab('badges')}
+            >
+              <span className="admin-tab-icon" aria-hidden="true">🏅</span>
+              <span className="admin-tab-text">
+                <span className="admin-tab-title">Badges</span>
+                <span className="admin-tab-meta">SBT campaigns and rewards</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'settings'}
+              className={`admin-tab ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={() => setActiveTab('settings')}
+            >
+              <span className="admin-tab-icon" aria-hidden="true">⚙️</span>
+              <span className="admin-tab-text">
+                <span className="admin-tab-title">Settings</span>
+                <span className="admin-tab-meta">Swap execution controls</span>
+              </span>
+            </button>
+          </div>
         </div>
 
         {activeTab === 'badges' && <BadgeAdmin />}

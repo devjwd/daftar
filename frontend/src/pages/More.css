@@ -4,7 +4,7 @@
   justify-content: center;
   align-items: center;
   padding: 20px;
-  background: #1a1614;
+  background: #14110f;
 }
 
 body[data-theme='light'] .more-page {
@@ -48,7 +48,7 @@ body[data-theme='light'] .language-badge {
 .more-option:focus-visible,
 .social-link:focus-visible,
 .footer-link:focus-visible {
-  outline: 2px solid #e6c49a;
+  outline: 2px solid #deb884;
   outline-offset: 2px;
 }
 
@@ -58,7 +58,7 @@ body[data-theme='light'] .language-badge {
   background: rgba(37, 34, 32, 0.95);
   backdrop-filter: blur(20px);
   border-radius: 24px;
-  border: 1px solid rgba(212, 165, 116, 0.2);
+  border: 1px solid rgba(205, 161, 105, 0.2);
   padding: 0;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
   overflow: hidden;
@@ -69,14 +69,14 @@ body[data-theme='light'] .language-badge {
   align-items: center;
   gap: 16px;
   padding: 24px 24px 20px;
-  border-bottom: 1px solid rgba(212, 165, 116, 0.15);
+  border-bottom: 1px solid rgba(205, 161, 105, 0.15);
   background: rgba(26, 22, 20, 0.5);
 }
 
 .more-back-btn {
   background: transparent;
   border: none;
-  color: #d4a574;
+  color: #cda169;
   font-size: 24px;
   cursor: pointer;
   padding: 4px 8px;
@@ -88,7 +88,7 @@ body[data-theme='light'] .language-badge {
 }
 
 .more-back-btn:hover {
-  background: rgba(212, 165, 116, 0.1);
+  background: rgba(205, 161, 105, 0.1);
 }
 
 .more-header h1 {
@@ -110,7 +110,7 @@ body[data-theme='light'] .language-badge {
   padding: 18px 24px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(212, 165, 116, 0.1);
+  border-bottom: 1px solid rgba(205, 161, 105, 0.1);
   cursor: pointer;
   transition: all 0.2s ease;
   color: #ffffff;
@@ -122,7 +122,7 @@ body[data-theme='light'] .language-badge {
 }
 
 .more-option:hover {
-  background: rgba(212, 165, 116, 0.08);
+  background: rgba(205, 161, 105, 0.08);
 }
 
 .more-option-left {
@@ -137,9 +137,9 @@ body[data-theme='light'] .language-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(212, 165, 116, 0.15);
+  background: rgba(205, 161, 105, 0.15);
   border-radius: 12px;
-  color: #d4a574;
+  color: #cda169;
   flex-shrink: 0;
 }
 
@@ -157,8 +157,8 @@ body[data-theme='light'] .language-badge {
 }
 
 .language-badge {
-  background: rgba(212, 165, 116, 0.2);
-  color: #d4a574;
+  background: rgba(205, 161, 105, 0.2);
+  color: #cda169;
   padding: 4px 12px;
   border-radius: 8px;
   font-size: 13px;
@@ -172,8 +172,8 @@ body[data-theme='light'] .language-badge {
   align-items: center;
   gap: 12px;
   padding: 24px;
-  border-top: 1px solid rgba(212, 165, 116, 0.15);
-  border-bottom: 1px solid rgba(212, 165, 116, 0.15);
+  border-top: 1px solid rgba(205, 161, 105, 0.15);
+  border-bottom: 1px solid rgba(205, 161, 105, 0.15);
   background: rgba(26, 22, 20, 0.3);
 }
 
@@ -183,19 +183,19 @@ body[data-theme='light'] .language-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(212, 165, 116, 0.1);
+  background: rgba(205, 161, 105, 0.1);
   border-radius: 12px;
-  color: #d4a574;
+  color: #cda169;
   transition: all 0.3s ease;
   text-decoration: none;
-  border: 1px solid rgba(212, 165, 116, 0.2);
+  border: 1px solid rgba(205, 161, 105, 0.2);
 }
 
 .social-link:hover {
-  background: rgba(212, 165, 116, 0.2);
-  border-color: #d4a574;
+  background: rgba(205, 161, 105, 0.2);
+  border-color: #cda169;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(212, 165, 116, 0.2);
+  box-shadow: 0 4px 12px rgba(205, 161, 105, 0.2);
 }
 
 .social-link svg {
@@ -220,7 +220,7 @@ body[data-theme='light'] .language-badge {
 }
 
 .footer-link:hover {
-  color: #d4a574;
+  color: #cda169;
 }
 
 .footer-separator {
