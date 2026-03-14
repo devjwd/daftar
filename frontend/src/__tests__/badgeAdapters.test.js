@@ -58,7 +58,8 @@ describe('badge adapter unit tests', () => {
       { badgeId: 'bar', rule: BADGE_RULES.MIN_BALANCE, params: { coinType: 'x', minBalance: 1 } },
     ];
     const awards = await runAdaptersForAddress('0x123', configs);
-    expect(awards.some((a) => a.badgeId === 'foo')).toBe(true);
+    // transaction count adapter emits tier badge IDs, not config badgeId
+    expect(awards.some((a) => a.badgeId === 'first-step')).toBe(true);
     // second config returns nothing
     expect(awards.some((a) => a.badgeId === 'bar')).toBe(false);
   });

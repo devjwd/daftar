@@ -12,8 +12,17 @@ import useBadgeStore from './useBadgeStore.js';
 import useBadgeEligibility from './useBadgeEligibility.js';
 import { getEarnedBadgeIds, getUserAwards, subscribe } from '../services/badges/badgeStore.js';
 import { POLLING_INTERVALS } from '../config/badges.js';
+import { hasBadge } from '../services/badgeService.js';
 
 const EMPTY_PRICE_MAP = {};
+
+export const isBadgeEarned = (badgeId, earnedIds, onChainEarnedByBadgeId) => {
+  return earnedIds.has(badgeId) || onChainEarnedByBadgeId.get(badgeId) === true;
+};
+
+export const shouldEvaluateBadgeEligibility = (badge, earnedIds, onChainEarnedByBadgeId) => {
+  return !isBadgeEarned(badge.id, earnedIds, onChainEarnedByBadgeId);
+};
 
 /**
  * @param {string} address - Wallet address being viewed
@@ -33,11 +42,19 @@ export default function useBadges(address, options = {}) {
 
   const { enabledBadges } = useBadgeStore();
 
-  const [earnedIds, setEarnedIds] = useState(new Set());
+  const [awardsVersion, setAwardsVersion] = useState(0);
+  const [onChainEarnedByBadgeId, setOnChainEarnedByBadgeId] = useState(new Map());
+  const [onChainSyncLoading, setOnChainSyncLoading] = useState(false);
+
+  const earnedIds = useMemo(() => {
+    void awardsVersion;
+    if (!address) return new Set();
+    return getEarnedBadgeIds(address);
+  }, [address, awardsVersion]);
 
   const badgesToEvaluate = useMemo(
-    () => enabledBadges.filter(badge => !earnedIds.has(badge.id)),
-    [enabledBadges, earnedIds]
+    () => enabledBadges.filter((badge) => shouldEvaluateBadgeEligibility(badge, earnedIds, onChainEarnedByBadgeId)),
+    [enabledBadges, earnedIds, onChainEarnedByBadgeId]
   );
 
   const {
@@ -57,28 +74,66 @@ export default function useBadges(address, options = {}) {
 
   // Load earned badge IDs
   useEffect(() => {
-    if (!address) {
-      setEarnedIds(new Set());
-      return;
-    }
-    setEarnedIds(getEarnedBadgeIds(address));
+    if (!address) return undefined;
 
     const unsub = subscribe('awards:changed', () => {
-      setEarnedIds(getEarnedBadgeIds(address));
+      setAwardsVersion((v) => v + 1);
     });
     return unsub;
   }, [address]);
 
+  // Reconcile local earned state with on-chain SBT ownership.
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncOnChainEarned = async () => {
+      if (!address || !client) {
+        setOnChainEarnedByBadgeId(new Map());
+        return;
+      }
+
+      const onChainBadges = enabledBadges.filter((badge) => badge.onChainBadgeId != null);
+      if (onChainBadges.length === 0) {
+        setOnChainEarnedByBadgeId(new Map());
+        return;
+      }
+
+      setOnChainSyncLoading(true);
+      const results = await Promise.all(
+        onChainBadges.map(async (badge) => {
+          try {
+            const earned = await hasBadge(client, Number(badge.onChainBadgeId), address);
+            return [badge.id, earned];
+          } catch {
+            return [badge.id, false];
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setOnChainEarnedByBadgeId(new Map(results));
+        setOnChainSyncLoading(false);
+      }
+    };
+
+    syncOnChainEarned();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, client, enabledBadges, awardsVersion]);
+
   // Build enriched badge list with eligibility & earned status
   const awardsByBadgeId = useMemo(() => {
+    void awardsVersion;
     if (!address) return new Map();
     const awards = getUserAwards(address);
     return new Map(awards.map(award => [award.badgeId, award]));
-  }, [address, earnedIds]);
+  }, [address, awardsVersion]);
 
   const enrichedBadges = useMemo(() => {
     return enabledBadges.map(badge => {
-      const earned = earnedIds.has(badge.id);
+      const earned = isBadgeEarned(badge.id, earnedIds, onChainEarnedByBadgeId);
       const evalResult = getResult(badge.id);
       const eligible = !earned && (evalResult?.eligible || false);
       const progress = evalResult?.overallProgress || 0;
@@ -101,7 +156,7 @@ export default function useBadges(address, options = {}) {
         locked: !earned && !eligible,
       };
     });
-  }, [enabledBadges, earnedIds, getResult, awardsByBadgeId]);
+  }, [enabledBadges, earnedIds, getResult, awardsByBadgeId, onChainEarnedByBadgeId]);
 
   // Categorized badge groups
   const earnedBadges = useMemo(() => enrichedBadges.filter(b => b.earned), [enrichedBadges]);
@@ -129,12 +184,12 @@ export default function useBadges(address, options = {}) {
     completionPercent,
 
     // Loading state
-    loading: eligibilityLoading,
+    loading: eligibilityLoading || onChainSyncLoading,
 
     // Methods
     refresh: refreshEligibility,
     isEligible,
-    isEarned: (badgeId) => earnedIds.has(badgeId),
+    isEarned: (badgeId) => earnedIds.has(badgeId) || onChainEarnedByBadgeId.get(badgeId) === true,
     getProgress,
     getResult,
   };

@@ -1,19 +1,16 @@
 /// =============================================================================
-/// Movement Network Swap Router - Production Contract
+/// Movement Network Swap Router — Logic Module
 /// =============================================================================
 ///
-/// A fee-collection and swap-routing contract for Movement Network.
+/// Business logic only. All persistent state lives in swap_router::storage.
+/// This module can be upgraded or replaced at any time without touching stored
+/// data — swap history, fees, admin, treasury, per-user stats all survive.
 ///
-/// Architecture:
-///   Frontend fetches swap quotes from Mosaic API,
-///   then submits the tx payload through this contract which:
-///   1. Deducts protocol fees from the input amount
-///   2. Forwards remaining coins to the user (aggregator handles actual swap)
-///   3. Emits structured events for analytics and tracking
-///   4. Enforces safety: pause, slippage guards, admin 2-step transfer
-///
-/// The actual DEX routing happens through Mosaic's contracts (tx payload from API).
-/// This contract wraps fee-collection around whatever swap the aggregator executes.
+/// To ship a new feature that needs a logic change:
+///   1. Write router_v2.move with your new logic
+///   2. Add `friend swap_router::router_v2;` to storage.move (one line)
+///   3. Publish storage.move (compatible upgrade), then publish router_v2.move
+///   → All user data intact.
 ///
 /// Error codes (1xx = auth, 2xx = validation, 3xx = state):
 ///   100 - E_NOT_ADMIN
@@ -21,8 +18,6 @@
 ///   102 - E_INVALID_ADMIN
 ///   200 - E_INVALID_FEE
 ///   201 - E_ZERO_AMOUNT
-///   202 - E_SLIPPAGE_EXCEEDED
-///   203 - E_SAME_COIN
 ///   204 - E_UNSUPPORTED_ROUTER_SOURCE
 ///   205 - E_INVALID_TREASURY
 ///   300 - E_PAUSED
@@ -36,6 +31,7 @@ module swap_router::router {
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::timestamp;
+    use swap_router::storage;
 
     // -------------------------------------------------------------------------
     // Error codes
@@ -46,8 +42,6 @@ module swap_router::router {
     const E_INVALID_ADMIN: u64 = 102;
     const E_INVALID_FEE: u64 = 200;
     const E_ZERO_AMOUNT: u64 = 201;
-    const E_SLIPPAGE_EXCEEDED: u64 = 202;
-    const E_SAME_COIN: u64 = 203;
     const E_UNSUPPORTED_ROUTER_SOURCE: u64 = 204;
     const E_INVALID_TREASURY: u64 = 205;
     const E_PAUSED: u64 = 300;
@@ -58,41 +52,21 @@ module swap_router::router {
     // Constants
     // -------------------------------------------------------------------------
 
-    /// Maximum protocol fee: 5% = 500 bps (conservative cap)
+    /// Maximum protocol fee: 5% = 500 bps
     const MAX_FEE_BPS: u64 = 500;
 
     /// Fee denominator (10_000 = 100%)
     const BPS_DENOMINATOR: u64 = 10000;
 
-    /// Router source identifier (Mosaic-only mode)
+    /// Stable route IDs — never reuse a deactivated ID across deployments.
+    /// New routes are registered on-chain via add_route(); these constants
+    /// are just convenience aliases used in this logic module.
     const ROUTER_MOSAIC: u8 = 1;
+    // const ROUTER_PANCAKE: u8 = 2;   // add when pancakeswap route ships
+    // const ROUTER_CELLANA: u8 = 3;   // add when cellana route ships
 
     // -------------------------------------------------------------------------
-    // Resources
-    // -------------------------------------------------------------------------
-
-    /// Core router configuration. Stored at @swap_router.
-    struct RouterConfig has key {
-        /// Current admin
-        admin: address,
-        /// Pending admin for 2-step transfer (0x0 = none)
-        pending_admin: address,
-        /// Protocol fee in basis points (100 bps = 1%)
-        fee_bps: u64,
-        /// Treasury address receiving fees
-        fee_treasury: address,
-        /// Emergency pause flag
-        paused: bool,
-        /// Cumulative fees collected (in smallest units of each coin)
-        total_fees_collected: u64,
-        /// Total number of swaps executed
-        total_swaps: u64,
-        /// Timestamp of last config update
-        last_updated: u64,
-    }
-
-    // -------------------------------------------------------------------------
-    // Events (Move 2 style with #[event])
+    // Events — emitted here in logic module, storage is state-only
     // -------------------------------------------------------------------------
 
     #[event]
@@ -134,38 +108,32 @@ module swap_router::router {
         timestamp: u64,
     }
 
+    #[event]
+    struct RouteUpdated has drop, store {
+        route_id: u8,
+        enabled: bool,
+        timestamp: u64,
+    }
+
     // -------------------------------------------------------------------------
     // Initialization
     // -------------------------------------------------------------------------
 
-    /// Initialize the router. Can only be called once by the deployer.
-    ///
-    /// Parameters:
-    ///   - admin: deployer signer (must be @swap_router)
-    ///   - fee_bps: initial protocol fee in basis points (0-500)
-    ///   - fee_treasury: address to receive collected fees
+    /// Initialize the router. Can only be called once by the module deployer.
+    /// Delegates storage creation to swap_router::storage.
     public entry fun initialize(
         admin: &signer,
         fee_bps: u64,
         fee_treasury: address,
     ) {
         let admin_addr = signer::address_of(admin);
-        assert!(!exists<RouterConfig>(admin_addr), E_ALREADY_INITIALIZED);
+        assert!(admin_addr == @swap_router, E_INVALID_ADMIN);
+        assert!(!storage::config_exists(), E_ALREADY_INITIALIZED);
         assert!(fee_bps <= MAX_FEE_BPS, E_INVALID_FEE);
         assert!(fee_treasury != @0x0, E_INVALID_TREASURY);
 
         let now = timestamp::now_seconds();
-
-        move_to(admin, RouterConfig {
-            admin: admin_addr,
-            pending_admin: @0x0,
-            fee_bps,
-            fee_treasury,
-            paused: false,
-            total_fees_collected: 0,
-            total_swaps: 0,
-            last_updated: now,
-        });
+        storage::init_config(admin, fee_bps, fee_treasury, now);
 
         event::emit(ConfigUpdated {
             admin: admin_addr,
@@ -182,18 +150,18 @@ module swap_router::router {
     public entry fun transfer_admin(
         admin: &signer,
         new_admin: address,
-    ) acquires RouterConfig {
-        let config = borrow_global_mut<RouterConfig>(@swap_router);
-        assert!(signer::address_of(admin) == config.admin, E_NOT_ADMIN);
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        let current_admin = storage::get_admin();
+        assert!(signer::address_of(admin) == current_admin, E_NOT_ADMIN);
         assert!(new_admin != @0x0, E_INVALID_ADMIN);
-        assert!(new_admin != config.admin, E_INVALID_ADMIN);
+        assert!(new_admin != current_admin, E_INVALID_ADMIN);
 
         let now = timestamp::now_seconds();
-        config.pending_admin = new_admin;
-        config.last_updated = now;
+        storage::set_pending_admin(new_admin, now);
 
         event::emit(AdminTransferInitiated {
-            current_admin: config.admin,
+            current_admin,
             pending_admin: new_admin,
             timestamp: now,
         });
@@ -202,16 +170,13 @@ module swap_router::router {
     /// Step 2: Pending admin accepts the role.
     public entry fun accept_admin(
         new_admin: &signer,
-    ) acquires RouterConfig {
-        let config = borrow_global_mut<RouterConfig>(@swap_router);
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
         let new_admin_addr = signer::address_of(new_admin);
-        assert!(new_admin_addr == config.pending_admin, E_NOT_PENDING_ADMIN);
+        assert!(new_admin_addr == storage::get_pending_admin(), E_NOT_PENDING_ADMIN);
 
         let now = timestamp::now_seconds();
-        let old_admin = config.admin;
-        config.admin = new_admin_addr;
-        config.pending_admin = @0x0;
-        config.last_updated = now;
+        let old_admin = storage::apply_admin_transfer(new_admin_addr, now);
 
         event::emit(AdminTransferCompleted {
             old_admin,
@@ -223,12 +188,10 @@ module swap_router::router {
     /// Cancel a pending admin transfer.
     public entry fun cancel_admin_transfer(
         admin: &signer,
-    ) acquires RouterConfig {
-        let config = borrow_global_mut<RouterConfig>(@swap_router);
-        assert!(signer::address_of(admin) == config.admin, E_NOT_ADMIN);
-
-        config.pending_admin = @0x0;
-        config.last_updated = timestamp::now_seconds();
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        assert!(signer::address_of(admin) == storage::get_admin(), E_NOT_ADMIN);
+        storage::set_pending_admin(@0x0, timestamp::now_seconds());
     }
 
     // -------------------------------------------------------------------------
@@ -239,17 +202,17 @@ module swap_router::router {
     public entry fun update_fee(
         admin: &signer,
         new_fee_bps: u64,
-    ) acquires RouterConfig {
-        let config = borrow_global_mut<RouterConfig>(@swap_router);
-        assert!(signer::address_of(admin) == config.admin, E_NOT_ADMIN);
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        let admin_addr = signer::address_of(admin);
+        assert!(admin_addr == storage::get_admin(), E_NOT_ADMIN);
         assert!(new_fee_bps <= MAX_FEE_BPS, E_INVALID_FEE);
 
         let now = timestamp::now_seconds();
-        config.fee_bps = new_fee_bps;
-        config.last_updated = now;
+        storage::set_fee_bps(new_fee_bps, now);
 
         event::emit(ConfigUpdated {
-            admin: config.admin,
+            admin: admin_addr,
             field: b"fee_bps",
             timestamp: now,
         });
@@ -259,17 +222,17 @@ module swap_router::router {
     public entry fun update_treasury(
         admin: &signer,
         new_treasury: address,
-    ) acquires RouterConfig {
-        let config = borrow_global_mut<RouterConfig>(@swap_router);
-        assert!(signer::address_of(admin) == config.admin, E_NOT_ADMIN);
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        let admin_addr = signer::address_of(admin);
+        assert!(admin_addr == storage::get_admin(), E_NOT_ADMIN);
         assert!(new_treasury != @0x0, E_INVALID_TREASURY);
 
         let now = timestamp::now_seconds();
-        config.fee_treasury = new_treasury;
-        config.last_updated = now;
+        storage::set_fee_treasury(new_treasury, now);
 
         event::emit(ConfigUpdated {
-            admin: config.admin,
+            admin: admin_addr,
             field: b"fee_treasury",
             timestamp: now,
         });
@@ -279,18 +242,58 @@ module swap_router::router {
     public entry fun set_paused(
         admin: &signer,
         is_paused: bool,
-    ) acquires RouterConfig {
-        let config = borrow_global_mut<RouterConfig>(@swap_router);
-        assert!(signer::address_of(admin) == config.admin, E_NOT_ADMIN);
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        let admin_addr = signer::address_of(admin);
+        assert!(admin_addr == storage::get_admin(), E_NOT_ADMIN);
 
         let now = timestamp::now_seconds();
-        config.paused = is_paused;
-        config.last_updated = now;
+        storage::set_paused(is_paused, now);
 
         event::emit(ConfigUpdated {
-            admin: config.admin,
+            admin: admin_addr,
             field: if (is_paused) { b"paused" } else { b"unpaused" },
             timestamp: now,
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Route management
+    // -------------------------------------------------------------------------
+
+    /// Register a new swap route (admin only).
+    /// route_id must be unique — pick the next unused integer.
+    /// name is a human-readable label e.g. b"pancakeswap".
+    public entry fun add_route(
+        admin: &signer,
+        route_id: u8,
+        name: vector<u8>,
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        assert!(signer::address_of(admin) == storage::get_admin(), E_NOT_ADMIN);
+
+        let now = timestamp::now_seconds();
+        storage::add_route(route_id, name, now);
+
+        event::emit(RouteUpdated { route_id, enabled: true, timestamp: now });
+    }
+
+    /// Enable or disable an existing route (admin only).
+    /// Disabling blocks new swaps through that route without deleting it.
+    public entry fun set_route_enabled(
+        admin: &signer,
+        route_id: u8,
+        enabled: bool,
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        assert!(signer::address_of(admin) == storage::get_admin(), E_NOT_ADMIN);
+
+        storage::set_route_enabled(route_id, enabled);
+
+        event::emit(RouteUpdated {
+            route_id,
+            enabled,
+            timestamp: timestamp::now_seconds(),
         });
     }
 
@@ -304,143 +307,141 @@ module swap_router::router {
     ///   1. Frontend gets quote from Mosaic API
     ///   2. Frontend calls collect_fee to deduct protocol fee
     ///   3. Frontend submits the aggregator swap tx (separate transaction)
-    ///
-    /// This design works because the aggregator tx payload operates on
-    /// the user's remaining balance after fees are collected.
-    ///
-    /// Parameters:
-    ///   - user: the swapper
-    ///   - amount_in: total input amount (including fee)
-    ///   - router_source: 1 = mosaic
     public entry fun collect_fee<CoinIn>(
         user: &signer,
         amount_in: u64,
         router_source: u8,
-    ) acquires RouterConfig {
-        let config = borrow_global_mut<RouterConfig>(@swap_router);
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
 
-        // Safety checks
-        assert!(!config.paused, E_PAUSED);
+        // Read all required state in one call
+        let (fee_bps, fee_treasury, total_fees_before, _swaps, paused) = storage::get_all();
+
+        assert!(!paused, E_PAUSED);
         assert!(amount_in > 0, E_ZERO_AMOUNT);
-        assert!(router_source == ROUTER_MOSAIC, E_UNSUPPORTED_ROUTER_SOURCE);
+        // Dynamic route check — validates against the on-chain RouteRegistry
+        assert!(storage::is_route_enabled(router_source), E_UNSUPPORTED_ROUTER_SOURCE);
 
         let user_addr = signer::address_of(user);
         let now = timestamp::now_seconds();
 
-        // Calculate fee
-        let fee_amount = (amount_in * config.fee_bps) / BPS_DENOMINATOR;
+        let fee_amount = (amount_in * fee_bps) / BPS_DENOMINATOR;
+        let fee_to_record: u64 = 0;
 
         if (fee_amount > 0) {
-            // Withdraw fee from user
             let fee_coins = coin::withdraw<CoinIn>(user, fee_amount);
 
-            // Deposit to treasury
-            if (!account::exists_at(config.fee_treasury)) {
-                // Skip if treasury account does not exist - avoids reverting swaps
-                // Admin should ensure treasury is a valid, registered account
+            if (!account::exists_at(fee_treasury)) {
+                // Treasury account doesn't exist — return fee to user
+                coin::deposit(user_addr, fee_coins);
+            } else if (!coin::is_account_registered<CoinIn>(fee_treasury)) {
+                // Treasury not registered for this coin — return fee to user
                 coin::deposit(user_addr, fee_coins);
             } else {
-                if (!coin::is_account_registered<CoinIn>(config.fee_treasury)) {
-                    // If treasury hasn't registered for this coin type, return to user
-                    coin::deposit(user_addr, fee_coins);
-                } else {
-                    coin::deposit(config.fee_treasury, fee_coins);
+                coin::deposit(fee_treasury, fee_coins);
+                fee_to_record = fee_amount;
 
-                    // Update stats
-                    config.total_fees_collected = config.total_fees_collected + fee_amount;
-
-                    event::emit(FeeCollected {
-                        treasury: config.fee_treasury,
-                        amount: fee_amount,
-                        cumulative_total: config.total_fees_collected,
-                        timestamp: now,
-                    });
-                };
+                event::emit(FeeCollected {
+                    treasury: fee_treasury,
+                    amount: fee_amount,
+                    cumulative_total: total_fees_before + fee_amount,
+                    timestamp: now,
+                });
             };
         };
 
-        let net_amount = amount_in - fee_amount;
+        // Persist global counters + per-user lifetime stats
+        storage::record_global_swap(fee_to_record, now);
+        storage::record_user_swap(user, amount_in, fee_to_record, now);
 
-        // Update swap count
-        config.total_swaps = config.total_swaps + 1;
-        config.last_updated = now;
-
-        // Emit swap event
         event::emit(SwapExecuted {
             user: user_addr,
             router_source,
             amount_in,
             fee_amount,
-            net_amount,
+            net_amount: amount_in - fee_amount,
             timestamp: now,
         });
     }
 
-    /// Batch-collect fees for multiple coins (admin utility).
-    /// Useful when treasury needs to register first.
+    /// Admin utility: verify treasury is set up correctly before enabling swaps.
     public entry fun register_treasury_coin<CoinType>(
         admin: &signer,
-    ) acquires RouterConfig {
-        let config = borrow_global<RouterConfig>(@swap_router);
-        assert!(signer::address_of(admin) == config.admin, E_NOT_ADMIN);
-
-        // This allows the admin to pre-register coin types for the treasury
-        // The treasury signer must call coin::register themselves,
-        // but this view validates the admin controls it
-        let _ = config.fee_treasury;
+    ) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        assert!(signer::address_of(admin) == storage::get_admin(), E_NOT_ADMIN);
+        // Validates admin access; treasury must call coin::register themselves.
     }
 
     // -------------------------------------------------------------------------
-    // View functions
+    // View functions — thin wrappers over storage getters
     // -------------------------------------------------------------------------
 
     /// Get current fee configuration.
     /// Returns: (fee_bps, treasury, total_fees_collected, total_swaps, paused)
     #[view]
-    public fun get_config(): (u64, address, u64, u64, bool) acquires RouterConfig {
-        let config = borrow_global<RouterConfig>(@swap_router);
-        (
-            config.fee_bps,
-            config.fee_treasury,
-            config.total_fees_collected,
-            config.total_swaps,
-            config.paused,
-        )
+    public fun get_config(): (u64, address, u64, u64, bool) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        storage::get_all()
     }
 
     /// Get the current admin address.
     #[view]
-    public fun get_admin(): address acquires RouterConfig {
-        borrow_global<RouterConfig>(@swap_router).admin
+    public fun get_admin(): address {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        storage::get_admin()
     }
 
     /// Get the pending admin address (0x0 if none).
     #[view]
-    public fun get_pending_admin(): address acquires RouterConfig {
-        borrow_global<RouterConfig>(@swap_router).pending_admin
+    public fun get_pending_admin(): address {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        storage::get_pending_admin()
     }
 
     /// Check if the router is paused.
     #[view]
-    public fun is_paused(): bool acquires RouterConfig {
-        borrow_global<RouterConfig>(@swap_router).paused
+    public fun is_paused(): bool {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        storage::is_paused()
     }
 
     /// Calculate the protocol fee for a given input amount.
     /// Returns: (fee_amount, net_amount)
     #[view]
-    public fun calculate_fee(amount_in: u64): (u64, u64) acquires RouterConfig {
-        let config = borrow_global<RouterConfig>(@swap_router);
-        let fee = (amount_in * config.fee_bps) / BPS_DENOMINATOR;
+    public fun calculate_fee(amount_in: u64): (u64, u64) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        let (fee_bps, _, _, _, _) = storage::get_all();
+        let fee = (amount_in * fee_bps) / BPS_DENOMINATOR;
         (fee, amount_in - fee)
     }
 
     /// Get total swap statistics.
     /// Returns: (total_swaps, total_fees_collected)
     #[view]
-    public fun get_stats(): (u64, u64) acquires RouterConfig {
-        let config = borrow_global<RouterConfig>(@swap_router);
-        (config.total_swaps, config.total_fees_collected)
+    public fun get_stats(): (u64, u64) {
+        assert!(storage::config_exists(), E_NOT_INITIALIZED);
+        storage::get_stats()
+    }
+
+    /// Get lifetime swap stats for a specific user.
+    /// Returns: (total_amount_in, total_fees_paid, swap_count, first_swap_at, last_swap_at)
+    /// Returns all zeros if the user has never swapped.
+    #[view]
+    public fun get_user_stats(user: address): (u64, u64, u64, u64, u64) {
+        storage::get_user_stats(user)
+    }
+
+    /// Check if a swap route is currently enabled.
+    #[view]
+    public fun is_route_enabled(route_id: u8): bool {
+        storage::is_route_enabled(route_id)
+    }
+
+    /// Total number of routes ever registered.
+    #[view]
+    public fun get_route_count(): u64 {
+        storage::get_route_count()
     }
 
     // =========================================================================
@@ -514,6 +515,14 @@ module swap_router::router {
         coin::destroy_mint_cap(_mint_cap);
     }
 
+    #[test(admin = @0xA11CE, framework = @0x1)]
+    #[expected_failure(abort_code = E_INVALID_ADMIN)]
+    public fun test_initialize_requires_module_address(admin: &signer, framework: &signer) {
+        let _mint_cap = setup_test(admin, framework);
+        initialize(admin, 30, @0x999);
+        coin::destroy_mint_cap(_mint_cap);
+    }
+
     // -- Fee update tests --
 
     #[test(admin = @swap_router, framework = @0x1)]
@@ -525,6 +534,14 @@ module swap_router::router {
         let (fee_bps, _, _, _, _) = get_config();
         assert!(fee_bps == 50, 1);
 
+        coin::destroy_mint_cap(_mint_cap);
+    }
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    #[expected_failure(abort_code = E_NOT_INITIALIZED)]
+    public fun test_update_fee_not_initialized(admin: &signer, framework: &signer) {
+        let _mint_cap = setup_test(admin, framework);
+        update_fee(admin, 10);
         coin::destroy_mint_cap(_mint_cap);
     }
 
@@ -608,6 +625,12 @@ module swap_router::router {
         coin::destroy_mint_cap(_mint_cap);
     }
 
+    #[test]
+    #[expected_failure(abort_code = E_NOT_INITIALIZED)]
+    public fun test_get_config_not_initialized() {
+        let _ = get_config();
+    }
+
     // -- Collect fee tests --
 
     #[test(admin = @swap_router, treasury = @0x999, framework = @0x1)]
@@ -673,5 +696,129 @@ module swap_router::router {
 
         collect_fee<aptos_coin::AptosCoin>(admin, 100000000, 9);
         coin::destroy_mint_cap(mint_cap);
+    }
+
+    // -- RouteRegistry tests --
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    public fun test_mosaic_route_seeded_on_init(admin: &signer, framework: &signer) {
+        let _mint_cap = setup_test(admin, framework);
+        initialize(admin, 30, @0x999);
+
+        // Mosaic (route_id = 1) is pre-seeded by storage::init_config
+        assert!(is_route_enabled(1u8), 1);
+        assert!(get_route_count() == 1, 2);
+
+        coin::destroy_mint_cap(_mint_cap);
+    }
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    public fun test_add_route(admin: &signer, framework: &signer) {
+        let _mint_cap = setup_test(admin, framework);
+        initialize(admin, 30, @0x999);
+
+        assert!(get_route_count() == 1, 1);
+        add_route(admin, 2u8, b"pancakeswap");
+        assert!(get_route_count() == 2, 2);
+        assert!(is_route_enabled(2u8), 3);
+
+        coin::destroy_mint_cap(_mint_cap);
+    }
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
+    public fun test_add_route_duplicate_fails(admin: &signer, framework: &signer) {
+        let _mint_cap = setup_test(admin, framework);
+        initialize(admin, 30, @0x999);
+
+        // route_id = 1 is already seeded for Mosaic — duplicate should abort
+        add_route(admin, 1u8, b"duplicate");
+        coin::destroy_mint_cap(_mint_cap);
+    }
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    public fun test_set_route_enabled_toggle(admin: &signer, framework: &signer) {
+        let _mint_cap = setup_test(admin, framework);
+        initialize(admin, 30, @0x999);
+
+        assert!(is_route_enabled(1u8), 1);  // Mosaic starts enabled
+
+        set_route_enabled(admin, 1u8, false);
+        assert!(!is_route_enabled(1u8), 2); // now disabled
+
+        set_route_enabled(admin, 1u8, true);
+        assert!(is_route_enabled(1u8), 3);  // re-enabled
+
+        coin::destroy_mint_cap(_mint_cap);
+    }
+
+    #[test(admin = @swap_router, treasury = @0x999, framework = @0x1)]
+    #[expected_failure(abort_code = E_UNSUPPORTED_ROUTER_SOURCE)]
+    public fun test_collect_fee_disabled_route(admin: &signer, treasury: &signer, framework: &signer) {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(@0x999);
+        coin::register<aptos_coin::AptosCoin>(treasury);
+        initialize(admin, 100, @0x999);
+
+        // Disable Mosaic route — collect_fee should abort before coin withdrawal
+        set_route_enabled(admin, 1u8, false);
+        collect_fee<aptos_coin::AptosCoin>(admin, 100000000, 1u8);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    // -- UserSwapStats tests --
+
+    #[test(admin = @swap_router, treasury = @0x999, framework = @0x1)]
+    public fun test_user_stats_after_first_swap(admin: &signer, treasury: &signer, framework: &signer) {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(@0x999);
+        coin::register<aptos_coin::AptosCoin>(treasury);
+        initialize(admin, 100, @0x999); // 1% fee
+
+        let coins = coin::mint(100000000, &mint_cap); // 1 MOVE
+        coin::deposit(@swap_router, coins);
+        collect_fee<aptos_coin::AptosCoin>(admin, 100000000, ROUTER_MOSAIC);
+
+        let (amount_in, fees_paid, count, _, _) = get_user_stats(@swap_router);
+        assert!(count == 1, 1);
+        assert!(amount_in == 100000000, 2);
+        assert!(fees_paid == 1000000, 3); // 1% of 1 MOVE = 0.01 MOVE
+
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, treasury = @0x999, framework = @0x1)]
+    public fun test_user_stats_accumulate(admin: &signer, treasury: &signer, framework: &signer) {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(@0x999);
+        coin::register<aptos_coin::AptosCoin>(treasury);
+        initialize(admin, 100, @0x999); // 1% fee
+
+        // First swap: 1 MOVE
+        let coins = coin::mint(100000000, &mint_cap);
+        coin::deposit(@swap_router, coins);
+        collect_fee<aptos_coin::AptosCoin>(admin, 100000000, ROUTER_MOSAIC);
+
+        // Second swap: 2 MOVE
+        let coins2 = coin::mint(200000000, &mint_cap);
+        coin::deposit(@swap_router, coins2);
+        collect_fee<aptos_coin::AptosCoin>(admin, 200000000, ROUTER_MOSAIC);
+
+        let (amount_in, fees_paid, count, _, _) = get_user_stats(@swap_router);
+        assert!(count == 2, 1);
+        assert!(amount_in == 300000000, 2); // 1 + 2 MOVE
+        assert!(fees_paid == 3000000, 3);   // 1% of 3 MOVE = 0.03 MOVE
+
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test]
+    public fun test_user_stats_zero_for_new_user() {
+        let (amount_in, fees_paid, count, first_at, last_at) = get_user_stats(@0xDEAD);
+        assert!(amount_in == 0, 1);
+        assert!(fees_paid == 0, 2);
+        assert!(count == 0, 3);
+        assert!(first_at == 0, 4);
+        assert!(last_at == 0, 5);
     }
 }

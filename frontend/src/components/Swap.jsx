@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import { DEFAULT_NETWORK } from "../config/network";
+import { DEFAULT_NETWORK, MOSAIC_CONFIG } from "../config/network";
 import { getSwapSettings, updateSwapSettings } from "../services/adminService";
 import {
   clampSlippagePercent,
@@ -28,6 +28,9 @@ const SUCCESS_DISMISS_MS = 6000;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000000000000000000000000000";
 const QUOTE_MAX_AGE_MS = 30000;
 const AMOUNT_INPUT_PATTERN = /^\d+(\.\d+)?$/;
+const ALLOWED_MOSAIC_MODULES = new Set(["router"]);
+const MAX_QUOTE_PRICE_IMPACT = 50;
+const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,6 +77,81 @@ const isValidSwapPayload = (payload) => {
   if (!/^0x[0-9a-f]+::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/i.test(fn)) return false;
   if (!Array.isArray(payload.typeArguments) || !Array.isArray(payload.functionArguments)) return false;
   if (payload.typeArguments.length > 10 || payload.functionArguments.length > 30) return false;
+
+  return true;
+};
+
+const parseFunctionId = (functionId) => {
+  const match = String(functionId || "").trim().match(/^(0x[0-9a-f]+)::([A-Za-z0-9_]+)::([A-Za-z0-9_]+)$/i);
+  if (!match) return null;
+  return {
+    address: match[1].toLowerCase(),
+    module: match[2],
+    functionName: match[3],
+  };
+};
+
+const isAllowedMosaicPayload = (payload) => {
+  const parsed = parseFunctionId(payload?.function);
+  if (!parsed) return false;
+
+  const expectedRouter = String(MOSAIC_CONFIG.routerAddress || "").trim().toLowerCase();
+  if (!expectedRouter) return false;
+
+  if (parsed.address !== expectedRouter) return false;
+  if (!ALLOWED_MOSAIC_MODULES.has(parsed.module)) return false;
+  if (!String(parsed.functionName || "").toLowerCase().includes("swap")) return false;
+  return true;
+};
+
+const deepEqualJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+const collectAddressLikeValues = (value, output = []) => {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectAddressLikeValues(entry, output));
+    return output;
+  }
+
+  if (value && typeof value === "object") {
+    Object.values(value).forEach((entry) => collectAddressLikeValues(entry, output));
+    return output;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (ADDRESS_PATTERN.test(normalized)) {
+      output.push(normalized);
+    }
+  }
+
+  return output;
+};
+
+const isQuotePayloadConsistent = ({ payload, bestRoute, accountAddress }) => {
+  const tx = bestRoute?.quoteData?.tx;
+  if (!tx) return false;
+
+  if (!deepEqualJson(payload.typeArguments, tx.typeArguments || [])) return false;
+  if (!deepEqualJson(payload.functionArguments, tx.functionArguments || [])) return false;
+  if (String(payload.function || "") !== String(tx.function || "")) return false;
+
+  const srcAmount = String(bestRoute?.quoteData?.srcAmount || "");
+  const requestedAmount = String(bestRoute?.requestedAmountRaw || "");
+  if (srcAmount && requestedAmount && srcAmount !== requestedAmount) return false;
+
+  if (!bestRoute?.srcAsset || !bestRoute?.dstAsset) return false;
+  if (String(bestRoute.srcAsset).toLowerCase() === String(bestRoute.dstAsset).toLowerCase()) return false;
+
+  const quotedImpact = Number(bestRoute?.priceImpact || 0);
+  if (Number.isFinite(quotedImpact) && quotedImpact > MAX_QUOTE_PRICE_IMPACT) return false;
+
+  const lowerAccount = String(accountAddress || "").toLowerCase();
+  if (lowerAccount && ADDRESS_PATTERN.test(lowerAccount)) {
+    const addresses = collectAddressLikeValues(payload.functionArguments);
+    if (addresses.length > 0 && !addresses.includes(lowerAccount)) {
+      return false;
+    }
+  }
 
   return true;
 };
@@ -425,6 +503,16 @@ const Swap = ({ balances }) => {
     try {
       const payload = buildMosaicSwapPayload(routingResult.best.quoteData);
       if (!isValidSwapPayload(payload)) throw new Error("Invalid swap payload. Please refresh quote.");
+      if (!isAllowedMosaicPayload(payload)) {
+        throw new Error("Untrusted swap target detected. Please refresh quote.");
+      }
+      if (!isQuotePayloadConsistent({
+        payload,
+        bestRoute: routingResult.best,
+        accountAddress: account?.address?.toString?.() || account?.address,
+      })) {
+        throw new Error("Quote consistency check failed. Please refresh quote.");
+      }
 
       devLog("🔄 Executing swap:", {
         from: `${fromAmount} ${fromToken.symbol}`,

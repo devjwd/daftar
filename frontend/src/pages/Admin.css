@@ -31,7 +31,7 @@
 .orb-1 {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(212, 165, 116, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(205, 161, 105, 0.3) 0%, transparent 70%);
   top: -10%;
   left: -10%;
   animation-delay: 0s;
@@ -40,7 +40,7 @@
 .orb-2 {
   width: 400px;
   height: 400px;
-  background: radial-gradient(circle, rgba(212, 165, 116, 0.2) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(205, 161, 105, 0.2) 0%, transparent 70%);
   bottom: -10%;
   right: -5%;
   animation-delay: 7s;
@@ -149,37 +149,87 @@
 }
 
 /* Tabs */
+.admin-tabs-shell {
+  margin-bottom: 34px;
+  padding: 10px;
+  border: 1px solid rgba(205, 161, 105, 0.2);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(205, 161, 105, 0.14), transparent 48%),
+    rgba(20, 17, 15, 0.65);
+  backdrop-filter: blur(10px);
+}
+
 .admin-tabs {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 32px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .admin-tab {
-  position: relative;
-  font-size: 16px;
-  font-weight: 500;
+  border: 1px solid rgba(205, 161, 105, 0.2);
+  border-radius: 12px;
+  background: rgba(25, 21, 18, 0.85);
   color: var(--text-tertiary);
-  padding: 8px 16px;
+  padding: 10px 14px;
   cursor: pointer;
-  transition: color var(--transition-fast);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  min-height: 64px;
 }
 
-.admin-tab:hover,
+.admin-tab:hover {
+  border-color: rgba(205, 161, 105, 0.45);
+  transform: translateY(-1px);
+}
+
 .admin-tab.active {
-  color: var(--text-secondary);
+  border-color: rgba(205, 161, 105, 0.55);
+  color: var(--text-primary);
+  background: linear-gradient(140deg, rgba(205, 161, 105, 0.2), rgba(205, 161, 105, 0.08));
+  box-shadow: 0 10px 24px rgba(205, 161, 105, 0.16);
 }
 
-.admin-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--text-secondary);
-  border-radius: var(--radius-full);
+.admin-tab-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(205, 161, 105, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.admin-tab.active .admin-tab-icon {
+  background: rgba(205, 161, 105, 0.22);
+  border-color: rgba(205, 161, 105, 0.48);
+}
+
+.admin-tab-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-tab-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.admin-tab-meta {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Content */
@@ -327,7 +377,7 @@
 
 .admin-btn-edit {
   background: rgba(59, 130, 246, 0.2);
-  color: #3b82f6;
+  color: #5c8ead;
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
@@ -433,7 +483,7 @@
   border-radius: 4px;
   font-family: 'Monaco', 'Courier New', monospace;
   font-size: 0.8rem;
-  color: #d4a574;
+  color: #cda169;
   word-break: break-all;
 }
 
@@ -441,8 +491,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(212, 165, 116, 0.15);
-  color: #d4a574;
+  background: rgba(205, 161, 105, 0.15);
+  color: #cda169;
   padding: 0.3rem 0.75rem;
   border-radius: 4px;
   font-size: 0.8rem;
@@ -462,7 +512,7 @@
   margin: 1rem 0;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(212, 165, 116, 0.2);
+  border: 1px solid rgba(205, 161, 105, 0.2);
   border-radius: 8px;
   display: flex;
   justify-content: center;
@@ -584,9 +634,9 @@
 }
 
 .admin-chip.active {
-  background: rgba(212, 165, 116, 0.2);
+  background: rgba(205, 161, 105, 0.2);
   color: var(--text-secondary);
-  border-color: rgba(212, 165, 116, 0.45);
+  border-color: rgba(205, 161, 105, 0.45);
 }
 
 .admin-inline-input {
@@ -600,8 +650,8 @@
 }
 
 .admin-routing-pill {
-  background: rgba(212, 165, 116, 0.12);
-  border: 1px solid rgba(212, 165, 116, 0.25);
+  background: rgba(205, 161, 105, 0.12);
+  border: 1px solid rgba(205, 161, 105, 0.25);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   color: var(--text-tertiary);
@@ -614,7 +664,7 @@
 
 .admin-summary-card {
   background: rgba(26, 22, 20, 0.45);
-  border: 1px solid rgba(212, 165, 116, 0.16);
+  border: 1px solid rgba(205, 161, 105, 0.16);
   border-radius: var(--radius-sm);
   padding: 16px;
   display: flex;
@@ -697,12 +747,11 @@
   }
 
   .admin-tabs {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .admin-tab {
     width: 100%;
-    text-align: center;
   }
 
   .admin-form-section,
@@ -796,8 +845,8 @@
   align-items: center;
   gap: 1.5rem;
   padding: 24px;
-  background: rgba(212, 165, 116, 0.08);
-  border: 1px solid rgba(212, 165, 116, 0.15);
+  background: rgba(205, 161, 105, 0.08);
+  border: 1px solid rgba(205, 161, 105, 0.15);
   border-radius: var(--radius-lg);
   margin: 24px 0;
 }
@@ -814,7 +863,7 @@
 .tier-info strong {
   display: block;
   font-size: 1.2rem;
-  color: #d4a574;
+  color: #cda169;
   margin-bottom: 0.25rem;
 }
 
@@ -847,16 +896,16 @@
   align-items: center;
   gap: 0.75rem;
   padding: 24px;
-  background: rgba(212, 165, 116, 0.08);
-  border: 1px solid rgba(212, 165, 116, 0.1);
+  background: rgba(205, 161, 105, 0.08);
+  border: 1px solid rgba(205, 161, 105, 0.1);
   border-radius: var(--radius-lg);
   text-align: center;
   transition: all var(--transition-fast);
 }
 
 .tier-card:hover {
-  background: rgba(212, 165, 116, 0.12);
-  border-color: rgba(212, 165, 116, 0.2);
+  background: rgba(205, 161, 105, 0.12);
+  border-color: rgba(205, 161, 105, 0.2);
   transform: translateY(-2px);
 }
 
@@ -892,19 +941,19 @@
 .badges-checkbox-list .admin-checkbox {
   padding: 1rem;
   background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
-  border: 1px solid rgba(212, 165, 116, 0.1);
+  border: 1px solid rgba(205, 161, 105, 0.1);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .badges-checkbox-list .admin-checkbox:hover {
-  background: rgba(212, 165, 116, 0.1);
-  border-color: rgba(212, 165, 116, 0.2);
+  background: rgba(205, 161, 105, 0.1);
+  border-color: rgba(205, 161, 105, 0.2);
 }
 
 .badges-checkbox-list .admin-checkbox input:checked + span {
-  color: #d4a574;
+  color: #cda169;
   font-weight: 600;
 }
 
@@ -912,8 +961,8 @@
 .eligibility-report {
   margin-top: 32px;
   padding: 32px;
-  background: rgba(212, 165, 116, 0.08);
-  border: 1px solid rgba(212, 165, 116, 0.15);
+  background: rgba(205, 161, 105, 0.08);
+  border: 1px solid rgba(205, 161, 105, 0.15);
   border-radius: var(--radius-lg);
 }
 
@@ -924,7 +973,7 @@
 }
 
 .eligibility-report h4 {
-  color: rgba(212, 165, 116, 0.9);
+  color: rgba(205, 161, 105, 0.9);
   margin-top: 24px;
   margin-bottom: 16px;
   font-size: 1.1rem;
@@ -946,7 +995,7 @@
 
 .stat strong {
   display: block;
-  color: rgba(212, 165, 116, 0.8);
+  color: rgba(205, 161, 105, 0.8);
   font-size: 0.9rem;
   margin-bottom: 8px;
 }
@@ -1010,8 +1059,8 @@
 }
 
 .badge-status.pending {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.2);
+  color: #e57c23;
+  background: rgba(229, 124, 35, 0.2);
 }
 
 .help-text {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, Suspense, lazy } from "react";
-import { Routes, Route, useNavigate, useLocation, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import "./App.css";
 
 
@@ -23,10 +23,12 @@ import { Aptos, AptosConfig, Network, AccountAddress } from "@aptos-labs/ts-sdk"
 // Utils & Config
 
 import { DEFAULT_NETWORK } from "./config/network";
+import { getEnv } from "./config/envValidator";
 
 import { INTERVALS, FORMATTING, ANIMATION_DELAYS } from "./config/constants";
 
 import { parseCoinType, getTokenDecimals, isValidAddress } from "./utils/tokenUtils";
+import { getLevelBasedPfp } from "./utils/levelPfp";
 import { applyTheme, getStoredThemePreference } from "./utils/theme";
 import { devLog } from "./utils/devLogger";
 
@@ -62,12 +64,16 @@ const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 const Admin = lazy(() => import("./pages/Admin"));
 const More = lazy(() => import("./pages/More"));
 const Level = lazy(() => import("./pages/Level"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
 import ProfileCard from "./components/ProfileCard";
 
 
 
 
 // --- COMPONENT: Token Card ---
+
+const SWAP_ENABLED = getEnv('VITE_ENABLE_SWAP', true);
 
 const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
   const tokenInfo = getTokenInfo(token.address);
@@ -453,14 +459,14 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
   const protocol = LP_PROTOCOLS[position.protocol] || {
     logo: '/movement-logo.svg',
     name: position.protocolName || 'DeFi Protocol',
-    color: '#d4a574',
-    gradient: 'linear-gradient(135deg, #d4a574, #e5c9a8)',
+    color: '#cda169',
+    gradient: 'linear-gradient(135deg, #cda169, #deb884)',
     type: 'LP Token',
     website: null
   };
 
   const LP_TOKEN_COLORS = {
-    MOVE: '#d4a574',
+    MOVE: '#cda169',
     USDC: '#2775ca',
     USDT: '#26a17b',
     ETH: '#627eea',
@@ -825,10 +831,21 @@ const Dashboard = () => {
 
   // Use profile hook to get user profile data
   const { profile: userProfile } = useProfile(viewingAddress);
+  const { level: viewingLevel } = useUserLevel(viewingAddress);
 
   const modalProfileAddress = showProfileModal ? viewingAddress : null;
   // Calculate level only when profile modal is open
   const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(modalProfileAddress);
+  const userAvatarSrc = getLevelBasedPfp({
+    level: viewingLevel,
+    address: viewingAddress,
+    preferredPfp: userProfile?.pfp,
+  });
+  const modalAvatarSrc = getLevelBasedPfp({
+    level,
+    address: viewingAddress,
+    preferredPfp: userProfile?.pfp,
+  });
 
   // Initialize viewingAddress from URL param — this is the primary source of truth
   useEffect(() => {
@@ -2212,7 +2229,7 @@ const Dashboard = () => {
                         onKeyPress={(e) => e.key === 'Enter' && setShowProfileModal(true)}
                       >
                         <img 
-                          src={userProfile?.pfp || '/pfp.PNG'} 
+                          src={userAvatarSrc} 
                           alt="User" 
                           className="hero-avatar-image" 
                         />
@@ -2586,7 +2603,7 @@ const Dashboard = () => {
                   {/* Profile Picture */}
                   <div className="modal-avatar-section">
                     <img 
-                      src={userProfile?.pfp || '/pfp.PNG'} 
+                      src={modalAvatarSrc} 
                       alt="User" 
                       className="modal-avatar-image" 
                     />
@@ -2763,7 +2780,10 @@ const App = () => {
                 <Layout>
                   <Routes>
                     <Route path="/wallet/:address" element={<Dashboard />} />
-                    <Route path="/swap" element={<SwapPageWrapper />} />
+                    <Route
+                      path="/swap"
+                      element={SWAP_ENABLED ? <SwapPageWrapper /> : <Navigate to="/" replace />}
+                    />
                     <Route path="/badges" element={<Badges />} />
                     <Route path="/leaderboard" element={<Leaderboard />} />
                     <Route path="/profile" element={<Profile />} />
@@ -2772,6 +2792,8 @@ const App = () => {
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/more" element={<More />} />
                     <Route path="/level" element={<Level />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/privacy" element={<Privacy />} />
                   </Routes>
                 </Layout>
               </Suspense>

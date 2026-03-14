@@ -5,6 +5,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useUserLevel } from '../hooks/useUserLevel';
 import { normalizeAddress } from '../services/profileService';
 import { getXPForLevel } from '../config/badges';
+import { DEFAULT_LEVEL_PFP, getLevelBasedPfp } from '../utils/levelPfp';
 import './Level.css';
 
 const LEVEL_REWARDS = [
@@ -56,8 +57,11 @@ export default function Level() {
       isUnlocked,
     };
   });
-  const profileImageSrc =
-    typeof profile?.pfp === 'string' && profile.pfp.trim().length > 0 ? profile.pfp : '/pfp.PNG';
+  const profileImageSrc = getLevelBasedPfp({
+    level: currentLevel,
+    address,
+    preferredPfp: profile?.pfp,
+  });
 
   return (
     <div className="level-page">
@@ -83,7 +87,7 @@ export default function Level() {
                       className="level-avatar-image"
                       onError={(event) => {
                         event.currentTarget.onerror = null;
-                        event.currentTarget.src = '/pfp.PNG';
+                        event.currentTarget.src = DEFAULT_LEVEL_PFP;
                       }}
                     />
                   </div>

@@ -24,7 +24,7 @@ export const NETWORKS = {
 // `import.meta` is only defined in module environments, so guard accordingly.
 const _env =
   (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env :
-  (typeof process !== 'undefined' ? process.env : {});
+  (typeof globalThis !== 'undefined' && globalThis.process?.env ? globalThis.process.env : {});
 
 export const DEFAULT_NETWORK = _env.VITE_NETWORK === "testnet" 
   ? NETWORKS.TESTNET 

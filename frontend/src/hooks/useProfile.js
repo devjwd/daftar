@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  getProfile,
-  saveProfile,
-  deleteProfile,
-  getAllProfiles,
-  searchProfiles,
+  getProfileAsync,
+  saveProfileAsync,
+  deleteProfileAsync,
+  getAllProfilesAsync,
+  searchProfilesAsync,
   imageToBase64,
   compressImage,
 } from '../services/profileService';
@@ -29,15 +29,29 @@ export const useProfile = (address) => {
     setLoading(true);
     setError(null);
 
-    try {
-      const loadedProfile = getProfile(address);
-      setProfile(loadedProfile);
-    } catch (err) {
-      setError(err.message);
-      console.error('Error loading profile:', err);
-    } finally {
-      setLoading(false);
-    }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const loadedProfile = await getProfileAsync(address);
+        if (!cancelled) {
+          setProfile(loadedProfile);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message);
+          console.error('Error loading profile:', err);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [address]);
 
   // Save profile
@@ -50,7 +64,7 @@ export const useProfile = (address) => {
     setError(null);
 
     try {
-      const updatedProfile = await saveProfile({
+      const updatedProfile = await saveProfileAsync({
         ...profileData,
         address,
         createdAt: profile?.createdAt,
@@ -93,7 +107,7 @@ export const useProfile = (address) => {
     if (!address) return false;
 
     try {
-      const success = deleteProfile(address);
+      const success = await deleteProfileAsync(address);
       if (success) {
         setProfile(null);
       }
@@ -131,16 +145,30 @@ export const useProfileByAddress = (address) => {
     }
 
     setLoading(true);
-    
-    try {
-      const loadedProfile = getProfile(address);
-      setProfile(loadedProfile);
-    } catch (err) {
-      console.error('Error loading profile:', err);
-      setProfile(null);
-    } finally {
-      setLoading(false);
-    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const loadedProfile = await getProfileAsync(address);
+        if (!cancelled) {
+          setProfile(loadedProfile);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Error loading profile:', err);
+          setProfile(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [address]);
 
   return { profile, loading };
@@ -153,11 +181,11 @@ export const useProfileSearch = () => {
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
 
-  const search = useCallback((query) => {
+  const search = useCallback(async (query) => {
     setSearching(true);
     
     try {
-      const profiles = searchProfiles(query);
+      const profiles = await searchProfilesAsync(query);
       setResults(profiles);
     } catch (err) {
       console.error('Error searching profiles:', err);
@@ -180,20 +208,34 @@ export const useAllProfiles = () => {
   useEffect(() => {
     setLoading(true);
     
-    try {
-      const allProfiles = getAllProfiles();
-      setProfiles(allProfiles);
-    } catch (err) {
-      console.error('Error loading all profiles:', err);
-      setProfiles([]);
-    } finally {
-      setLoading(false);
-    }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const allProfiles = await getAllProfilesAsync();
+        if (!cancelled) {
+          setProfiles(allProfiles);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Error loading all profiles:', err);
+          setProfiles([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     try {
-      const allProfiles = getAllProfiles();
+      const allProfiles = await getAllProfilesAsync();
       setProfiles(allProfiles);
     } catch (err) {
       console.error('Error refreshing profiles:', err);

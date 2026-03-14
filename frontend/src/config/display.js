@@ -1,7 +1,7 @@
-export const DEFAULT_TOKEN_COLOR = { primary: "#d4a574", secondary: "#e5c9a8" };
+export const DEFAULT_TOKEN_COLOR = { primary: "#cda169", secondary: "#deb884" };
 
 export const TOKEN_VISUALS = {
-  MOVE: { logo: "/movement-logo.svg", color: { primary: "#d4a574", secondary: "#e5c9a8" } },
+  MOVE: { logo: "/movement-logo.svg", color: { primary: "#cda169", secondary: "#deb884" } },
   USDC: { logo: "/usdc.png", color: { primary: "#2775ca", secondary: "#5a9fd4" } },
   USDT: { logo: "/usdt.png", color: { primary: "#26a17b", secondary: "#4ecda0" } },
   ETH: { logo: "/ETH.png", color: { primary: "#627eea", secondary: "#8fa3ef" } },
@@ -21,11 +21,11 @@ export const TOKEN_VISUALS = {
 
 export const DEFI_PROTOCOL_VISUALS = {
   echelon: { logo: "/Echelon.png", name: "Echelon Finance", color: "#6366f1", gradient: "linear-gradient(135deg, #6366f1, #8b5cf6)" },
-  joule: { logo: "/joule-finance.png", name: "Joule Finance", color: "#f59e0b", gradient: "linear-gradient(135deg, #f59e0b, #fbbf24)" },
+  joule: { logo: "/joule-finance.png", name: "Joule Finance", color: "#e57c23", gradient: "linear-gradient(135deg, #e57c23, #ee8f3a)" },
   moveposition: { logo: "/moveposition.png", name: "MovePosition", color: "#10b981", gradient: "linear-gradient(135deg, #10b981, #34d399)" },
   meridian: { logo: "/Meridian.png", name: "Meridian", color: "#8b5cf6", gradient: "linear-gradient(135deg, #8b5cf6, #a78bfa)" },
   canopy: { logo: "/canopy.png", name: "Canopy", color: "#22c55e", gradient: "linear-gradient(135deg, #22c55e, #4ade80)" },
-  layerbank: { logo: "/LayerBank.png", name: "LayerBank", color: "#3b82f6", gradient: "linear-gradient(135deg, #3b82f6, #60a5fa)" },
+  layerbank: { logo: "/LayerBank.png", name: "LayerBank", color: "#5c8ead", gradient: "linear-gradient(135deg, #5c8ead, #76a6c3)" },
   mosaic: { logo: "/mosaic.png", name: "Mosaic", color: "#06b6d4", gradient: "linear-gradient(135deg, #06b6d4, #22d3ee)" },
   yuzu: { logo: "/yuzu.png", name: "Yuzu Swap", color: "#eab308", gradient: "linear-gradient(135deg, #eab308, #facc15)" },
 };
@@ -33,6 +33,8 @@ export const DEFI_PROTOCOL_VISUALS = {
 export const DEFAULT_PROTOCOL_VISUAL = {
   logo: "/movement-logo.svg",
   name: "DeFi Protocol",
-  color: "#d4a574",
-  gradient: "linear-gradient(135deg, #d4a574, #e5c9a8)",
+  color: "#cda169",
+  gradient: "linear-gradient(135deg, #cda169, #deb884)",
 };
+
+export const DATA_VIZ_COLORS = ["#cda169", "#3b958b", "#8c6b9e", "#c06c50", "#5c8ead"];

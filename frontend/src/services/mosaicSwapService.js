@@ -39,6 +39,8 @@ let registryFetchedAt = 0;
 const REGISTRY_TTL_MS = 5 * 60 * 1000;
 
 const DECIMAL_INPUT_PATTERN = /^\d+(\.\d+)?$/;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000000000000000000000000000";
+const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -135,6 +137,34 @@ const normalizeAmountString = (value) => {
   return raw;
 };
 
+const normalizeSender = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ADDRESS_PATTERN.test(normalized) ? normalized : ZERO_ADDRESS;
+};
+
+const createTimeoutSignal = (externalSignal, timeoutMs) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  const abortFromExternal = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener("abort", abortFromExternal, { once: true });
+    }
+  }
+
+  const cleanup = () => {
+    clearTimeout(timeout);
+    if (externalSignal) {
+      externalSignal.removeEventListener("abort", abortFromExternal);
+    }
+  };
+
+  return { signal: controller.signal, cleanup };
+};
+
 const baseUnitsToDecimalString = (rawValue, decimals = 8, precision = 8) => {
   const raw = String(rawValue || "0").trim();
   if (!/^\d+$/.test(raw)) return "0";
@@ -219,6 +249,9 @@ export const fetchMosaicQuote = async ({
   const apiKey = String(settings.mosaicApiKey || "").trim();
   const srcAsset = await resolveTokenId(fromToken, apiKey);
   const dstAsset = await resolveTokenId(toToken, apiKey);
+  const senderAddress = normalizeSender(sender);
+  const selectedSources = normalizeSourceIds(settings.enabledLiquiditySources);
+  const selectedSource = selectedSources[0] || DEFAULT_ENABLED_LIQUIDITY_SOURCES[0];
 
   if (!srcAsset || !dstAsset) {
     return { best: null, selectedSource: "none", error: "Unable to resolve token IDs" };
@@ -233,10 +266,10 @@ export const fetchMosaicQuote = async ({
     srcAsset,
     dstAsset,
     amount: normalizedAmount,
-    sender,
-    receiver: sender,
+    sender: senderAddress,
+    receiver: senderAddress,
     slippage: String(slippageBps),
-    source: "mosaic_amm",
+    source: selectedSource,
   });
 
   const feeBps = Number(settings.feeInBps || 0);
@@ -249,11 +282,12 @@ export const fetchMosaicQuote = async ({
   const headers = { Accept: "application/json" };
   if (apiKey) headers["X-API-Key"] = apiKey;
 
+  const { signal: effectiveSignal, cleanup } = createTimeoutSignal(signal, QUOTE_TIMEOUT_MS);
   const response = await fetch(`${MOSAIC_CONFIG.apiUrl}/quote?${params.toString()}`, {
     method: "GET",
     headers,
-    signal,
-  });
+    signal: effectiveSignal,
+  }).finally(cleanup);
 
   if (!response.ok) {
     return { best: null, selectedSource: "none", error: `Mosaic API ${response.status}` };

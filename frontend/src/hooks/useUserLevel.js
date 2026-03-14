@@ -16,35 +16,28 @@ import {
  * @param {string} address - User wallet address
  */
 export function useUserLevel(address) {
-  const [badges, setBadges] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [awardsVersion, setAwardsVersion] = useState(0);
 
   useEffect(() => {
-    if (!address) {
-      setBadges([]);
-      return;
-    }
+    if (!address) return undefined;
 
-    setLoading(true);
-
-    const compute = () => {
-      const awards = getUserAwards(address);
-      const earned = awards
-        .map(award => {
-          const badge = getBadgeById(award.badgeId);
-          return badge ? { ...badge, earnedAt: award.awardedAt } : null;
-        })
-        .filter(Boolean);
-
-      setBadges(earned);
-      setLoading(false);
-    };
-
-    compute();
-
-    const unsub = subscribe('awards:changed', compute);
+    const unsub = subscribe('awards:changed', () => {
+      setAwardsVersion((v) => v + 1);
+    });
     return unsub;
   }, [address]);
+
+  const badges = useMemo(() => {
+    void awardsVersion;
+    if (!address) return [];
+    const awards = getUserAwards(address);
+    return awards
+      .map((award) => {
+        const badge = getBadgeById(award.badgeId);
+        return badge ? { ...badge, earnedAt: award.awardedAt } : null;
+      })
+      .filter(Boolean);
+  }, [address, awardsVersion]);
 
   const xp = useMemo(() => calculateTotalXP(badges), [badges]);
   const level = useMemo(() => getLevelFromXP(xp), [xp]);
@@ -59,7 +52,7 @@ export function useUserLevel(address) {
     progressXP: progress.progressXP,
     requiredXP: progress.requiredXP,
     badges,
-    loading,
+    loading: false,
     badgeCount: badges.length,
   };
 }

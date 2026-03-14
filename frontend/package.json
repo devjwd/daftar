@@ -29,6 +29,7 @@
     "@aptos-labs/wallet-adapter-react": "^7.2.7",
     "@nightlylabs/wallet-adapter-core": "^5.0.2",
     "@okwallet/aptos-wallet-adapter": "^0.0.7",
+    "@vercel/blob": "^2.3.1",
     "petra-plugin-wallet-adapter": "^0.4.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -46,7 +47,7 @@
     "globals": "^16.5.0",
     "jsdom": "^28.1.0",
     "vite": "npm:rolldown-vite@7.2.5",
-    "vitest": "^0.34.2"
+    "vitest": "^4.0.18"
   },
   "overrides": {
     "vite": "npm:rolldown-vite@7.2.5"

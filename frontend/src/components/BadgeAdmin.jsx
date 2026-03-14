@@ -6,7 +6,6 @@
  * - Configure eligibility criteria with dynamic forms
  * - Preview badges
  * - Import/export badge configs
- * - Quick-create from templates (activity/longevity tiers)
  */
 import React, { useState, useCallback, useMemo } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
@@ -19,8 +18,6 @@ import {
   CRITERIA_TYPES,
   CRITERIA_PARAM_SCHEMAS,
   CRITERIA_LABELS,
-  ACTIVITY_BADGE_TIERS,
-  LONGEVITY_BADGE_TIERS,
   getRarityInfo,
   BADGE_RULES,
 } from '../config/badges.js';
@@ -41,6 +38,37 @@ import './BadgeAdmin.css';
 
 const EMPTY_CRITERION = { type: '', params: {} };
 
+const EMPTY_SPECIAL_SETTINGS = {
+  isSpecial: false,
+  timeLimited: {
+    enabled: false,
+    startsAt: '',
+    endsAt: '',
+    note: '',
+  },
+  reward: {
+    enabled: false,
+    winnerLimit: 100,
+    rewardTitle: '',
+    rewardDetails: '',
+    rewardType: '',
+    rewardValue: '',
+    distributionDate: '',
+  },
+};
+
+const buildSpecialSettings = (input = {}) => ({
+  isSpecial: Boolean(input.isSpecial || input.timeLimited?.enabled || input.reward?.enabled),
+  timeLimited: {
+    ...EMPTY_SPECIAL_SETTINGS.timeLimited,
+    ...(input.timeLimited || {}),
+  },
+  reward: {
+    ...EMPTY_SPECIAL_SETTINGS.reward,
+    ...(input.reward || {}),
+  },
+});
+
 const EMPTY_FORM = {
   name: '',
   description: '',
@@ -53,12 +81,18 @@ const EMPTY_FORM = {
   enabled: true,
 };
 
+const ONCHAIN_SUPPORTED_CRITERIA = new Set([
+  CRITERIA_TYPES.MIN_BALANCE,
+  CRITERIA_TYPES.TRANSACTION_COUNT,
+  CRITERIA_TYPES.PROTOCOL_COUNT,
+  CRITERIA_TYPES.ALLOWLIST,
+]);
+
 export default function BadgeAdmin() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const {
     badges,
     createBadge,
-    updateBadge,
     deleteBadge,
     toggleBadge,
     importBadges,
@@ -66,9 +100,16 @@ export default function BadgeAdmin() {
     clearAll,
   } = useBadgeStore();
 
-  const [form, setForm] = useState({ ...EMPTY_FORM, criteria: [{ ...EMPTY_CRITERION }] });
+  const [form, setForm] = useState({
+    ...EMPTY_FORM,
+    criteria: [{ ...EMPTY_CRITERION }],
+    metadata: {
+      ...EMPTY_FORM.metadata,
+      special: buildSpecialSettings(),
+    },
+  });
   const [editingId, setEditingId] = useState(null);
-  const [subTab, setSubTab] = useState('manage'); // 'manage', 'create', 'templates', 'import'
+  const [subTab, setSubTab] = useState('manage'); // 'manage', 'create', 'import'
   const [message, setMessage] = useState({ type: '', text: '' });
   const [importText, setImportText] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -81,6 +122,16 @@ export default function BadgeAdmin() {
   );
 
   const criteriaOptions = useMemo(() => getCriteriaMetadata(), []);
+
+  const previewRarity = useMemo(() => getRarityInfo(form.rarity || 'COMMON'), [form.rarity]);
+  const previewIcon = useMemo(() => {
+    if (form.category === 'activity') return '⚡';
+    if (form.category === 'longevity') return '🕐';
+    if (form.category === 'defi') return '🏦';
+    if (form.category === 'community') return '🤝';
+    if (form.category === 'special') return '✨';
+    return '🏆';
+  }, [form.category]);
 
   // Protocol options for protocol_usage criteria
   const protocolOptions = useMemo(() =>
@@ -96,6 +147,36 @@ export default function BadgeAdmin() {
   // ─── Form Handlers ──────────────────────────────────────────────────
   const updateForm = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateSpecialSettings = (section, field, value) => {
+    setForm((prev) => ({
+      ...prev,
+      metadata: {
+        ...prev.metadata,
+        special: {
+          ...buildSpecialSettings(prev.metadata?.special || {}),
+          [section]: {
+            ...buildSpecialSettings(prev.metadata?.special || {})[section],
+            [field]: value,
+          },
+        },
+      },
+    }));
+  };
+
+  const toggleSpecialBadge = (enabled) => {
+    setForm((prev) => ({
+      ...prev,
+      category: enabled ? 'special' : prev.category,
+      metadata: {
+        ...prev.metadata,
+        special: {
+          ...buildSpecialSettings(prev.metadata?.special || {}),
+          isSpecial: enabled,
+        },
+      },
+    }));
   };
 
   const updateCriterion = (index, field, value) => {
@@ -259,16 +340,39 @@ export default function BadgeAdmin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const selectedCriteria = (form.criteria || []).filter((c) => c?.type);
+
+    if (!editingId && selectedCriteria.length !== 1) {
+      showMessage('error', 'Mintable SBT badges currently support exactly 1 on-chain criterion');
+      return;
+    }
+
+    if (!editingId && selectedCriteria.length === 1 && !ONCHAIN_SUPPORTED_CRITERIA.has(selectedCriteria[0].type)) {
+      showMessage('error', `Criterion "${selectedCriteria[0].type}" is not supported for on-chain minting yet`);
+      return;
+    }
+
+    if (editingId && selectedCriteria.length > 1) {
+      showMessage('error', 'Only 1 criterion is currently supported for badge definitions');
+      return;
+    }
+
     const badgeData = {
       ...form,
       xp: Number(form.xp) || 10,
+      metadata: {
+        ...form.metadata,
+        special: buildSpecialSettings(form.metadata?.special || {}),
+      },
     };
 
     setSubmitting(true);
 
     let result;
     if (editingId) {
-      result = updateBadge(editingId, badgeData);
+      showMessage('error', 'Editing existing badge definitions is disabled to prevent on-chain/off-chain mismatch. Create a new badge instead.');
+      setSubmitting(false);
+      return;
     } else {
       try {
         const onChainBadgeId = await createMintableSBTBadge(badgeData);
@@ -299,7 +403,11 @@ export default function BadgeAdmin() {
       rarity: badge.rarity,
       xp: badge.xp,
       criteria: badge.criteria.length > 0 ? badge.criteria : [{ ...EMPTY_CRITERION }],
-      metadata: badge.metadata || { externalUrl: '', attributes: [] },
+      metadata: {
+        externalUrl: badge.metadata?.externalUrl || '',
+        attributes: Array.isArray(badge.metadata?.attributes) ? badge.metadata.attributes : [],
+        special: buildSpecialSettings(badge.metadata?.special || {}),
+      },
       enabled: badge.enabled,
     });
     setEditingId(badge.id);
@@ -320,56 +428,16 @@ export default function BadgeAdmin() {
   };
 
   const resetForm = () => {
-    setForm({ ...EMPTY_FORM, criteria: [{ ...EMPTY_CRITERION }] });
+    setForm({
+      ...EMPTY_FORM,
+      criteria: [{ ...EMPTY_CRITERION }],
+      metadata: {
+        ...EMPTY_FORM.metadata,
+        special: buildSpecialSettings(),
+      },
+    });
     setEditingId(null);
     setImagePreview('');
-  };
-
-  // ─── Template Quick-Create ──────────────────────────────────────────
-  const createFromActivityTier = async (tier) => {
-    setSubmitting(true);
-    const payload = {
-      name: tier.name,
-      description: tier.description,
-      imageUrl: 'https://placehold.co/512x512/png',
-      category: 'activity',
-      rarity: tier.rarity,
-      xp: tier.xp,
-      criteria: [{ type: CRITERIA_TYPES.TRANSACTION_COUNT, params: { min: tier.count } }],
-    };
-
-    try {
-      const onChainBadgeId = await createMintableSBTBadge(payload);
-      const result = createBadge({ ...payload, onChainBadgeId });
-      if (result.success) showMessage('success', `Created "${tier.name}" badge`);
-      else showMessage('error', result.errors?.join(', '));
-    } catch (error) {
-      showMessage('error', error?.message || 'Failed to create on-chain SBT badge');
-    }
-    setSubmitting(false);
-  };
-
-  const createFromLongevityTier = async (tier) => {
-    setSubmitting(true);
-    const payload = {
-      name: tier.name,
-      description: tier.description,
-      imageUrl: 'https://placehold.co/512x512/png',
-      category: 'longevity',
-      rarity: tier.rarity,
-      xp: tier.xp,
-      criteria: [{ type: CRITERIA_TYPES.DAYS_ONCHAIN, params: { min: tier.days } }],
-    };
-
-    try {
-      const onChainBadgeId = await createMintableSBTBadge(payload);
-      const result = createBadge({ ...payload, onChainBadgeId });
-      if (result.success) showMessage('success', `Created "${tier.name}" badge`);
-      else showMessage('error', result.errors?.join(', '));
-    } catch (error) {
-      showMessage('error', error?.message || 'Failed to create on-chain SBT badge');
-    }
-    setSubmitting(false);
   };
 
   // ─── Import/Export ──────────────────────────────────────────────────
@@ -489,15 +557,16 @@ export default function BadgeAdmin() {
         {[
           { key: 'manage', label: 'Manage Badges', icon: '📋' },
           { key: 'create', label: editingId ? 'Edit Badge' : 'Create Badge', icon: '➕' },
-          { key: 'templates', label: 'Templates', icon: '⚡' },
           { key: 'import', label: 'Import / Export', icon: '📦' },
         ].map(tab => (
           <button
             key={tab.key}
+            type="button"
             className={`ba-subtab ${subTab === tab.key ? 'active' : ''}`}
             onClick={() => { setSubTab(tab.key); if (tab.key !== 'create') resetForm(); }}
           >
-            {tab.icon} {tab.label}
+            <span className="ba-subtab-icon" aria-hidden="true">{tab.icon}</span>
+            <span className="ba-subtab-label">{tab.label}</span>
           </button>
         ))}
       </div>
@@ -549,6 +618,15 @@ export default function BadgeAdmin() {
                         <span className="ba-category-tag">{
                           Object.values(BADGE_CATEGORIES).find(cat => cat.id === badge.category)?.icon
                         } {badge.category}</span>
+                        {badge.metadata?.special?.isSpecial && (
+                          <span className="ba-criteria-tag">✨ Special</span>
+                        )}
+                        {badge.metadata?.special?.timeLimited?.enabled && (
+                          <span className="ba-criteria-tag">⏳ Time-limited</span>
+                        )}
+                        {badge.metadata?.special?.reward?.enabled && (
+                          <span className="ba-criteria-tag">🎁 Top {badge.metadata?.special?.reward?.winnerLimit || 100} reward</span>
+                        )}
                       </div>
                     </div>
                     <div className="ba-badge-actions">
@@ -671,6 +749,153 @@ export default function BadgeAdmin() {
                 </div>
               </div>
 
+              <div className="ba-special-inline">
+                <div className="ba-field-toggle">
+                  <label className="ba-toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.metadata?.special?.isSpecial)}
+                      onChange={(e) => toggleSpecialBadge(e.target.checked)}
+                    />
+                    <span>Mark as Special Badge</span>
+                  </label>
+                </div>
+
+                {Boolean(form.metadata?.special?.isSpecial) && (
+                  <div className="ba-special-grid">
+                    <div className="ba-special-panel">
+                      <h4>Time Window</h4>
+                      <p className="ba-hint">Set a claim window for this special badge.</p>
+
+                      <div className="ba-field-toggle">
+                        <label className="ba-toggle-label">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(form.metadata?.special?.timeLimited?.enabled)}
+                            onChange={(e) => updateSpecialSettings('timeLimited', 'enabled', e.target.checked)}
+                          />
+                          <span>Enable time-limited mode</span>
+                        </label>
+                      </div>
+
+                      <div className="ba-field">
+                        <label>Start Time</label>
+                        <input
+                          type="datetime-local"
+                          value={form.metadata?.special?.timeLimited?.startsAt || ''}
+                          onChange={(e) => updateSpecialSettings('timeLimited', 'startsAt', e.target.value)}
+                          className="ba-input"
+                        />
+                      </div>
+
+                      <div className="ba-field">
+                        <label>End Time</label>
+                        <input
+                          type="datetime-local"
+                          value={form.metadata?.special?.timeLimited?.endsAt || ''}
+                          onChange={(e) => updateSpecialSettings('timeLimited', 'endsAt', e.target.value)}
+                          className="ba-input"
+                        />
+                      </div>
+
+                      <div className="ba-field">
+                        <label>Campaign Note</label>
+                        <input
+                          type="text"
+                          placeholder="Optional event note"
+                          value={form.metadata?.special?.timeLimited?.note || ''}
+                          onChange={(e) => updateSpecialSettings('timeLimited', 'note', e.target.value)}
+                          className="ba-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="ba-special-panel">
+                      <h4>Reward Setup</h4>
+                      <p className="ba-hint">Example: reward first 100 users who earn this badge.</p>
+
+                      <div className="ba-field-toggle">
+                        <label className="ba-toggle-label">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(form.metadata?.special?.reward?.enabled)}
+                            onChange={(e) => updateSpecialSettings('reward', 'enabled', e.target.checked)}
+                          />
+                          <span>Enable reward distribution</span>
+                        </label>
+                      </div>
+
+                      <div className="ba-field-row">
+                        <div className="ba-field">
+                          <label>Winner Limit</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={form.metadata?.special?.reward?.winnerLimit || 100}
+                            onChange={(e) => updateSpecialSettings('reward', 'winnerLimit', Number(e.target.value) || 100)}
+                            className="ba-input"
+                          />
+                        </div>
+
+                        <div className="ba-field">
+                          <label>Reward Type</label>
+                          <input
+                            type="text"
+                            placeholder="Token / NFT / Access"
+                            value={form.metadata?.special?.reward?.rewardType || ''}
+                            onChange={(e) => updateSpecialSettings('reward', 'rewardType', e.target.value)}
+                            className="ba-input"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="ba-field">
+                        <label>Reward Value</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 50 USDT or VIP Pass"
+                          value={form.metadata?.special?.reward?.rewardValue || ''}
+                          onChange={(e) => updateSpecialSettings('reward', 'rewardValue', e.target.value)}
+                          className="ba-input"
+                        />
+                      </div>
+
+                      <div className="ba-field">
+                        <label>Distribution Date</label>
+                        <input
+                          type="datetime-local"
+                          value={form.metadata?.special?.reward?.distributionDate || ''}
+                          onChange={(e) => updateSpecialSettings('reward', 'distributionDate', e.target.value)}
+                          className="ba-input"
+                        />
+                      </div>
+
+                      <div className="ba-field">
+                        <label>Reward Title</label>
+                        <input
+                          type="text"
+                          placeholder="Reward campaign title"
+                          value={form.metadata?.special?.reward?.rewardTitle || ''}
+                          onChange={(e) => updateSpecialSettings('reward', 'rewardTitle', e.target.value)}
+                          className="ba-input"
+                        />
+                      </div>
+
+                      <div className="ba-field">
+                        <label>Reward Details</label>
+                        <textarea
+                          rows={4}
+                          placeholder="Leave empty for now"
+                          value={form.metadata?.special?.reward?.rewardDetails || ''}
+                          onChange={(e) => updateSpecialSettings('reward', 'rewardDetails', e.target.value)}
+                          className="ba-textarea"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="ba-field">
                 <label>External URL (optional)</label>
                 <input
@@ -700,7 +925,7 @@ export default function BadgeAdmin() {
             {/* Right column: eligibility criteria */}
             <div className="ba-form-right">
               <h3>Eligibility Criteria</h3>
-              <p className="ba-hint">All criteria must be met (AND logic). Add multiple criteria for complex requirements.</p>
+              <p className="ba-hint">Mintable badges currently support exactly one on-chain criterion.</p>
 
               {form.criteria.map((criterion, i) => renderCriterionForm(criterion, i))}
 
@@ -708,9 +933,51 @@ export default function BadgeAdmin() {
                 type="button"
                 className="ba-btn ba-btn-secondary ba-btn-add-criterion"
                 onClick={addCriterion}
+                disabled={form.criteria.length >= 1}
               >
                 + Add Another Criterion
               </button>
+            </div>
+          </div>
+
+          <div className="ba-live-preview" aria-label="Badge live preview">
+            <div className="ba-live-preview-head">
+              <span>Live Preview</span>
+            </div>
+            <div className="ba-live-card" style={{ '--preview-accent': previewRarity.color }}>
+              <div className="ba-live-card-media">
+                {form.imageUrl ? (
+                  <img
+                    src={form.imageUrl}
+                    alt="Badge preview"
+                    className="ba-live-card-image"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    onLoad={(e) => { e.currentTarget.style.display = 'block'; }}
+                  />
+                ) : null}
+                {!form.imageUrl && <span className="ba-live-card-fallback">{previewIcon}</span>}
+                <span className="ba-live-rarity-pill" style={{ background: previewRarity.color }}>{previewRarity.name}</span>
+                <span className="ba-live-xp-pill">+{Number(form.xp) || 0} XP</span>
+              </div>
+              <div className="ba-live-card-content">
+                <h4>{form.name?.trim() || 'Badge Name Preview'}</h4>
+                <p>{form.description?.trim() || 'Badge description preview will appear here as you type.'}</p>
+                <div className="ba-live-chip-row">
+                  <span className="ba-live-chip">{Object.values(BADGE_CATEGORIES).find(cat => cat.id === form.category)?.icon || '🏅'} {form.category || 'activity'}</span>
+                  {form.metadata?.special?.isSpecial && <span className="ba-live-chip">✨ Special</span>}
+                  {form.metadata?.special?.timeLimited?.enabled && <span className="ba-live-chip">⏳ Time-limited</span>}
+                </div>
+                <div className="ba-live-chip-row">
+                  {form.criteria.filter((c) => c.type).slice(0, 3).map((criterion, idx) => (
+                    <span key={`${criterion.type}-${idx}`} className="ba-live-chip ba-live-chip-criteria">
+                      {CRITERIA_LABELS[criterion.type] || criterion.type}
+                    </span>
+                  ))}
+                  {form.criteria.filter((c) => c.type).length > 3 && (
+                    <span className="ba-live-chip ba-live-chip-criteria">+{form.criteria.filter((c) => c.type).length - 3} more</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -724,69 +991,6 @@ export default function BadgeAdmin() {
             </button>
           </div>
         </form>
-      )}
-
-      {/* ─── Templates Tab ─────────────────────────────────────────── */}
-      {subTab === 'templates' && (
-        <div className="ba-templates">
-          <div className="ba-template-section">
-            <h3>Activity Badge Templates</h3>
-            <p className="ba-hint">One-click create badges based on transaction count milestones.</p>
-            <div className="ba-template-grid">
-              {ACTIVITY_BADGE_TIERS.map((tier, i) => {
-                const rarity = getRarityInfo(tier.rarity);
-                const exists = badges.some(b => b.name === tier.name);
-                return (
-                  <div key={i} className={`ba-template-card ${exists ? 'exists' : ''}`}>
-                    <div className="ba-template-emoji">{tier.emoji}</div>
-                    <h4>{tier.name}</h4>
-                    <p>{tier.description}</p>
-                    <div className="ba-template-meta">
-                      <span className="ba-rarity-pill" style={{ background: rarity.color }}>{rarity.name}</span>
-                      <span className="ba-xp-pill">+{tier.xp} XP</span>
-                    </div>
-                    <button
-                      className="ba-btn ba-btn-primary ba-btn-sm"
-                      onClick={() => createFromActivityTier(tier)}
-                      disabled={exists || submitting}
-                    >
-                      {exists ? 'Already exists' : submitting ? 'Creating...' : 'Create'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="ba-template-section">
-            <h3>Longevity Badge Templates</h3>
-            <p className="ba-hint">One-click create badges based on days on-chain.</p>
-            <div className="ba-template-grid">
-              {LONGEVITY_BADGE_TIERS.map((tier, i) => {
-                const rarity = getRarityInfo(tier.rarity);
-                const exists = badges.some(b => b.name === tier.name);
-                return (
-                  <div key={i} className={`ba-template-card ${exists ? 'exists' : ''}`}>
-                    <div className="ba-template-emoji">{tier.emoji}</div>
-                    <h4>{tier.name}</h4>
-                    <p>{tier.description}</p>
-                    <div className="ba-template-meta">
-                      <span className="ba-rarity-pill" style={{ background: rarity.color }}>{rarity.name}</span>
-                      <span className="ba-xp-pill">+{tier.xp} XP</span>
-                    </div>
-                    <button
-                      className="ba-btn ba-btn-primary ba-btn-sm"
-                      onClick={() => createFromLongevityTier(tier)}
-                      disabled={exists || submitting}
-                    >
-                      {exists ? 'Already exists' : submitting ? 'Creating...' : 'Create'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
       )}
 
       {/* ─── Import / Export Tab ────────────────────────────────────── */}

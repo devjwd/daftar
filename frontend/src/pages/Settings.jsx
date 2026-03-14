@@ -7,11 +7,8 @@ import './Settings.css';
 export default function Settings() {
   const { account } = useWallet();
   const [currency, setCurrency] = useState('USD');
-  const [notifications, setNotifications] = useState(true);
-  const [priceAlerts, setPriceAlerts] = useState(false);
   const [theme, setTheme] = useState('dark');
   const [language, setLanguage] = useState('en');
-  const [showTestnet, setShowTestnet] = useState(false);
 
   const accountSettingsKey = account?.address
     ? `settings_${typeof account.address === 'string' ? account.address : account.address.toString()}`
@@ -21,11 +18,8 @@ export default function Settings() {
   const persistSettings = (overrides = {}) => {
     const settingsData = {
       currency,
-      notifications,
-      priceAlerts,
       theme,
       language,
-      showTestnet,
       ...overrides,
     };
 
@@ -44,13 +38,10 @@ export default function Settings() {
     if (saved) {
       const data = JSON.parse(saved);
       setCurrency(data.currency || 'USD');
-      setNotifications(data.notifications ?? true);
-      setPriceAlerts(data.priceAlerts ?? false);
       const storedTheme = data.theme || getStoredThemePreference(settingsKey);
       setTheme(storedTheme);
       applyTheme(storedTheme);
       setLanguage(data.language || getStoredLanguagePreference(settingsKey));
-      setShowTestnet(data.showTestnet ?? false);
     } else {
       const storedTheme = getStoredThemePreference(settingsKey);
       setTheme(storedTheme);
@@ -82,11 +73,8 @@ export default function Settings() {
   const handleReset = () => {
     if (confirm('Are you sure you want to reset all settings to default?')) {
       setCurrency('USD');
-      setNotifications(true);
-      setPriceAlerts(false);
       setTheme('dark');
       setLanguage('en');
-      setShowTestnet(false);
       localStorage.removeItem(settingsKey);
       saveThemePreference('dark', settingsKey);
       saveLanguagePreference('en', settingsKey);
@@ -117,11 +105,8 @@ export default function Settings() {
                   // Save immediately on change
                   const settingsData = {
                     currency: e.target.value,
-                    notifications,
-                    priceAlerts,
                     theme,
                     language,
-                    showTestnet,
                   };
                   if (settingsKey) {
                     localStorage.setItem(settingsKey, JSON.stringify(settingsData));
@@ -174,58 +159,6 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Notifications */}
-          <div className="settings-section">
-            <h2 className="section-title">{t(language, 'notifications')}</h2>
-            <div className="setting-item">
-              <div className="setting-info">
-                <label>{t(language, 'enableNotifications')}</label>
-                <span className="setting-description">{t(language, 'enableNotificationsDescription')}</span>
-              </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={notifications}
-                  onChange={(e) => setNotifications(e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-
-            <div className="setting-item">
-              <div className="setting-info">
-                <label>{t(language, 'priceAlerts')}</label>
-                <span className="setting-description">{t(language, 'priceAlertsDescription')}</span>
-              </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={priceAlerts}
-                  onChange={(e) => setPriceAlerts(e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          {/* Advanced */}
-          <div className="settings-section">
-            <h2 className="section-title">{t(language, 'advanced')}</h2>
-            <div className="setting-item">
-              <div className="setting-info">
-                <label>{t(language, 'showTestnet')}</label>
-                <span className="setting-description">{t(language, 'showTestnetDescription')}</span>
-              </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={showTestnet}
-                  onChange={(e) => setShowTestnet(e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
         </div>
 
         <div className="settings-actions">

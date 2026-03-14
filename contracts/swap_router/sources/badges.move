@@ -14,6 +14,8 @@ module swap_router::badges {
     const E_NOT_ELIGIBLE: u64 = 4;
     const E_BAD_RULE: u64 = 5;
     const E_COIN_TYPE_MISMATCH: u64 = 6;
+    const E_BAD_ADMIN_ADDRESS: u64 = 7;
+    const E_NOT_PENDING_ADMIN: u64 = 8;
 
     /// Rule types
     const RULE_ALLOWLIST: u8 = 1;
@@ -48,6 +50,7 @@ module swap_router::badges {
 
     struct BadgeRegistry has key {
         admin: address,
+        pending_admin: address,
         next_id: u64,
         badge_ids: vector<u64>,
         badges: table::Table<u64, BadgeDefinition>,
@@ -69,6 +72,7 @@ module swap_router::badges {
         let admin_addr = signer::address_of(admin);
         move_to(admin, BadgeRegistry {
             admin: admin_addr,
+            pending_admin: @0x0,
             next_id: 1,
             badge_ids: vector::empty<u64>(),
             badges: table::new<u64, BadgeDefinition>(admin_addr),
@@ -76,12 +80,24 @@ module swap_router::badges {
         });
     }
 
-    /// Update admin address
+    /// Propose a new admin address (current admin only)
     public entry fun set_admin(admin: &signer, new_admin: address) acquires BadgeRegistry {
         let admin_addr = signer::address_of(admin);
         let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
         assert!(admin_addr == registry.admin, E_NOT_ADMIN);
-        registry.admin = new_admin;
+        assert!(new_admin != @0x0, E_BAD_ADMIN_ADDRESS);
+        assert!(new_admin != registry.admin, E_BAD_ADMIN_ADDRESS);
+        registry.pending_admin = new_admin;
+    }
+
+    /// Accept admin role (must be called by pending admin)
+    public entry fun accept_admin(new_admin: &signer) acquires BadgeRegistry {
+        let new_admin_addr = signer::address_of(new_admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(registry.pending_admin != @0x0, E_BAD_ADMIN_ADDRESS);
+        assert!(new_admin_addr == registry.pending_admin, E_NOT_PENDING_ADMIN);
+        registry.admin = new_admin_addr;
+        registry.pending_admin = @0x0;
     }
 
     /// Create a badge with allowlist-based eligibility

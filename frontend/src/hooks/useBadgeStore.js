@@ -36,16 +36,6 @@ export default function useBadgeStore() {
     return unsub;
   }, []);
 
-  // Sync on mount (in case localStorage was modified externally)
-  useEffect(() => {
-    const latest = getAllBadges();
-    setBadges((prev) => {
-      const prevJson = JSON.stringify(prev);
-      const latestJson = JSON.stringify(latest);
-      return prevJson === latestJson ? prev : latest;
-    });
-  }, []);
-
   const handleCreate = useCallback((data) => {
     const result = createBadge(data);
     return result;

@@ -1,14 +1,14 @@
 # Swap Router Contract
 
-A Move smart contract for routing token swaps through multiple DEX aggregators (Mosaic and Yuzu) with fee collection on the Movement Network.
+A Move smart contract for fee collection and swap analytics around Mosaic execution on the Movement Network.
 
 ## Overview
 
 This contract provides:
-- **Multi-router support**: Route swaps through Mosaic or Yuzu
-- **Fee collection**: Configurable fee in basis points (0.01% - 10%)
+- **Mosaic source guard**: Fee collection is restricted to Mosaic source ID
+- **Fee collection**: Configurable fee in basis points (0% - 5%)
 - **Admin controls**: Update fees and treasury address
-- **Event tracking**: Monitor all swaps and fees collected
+- **Event tracking**: Monitor all fee collections and swap metadata
 
 ## Contract Structure
 
@@ -19,19 +19,19 @@ swap_router/
     └── router.move     # Main router logic
 ```
 
-##Features
+## Features
 
 ### Fee Management
-- Configurable fee from 0.01% to 10% (1-1000 basis points)
+- Configurable fee from 0% to 5% (0-500 basis points)
 - Admin-only fee updates
 - Dedicated fee treasury
 - Real-time fee calculation
 
-### Router Integration
-- **Mosaic**: DEX aggregator for best price execution
-- **Yuzu**: CLMM (Concentrated Liquidity Market Maker)
-- Automatic fee deduction before routing
-- Event emission for tracking
+### Execution Model
+- Frontend requests quote + tx payload from Mosaic API
+- Frontend can call `collect_fee` before aggregator execution
+- Aggregator swap executes in a separate transaction
+- Events are emitted for on-chain analytics
 
 ## Deployment
 
@@ -98,35 +98,17 @@ const payload = {
 await signAndSubmitTransaction({ data: payload });
 ```
 
-### Swap via Mosaic
+### Collect Fee (Mosaic source)
 
 ```typescript
 const payload = {
-  function: `${CONTRACT_ADDRESS}::router::swap_via_mosaic`,
+  function: `${CONTRACT_ADDRESS}::router::collect_fee`,
   typeArguments: [
     "0x1::aptos_coin::AptosCoin",           // CoinIn
-    "0xf22...::asset::USDC"                 // CoinOut
   ],
   functionArguments: [
     100000000,  // amount_in (1 MOVE with 8 decimals)
-    99000000,   // amount_out_min (considering slippage)
-  ],
-};
-```
-
-### Swap via Yuzu
-
-```typescript
-const payload = {
-  function: `${CONTRACT_ADDRESS}::router::swap_via_yuzu`,
-  typeArguments: [
-    "0x1::aptos_coin::AptosCoin",
-    "0xf22...::asset::USDC"
-  ],
-  functionArguments: [
-    100000000,  // amount_in
-    99000000,   // amount_out_min
-    2500,       // fee_tier (0.25% pool)
+    1,          // router_source (1 = mosaic)
   ],
 };
 ```
@@ -134,9 +116,9 @@ const payload = {
 ### View Functions
 
 ```typescript
-// Get fee configuration
-const [feeBps, treasury, totalCollected] = await aptos.view({
-  function: `${CONTRACT_ADDRESS}::router::get_fee_config`,
+// Get config
+const [feeBps, treasury, totalCollected, totalSwaps, paused] = await aptos.view({
+  function: `${CONTRACT_ADDRESS}::router::get_config`,
   typeArguments: [],
   functionArguments: [],
 });
@@ -184,40 +166,44 @@ import { SWAP_ROUTER_ADDRESS } from "../config/network";
 
 // Use in transaction payload
 const payload = {
-  function: `${SWAP_ROUTER_ADDRESS}::router::swap_via_mosaic`,
+  function: `${SWAP_ROUTER_ADDRESS}::router::collect_fee`,
   // ...
 };
 ```
 
 ## Error Codes
 
-- `E_NOT_ADMIN (1)`: Caller is not the admin
-- `E_INVALID_FEE (2)`: Fee exceeds 10%
-- `E_ZERO_AMOUNT (3)`: Swap amount is zero
-- `E_SLIPPAGE_EXCEEDED (4)`: Output less than minimum
-- `E_INVALID_ROUTER (5)`: Unknown router type
+- `E_NOT_ADMIN (100)`: Caller is not the admin
+- `E_NOT_PENDING_ADMIN (101)`: Caller is not pending admin
+- `E_INVALID_ADMIN (102)`: Invalid admin input
+- `E_INVALID_FEE (200)`: Fee exceeds 5%
+- `E_ZERO_AMOUNT (201)`: Input amount is zero
+- `E_UNSUPPORTED_ROUTER_SOURCE (204)`: Unsupported source ID
+- `E_INVALID_TREASURY (205)`: Treasury is zero address
+- `E_PAUSED (300)`: Router is paused
+- `E_ALREADY_INITIALIZED (301)`: Router already initialized
+- `E_NOT_INITIALIZED (302)`: Router not initialized
 
 ## Fee Structure
 
-- Minimum: 0.01% (1 bps)
-- Maximum: 10% (1000 bps)
+- Minimum: 0% (0 bps)
+- Maximum: 5% (500 bps)
 - Recommended: 0.3% (30 bps) for competitive rates
 
 ## Security
 
 - Admin-only functions protected
-- Fee capped at 10%
-- Slippage protection
+- Fee capped at 5%
 - Event tracking for auditing
 
 ## Production Notes
 
 **Current Implementation**: The contract currently acts as a fee wrapper. For production:
 
-1. **Mosaic Integration**: Call the actual Mosaic router contract (`0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c::router::swap`)
-2. **Yuzu Integration**: Call Yuzu's router (`yuzuswap::router::swap_exact_coin_for_coin`)
-3. **Add slippage checks**: Verify `amount_out >= amount_out_min`
-4. **Handle multi-hop swaps**: Support routing through multiple pools
+1. The current contract does not execute the swap itself; it only collects protocol fee and emits events.
+2. Aggregator execution is handled by Mosaic tx payloads produced off-chain.
+3. If atomic execution is required, compose fee collection + swap into a single on-chain flow.
+4. Keep frontend payload validation strict to trusted contract/module targets.
 
 ## License
 

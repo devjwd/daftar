@@ -25,10 +25,10 @@
 
 /* ─── Rarity Variants ─────────────────────────────────────────────── */
 .bc-rarity-common   { --rc: #10b981; --rb: #059669; --rg: rgba(16, 185, 129, 0.3); }
-.bc-rarity-uncommon { --rc: #3b82f6; --rb: #1e40af; --rg: rgba(59, 130, 246, 0.3); }
+.bc-rarity-uncommon { --rc: #5c8ead; --rb: #1e40af; --rg: rgba(59, 130, 246, 0.3); }
 .bc-rarity-rare     { --rc: #8b5cf6; --rb: #6d28d9; --rg: rgba(139, 92, 246, 0.3); }
-.bc-rarity-epic     { --rc: #f59e0b; --rb: #d97706; --rg: rgba(245, 158, 11, 0.4); }
-.bc-rarity-legendary{ --rc: #fbbf24; --rb: #b45309; --rg: rgba(251, 191, 36, 0.5); }
+.bc-rarity-epic     { --rc: #e57c23; --rb: #d97706; --rg: rgba(229, 124, 35, 0.4); }
+.bc-rarity-legendary{ --rc: #ee8f3a; --rb: #b45309; --rg: rgba(251, 191, 36, 0.5); }
 
 /* ─── State Variants ──────────────────────────────────────────────── */
 .bc-earned {
@@ -81,9 +81,9 @@
   box-shadow: 0 3px 8px rgba(34, 197, 94, 0.35);
 }
 .bc-status-eligible {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: linear-gradient(135deg, #e57c23, #d97706);
   color: #fff;
-  box-shadow: 0 3px 8px rgba(245, 158, 11, 0.35);
+  box-shadow: 0 3px 8px rgba(229, 124, 35, 0.35);
 }
 
 /* ─── Image Section ───────────────────────────────────────────────── */
@@ -132,9 +132,9 @@
   border-radius: 12px;
   font-size: 0.72rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: linear-gradient(135deg, #e57c23, #d97706);
   color: #fff;
-  box-shadow: 0 3px 6px rgba(245, 158, 11, 0.25);
+  box-shadow: 0 3px 6px rgba(229, 124, 35, 0.25);
 }
 
 /* ─── Content ─────────────────────────────────────────────────────── */
@@ -263,8 +263,8 @@
 .bc-mint-btn {
   width: 100%;
   padding: 10px 16px;
-  background: linear-gradient(135deg, #d4a574, #e6c49a);
-  color: #1a1614;
+  background: linear-gradient(135deg, #cda169, #deb884);
+  color: #14110f;
   border: none;
   border-radius: 8px;
   font-weight: 700;
@@ -275,7 +275,7 @@
 }
 .bc-mint-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(212, 165, 116, 0.4);
+  box-shadow: 0 6px 16px rgba(205, 161, 105, 0.4);
 }
 .bc-mint-btn:disabled {
   opacity: 0.6;

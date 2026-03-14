@@ -5,9 +5,20 @@ import { useUserLevel } from '../hooks/useUserLevel';
 import { formatAddress, isValidAddress } from '../utils/tokenUtils';
 import { getStoredLanguagePreference, t } from '../utils/language';
 import { getStoredThemePreference, resolveTheme } from '../utils/theme';
-import { resolveAddressOrUsername, searchProfiles, getProfile } from '../services/profileService';
+import {
+  resolveAddressOrUsernameAsync,
+  searchProfilesAsync,
+  getProfileAsync,
+  resolveAddressOrUsername,
+  searchProfiles,
+  getProfile,
+} from '../services/profileService';
 import { checkAccountExists } from '../services/indexer';
+import { getEnv } from '../config/envValidator';
 import './Layout.css';
+
+const SWAP_ENABLED = getEnv('VITE_ENABLE_SWAP', true);
+const RESOURCES_MANIFEST_URL = '/resources/manifest.json';
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
@@ -22,7 +33,15 @@ export default function Layout({ children }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
-  const [recentSearches, setRecentSearches] = useState([]);
+  const [recentSearches, setRecentSearches] = useState(() => {
+    const saved = localStorage.getItem('recentSearches');
+    if (!saved) return [];
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return [];
+    }
+  });
   const [activeTheme, setActiveTheme] = useState(() => resolveTheme(getStoredThemePreference()));
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
   const searchTimeoutRef = useRef(null);
@@ -76,18 +95,6 @@ export default function Layout({ children }) {
     };
   }, []);
 
-  // Load recent searches from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('recentSearches');
-    if (saved) {
-      try {
-        setRecentSearches(JSON.parse(saved));
-      } catch {
-        setRecentSearches([]);
-      }
-    }
-  }, []);
-
   // Save search to recent searches
   const saveRecentSearch = useCallback((address) => {
     setRecentSearches((prev) => {
@@ -130,6 +137,35 @@ export default function Layout({ children }) {
     setWalletPickerOpen(prev => !prev);
   };
 
+  const handleResourcesDownload = useCallback(async () => {
+    try {
+      const response = await fetch(RESOURCES_MANIFEST_URL, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('Resource manifest not found');
+      }
+
+      const data = await response.json();
+      const files = Array.isArray(data?.files) ? data.files : [];
+
+      for (const fileName of files) {
+        if (typeof fileName !== 'string' || !fileName.trim()) {
+          continue;
+        }
+
+        const downloadLink = document.createElement('a');
+        downloadLink.href = encodeURI(`/resources/${fileName}`);
+        downloadLink.download = fileName.split('/').pop() || 'resource';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      }
+    } catch {
+      window.open('/resources', '_blank', 'noopener,noreferrer');
+    } finally {
+      setMoreDropdownOpen(false);
+    }
+  }, []);
+
   const handleSelectWallet = async (walletName) => {
     try {
       await connect(walletName);
@@ -151,6 +187,63 @@ export default function Layout({ children }) {
     setSearchError(null);
   }, [navigate, saveRecentSearch]);
 
+  const buildLocalSearchResults = useCallback(async (query) => {
+    const remoteProfiles = await searchProfilesAsync(query);
+    const profiles = Array.isArray(remoteProfiles) && remoteProfiles.length > 0
+      ? remoteProfiles
+      : searchProfiles(query);
+
+    const profileMatches = profiles
+      .slice(0, 5)
+      .map((profile) => ({
+        type: 'profile',
+        address: profile.address,
+        username: profile.username || 'User',
+        pfp: profile.pfp || null,
+      }));
+
+    if (isValidAddress(query)) {
+      const alreadyInProfiles = profileMatches.some(
+        (p) => p.address?.toLowerCase() === query.toLowerCase()
+      );
+
+      const immediateResults = [...profileMatches];
+      if (!alreadyInProfiles) {
+        immediateResults.unshift({
+          type: 'address',
+          address: query,
+          username: 'Wallet address',
+          verified: false,
+        });
+      }
+
+      return {
+        isAddress: true,
+        profileMatches,
+        alreadyInProfiles,
+        results: immediateResults,
+      };
+    }
+
+    const resolved = await resolveAddressOrUsernameAsync(query) || resolveAddressOrUsername(query);
+    if (resolved && !profileMatches.some((p) => p.address?.toLowerCase() === resolved.toLowerCase())) {
+      const existingProfile = await getProfileAsync(resolved) || getProfile(resolved);
+      profileMatches.unshift({
+        type: 'profile',
+        address: resolved,
+        username: existingProfile?.username || query,
+        pfp: existingProfile?.pfp || null,
+      });
+    }
+
+    return {
+      isAddress: false,
+      profileMatches,
+      alreadyInProfiles: false,
+      results: profileMatches,
+    };
+  }, []);
+
   // Debounced search effect
   useEffect(() => {
     const query = searchQuery.trim();
@@ -165,79 +258,54 @@ export default function Layout({ children }) {
     if (!query) {
       setSearchResults([]);
       setSearchLoading(false);
-      setSearchError(null);
       return;
     }
 
-    // Immediate: local profile matches
-    const profileMatches = searchProfiles(query)
-      .slice(0, 5)
-      .map((profile) => ({
-        type: 'profile',
-        address: profile.address,
-        username: profile.username || 'User',
-        pfp: profile.pfp || null,
-      }));
-
-    // If query is a valid blockchain address
-    if (isValidAddress(query)) {
-      const alreadyInProfiles = profileMatches.some(
-        (p) => p.address?.toLowerCase() === query.toLowerCase()
-      );
-
-      // Show address entry immediately so user can click it right away
-      const immediateResults = [...profileMatches];
-      if (!alreadyInProfiles) {
-        immediateResults.unshift({
-          type: 'address',
-          address: query,
-          username: 'Wallet address',
-          verified: false,
-        });
-      }
-      setSearchResults(immediateResults);
-      setSearchLoading(true);
-
-      // Debounce blockchain check
-      searchTimeoutRef.current = setTimeout(async () => {
-        try {
-          const { exists, txCount } = await checkAccountExists(query);
-          // Only update if query hasn't changed
-          if (latestQueryRef.current === query) {
-            const results = [...profileMatches];
-            if (!alreadyInProfiles) {
-              results.unshift({
-                type: exists ? 'blockchain' : 'address',
-                address: query,
-                username: exists ? `${txCount} transaction${txCount !== 1 ? 's' : ''}` : 'Wallet address',
-                verified: exists,
-              });
-            }
-            setSearchResults(results);
-            setSearchLoading(false);
-          }
-        } catch (err) {
-          console.warn("Blockchain lookup error:", err);
-          if (latestQueryRef.current === query) {
-            setSearchLoading(false);
-          }
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const local = await buildLocalSearchResults(query);
+        if (latestQueryRef.current !== query) {
+          return;
         }
-      }, 400);
-    } else {
-      // Not an address — try username resolution
-      const resolved = resolveAddressOrUsername(query);
-      if (resolved && !profileMatches.some(p => p.address?.toLowerCase() === resolved.toLowerCase())) {
-        const existingProfile = getProfile(resolved);
-        profileMatches.unshift({
-          type: 'profile',
-          address: resolved,
-          username: existingProfile?.username || query,
-          pfp: existingProfile?.pfp || null,
-        });
+
+        if (!local.isAddress) {
+          setSearchResults(local.results);
+          setSearchLoading(false);
+          return;
+        }
+
+        setSearchLoading(true);
+        const { exists, txCount } = await checkAccountExists(query);
+        if (latestQueryRef.current !== query) {
+          return;
+        }
+
+        const results = [...local.profileMatches];
+        if (!local.alreadyInProfiles) {
+          results.unshift({
+            type: exists ? 'blockchain' : 'address',
+            address: query,
+            username: exists ? `${txCount} transaction${txCount !== 1 ? 's' : ''}` : 'Wallet address',
+            verified: exists,
+          });
+        }
+        setSearchResults(results);
+        setSearchLoading(false);
+      } catch (err) {
+        console.warn("Blockchain/profile lookup error:", err);
+        if (latestQueryRef.current === query) {
+          try {
+            const local = await buildLocalSearchResults(query);
+            if (latestQueryRef.current === query) {
+              setSearchResults(local.results);
+            }
+          } catch {
+            setSearchResults([]);
+          }
+          setSearchLoading(false);
+        }
       }
-      setSearchResults(profileMatches);
-      setSearchLoading(false);
-    }
+    }, 400);
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -245,10 +313,10 @@ export default function Layout({ children }) {
         searchTimeoutRef.current = null;
       }
     };
-  }, [searchQuery]);
+  }, [searchQuery, buildLocalSearchResults]);
 
   // Search on Enter or button click
-  const handleSearch = useCallback(() => {
+  const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
     if (!query) return;
     
@@ -259,7 +327,7 @@ export default function Layout({ children }) {
     }
 
     // Try to resolve username
-    const resolvedAddress = resolveAddressOrUsername(query);
+    const resolvedAddress = await resolveAddressOrUsernameAsync(query) || resolveAddressOrUsername(query);
     if (resolvedAddress) {
       goToWallet(resolvedAddress);
       return;
@@ -281,9 +349,12 @@ export default function Layout({ children }) {
       <nav className="navbar">
         <div className="navbar-inner">
           <div className="nav-left">
-            <button className="logo-container logo-button" onClick={() => navigate("/")} type="button" aria-label="Go to home">
-              <img src={currentLogo} alt="Movement logo" className="logo-img" />
-            </button>
+            <div className="logo-wrapper">
+              <button className="logo-container logo-button" onClick={() => navigate("/")} type="button" aria-label="Go to home">
+                <img src={currentLogo} alt="Movement logo" className="logo-img" />
+              </button>
+              <span className="logo-beta-tag">beta</span>
+            </div>
             <ul className="nav-links">
               <li 
                 className={location.pathname.startsWith("/wallet/") ? "active" : ""}
@@ -303,22 +374,18 @@ export default function Layout({ children }) {
                 </button>
               </li>
 
-              <li 
-                className={location.pathname === "/swap" ? "active" : ""}
-              >
-                <button type="button" className="nav-link-btn" onClick={() => navigate("/swap")}>{t(language, 'navSwap')}</button>
+              {SWAP_ENABLED && (
+                <li className="nav-item-disabled">
+                  <button type="button" className="nav-link-btn nav-link-btn--disabled" disabled>{t(language, 'navSwap')}<span className="nav-coming-soon">soon</span></button>
+                </li>
+              )}
+
+              <li className="nav-item-disabled">
+                <button type="button" className="nav-link-btn nav-link-btn--disabled" disabled>{t(language, 'navBadges')}<span className="nav-coming-soon">soon</span></button>
               </li>
 
-              <li 
-                className={location.pathname === "/badges" ? "active" : ""}
-              >
-                <button type="button" className="nav-link-btn" onClick={() => navigate("/badges")}>{t(language, 'navBadges')}</button>
-              </li>
-
-              <li 
-                className={location.pathname === "/leaderboard" ? "active" : ""}
-              >
-                <button type="button" className="nav-link-btn" onClick={() => navigate("/leaderboard")}>{t(language, 'navLeaderboard')}</button>
+              <li className="nav-item-disabled">
+                <button type="button" className="nav-link-btn nav-link-btn--disabled" disabled>{t(language, 'navLeaderboard')}<span className="nav-coming-soon">soon</span></button>
               </li>
 
               <li className="more-dropdown-container">
@@ -337,7 +404,7 @@ export default function Layout({ children }) {
                     <button 
                       className="more-menu-item"
                       onClick={() => {
-                        window.open('https://discord.gg/movementlabsxyz', '_blank', 'noopener,noreferrer');
+                        window.open('https://discord.gg/4KXP9tNnDK', '_blank', 'noopener,noreferrer');
                         setMoreDropdownOpen(false);
                       }}
                     >
@@ -383,10 +450,7 @@ export default function Layout({ children }) {
 
                     <button 
                       className="more-menu-item"
-                      onClick={() => {
-                        window.open('https://docs.movementnetwork.xyz/', '_blank', 'noopener,noreferrer');
-                        setMoreDropdownOpen(false);
-                      }}
+                      onClick={handleResourcesDownload}
                     >
                       <div className="more-menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -400,12 +464,12 @@ export default function Layout({ children }) {
                     <div className="more-menu-divider"></div>
 
                     <div className="more-menu-social">
-                      <a href="https://x.com/movementlabsxyz" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="X">
+                      <a href="https://x.com/Daftar_xyz" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="X">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
                         </svg>
                       </a>
-                      <a href="https://discord.gg/movementlabsxyz" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="Discord">
+                      <a href="https://discord.gg/4KXP9tNnDK" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="Discord">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                           <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
                         </svg>
@@ -415,7 +479,7 @@ export default function Layout({ children }) {
                           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
                         </svg>
                       </a>
-                      <a href="https://github.com/movementlabsxyz" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="GitHub">
+                      <a href="https://github.com/devjwd/daftar" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="GitHub">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                           <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
                         </svg>
@@ -423,9 +487,27 @@ export default function Layout({ children }) {
                     </div>
 
                     <div className="more-menu-footer">
-                      <a href="https://movementlabs.xyz/terms" target="_blank" rel="noopener noreferrer">Terms Of Business</a>
+                      <button
+                        type="button"
+                        className="more-menu-footer-link"
+                        onClick={() => {
+                          navigate('/terms');
+                          setMoreDropdownOpen(false);
+                        }}
+                      >
+                        Terms Of Service
+                      </button>
                       <span>•</span>
-                      <a href="https://movementlabs.xyz/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                      <button
+                        type="button"
+                        className="more-menu-footer-link"
+                        onClick={() => {
+                          navigate('/privacy');
+                          setMoreDropdownOpen(false);
+                        }}
+                      >
+                        Privacy Policy
+                      </button>
                     </div>
                   </div>
                 )}
@@ -446,8 +528,16 @@ export default function Layout({ children }) {
                   placeholder={t(language, 'searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                    const nextValue = e.target.value;
+                    setSearchQuery(nextValue);
                     setSearchError(null);
+                    const query = nextValue.trim();
+                    if (!query) {
+                      setSearchResults([]);
+                      setSearchLoading(false);
+                    } else {
+                      setSearchLoading(true);
+                    }
                     if (!showSuggestions) setShowSuggestions(true);
                   }}
                   onFocus={() => setShowSuggestions(true)}
@@ -474,6 +564,7 @@ export default function Layout({ children }) {
                       e.stopPropagation();
                       setSearchQuery("");
                       setSearchResults([]);
+                      setSearchLoading(false);
                       setSearchError(null);
                     }}
                     aria-label="Clear search"
@@ -579,11 +670,11 @@ export default function Layout({ children }) {
             <div className="nav-pass-inline">
               <button
                 type="button"
-                className={`nav-pass-pill ${location.pathname === '/level' ? 'active' : ''}`}
-                onClick={() => navigate('/level')}
-                aria-label="Open level"
+                className="nav-pass-pill nav-pass-pill--disabled"
+                disabled
+                aria-label="Level (coming soon)"
               >
-                <span className="nav-pass-text">Level</span>
+                <span className="nav-pass-text" style={{position:'relative'}}>Level<span className="nav-coming-soon nav-coming-soon--pill">soon</span></span>
                 <span className="nav-pass-level">{passLevelLoading ? '•' : passLevel}</span>
               </button>
             </div>

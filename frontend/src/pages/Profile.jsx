@@ -1,28 +1,37 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../hooks/useProfile';
+import { useUserLevel } from '../hooks/useUserLevel';
 import { normalizeAddress } from '../services/profileService';
+import { getAllLevelPfps, getLevelBasedPfp, isPfpUnlockedForLevel } from '../utils/levelPfp';
 import { getStoredLanguagePreference, t } from '../utils/language';
 import './Profile.css';
 
 export default function Profile() {
   const { account, connected } = useWallet();
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
   
   const address = normalizeAddress(account?.address);
-  const { profile, loading, saving, updateProfile, uploadProfilePicture, error } = useProfile(address);
+  const { profile, loading, saving, updateProfile, error } = useProfile(address);
+  const { level } = useUserLevel(address);
   
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [twitter, setTwitter] = useState('');
   const [telegram, setTelegram] = useState('');
   const [pfp, setPfp] = useState(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [imageError, setImageError] = useState(null);
+  const [showPfpPicker, setShowPfpPicker] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [notice, setNotice] = useState({ type: '', message: '' });
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
+  const pfpPickerRef = useRef(null);
+
+  const allPfps = useMemo(() => getAllLevelPfps(), []);
+  const activeAvatarSrc = useMemo(
+    () => getLevelBasedPfp({ level, address, preferredPfp: pfp }),
+    [level, address, pfp]
+  );
 
   useEffect(() => {
     const syncLanguage = () => setLanguage(getStoredLanguagePreference());
@@ -45,13 +54,20 @@ export default function Profile() {
   // Load profile data when it changes
   useEffect(() => {
     if (profile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUsername(profile.username || '');
       setBio(profile.bio || '');
       setTwitter(profile.twitter || '');
       setTelegram(profile.telegram || '');
-      setPfp(profile.pfp || null);
+      setPfp(
+        getLevelBasedPfp({
+          level,
+          address,
+          preferredPfp: typeof profile.pfp === 'string' ? profile.pfp : null,
+        })
+      );
     }
-  }, [profile]);
+  }, [profile, level, address]);
 
   // Redirect if not connected
   useEffect(() => {
@@ -60,53 +76,46 @@ export default function Profile() {
     }
   }, [connected, navigate]);
 
+  useEffect(() => {
+    if (!showPfpPicker) return undefined;
+
+    const onPointerDown = (event) => {
+      if (!pfpPickerRef.current?.contains(event.target)) {
+        setShowPfpPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [showPfpPicker]);
+
   const formatAddress = (addr) => {
     if (!addr) return '';
     const str = String(addr);
     return `${str.slice(0, 6)}...${str.slice(-4)}`;
   };
 
-  const handleImageUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(true);
-    setImageError(null);
-
-    try {
-      const compressedImage = await uploadProfilePicture(file);
-      setPfp(compressedImage);
-      setImageError(null);
-    } catch (err) {
-      setImageError(err.message);
-      console.error('Error uploading image:', err);
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const handleRemoveImage = async () => {
-    setPfp(null);
-    setImageError(null);
-  };
-
   const handleSave = async () => {
     if (!address) return;
 
     try {
+      setNotice({ type: '', message: '' });
       await updateProfile({
         username,
         bio,
         twitter,
         telegram,
-        pfp,
+        pfp: activeAvatarSrc,
       });
-      
+
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       console.error('Error saving profile:', err);
-      alert(t(language, 'profileSaveFailed') + err.message);
+      setNotice({
+        type: 'error',
+        message: t(language, 'profileSaveFailed') + String(err?.message || 'unknown error'),
+      });
     }
   };
 
@@ -130,48 +139,63 @@ export default function Profile() {
       
       <div className="profile-container">
         <div className="profile-header">
-          <div className="profile-avatar-section">
-            <div className="profile-avatar">
+          <div className="profile-avatar-section" ref={pfpPickerRef}>
+            <button
+              type="button"
+              className="profile-avatar profile-avatar-button"
+              onClick={() => setShowPfpPicker(true)}
+              aria-label="Open profile picture picker"
+            >
               <img 
-                src={pfp || '/pfp.PNG'} 
+                src={activeAvatarSrc} 
                 alt="Profile" 
                 className="avatar-image" 
               />
-              {uploadingImage && (
-                <div className="avatar-loading">
-                  <div className="spinner"></div>
+            </button>
+            <p className="level-avatar-hint">Click your avatar to choose PFP. Level {level} can select only unlocked cards.</p>
+
+            {showPfpPicker && (
+              <div className="pfp-picker-popover">
+                <div className="pfp-picker-header">
+                  <h3>Select Profile Picture</h3>
+                  <button
+                    type="button"
+                    className="pfp-picker-close"
+                    onClick={() => setShowPfpPicker(false)}
+                    aria-label="Close profile picture picker"
+                  >
+                    ×
+                  </button>
                 </div>
-              )}
-            </div>
-            
-            <div className="avatar-actions">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                style={{ display: 'none' }}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="upload-btn"
-                disabled={uploadingImage}
-              >
-                {pfp ? t(language, 'profileChangePhoto') : t(language, 'profileUploadPhoto')}
-              </button>
-              {pfp && (
-                <button
-                  onClick={handleRemoveImage}
-                  className="remove-btn"
-                  disabled={uploadingImage}
-                >
-                  {t(language, 'profileRemovePhoto')}
-                </button>
-              )}
-            </div>
-            
-            {imageError && (
-              <div className="image-error">{imageError}</div>
+                <div className="level-avatar-grid">
+                  {allPfps.map((option) => {
+                    const unlocked = isPfpUnlockedForLevel(option.src, level);
+                    const selected = option.src === activeAvatarSrc;
+
+                    return (
+                      <button
+                        key={option.src}
+                        type="button"
+                        className={`level-avatar-option ${selected ? 'selected' : ''} ${unlocked ? '' : 'locked'}`}
+                        onClick={() => {
+                          if (!unlocked) return;
+                          setPfp(option.src);
+                          setShowPfpPicker(false);
+                        }}
+                        aria-label={
+                          unlocked
+                            ? `Select level ${option.requiredLevel} avatar`
+                            : `Locked level ${option.requiredLevel} avatar`
+                        }
+                        disabled={!unlocked}
+                      >
+                        <img src={option.src} alt={`Level ${option.requiredLevel} avatar`} />
+                        {!unlocked && <span className="avatar-lock">🔒</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
           
@@ -247,17 +271,18 @@ export default function Profile() {
             <button
               onClick={handleSave}
               className="save-btn"
-              disabled={saving || uploadingImage}
+              disabled={saving}
             >
               {saving ? t(language, 'profileSaving') : t(language, 'profileSave')}
-            </button>
-            <button className="statement-btn" type="button">
-              {t(language, 'profileDownloadStatement')}
             </button>
           </div>
           
           {error && (
             <div className="error-message">{error}</div>
+          )}
+
+          {notice.message && (
+            <div className={notice.type === 'error' ? 'error-message' : 'success-inline-message'}>{notice.message}</div>
           )}
         </div>
 

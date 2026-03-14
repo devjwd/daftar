@@ -124,7 +124,7 @@ export const BADGE_RARITY = {
   UNCOMMON: {
     level: 2,
     name: 'Uncommon',
-    color: '#3b82f6',
+    color: '#5c8ead',
     borderColor: '#1e40af',
     bgGradient: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)',
     glowColor: 'rgba(59, 130, 246, 0.3)',
@@ -140,15 +140,15 @@ export const BADGE_RARITY = {
   EPIC: {
     level: 4,
     name: 'Epic',
-    color: '#f59e0b',
+    color: '#e57c23',
     borderColor: '#d97706',
-    bgGradient: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)',
-    glowColor: 'rgba(245, 158, 11, 0.3)',
+    bgGradient: 'linear-gradient(135deg, rgba(229, 124, 35, 0.1) 0%, rgba(229, 124, 35, 0.05) 100%)',
+    glowColor: 'rgba(229, 124, 35, 0.3)',
   },
   LEGENDARY: {
     level: 5,
     name: 'Legendary',
-    color: '#fbbf24',
+    color: '#ee8f3a',
     borderColor: '#b45309',
     bgGradient: 'linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(251, 191, 36, 0.08) 100%)',
     glowColor: 'rgba(251, 191, 36, 0.5)',
@@ -229,6 +229,10 @@ export const createBadgeDefinition = ({
   onChainBadgeId = null,
 }) => {
   const now = Date.now();
+  const specialMeta = metadata.special && typeof metadata.special === 'object'
+    ? metadata.special
+    : {};
+
   return {
     id: `badge_${now}_${Math.random().toString(36).slice(2, 8)}`,
     name,
@@ -241,6 +245,24 @@ export const createBadgeDefinition = ({
     metadata: {
       externalUrl: metadata.externalUrl || '',
       attributes: Array.isArray(metadata.attributes) ? metadata.attributes : [],
+      special: {
+        isSpecial: Boolean(specialMeta.isSpecial),
+        timeLimited: {
+          enabled: Boolean(specialMeta.timeLimited?.enabled),
+          startsAt: specialMeta.timeLimited?.startsAt || '',
+          endsAt: specialMeta.timeLimited?.endsAt || '',
+          note: specialMeta.timeLimited?.note || '',
+        },
+        reward: {
+          enabled: Boolean(specialMeta.reward?.enabled),
+          winnerLimit: Number(specialMeta.reward?.winnerLimit) || 100,
+          rewardTitle: specialMeta.reward?.rewardTitle || '',
+          rewardDetails: specialMeta.reward?.rewardDetails || '',
+          rewardType: specialMeta.reward?.rewardType || '',
+          rewardValue: specialMeta.reward?.rewardValue || '',
+          distributionDate: specialMeta.reward?.distributionDate || '',
+        },
+      },
     },
     enabled,
     onChainBadgeId,

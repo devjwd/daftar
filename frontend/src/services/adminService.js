@@ -5,8 +5,12 @@ import {
   DEFAULT_ENABLED_LIQUIDITY_SOURCE_IDS,
   normalizeLiquiditySourceIds,
 } from "../config/liquiditySources";
+import { getEnv } from "../config/envValidator";
 
 const ADMIN_STORAGE_KEY = 'movement_admin_data';
+const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
+
+let runtimeMosaicApiKey = String(getEnv('VITE_MOSAIC_API_KEY', '') || '').trim();
 
 const DEFAULT_SWAP_SETTINGS = {
   feeInBps: 0,
@@ -23,7 +27,7 @@ const DEFAULT_SWAP_SETTINGS = {
 
 const normalizeSwapSettings = (settings = {}) => {
   const feeInBpsValue = settings.feeInBps ?? settings.protocolFeeBps ?? 0;
-  const feeInBps = Math.max(0, Math.min(1000, Math.round(Number(feeInBpsValue) || 0)));
+  const feeInBps = Math.max(0, Math.min(500, Math.round(Number(feeInBpsValue) || 0)));
   const feeReceiver = String(settings.feeReceiver ?? settings.referrer ?? '').trim();
 
   const slippageRaw = Number(settings.defaultSlippagePercent);
@@ -38,7 +42,7 @@ const normalizeSwapSettings = (settings = {}) => {
     feeReceiver,
     isFeeIn: Boolean(settings.isFeeIn ?? DEFAULT_SWAP_SETTINGS.isFeeIn),
     defaultSlippagePercent,
-    mosaicApiKey: String(settings.mosaicApiKey || '').trim(),
+    mosaicApiKey: String(settings.mosaicApiKey ?? runtimeMosaicApiKey ?? '').trim(),
     routingMode: ['mosaic'].includes(String(settings.routingMode || '').toLowerCase())
       ? String(settings.routingMode || '').toLowerCase()
       : DEFAULT_SWAP_SETTINGS.routingMode,
@@ -51,6 +55,18 @@ const normalizeSwapSettings = (settings = {}) => {
   normalized.referrer = feeReceiver;
 
   return normalized;
+};
+
+const toPersistedAdminData = (data) => {
+  const nextSwap = {
+    ...(data.swapSettings || {}),
+    mosaicApiKey: '',
+  };
+
+  return {
+    ...data,
+    swapSettings: nextSwap,
+  };
 };
 
 // Load admin data from localStorage
@@ -80,7 +96,7 @@ export const loadAdminData = () => {
 // Save admin data to localStorage
 export const saveAdminData = (data) => {
   try {
-    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(toPersistedAdminData(data)));
     return true;
   } catch (error) {
     console.error('Failed to save admin data:', error);
@@ -153,15 +169,29 @@ export const getCustomBadges = () => {
 // Swap settings (Mosaic integrator fees, referrer, etc.)
 export const getSwapSettings = () => {
   const data = loadAdminData();
-  return normalizeSwapSettings(data.swapSettings || {});
+  return normalizeSwapSettings({
+    ...(data.swapSettings || {}),
+    mosaicApiKey: runtimeMosaicApiKey,
+  });
 };
 
 export const updateSwapSettings = (updates) => {
   const data = loadAdminData();
+
+  if (Object.prototype.hasOwnProperty.call(updates || {}, 'mosaicApiKey')) {
+    runtimeMosaicApiKey = String(updates.mosaicApiKey || '').trim();
+  }
+
+  const receiver = String(updates?.feeReceiver ?? '').trim();
+  if (receiver && !ADDRESS_PATTERN.test(receiver)) {
+    throw new Error('Fee receiver must be a valid 0x address');
+  }
+
   const current = normalizeSwapSettings(data.swapSettings || {});
   const next = normalizeSwapSettings({
     ...current,
     ...updates,
+    mosaicApiKey: runtimeMosaicApiKey,
     updatedAt: new Date().toISOString(),
   });
   const nextData = {
@@ -175,7 +205,7 @@ export const updateSwapSettings = (updates) => {
 // Export admin data (for backup)
 export const exportAdminData = () => {
   const data = loadAdminData();
-  return JSON.stringify(data, null, 2);
+  return JSON.stringify(toPersistedAdminData(data), null, 2);
 };
 
 // Import admin data (for restore)
@@ -187,6 +217,9 @@ export const importAdminData = (jsonData) => {
       badges: Array.isArray(data.badges) ? data.badges : [],
       swapSettings: normalizeSwapSettings(data.swapSettings || {}),
     };
+
+    runtimeMosaicApiKey = String(normalized.swapSettings.mosaicApiKey || runtimeMosaicApiKey || '').trim();
+    normalized.swapSettings.mosaicApiKey = '';
 
     saveAdminData(normalized);
     return true;

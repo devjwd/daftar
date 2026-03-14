@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #1a1614;
+  background: #14110f;
 }
 
 
@@ -14,9 +14,9 @@
   background: rgba(37, 34, 32, 0.8);
   backdrop-filter: blur(20px);
   border-radius: 24px;
-  border: 1px solid rgba(212, 165, 116, 0.35);
+  border: 1px solid rgba(205, 161, 105, 0.35);
   padding: 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(212, 165, 116, 0.15);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(205, 161, 105, 0.15);
 }
 
 .settings-header {
@@ -27,7 +27,7 @@
   font-size: 32px;
   font-weight: 600;
   margin-bottom: 8px;
-  background: linear-gradient(135deg, #d4a574, #e6c49a);
+  background: linear-gradient(135deg, #cda169, #deb884);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -45,7 +45,7 @@
 .settings-section {
   margin-bottom: 32px;
   padding-bottom: 32px;
-  border-bottom: 1px solid rgba(212, 165, 116, 0.2);
+  border-bottom: 1px solid rgba(205, 161, 105, 0.2);
 }
 
 .settings-section:last-child {
@@ -57,7 +57,7 @@
 .section-title {
   font-size: 18px;
   font-weight: 600;
-  color: #d4a574;
+  color: #cda169;
   margin-bottom: 20px;
 }
 
@@ -89,11 +89,11 @@
 
 .setting-select {
   background: rgba(26, 22, 20, 0.6);
-  border: 1px solid rgba(212, 165, 116, 0.35);
+  border: 1px solid rgba(205, 161, 105, 0.35);
   border-radius: 10px;
   padding: 10px 16px;
   font-size: 14px;
-  color: #d4a574;
+  color: #cda169;
   cursor: pointer;
   min-width: 150px;
   transition: all 0.3s ease;
@@ -101,14 +101,14 @@
 
 .setting-select:focus {
   outline: none;
-  border-color: #d4a574;
+  border-color: #cda169;
   background: rgba(26, 22, 20, 0.8);
-  box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.15);
+  box-shadow: 0 0 0 3px rgba(205, 161, 105, 0.15);
 }
 
 .setting-select option {
-  background: #252220;
-  color: #d4a574;
+  background: #1d1916;
+  color: #cda169;
 }
 
 body[data-theme='light'] .settings-page {
@@ -215,7 +215,7 @@ body[data-theme='light'] .reset-btn {
   right: 0;
   bottom: 0;
   background: rgba(26, 22, 20, 0.8);
-  border: 1px solid rgba(212, 165, 116, 0.35);
+  border: 1px solid rgba(205, 161, 105, 0.35);
   border-radius: 28px;
   transition: all 0.3s ease;
 }
@@ -234,13 +234,13 @@ body[data-theme='light'] .reset-btn {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: linear-gradient(135deg, #d4a574, #c9a56a);
+  background: linear-gradient(135deg, #cda169, #a77b43);
   border-color: transparent;
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
   transform: translateX(24px);
-  background: #1a1614;
+  background: #14110f;
 }
 
 .settings-actions {
@@ -248,7 +248,7 @@ body[data-theme='light'] .reset-btn {
   gap: 16px;
   justify-content: flex-end;
   padding-top: 24px;
-  border-top: 1px solid rgba(212, 165, 116, 0.2);
+  border-top: 1px solid rgba(205, 161, 105, 0.2);
 }
 
 .reset-btn,
@@ -264,7 +264,7 @@ body[data-theme='light'] .reset-btn {
 
 .reset-btn {
   background: rgba(212, 116, 116, 0.15);
-  color: #d47474;
+  color: #e06a6a;
   border: 1px solid rgba(212, 116, 116, 0.35);
 }
 
@@ -275,15 +275,15 @@ body[data-theme='light'] .reset-btn {
 }
 
 .save-btn {
-  background: linear-gradient(135deg, #d4a574, #c9a56a);
-  color: #1a1614;
-  box-shadow: 0 4px 15px rgba(212, 165, 116, 0.4);
+  background: linear-gradient(135deg, #cda169, #a77b43);
+  color: #14110f;
+  box-shadow: 0 4px 15px rgba(205, 161, 105, 0.4);
 }
 
 .save-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(212, 165, 116, 0.5);
-  background: linear-gradient(135deg, #e6c49a, #d4a574);
+  box-shadow: 0 6px 20px rgba(205, 161, 105, 0.5);
+  background: linear-gradient(135deg, #deb884, #cda169);
 }
 
 .reset-btn:active,

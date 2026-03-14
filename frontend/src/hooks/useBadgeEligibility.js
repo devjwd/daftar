@@ -72,7 +72,7 @@ export default function useBadgeEligibility(address, options = {}) {
 
   useEffect(() => {
     badgesRef.current = Array.isArray(badges) ? badges : [];
-  }, [badgesKey]);
+  }, [badges, badgesKey]);
 
   const evaluate = useCallback(async (opts = {}) => {
     const { silent = false } = opts;

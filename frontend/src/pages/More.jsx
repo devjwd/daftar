@@ -4,10 +4,13 @@ import { getStoredLanguagePreference, t } from '../utils/language';
 import { getStoredThemePreference, saveThemePreference } from '../utils/theme';
 import './More.css';
 
+const RESOURCES_MANIFEST_URL = '/resources/manifest.json';
+
 export default function More() {
   const navigate = useNavigate();
   const [theme, setTheme] = useState(getStoredThemePreference());
   const [language, setLanguage] = useState(getStoredLanguagePreference());
+  const [isDownloadingResources, setIsDownloadingResources] = useState(false);
 
   useEffect(() => {
     const syncLanguage = () => setLanguage(getStoredLanguagePreference());
@@ -37,8 +40,47 @@ export default function More() {
     navigate('/settings');
   };
 
-  const handleResourcesClick = () => {
-    window.open('https://docs.movementnetwork.xyz/', '_blank');
+  const handleResourcesClick = async () => {
+    if (isDownloadingResources) {
+      return;
+    }
+
+    setIsDownloadingResources(true);
+
+    try {
+      const response = await fetch(RESOURCES_MANIFEST_URL, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('Resource manifest not found');
+      }
+
+      const data = await response.json();
+      const files = Array.isArray(data?.files) ? data.files : [];
+
+      for (const fileName of files) {
+        if (typeof fileName !== 'string' || !fileName.trim()) {
+          continue;
+        }
+
+        const downloadLink = document.createElement('a');
+        downloadLink.href = encodeURI(`/resources/${fileName}`);
+        downloadLink.download = fileName.split('/').pop() || 'resource';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      }
+    } catch {
+      window.open('/resources', '_blank');
+    } finally {
+      setIsDownloadingResources(false);
+    }
+  };
+
+  const handleTermsClick = () => {
+    navigate('/terms');
+  };
+
+  const handlePrivacyClick = () => {
+    navigate('/privacy');
   };
 
   const handleLevelClick = () => {
@@ -111,7 +153,7 @@ export default function More() {
             </div>
           </button>
 
-          <button className="more-option" onClick={handleResourcesClick}>
+          <button className="more-option" onClick={handleResourcesClick} disabled={isDownloadingResources}>
             <div className="more-option-left">
               <div className="more-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -121,7 +163,7 @@ export default function More() {
               <span>{t(language, 'moreResources')}</span>
             </div>
             <div className="more-option-right">
-              →
+              {isDownloadingResources ? '...' : '→'}
             </div>
           </button>
         </div>
@@ -174,13 +216,13 @@ export default function More() {
         </div>
 
         <div className="more-footer">
-          <a href="https://movementlabs.xyz/terms" target="_blank" rel="noopener noreferrer" className="footer-link">
+          <button type="button" onClick={handleTermsClick} className="footer-link footer-link-button">
             {t(language, 'moreTerms')}
-          </a>
+          </button>
           <span className="footer-separator">•</span>
-          <a href="https://movementlabs.xyz/privacy" target="_blank" rel="noopener noreferrer" className="footer-link">
+          <button type="button" onClick={handlePrivacyClick} className="footer-link footer-link-button">
             {t(language, 'morePrivacy')}
-          </a>
+          </button>
         </div>
       </div>
     </div>

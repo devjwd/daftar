@@ -221,8 +221,8 @@ export function getEnv(key, defaultValue = undefined) {
   let value;
   if (typeof import.meta !== 'undefined' && import.meta.env) {
     value = import.meta.env[key];
-  } else if (typeof process !== 'undefined' && process.env) {
-    value = process.env[key];
+  } else if (typeof globalThis !== 'undefined' && globalThis.process?.env) {
+    value = globalThis.process.env[key];
   }
   value = value ?? schema.default;
   return convertEnvValue(value, schema.type) ?? defaultValue;

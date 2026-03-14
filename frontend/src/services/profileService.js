@@ -6,6 +6,10 @@
 
 const PROFILE_PREFIX = 'move_profile_';
 const PROFILES_INDEX = 'move_profiles_index';
+const PROFILE_EDIT_KEY_PREFIX = 'move_profile_edit_key_';
+const API_BASE =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BADGE_API_BASE) ||
+  '';
 
 /**
  * Normalize address to consistent format
@@ -225,6 +229,8 @@ export const deleteProfile = (address) => {
       index = index.filter(addr => addr !== normalizedAddress);
       localStorage.setItem(PROFILES_INDEX, JSON.stringify(index));
     }
+
+    localStorage.removeItem(PROFILE_EDIT_KEY_PREFIX + normalizedAddress);
     
     return true;
   } catch (error) {
@@ -311,4 +317,247 @@ export const importProfile = async (profileData) => {
     console.error('Error importing profile:', error);
     throw error;
   }
+};
+
+const safeJson = async (res) => {
+  if (!res || !res.ok) {
+    try {
+      await res.text();
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  return res.json();
+};
+
+const cacheProfile = (profile) => {
+  if (!profile?.address) return;
+  const normalizedAddress = normalizeAddress(profile.address);
+  if (!normalizedAddress) return;
+
+  const key = PROFILE_PREFIX + normalizedAddress;
+  localStorage.setItem(
+    key,
+    JSON.stringify({
+      ...profile,
+      address: normalizedAddress,
+    })
+  );
+  updateProfilesIndex(normalizedAddress);
+};
+
+const cacheProfiles = (profiles) => {
+  if (!Array.isArray(profiles)) return;
+  profiles.forEach((profile) => cacheProfile(profile));
+};
+
+const getStoredEditKey = (address) => localStorage.getItem(PROFILE_EDIT_KEY_PREFIX + address) || '';
+
+const storeEditKey = (address, editKey) => {
+  if (!address || !editKey) return;
+  localStorage.setItem(PROFILE_EDIT_KEY_PREFIX + address, String(editKey));
+};
+
+const shouldFallbackToLocalProfileStore = (status) => status === 404 || status === 405;
+
+export const getProfileAsync = async (address) => {
+  const normalizedAddress = normalizeAddress(address);
+  if (!normalizedAddress) return null;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(normalizedAddress)}`);
+    const remote = await safeJson(res);
+    if (remote && remote.address) {
+      cacheProfile(remote);
+      return {
+        ...remote,
+        address: normalizedAddress,
+      };
+    }
+  } catch (error) {
+    console.warn('getProfileAsync remote fetch failed:', error);
+  }
+
+  return getProfile(normalizedAddress);
+};
+
+export const saveProfileAsync = async (profileData) => {
+  const normalizedAddress = normalizeAddress(profileData?.address);
+  if (!normalizedAddress) {
+    throw new Error('Invalid address');
+  }
+
+  const profile = {
+    address: normalizedAddress,
+    username: profileData.username || '',
+    bio: profileData.bio || '',
+    pfp: profileData.pfp || null,
+    twitter: profileData.twitter || '',
+    telegram: profileData.telegram || '',
+    updatedAt: new Date().toISOString(),
+    createdAt: profileData.createdAt || new Date().toISOString(),
+  };
+
+  validateProfile(profile);
+  const editKey = getStoredEditKey(normalizedAddress);
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api/profiles`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(editKey ? { 'x-profile-edit-key': editKey } : {}),
+      },
+      body: JSON.stringify({ ...profile, ...(editKey ? { editKey } : {}) }),
+    });
+  } catch (error) {
+    console.warn('saveProfileAsync remote save failed, falling back to local storage:', error);
+    const localProfile = await saveProfile(profile);
+    cacheProfile(localProfile);
+    return localProfile;
+  }
+
+  if (shouldFallbackToLocalProfileStore(res.status)) {
+    const localProfile = await saveProfile(profile);
+    cacheProfile(localProfile);
+    return localProfile;
+  }
+
+  if (!res.ok) {
+    let message = `Profile save failed (HTTP ${res.status})`;
+    try {
+      const err = await res.json();
+      if (err?.error) message = err.error;
+    } catch {
+      try {
+        const text = await res.text();
+        if (text) {
+          const trimmed = text.trim();
+          message = trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
+        }
+      } catch {
+        // no-op
+      }
+    }
+    throw new Error(message);
+  }
+
+  const remote = await res.json();
+  if (!remote || !remote.address) {
+    throw new Error('Profile save failed: invalid server response');
+  }
+
+  if (remote.editKey) {
+    storeEditKey(normalizedAddress, remote.editKey);
+  }
+
+  const { editKey: _editKey, ...publicProfile } = remote;
+
+  cacheProfile(publicProfile);
+  return publicProfile;
+};
+
+export const deleteProfileAsync = async (address) => {
+  const normalizedAddress = normalizeAddress(address);
+  if (!normalizedAddress) return false;
+  const editKey = getStoredEditKey(normalizedAddress);
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(normalizedAddress)}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(editKey ? { 'x-profile-edit-key': editKey } : {}),
+      },
+      body: JSON.stringify({ ...(editKey ? { editKey } : {}) }),
+    });
+  } catch (error) {
+    console.warn('deleteProfileAsync remote delete failed, falling back to local storage:', error);
+    return deleteProfile(normalizedAddress);
+  }
+
+  if (shouldFallbackToLocalProfileStore(res.status)) {
+    return deleteProfile(normalizedAddress);
+  }
+
+  if (!res.ok) {
+    let message = `Profile delete failed (HTTP ${res.status})`;
+    try {
+      const err = await res.json();
+      if (err?.error) message = err.error;
+    } catch {
+      try {
+        const text = await res.text();
+        if (text) {
+          const trimmed = text.trim();
+          message = trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
+        }
+      } catch {
+        // no-op
+      }
+    }
+    throw new Error(message);
+  }
+
+  const payload = await res.json().catch(() => ({ deleted: true }));
+  if (payload?.deleted === false) {
+    return false;
+  }
+
+  return deleteProfile(normalizedAddress);
+};
+
+export const getAllProfilesAsync = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/profiles`);
+    const remote = await safeJson(res);
+    if (Array.isArray(remote)) {
+      cacheProfiles(remote);
+      return remote;
+    }
+  } catch (error) {
+    console.warn('getAllProfilesAsync remote fetch failed:', error);
+  }
+
+  return getAllProfiles();
+};
+
+export const searchProfilesAsync = async (query) => {
+  if (!query) return [];
+
+  try {
+    const qs = new URLSearchParams({ query, limit: '20' });
+    const res = await fetch(`${API_BASE}/api/profiles?${qs.toString()}`);
+    const remote = await safeJson(res);
+    if (Array.isArray(remote)) {
+      cacheProfiles(remote);
+      return remote;
+    }
+  } catch (error) {
+    console.warn('searchProfilesAsync remote search failed:', error);
+  }
+
+  return searchProfiles(query);
+};
+
+export const getProfileByUsernameAsync = async (username) => {
+  if (!username) return null;
+  const lowerUsername = username.toLowerCase();
+  const results = await searchProfilesAsync(username);
+  return results.find((profile) => profile.username?.toLowerCase() === lowerUsername) || null;
+};
+
+export const resolveAddressOrUsernameAsync = async (query) => {
+  if (!query) return null;
+
+  const trimmedQuery = query.trim();
+  if (trimmedQuery.startsWith('0x')) {
+    return normalizeAddress(trimmedQuery);
+  }
+
+  const profile = await getProfileByUsernameAsync(trimmedQuery);
+  return profile ? profile.address : null;
 };

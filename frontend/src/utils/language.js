@@ -165,7 +165,6 @@ const TRANSLATIONS = {
     profileLastUpdated: "Last Updated",
     profileProfileViews: "Profile Views",
     profileComingSoon: "Coming Soon",
-    profileDownloadStatement: "Download Wallet Statement",
     profileSaveFailed: "Failed to save profile: ",
     profileSavedSuccess: "Profile saved successfully!",
     profileLevel: "Level",
