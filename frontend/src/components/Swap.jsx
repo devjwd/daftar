@@ -617,7 +617,7 @@ const Swap = ({ balances }) => {
     if (parseFloat(fromAmount) > (fromToken.numericAmount || 0)) return { text: "Insufficient Balance", disabled: true };
     if (isQuoting) return { text: "Getting Mosaic Quote...", disabled: true };
     if (!routingResult?.best) return { text: "No Route Available", disabled: true };
-    return { text: "Swap on Mosaic", disabled: false };
+    return { text: "Swap", disabled: false };
   }, [swapping, connected, fromToken, toToken, fromAmount, isQuoting, routingResult]);
 
   const minReceived = useMemo(() => {
