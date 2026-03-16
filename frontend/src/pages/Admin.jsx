@@ -6,14 +6,22 @@ import {
   getSwapSettings,
   updateSwapSettings,
 } from '../services/adminService';
+import { ADMIN_ADDRESS } from '../config/network';
 
 export default function Admin() {
-  const { connected } = useWallet();
+  const { connected, account } = useWallet();
   const [activeTab, setActiveTab] = useState('badges');
   const [swapSettings, setSwapSettings] = useState(getSwapSettings());
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+
+  const connectedAddress = useMemo(() => {
+    if (!account?.address) return null;
+    return String(account.address).toLowerCase();
+  }, [account?.address]);
+
+  const isAdmin = connected && connectedAddress === ADMIN_ADDRESS;
 
   const FEE_PRESETS_BPS = [0, 10, 25, 50];
   const SLIPPAGE_PRESETS = [0.1, 0.5, 1, 3];
@@ -63,12 +71,39 @@ export default function Admin() {
     showMessage('Swap settings reset to saved values');
   };
 
+  if (!connected) {
+    return (
+      <div className="admin-page">
+        <div className="admin-container">
+          <div className="admin-access-gate">
+            <div className="admin-access-icon">🔒</div>
+            <h2>Admin Access</h2>
+            <p>Connect the admin wallet to continue.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="admin-page">
+        <div className="admin-container">
+          <div className="admin-access-gate admin-access-denied">
+            <div className="admin-access-icon">⛔</div>
+            <h2>Access Denied</h2>
+            <p>This panel is restricted to the contract admin address.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-page">
       <div className="admin-container">
         <div className="admin-header">
           <h1>Admin Panel</h1>
-          {!connected && <p className="admin-warning">Connect wallet for on-chain actions in badge management.</p>}
         </div>
 
         {errorMessage && <div className="admin-message error">{errorMessage}</div>}

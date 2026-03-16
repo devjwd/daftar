@@ -15,6 +15,7 @@ import {
   toggleBadge,
   importBadges,
   exportBadges,
+  exportScannerConfigs,
   clearAllBadgeData,
   subscribe,
 } from '../services/badges/badgeStore.js';
@@ -61,6 +62,10 @@ export default function useBadgeStore() {
     return exportBadges();
   }, []);
 
+  const handleExportScannerConfigs = useCallback(() => {
+    return exportScannerConfigs();
+  }, []);
+
   const handleClearAll = useCallback(() => {
     clearAllBadgeData();
   }, []);
@@ -77,6 +82,7 @@ export default function useBadgeStore() {
     toggleBadge: handleToggle,
     importBadges: handleImport,
     exportBadges: handleExport,
+    exportScannerConfigs: handleExportScannerConfigs,
     clearAll: handleClearAll,
   };
 }

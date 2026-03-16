@@ -9,6 +9,8 @@ import { loadState, saveState } from '../_lib/state.js';
 import { checkAdmin } from '../_lib/auth.js';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
+import { attestBadgeAllowlistOnChain, getAttestationReadiness } from '../_lib/onchainAttestation.js';
+import { loadResolvedBadgeConfigs } from '../_lib/badgeConfigsState.js';
 
 const normalizeAddress = (address) => {
   const n = String(address || '').trim().toLowerCase();
@@ -43,16 +45,66 @@ export default async function handler(req, res) {
   const auth = checkAdmin(req);
   if (!auth.ok) return sendJson(res, auth.status, { error: auth.error });
 
-  const { address, badgeId, payload } = req.body || {};
+  const { address, badgeId, payload, onChainBadgeId } = req.body || {};
   if (!address || !badgeId || !isLikelyAddress(address)) {
     return sendJson(res, 400, { error: 'address and badgeId required' });
+  }
+
+  const { configs: badgeConfigs } = await loadResolvedBadgeConfigs();
+  const config = badgeConfigs.find((entry) => String(entry?.badgeId) === String(badgeId));
+  const resolvedOnChainBadgeId =
+    onChainBadgeId ??
+    config?.onChainBadgeId ??
+    payload?.onChainBadgeId ??
+    null;
+
+  if (resolvedOnChainBadgeId != null) {
+    const readiness = getAttestationReadiness();
+    if (!readiness.ready) {
+      return sendJson(res, 503, {
+        error: 'On-chain attestation is not configured',
+        reason: readiness.reason,
+      });
+    }
   }
 
   const { userAwards, trackedAddresses } = await loadState();
   const addr = normalizeAddress(address);
 
   const list = userAwards[addr] || [];
-  const record = { badgeId, payload: payload || {}, awardedAt: new Date().toISOString() };
+  const existing = list.find((entry) => String(entry?.badgeId) === String(badgeId));
+  if (existing) {
+    return sendJson(res, 200, existing);
+  }
+
+  let attestation = null;
+  if (resolvedOnChainBadgeId != null) {
+    attestation = await attestBadgeAllowlistOnChain({
+      ownerAddress: addr,
+      onChainBadgeId: resolvedOnChainBadgeId,
+    });
+
+    if (!attestation.ok) {
+      return sendJson(res, 502, {
+        error: 'On-chain attestation failed',
+        reason: attestation.reason,
+      });
+    }
+  }
+
+  const record = {
+    badgeId,
+    payload: {
+      ...(payload || {}),
+      onChainBadgeId: resolvedOnChainBadgeId,
+      attested: Boolean(attestation?.ok),
+      attestationTxHash: attestation?.txHash || null,
+      attestedAt: attestation ? new Date().toISOString() : null,
+      alreadyAllowlisted: Boolean(attestation?.alreadyAllowlisted),
+      attestor: attestation?.attestor || null,
+    },
+    awardedAt: new Date().toISOString(),
+  };
   list.push(record);
   userAwards[addr] = list;
 

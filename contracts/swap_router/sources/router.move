@@ -325,7 +325,9 @@ module swap_router::router {
         let user_addr = signer::address_of(user);
         let now = timestamp::now_seconds();
 
-        let fee_amount = (amount_in * fee_bps) / BPS_DENOMINATOR;
+        // Overflow-safe fee: split to avoid u64 overflow on large amounts
+        let fee_amount = (amount_in / BPS_DENOMINATOR) * fee_bps
+            + ((amount_in % BPS_DENOMINATOR) * fee_bps) / BPS_DENOMINATOR;
         let fee_to_record: u64 = 0;
 
         if (fee_amount > 0) {
@@ -358,8 +360,8 @@ module swap_router::router {
             user: user_addr,
             router_source,
             amount_in,
-            fee_amount,
-            net_amount: amount_in - fee_amount,
+            fee_amount: fee_to_record,
+            net_amount: amount_in - fee_to_record,
             timestamp: now,
         });
     }
@@ -412,7 +414,9 @@ module swap_router::router {
     public fun calculate_fee(amount_in: u64): (u64, u64) {
         assert!(storage::config_exists(), E_NOT_INITIALIZED);
         let (fee_bps, _, _, _, _) = storage::get_all();
-        let fee = (amount_in * fee_bps) / BPS_DENOMINATOR;
+        // Overflow-safe fee: split to avoid u64 overflow on large amounts
+        let fee = (amount_in / BPS_DENOMINATOR) * fee_bps
+            + ((amount_in % BPS_DENOMINATOR) * fee_bps) / BPS_DENOMINATOR;
         (fee, amount_in - fee)
     }
 
@@ -726,7 +730,7 @@ module swap_router::router {
     }
 
     #[test(admin = @swap_router, framework = @0x1)]
-    #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
+    #[expected_failure(abort_code = 401)] // E_ROUTE_ALREADY_EXISTS from storage
     public fun test_add_route_duplicate_fails(admin: &signer, framework: &signer) {
         let _mint_cap = setup_test(admin, framework);
         initialize(admin, 30, @0x999);

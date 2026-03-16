@@ -12,6 +12,46 @@
   overflow: hidden;
 }
 
+/* Access gate (not-connected / access-denied screens) */
+.admin-access-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 40vh;
+  text-align: center;
+  padding: 3rem 2rem;
+  border: 1px solid rgba(205, 161, 105, 0.2);
+  border-radius: 20px;
+  background: rgba(20, 17, 15, 0.65);
+  backdrop-filter: blur(10px);
+}
+
+.admin-access-gate .admin-access-icon {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.admin-access-gate h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+}
+
+.admin-access-gate p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.admin-access-denied {
+  border-color: rgba(212, 116, 116, 0.35);
+}
+
+.admin-access-denied h2 {
+  color: var(--error, #d47474);
+}
+
 /* background orbs like home page */
 .admin-background {
   position: absolute;

@@ -4,7 +4,9 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-swap_router = "_"
+# Mainnet deployment: 2026-03-16
+# Previous address: 0x53f40cdb446b23fa04957b044b2bcf56892afe05af857cf9ef14b875b234d3da
+swap_router = "0x61ed30854e689da3c31d2e07b55fd94add415aac102d2dd7f831bf5c294757e3"
 
 [dependencies.AptosFramework]
 git = "https://github.com/movementlabsxyz/aptos-core.git"

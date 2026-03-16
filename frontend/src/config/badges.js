@@ -35,6 +35,10 @@ export const CRITERIA_TYPES = {
   NFT_HOLDER: 'nft_holder',
   ALLOWLIST: 'allowlist',
   DEFI_TVL: 'defi_tvl',
+  // New criteria types for v2
+  DAPP_USAGE: 'dapp_usage',
+  HOLDING_PERIOD: 'holding_period',
+  COMPOSITE: 'composite',
 };
 
 // Human-readable labels for each criteria type
@@ -51,6 +55,9 @@ export const CRITERIA_LABELS = {
   [CRITERIA_TYPES.NFT_HOLDER]: 'NFT Holder',
   [CRITERIA_TYPES.ALLOWLIST]: 'Allowlist',
   [CRITERIA_TYPES.DEFI_TVL]: 'DeFi TVL',
+  [CRITERIA_TYPES.DAPP_USAGE]: 'dApp Usage',
+  [CRITERIA_TYPES.HOLDING_PERIOD]: 'Holding Period',
+  [CRITERIA_TYPES.COMPOSITE]: 'Multiple Rules',
 };
 
 // Criteria parameter schemas (drives the admin form rendering)
@@ -92,6 +99,7 @@ export const CRITERIA_PARAM_SCHEMAS = {
   },
   [CRITERIA_TYPES.NFT_HOLDER]: {
     collectionName: { type: 'text', label: 'Collection Name (optional)', required: false, placeholder: 'Any NFT if empty' },
+    collectionAddress: { type: 'text', label: 'Collection Address', required: false, placeholder: '0x...' },
     minCount: { type: 'number', label: 'Minimum NFTs', required: false, default: 1, min: 1 },
   },
   [CRITERIA_TYPES.ALLOWLIST]: {
@@ -99,6 +107,23 @@ export const CRITERIA_PARAM_SCHEMAS = {
   },
   [CRITERIA_TYPES.DEFI_TVL]: {
     minUsd: { type: 'number', label: 'Minimum TVL (USD)', required: true, default: 100, min: 0 },
+  },
+  [CRITERIA_TYPES.DAPP_USAGE]: {
+    dappAddress: { type: 'text', label: 'dApp Contract Address', required: true, placeholder: '0x...' },
+    dappName: { type: 'text', label: 'dApp Name (for display)', required: false, placeholder: 'My dApp' },
+    minInteractions: { type: 'number', label: 'Minimum Interactions', required: true, default: 1, min: 1 },
+  },
+  [CRITERIA_TYPES.HOLDING_PERIOD]: {
+    coinType: { type: 'text', label: 'Coin Type (full path)', required: true, placeholder: '0x1::aptos_coin::AptosCoin' },
+    minAmount: { type: 'number', label: 'Minimum Amount', required: true, default: 1, min: 0 },
+    minDays: { type: 'number', label: 'Minimum Days Held', required: true, default: 30, min: 1 },
+  },
+  [CRITERIA_TYPES.COMPOSITE]: {
+    operator: { type: 'select', label: 'Logic Operator', required: true, options: [
+      { value: 'AND', label: 'All rules must pass (AND)' },
+      { value: 'OR', label: 'Any rule can pass (OR)' },
+    ]},
+    // Sub-rules are added dynamically in the admin UI
   },
 };
 
@@ -155,13 +180,41 @@ export const BADGE_RARITY = {
   },
 };
 
-// ─── On-chain Rule Types (legacy compat) ─────────────────────────────
+// ─── On-chain Rule Types (matches smart contract) ────────────────────
 export const BADGE_RULES = {
-  ALLOWLIST: 1,
-  MIN_BALANCE: 2,
+  ALLOWLIST: 1,         // Admin-managed whitelist
+  MIN_BALANCE: 2,       // Minimum token balance (on-chain verified)
+  ATTESTATION: 3,       // Off-chain verified, admin attests
+  TX_COUNT: 4,          // Minimum transaction count
+  ACTIVE_DAYS: 5,       // Minimum days with activity
+  PROTOCOL_COUNT: 6,    // Minimum DeFi protocols used
+  DAPP_USAGE: 7,        // Specific dApp interaction
+  HOLDING_PERIOD: 8,    // Hold tokens for duration
+  NFT_HOLDER: 9,        // Must hold specific NFT
+  COMPOSITE: 10,        // Multiple rules (AND logic)
+  // Legacy aliases
   OFFCHAIN_ALLOWLIST: 3,
   TRANSACTION_COUNT: 4,
   DAYS_ONCHAIN: 5,
+};
+
+// ─── Badge Status (matches smart contract) ───────────────────────────
+export const BADGE_STATUS = {
+  ACTIVE: 1,            // Badge is active and mintable
+  PAUSED: 2,            // Badge is temporarily paused
+  DISCONTINUED: 3,      // Badge is permanently discontinued
+};
+
+export const BADGE_STATUS_LABELS = {
+  [BADGE_STATUS.ACTIVE]: 'Active',
+  [BADGE_STATUS.PAUSED]: 'Paused',
+  [BADGE_STATUS.DISCONTINUED]: 'Discontinued',
+};
+
+export const BADGE_STATUS_COLORS = {
+  [BADGE_STATUS.ACTIVE]: '#10b981',     // Green
+  [BADGE_STATUS.PAUSED]: '#f59e0b',     // Amber
+  [BADGE_STATUS.DISCONTINUED]: '#ef4444', // Red
 };
 
 // ─── XP & Level System ───────────────────────────────────────────────
@@ -217,12 +270,14 @@ export const LONGEVITY_BADGE_TIERS = [
 
 // ─── Badge Definition Factory ────────────────────────────────────────
 export const createBadgeDefinition = ({
+  id,
   name,
   description = '',
   imageUrl = '',
   category = 'activity',
   rarity = 'COMMON',
   xp = 10,
+  mintFee = 0,
   criteria = [],
   metadata = {},
   enabled = true,
@@ -234,13 +289,14 @@ export const createBadgeDefinition = ({
     : {};
 
   return {
-    id: `badge_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    id: id || `badge_${now}_${Math.random().toString(36).slice(2, 8)}`,
     name,
     description,
     imageUrl,
     category,
     rarity,
     xp: Number(xp) || 10,
+    mintFee: Number(mintFee) || 0,
     criteria: Array.isArray(criteria) ? criteria : [],
     metadata: {
       externalUrl: metadata.externalUrl || '',
@@ -284,6 +340,9 @@ export const validateBadgeDefinition = (badge) => {
   if (!badge.imageUrl || typeof badge.imageUrl !== 'string') {
     errors.push('Badge image URL is required');
   }
+  if (Number(badge.mintFee) < 0) {
+    errors.push('Mint fee must be zero or greater');
+  }
   if (badge.imageUrl && !badge.imageUrl.startsWith('http') && !badge.imageUrl.startsWith('data:')) {
     errors.push('Badge image URL must be a valid URL or data URI');
   }
@@ -318,11 +377,39 @@ export const getRuleLabel = (ruleType) => {
   const rules = {
     [BADGE_RULES.ALLOWLIST]: 'Allowlist',
     [BADGE_RULES.MIN_BALANCE]: 'Minimum Balance',
-    [BADGE_RULES.OFFCHAIN_ALLOWLIST]: 'Off-chain Allowlist',
-    [BADGE_RULES.TRANSACTION_COUNT]: 'Transaction Count',
-    [BADGE_RULES.DAYS_ONCHAIN]: 'Days On-chain',
+    [BADGE_RULES.ATTESTATION]: 'Off-chain Attestation',
+    [BADGE_RULES.TX_COUNT]: 'Transaction Count',
+    [BADGE_RULES.ACTIVE_DAYS]: 'Active Days',
+    [BADGE_RULES.PROTOCOL_COUNT]: 'Protocol Count',
+    [BADGE_RULES.DAPP_USAGE]: 'dApp Usage',
+    [BADGE_RULES.HOLDING_PERIOD]: 'Holding Period',
+    [BADGE_RULES.NFT_HOLDER]: 'NFT Holder',
+    [BADGE_RULES.COMPOSITE]: 'Composite Rules',
   };
   return rules[ruleType] || 'Unknown';
+};
+
+// Map criteria type to on-chain rule type
+export const criteriaToRuleType = (criteriaType) => {
+  const mapping = {
+    [CRITERIA_TYPES.ALLOWLIST]: BADGE_RULES.ALLOWLIST,
+    [CRITERIA_TYPES.MIN_BALANCE]: BADGE_RULES.MIN_BALANCE,
+    [CRITERIA_TYPES.TRANSACTION_COUNT]: BADGE_RULES.TX_COUNT,
+    [CRITERIA_TYPES.DAYS_ONCHAIN]: BADGE_RULES.ACTIVE_DAYS,
+    [CRITERIA_TYPES.PROTOCOL_COUNT]: BADGE_RULES.PROTOCOL_COUNT,
+    [CRITERIA_TYPES.PROTOCOL_USAGE]: BADGE_RULES.DAPP_USAGE,
+    [CRITERIA_TYPES.DAPP_USAGE]: BADGE_RULES.DAPP_USAGE,
+    [CRITERIA_TYPES.NFT_HOLDER]: BADGE_RULES.NFT_HOLDER,
+    [CRITERIA_TYPES.HOLDING_PERIOD]: BADGE_RULES.HOLDING_PERIOD,
+    [CRITERIA_TYPES.COMPOSITE]: BADGE_RULES.COMPOSITE,
+    // Default to attestation for complex off-chain rules
+    [CRITERIA_TYPES.TOKEN_HOLDER]: BADGE_RULES.ATTESTATION,
+    [CRITERIA_TYPES.PROTOCOL_LEND_AMOUNT]: BADGE_RULES.ATTESTATION,
+    [CRITERIA_TYPES.DEX_TX_COUNT]: BADGE_RULES.ATTESTATION,
+    [CRITERIA_TYPES.DEX_VOLUME]: BADGE_RULES.ATTESTATION,
+    [CRITERIA_TYPES.DEFI_TVL]: BADGE_RULES.ATTESTATION,
+  };
+  return mapping[criteriaType] || BADGE_RULES.ATTESTATION;
 };
 
 export const POLLING_INTERVALS = {

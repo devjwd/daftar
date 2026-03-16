@@ -521,6 +521,13 @@
   background: rgba(72, 60, 49, 0.42);
 }
 
+.badge-modal-note {
+  margin: 0 0 12px;
+  color: #d4b893;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .badge-modal-share {
   width: 100%;
   border: 1px solid rgba(205, 161, 105, 0.24);

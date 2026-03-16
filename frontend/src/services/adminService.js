@@ -5,12 +5,11 @@ import {
   DEFAULT_ENABLED_LIQUIDITY_SOURCE_IDS,
   normalizeLiquiditySourceIds,
 } from "../config/liquiditySources";
-import { getEnv } from "../config/envValidator";
 
 const ADMIN_STORAGE_KEY = 'movement_admin_data';
 const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
 
-let runtimeMosaicApiKey = String(getEnv('VITE_MOSAIC_API_KEY', '') || '').trim();
+let runtimeMosaicApiKey = '';
 
 const DEFAULT_SWAP_SETTINGS = {
   feeInBps: 0,

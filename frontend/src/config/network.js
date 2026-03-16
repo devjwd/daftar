@@ -53,6 +53,16 @@ export const BADGE_MODULE_ADDRESS =
   _env.VITE_BADGE_SBT_MODULE_ADDRESS || _env.VITE_BADGE_MODULE_ADDRESS || null;
 
 /**
+ * Admin Address - only this wallet can access the admin panel.
+ * Set VITE_ADMIN_ADDRESS in .env, or falls back to the deployed contract address.
+ */
+export const ADMIN_ADDRESS = (
+  _env.VITE_ADMIN_ADDRESS ||
+  _env.VITE_SWAP_ROUTER_ADDRESS ||
+  "0x61ed30854e689da3c31d2e07b55fd94add415aac102d2dd7f831bf5c294757e3"
+).toLowerCase();
+
+/**
  * Mosaic DEX Aggregator Configuration
  * Documentation: https://docs.mosaic.ag/
  */

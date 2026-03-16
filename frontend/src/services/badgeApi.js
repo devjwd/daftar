@@ -57,8 +57,47 @@ export const awardBadgeToUser = async (address, badgeId, payload = {}) => {
   }
 };
 
+export const fetchPublishedScannerConfigs = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/badges/config`);
+    const data = await safeJson(res);
+    if (!data || typeof data !== 'object') {
+      return { badgeConfigs: [], source: 'unknown' };
+    }
+
+    return {
+      badgeConfigs: Array.isArray(data.badgeConfigs) ? data.badgeConfigs : [],
+      source: String(data.source || 'unknown'),
+    };
+  } catch (e) {
+    console.warn('fetchPublishedScannerConfigs failed', e);
+    return { badgeConfigs: [], source: 'error' };
+  }
+};
+
+export const publishScannerConfigs = async ({ badgeConfigs, adminKey }) => {
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (adminKey) headers['x-admin-key'] = adminKey;
+
+    const res = await fetch(`${API_BASE}/api/badges/config`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ badgeConfigs: Array.isArray(badgeConfigs) ? badgeConfigs : [] }),
+    });
+
+    const data = await safeJson(res);
+    return data || null;
+  } catch (e) {
+    console.warn('publishScannerConfigs failed', e);
+    return null;
+  }
+};
+
 export default {
   fetchUserBadges,
   fetchAllBadges,
   awardBadgeToUser,
+  fetchPublishedScannerConfigs,
+  publishScannerConfigs,
 };

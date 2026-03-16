@@ -5,6 +5,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 
+const usersApi = require('./usersApi');
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -114,6 +116,9 @@ const awardBadge = (address, badgeId, payload = {}) => {
 const app = express();
 app.use(cors(BADGE_CORS_ORIGIN === '*' ? undefined : { origin: BADGE_CORS_ORIGIN.split(',').map((v) => v.trim()) }));
 app.use(express.json({ limit: '32kb' }));
+
+// User file API
+app.use('/api/users', usersApi);
 
 const adminWriteRateLimit = createRateLimiter({ windowMs: 60_000, max: 30 });
 const adminScanRateLimit = createRateLimiter({ windowMs: 60_000, max: 5 });

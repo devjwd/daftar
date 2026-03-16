@@ -146,10 +146,10 @@ export default function useBadgeEligibility(address, options = {}) {
     const becameVisible = !wasTabVisibleRef.current && isTabVisible;
     wasTabVisibleRef.current = isTabVisible;
 
-    if (becameVisible && address && enabled && hasBadgesToEvaluate && lastEvaluated) {
+    if (becameVisible && address && enabled && hasBadgesToEvaluate && lastEvaluated && pollInterval > 0) {
       evaluate({ silent: true });
     }
-  }, [isTabVisible, address, enabled, hasBadgesToEvaluate, lastEvaluated, evaluate]);
+  }, [isTabVisible, address, enabled, hasBadgesToEvaluate, lastEvaluated, pollInterval, evaluate]);
 
   // Force refresh
   const refresh = useCallback(() => {

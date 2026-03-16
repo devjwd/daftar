@@ -2,28 +2,13 @@
  * GET /api/badges
  * Returns the list of badge configurations.
  */
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { join, dirname } from 'path';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
+import { loadResolvedBadgeConfigs } from '../_lib/badgeConfigsState.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-let _configs = null;
 const METHODS = ['GET', 'OPTIONS'];
 
-const loadConfigs = () => {
-  if (!_configs) {
-    try {
-      _configs = JSON.parse(readFileSync(join(__dirname, '../_lib/badgeConfigs.json'), 'utf8'));
-    } catch {
-      _configs = [];
-    }
-  }
-  return _configs;
-};
-
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (handleOptions(req, res, METHODS)) return;
   setApiHeaders(req, res, METHODS);
 
@@ -44,5 +29,6 @@ export default function handler(req, res) {
   }
 
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
-  return sendJson(res, 200, loadConfigs());
+  const { configs } = await loadResolvedBadgeConfigs();
+  return sendJson(res, 200, configs);
 }

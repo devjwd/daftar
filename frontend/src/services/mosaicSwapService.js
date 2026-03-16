@@ -7,8 +7,6 @@
  * direct Mosaic quote/payload helpers for the swap component.
  */
 
-import { MOSAIC_CONFIG } from "../config/network";
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -20,6 +18,7 @@ const MAX_FEE_BPS = 500; // 5% max protocol fee
 const QUOTE_TIMEOUT_MS = 8000;
 const VALID_ROUTING_MODES = ["mosaic"];
 const DEFAULT_ENABLED_LIQUIDITY_SOURCES = ["mosaic_amm"];
+const SWAP_PROXY_BASE = "/api/swap";
 
 const KNOWN_MOSAIC_ASSETS = {
   MOVE: "0xa",
@@ -181,18 +180,15 @@ const baseUnitsToDecimalString = (rawValue, decimals = 8, precision = 8) => {
   return trimmedFraction.length > 0 ? `${wholePart}.${trimmedFraction}` : wholePart;
 };
 
-async function fetchTokenRegistry(apiKey = "") {
+async function fetchTokenRegistry() {
   const now = Date.now();
   if (registryCache && now - registryFetchedAt < REGISTRY_TTL_MS) {
     return registryCache;
   }
 
-  const headers = { Accept: "application/json" };
-  if (apiKey) headers["X-API-Key"] = apiKey;
-
-  const response = await fetch(`${MOSAIC_CONFIG.apiUrl}/tokens`, {
+  const response = await fetch(`${SWAP_PROXY_BASE}/tokens`, {
     method: "GET",
-    headers,
+    headers: { Accept: "application/json" },
     signal: AbortSignal.timeout(QUOTE_TIMEOUT_MS),
   });
 
@@ -219,14 +215,14 @@ async function fetchTokenRegistry(apiKey = "") {
   return registryCache;
 }
 
-async function resolveTokenId(token, apiKey = "") {
+async function resolveTokenId(token) {
   if (!token) return null;
 
   const symbol = normalizeSymbol(token.symbol);
   const address = normalizeAddress(token.address || token.fullType);
 
   try {
-    const registry = await fetchTokenRegistry(apiKey);
+    const registry = await fetchTokenRegistry();
     if (registry.bySymbol.has(symbol)) return registry.bySymbol.get(symbol);
     if (address && registry.byAddress.has(address)) return address;
   } catch {
@@ -246,9 +242,8 @@ export const fetchMosaicQuote = async ({
   settings = {},
   signal,
 }) => {
-  const apiKey = String(settings.mosaicApiKey || "").trim();
-  const srcAsset = await resolveTokenId(fromToken, apiKey);
-  const dstAsset = await resolveTokenId(toToken, apiKey);
+  const srcAsset = await resolveTokenId(fromToken);
+  const dstAsset = await resolveTokenId(toToken);
   const senderAddress = normalizeSender(sender);
   const selectedSources = normalizeSourceIds(settings.enabledLiquiditySources);
   const selectedSource = selectedSources[0] || DEFAULT_ENABLED_LIQUIDITY_SOURCES[0];
@@ -279,13 +274,10 @@ export const fetchMosaicQuote = async ({
     if (settings.feeReceiver) params.set("feeReceiver", settings.feeReceiver);
   }
 
-  const headers = { Accept: "application/json" };
-  if (apiKey) headers["X-API-Key"] = apiKey;
-
   const { signal: effectiveSignal, cleanup } = createTimeoutSignal(signal, QUOTE_TIMEOUT_MS);
-  const response = await fetch(`${MOSAIC_CONFIG.apiUrl}/quote?${params.toString()}`, {
+  const response = await fetch(`${SWAP_PROXY_BASE}/quote?${params.toString()}`, {
     method: "GET",
-    headers,
+    headers: { Accept: "application/json" },
     signal: effectiveSignal,
   }).finally(cleanup);
 

@@ -4,10 +4,13 @@
  * Full admin panel for managing SBT badges:
  * - Create/edit/delete badge definitions
  * - Configure eligibility criteria with dynamic forms
+ * - Pause/resume/discontinue badges on-chain
+ * - Time-limited badge support
+ * - Max supply limits
  * - Preview badges
  * - Import/export badge configs
  */
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import useBadgeStore from '../hooks/useBadgeStore.js';
@@ -15,11 +18,15 @@ import { getCriteriaMetadata } from '../services/badges/criteria/index.js';
 import {
   BADGE_CATEGORIES,
   BADGE_RARITY,
+  BADGE_STATUS,
+  BADGE_STATUS_LABELS,
+  BADGE_STATUS_COLORS,
   CRITERIA_TYPES,
   CRITERIA_PARAM_SCHEMAS,
   CRITERIA_LABELS,
   getRarityInfo,
   BADGE_RULES,
+  criteriaToRuleType,
 } from '../config/badges.js';
 import { DEFAULT_NETWORK } from '../config/network.js';
 import {
@@ -27,12 +34,19 @@ import {
   buildMetadataDataUri,
   buildMetadataJson,
   computeSha256Hex,
-  createBadgeAllowlist,
-  createBadgeMinBalance,
-  createBadgeProtocolCount,
-  createBadgeTxCount,
+  createBadge as createOnChainBadge,
   fetchBadgeIds,
+  fetchBadges as fetchOnChainBadges,
+  pauseBadge as pauseOnChainBadge,
+  resumeBadge as resumeOnChainBadge,
+  discontinueBadge as discontinueOnChainBadge,
+  updateBadgeTimeLimits,
+  getBadgeStats,
+  isBadgeMintable,
+  getBadgeTimeRemaining,
+  getBadgeSupplyInfo,
 } from '../services/badgeService.js';
+import { publishScannerConfigs } from '../services/badgeApi.js';
 import { DEFI_PROTOCOLS } from '../config/protocols.js';
 import './BadgeAdmin.css';
 
@@ -55,6 +69,7 @@ const EMPTY_SPECIAL_SETTINGS = {
     rewardValue: '',
     distributionDate: '',
   },
+  maxSupply: 0, // 0 = unlimited
 };
 
 const buildSpecialSettings = (input = {}) => ({
@@ -67,7 +82,22 @@ const buildSpecialSettings = (input = {}) => ({
     ...EMPTY_SPECIAL_SETTINGS.reward,
     ...(input.reward || {}),
   },
+  maxSupply: Number(input.maxSupply) || 0,
 });
+
+// Convert datetime-local string to Unix timestamp (seconds)
+const datetimeToUnix = (datetime) => {
+  if (!datetime) return 0;
+  const date = new Date(datetime);
+  return Math.floor(date.getTime() / 1000);
+};
+
+// Convert Unix timestamp to datetime-local string
+const unixToDatetime = (unix) => {
+  if (!unix || unix === 0) return '';
+  const date = new Date(unix * 1000);
+  return date.toISOString().slice(0, 16);
+};
 
 const EMPTY_FORM = {
   name: '',
@@ -76,9 +106,31 @@ const EMPTY_FORM = {
   category: 'activity',
   rarity: 'COMMON',
   xp: 10,
+  mintFeePreset: 'free',
+  mintFeeMove: '0',
   criteria: [{ ...EMPTY_CRITERION }],
   metadata: { externalUrl: '', attributes: [] },
   enabled: true,
+};
+
+const OCTAS_PER_MOVE = 100_000_000;
+
+const resolveMintFeePreset = (mintFeeOctas = 0) => {
+  if (mintFeeOctas === 0) return 'free';
+  if (mintFeeOctas === OCTAS_PER_MOVE) return '1';
+  if (mintFeeOctas === OCTAS_PER_MOVE * 2) return '2';
+  return 'custom';
+};
+
+const formatMoveAmount = (mintFeeOctas = 0) => {
+  const moveAmount = Number(mintFeeOctas || 0) / OCTAS_PER_MOVE;
+  return Number.isInteger(moveAmount) ? String(moveAmount) : moveAmount.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+};
+
+const parseMintFeeToOctas = (mintFeeMove) => {
+  const moveAmount = Number(mintFeeMove);
+  if (!Number.isFinite(moveAmount) || moveAmount <= 0) return 0;
+  return Math.round(moveAmount * OCTAS_PER_MOVE);
 };
 
 const ONCHAIN_SUPPORTED_CRITERIA = new Set([
@@ -97,6 +149,7 @@ export default function BadgeAdmin() {
     toggleBadge,
     importBadges,
     exportBadges,
+    exportScannerConfigs,
     clearAll,
   } = useBadgeStore();
 
@@ -109,12 +162,17 @@ export default function BadgeAdmin() {
     },
   });
   const [editingId, setEditingId] = useState(null);
-  const [subTab, setSubTab] = useState('manage'); // 'manage', 'create', 'import'
+  const [subTab, setSubTab] = useState('manage'); // 'manage', 'create', 'import', 'onchain'
   const [message, setMessage] = useState({ type: '', text: '' });
   const [importText, setImportText] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // On-chain badge management state
+  const [onChainBadges, setOnChainBadges] = useState([]);
+  const [onChainLoading, setOnChainLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null); // badgeId currently being acted on
 
   const movementClient = useMemo(
     () => new Aptos(new AptosConfig({ network: Network.CUSTOM, fullnode: DEFAULT_NETWORK.rpc })),
@@ -143,10 +201,108 @@ export default function BadgeAdmin() {
     setMessage({ type, text });
     setTimeout(() => setMessage({ type: '', text: '' }), 4000);
   }, []);
+  
+  // ─── On-Chain Badge Loading ─────────────────────────────────────────
+  const loadOnChainBadges = useCallback(async () => {
+    setOnChainLoading(true);
+    try {
+      const badges = await fetchOnChainBadges(movementClient);
+      setOnChainBadges(badges);
+    } catch (err) {
+      console.error('[BadgeAdmin] Failed to load on-chain badges', err);
+      showMessage('error', 'Failed to load on-chain badges');
+    } finally {
+      setOnChainLoading(false);
+    }
+  }, [movementClient, showMessage]);
+
+  // Load on-chain badges when switching to on-chain tab
+  useEffect(() => {
+    if (subTab === 'onchain') {
+      loadOnChainBadges();
+    }
+  }, [subTab, loadOnChainBadges]);
+
+  // ─── On-Chain Badge Actions ─────────────────────────────────────────
+  const handlePauseBadge = useCallback(async (badgeId) => {
+    if (!connected || !account || !signAndSubmitTransaction) {
+      showMessage('error', 'Connect admin wallet to pause badges');
+      return;
+    }
+    
+    setActionLoading(badgeId);
+    try {
+      const sender = typeof account.address === 'string' ? account.address : account.address.toString();
+      await pauseOnChainBadge({ signAndSubmitTransaction, sender, badgeId });
+      showMessage('success', `Badge #${badgeId} paused successfully`);
+      await loadOnChainBadges();
+    } catch (err) {
+      showMessage('error', err?.message || 'Failed to pause badge');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges]);
+
+  const handleResumeBadge = useCallback(async (badgeId) => {
+    if (!connected || !account || !signAndSubmitTransaction) {
+      showMessage('error', 'Connect admin wallet to resume badges');
+      return;
+    }
+    
+    setActionLoading(badgeId);
+    try {
+      const sender = typeof account.address === 'string' ? account.address : account.address.toString();
+      await resumeOnChainBadge({ signAndSubmitTransaction, sender, badgeId });
+      showMessage('success', `Badge #${badgeId} resumed successfully`);
+      await loadOnChainBadges();
+    } catch (err) {
+      showMessage('error', err?.message || 'Failed to resume badge');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges]);
+
+  const handleDiscontinueBadge = useCallback(async (badgeId) => {
+    if (!connected || !account || !signAndSubmitTransaction) {
+      showMessage('error', 'Connect admin wallet to discontinue badges');
+      return;
+    }
+    
+    if (!window.confirm(`Are you sure you want to PERMANENTLY discontinue Badge #${badgeId}? This cannot be undone.`)) {
+      return;
+    }
+    
+    setActionLoading(badgeId);
+    try {
+      const sender = typeof account.address === 'string' ? account.address : account.address.toString();
+      await discontinueOnChainBadge({ signAndSubmitTransaction, sender, badgeId });
+      showMessage('success', `Badge #${badgeId} discontinued permanently`);
+      await loadOnChainBadges();
+    } catch (err) {
+      showMessage('error', err?.message || 'Failed to discontinue badge');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges]);
 
   // ─── Form Handlers ──────────────────────────────────────────────────
   const updateForm = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleMintFeePresetChange = (preset) => {
+    setForm((prev) => ({
+      ...prev,
+      mintFeePreset: preset,
+      mintFeeMove:
+        preset === 'free'
+          ? '0'
+          : preset === '1'
+            ? '1'
+            : preset === '2'
+              ? '2'
+              : prev.mintFeeMove,
+    }));
   };
 
   const updateSpecialSettings = (section, field, value) => {
@@ -227,88 +383,65 @@ export default function BadgeAdmin() {
       name: badgeData.name,
       description: badgeData.description,
       imageUri: badgeData.imageUrl,
+      externalUrl: badgeData.metadata?.externalUrl,
       attributes: [
         { trait_type: 'category', value: badgeData.category },
         { trait_type: 'rarity', value: badgeData.rarity },
         { trait_type: 'xp', value: String(badgeData.xp) },
+        { trait_type: 'mint_fee_move', value: formatMoveAmount(badgeData.mintFee) },
       ],
     });
     const metadataUri = buildMetadataDataUri(metadataJson);
     const metadataHash = await computeSha256Hex(metadataJson);
 
     const beforeIds = await fetchBadgeIds(movementClient);
+    const specialSettings = buildSpecialSettings(badgeData.metadata?.special || {});
+    const isTimeLimited = Boolean(specialSettings.timeLimited?.enabled);
+    const startsAt = isTimeLimited ? datetimeToUnix(specialSettings.timeLimited?.startsAt) : 0;
+    const endsAt = isTimeLimited ? datetimeToUnix(specialSettings.timeLimited?.endsAt) : 0;
+
+    let minValue = 0;
+    let coinTypeStr = '';
 
     if (firstCriterion?.type === CRITERIA_TYPES.MIN_BALANCE) {
       const decimals = Number(firstCriterion.params?.decimals ?? 8);
       const minAmountHuman = Number(firstCriterion.params?.minAmount ?? 0);
-      const minBalance = Math.max(0, Math.floor(minAmountHuman * Math.pow(10, decimals)));
-      const coinType = String(firstCriterion.params?.coinType || '').trim();
+      minValue = Math.max(0, Math.floor(minAmountHuman * Math.pow(10, decimals)));
+      coinTypeStr = String(firstCriterion.params?.coinType || '').trim();
 
-      if (!coinType) {
+      if (!coinTypeStr) {
         throw new Error('Min Balance criterion requires coin type');
       }
-
-      await createBadgeMinBalance({
-        signAndSubmitTransaction,
-        sender,
-        name: badgeData.name,
-        description: badgeData.description,
-        imageUri: badgeData.imageUrl,
-        metadataUri,
-        metadataHash,
-        coinType,
-        coinTypeStr: coinType,
-        minBalance,
-        ruleNote: `min_balance:${minAmountHuman}`,
-      });
     } else if (firstCriterion?.type === CRITERIA_TYPES.TRANSACTION_COUNT) {
-      const minTxCount = Math.max(1, Number(firstCriterion.params?.min ?? 1));
-      await createBadgeTxCount({
-        signAndSubmitTransaction,
-        sender,
-        name: badgeData.name,
-        description: badgeData.description,
-        imageUri: badgeData.imageUrl,
-        metadataUri,
-        metadataHash,
-        minTxCount,
-        ruleNote: `tx_count:${minTxCount}`,
-      });
+      minValue = Math.max(1, Number(firstCriterion.params?.min ?? 1));
     } else if (firstCriterion?.type === CRITERIA_TYPES.PROTOCOL_COUNT) {
-      const minProtocolCount = Math.max(1, Number(firstCriterion.params?.minProtocols ?? 1));
-      await createBadgeProtocolCount({
-        signAndSubmitTransaction,
-        sender,
-        name: badgeData.name,
-        description: badgeData.description,
-        imageUri: badgeData.imageUrl,
-        metadataUri,
-        metadataHash,
-        minProtocolCount,
-        ruleNote: `protocol_count:${minProtocolCount}`,
-      });
-    } else {
-      const ruleTypeMap = {
-        [CRITERIA_TYPES.ALLOWLIST]: BADGE_RULES.ALLOWLIST,
-      };
-
-      const ruleType = ruleTypeMap[firstCriterion?.type] || BADGE_RULES.OFFCHAIN_ALLOWLIST;
-      const ruleNote = firstCriterion?.type
-        ? `${firstCriterion.type}:${JSON.stringify(firstCriterion.params || {})}`
-        : 'offchain';
-
-      await createBadgeAllowlist({
-        signAndSubmitTransaction,
-        sender,
-        name: badgeData.name,
-        description: badgeData.description,
-        imageUri: badgeData.imageUrl,
-        metadataUri,
-        metadataHash,
-        ruleType,
-        ruleNote,
-      });
+      minValue = Math.max(1, Number(firstCriterion.params?.minProtocols ?? 1));
     }
+
+    await createOnChainBadge({
+      signAndSubmitTransaction,
+      sender,
+      name: badgeData.name,
+      description: badgeData.description,
+      imageUri: badgeData.imageUrl,
+      metadataUri,
+      metadataHash,
+      category: badgeData.category,
+      rarity: getRarityInfo(badgeData.rarity || 'COMMON').level,
+      xpValue: Number(badgeData.xp) || 10,
+      ruleType: criteriaToRuleType(firstCriterion?.type) || BADGE_RULES.OFFCHAIN_ALLOWLIST,
+      ruleNote: firstCriterion?.type
+        ? `${firstCriterion.type}:${JSON.stringify(firstCriterion.params || {})}`
+        : 'offchain',
+      minValue,
+      coinTypeStr,
+      dappAddress: '',
+      extraData: firstCriterion?.type === CRITERIA_TYPES.ALLOWLIST ? 'allowlist' : '',
+      startsAt,
+      endsAt,
+      maxSupply: Number(specialSettings.maxSupply) || 0,
+      mintFee: Number(badgeData.mintFee) || 0,
+    });
 
     const afterIds = await fetchBadgeIds(movementClient);
     const beforeSet = new Set((beforeIds || []).map((id) => Number(id)));
@@ -360,6 +493,7 @@ export default function BadgeAdmin() {
     const badgeData = {
       ...form,
       xp: Number(form.xp) || 10,
+      mintFee: parseMintFeeToOctas(form.mintFeeMove),
       metadata: {
         ...form.metadata,
         special: buildSpecialSettings(form.metadata?.special || {}),
@@ -395,6 +529,7 @@ export default function BadgeAdmin() {
   };
 
   const handleEdit = (badge) => {
+    const mintFee = Number(badge.mintFee) || 0;
     setForm({
       name: badge.name,
       description: badge.description,
@@ -402,6 +537,8 @@ export default function BadgeAdmin() {
       category: badge.category,
       rarity: badge.rarity,
       xp: badge.xp,
+      mintFeePreset: resolveMintFeePreset(mintFee),
+      mintFeeMove: formatMoveAmount(mintFee),
       criteria: badge.criteria.length > 0 ? badge.criteria : [{ ...EMPTY_CRITERION }],
       metadata: {
         externalUrl: badge.metadata?.externalUrl || '',
@@ -470,6 +607,60 @@ export default function BadgeAdmin() {
       URL.revokeObjectURL(url);
       showMessage('success', 'Badge config downloaded');
     });
+  };
+
+  const handleExportScannerConfig = () => {
+    const json = exportScannerConfigs();
+    const parsed = (() => {
+      try {
+        return JSON.parse(json);
+      } catch {
+        return [];
+      }
+    })();
+
+    const cachedKey = sessionStorage.getItem('badge_admin_api_key') || '';
+    const enteredKey = window.prompt(
+      'Publish scanner config now? Enter BADGE admin API key (leave empty to only copy):',
+      cachedKey
+    );
+    const adminKey = String(enteredKey || '').trim();
+
+    const fallbackCopy = () => {
+      navigator.clipboard.writeText(json).then(() => {
+        showMessage('success', 'Scanner config copied to clipboard');
+      }).catch(() => {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'badge-scanner-config.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showMessage('success', 'Scanner config downloaded');
+      });
+    };
+
+    if (!adminKey) {
+      fallbackCopy();
+      return;
+    }
+
+    sessionStorage.setItem('badge_admin_api_key', adminKey);
+
+    publishScannerConfigs({ badgeConfigs: parsed, adminKey })
+      .then((result) => {
+        if (result && result.status === 'ok') {
+          showMessage('success', `Published scanner config (${result.count} badges)`);
+          return;
+        }
+        showMessage('error', 'Publish failed. Scanner config copied instead.');
+        fallbackCopy();
+      })
+      .catch(() => {
+        showMessage('error', 'Publish failed. Scanner config copied instead.');
+        fallbackCopy();
+      });
   };
 
   // ─── Render Criteria Form ───────────────────────────────────────────
@@ -557,6 +748,7 @@ export default function BadgeAdmin() {
         {[
           { key: 'manage', label: 'Manage Badges', icon: '📋' },
           { key: 'create', label: editingId ? 'Edit Badge' : 'Create Badge', icon: '➕' },
+          { key: 'onchain', label: 'On-Chain Control', icon: '⛓️' },
           { key: 'import', label: 'Import / Export', icon: '📦' },
         ].map(tab => (
           <button
@@ -748,6 +940,37 @@ export default function BadgeAdmin() {
                   />
                 </div>
               </div>
+
+              <div className="ba-field-row">
+                <div className="ba-field">
+                  <label>Mint Fee Preset</label>
+                  <select
+                    value={form.mintFeePreset}
+                    onChange={(e) => handleMintFeePresetChange(e.target.value)}
+                    className="ba-select"
+                  >
+                    <option value="free">Free</option>
+                    <option value="1">1 MOVE</option>
+                    <option value="2">2 MOVE</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+
+                <div className="ba-field">
+                  <label>Mint Fee (MOVE)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.00000001"
+                    value={form.mintFeeMove}
+                    onChange={(e) => updateForm('mintFeeMove', e.target.value)}
+                    className="ba-input"
+                    disabled={form.mintFeePreset !== 'custom'}
+                  />
+                </div>
+              </div>
+
+              <p className="ba-hint">0 = free. 1 MOVE = 100,000,000 octas on-chain.</p>
 
               <div className="ba-special-inline">
                 <div className="ba-field-toggle">
@@ -966,6 +1189,7 @@ export default function BadgeAdmin() {
                   <span className="ba-live-chip">{Object.values(BADGE_CATEGORIES).find(cat => cat.id === form.category)?.icon || '🏅'} {form.category || 'activity'}</span>
                   {form.metadata?.special?.isSpecial && <span className="ba-live-chip">✨ Special</span>}
                   {form.metadata?.special?.timeLimited?.enabled && <span className="ba-live-chip">⏳ Time-limited</span>}
+                  <span className="ba-live-chip">Fee: {Number(form.mintFeeMove || 0) > 0 ? `${form.mintFeeMove} MOVE` : 'Free'}</span>
                 </div>
                 <div className="ba-live-chip-row">
                   {form.criteria.filter((c) => c.type).slice(0, 3).map((criterion, idx) => (
@@ -993,6 +1217,126 @@ export default function BadgeAdmin() {
         </form>
       )}
 
+      {/* ─── On-Chain Control Tab ───────────────────────────────────── */}
+      {subTab === 'onchain' && (
+        <div className="ba-onchain-manage">
+          <div className="ba-onchain-header">
+            <h3>On-Chain Badge Management</h3>
+            <p className="ba-hint">
+              Pause, resume, or discontinue badges directly on the blockchain.
+              {!connected && ' Connect your admin wallet to manage badges.'}
+            </p>
+            <button 
+              className="ba-btn ba-btn-secondary" 
+              onClick={loadOnChainBadges}
+              disabled={onChainLoading}
+            >
+              {onChainLoading ? 'Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
+
+          {onChainLoading ? (
+            <div className="ba-loading">Loading on-chain badges...</div>
+          ) : onChainBadges.length === 0 ? (
+            <div className="ba-empty">
+              <p>No badges found on-chain. Create badges to see them here.</p>
+            </div>
+          ) : (
+            <div className="ba-onchain-list">
+              {onChainBadges.map(badge => {
+                const statusLabel = BADGE_STATUS_LABELS[badge.status] || 'Unknown';
+                const statusColor = BADGE_STATUS_COLORS[badge.status] || '#888';
+                const timeRemaining = getBadgeTimeRemaining(badge);
+                const supplyInfo = getBadgeSupplyInfo(badge);
+                const isLoading = actionLoading === badge.id;
+                
+                return (
+                  <div key={badge.id} className={`ba-onchain-item ${badge.status === BADGE_STATUS.DISCONTINUED ? 'discontinued' : ''}`}>
+                    <div className="ba-onchain-preview">
+                      {badge.imageUri ? (
+                        <img src={badge.imageUri} alt={badge.name} className="ba-onchain-thumb" />
+                      ) : (
+                        <div className="ba-onchain-placeholder">#{badge.id}</div>
+                      )}
+                    </div>
+                    
+                    <div className="ba-onchain-info">
+                      <div className="ba-onchain-title-row">
+                        <h4>#{badge.id} - {badge.name}</h4>
+                        <span className="ba-status-pill" style={{ background: statusColor }}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                      
+                      <p className="ba-onchain-desc">{badge.description || 'No description'}</p>
+                      
+                      <div className="ba-onchain-stats">
+                        <span>Minted: {badge.totalMinted}{supplyInfo.unlimited ? '' : ` / ${badge.maxSupply}`}</span>
+                        {!supplyInfo.unlimited && (
+                          <span className={supplyInfo.soldOut ? 'ba-sold-out' : ''}>
+                            {supplyInfo.soldOut ? '🔴 Sold Out' : `${supplyInfo.remaining} remaining`}
+                          </span>
+                        )}
+                        {badge.isTimeLimited && (
+                          <span className={timeRemaining?.expired ? 'ba-expired' : ''}>
+                            {timeRemaining?.expired ? '⏰ Expired' : `⏳ ${timeRemaining?.formatted} left`}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="ba-onchain-meta">
+                        <span>Rule: {BADGE_RULES[badge.ruleType] ? Object.keys(BADGE_RULES).find(k => BADGE_RULES[k] === badge.ruleType) : `Type ${badge.ruleType}`}</span>
+                        <span>Category: {badge.category || 'N/A'}</span>
+                        <span>XP: {badge.xpValue || 0}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="ba-onchain-actions">
+                      {badge.status === BADGE_STATUS.ACTIVE && (
+                        <button 
+                          className="ba-btn ba-btn-warning"
+                          onClick={() => handlePauseBadge(badge.id)}
+                          disabled={!connected || isLoading}
+                          title="Pause badge minting"
+                        >
+                          {isLoading ? '...' : '⏸️ Pause'}
+                        </button>
+                      )}
+                      
+                      {badge.status === BADGE_STATUS.PAUSED && (
+                        <button 
+                          className="ba-btn ba-btn-success"
+                          onClick={() => handleResumeBadge(badge.id)}
+                          disabled={!connected || isLoading}
+                          title="Resume badge minting"
+                        >
+                          {isLoading ? '...' : '▶️ Resume'}
+                        </button>
+                      )}
+                      
+                      {badge.status !== BADGE_STATUS.DISCONTINUED && (
+                        <button 
+                          className="ba-btn ba-btn-danger"
+                          onClick={() => handleDiscontinueBadge(badge.id)}
+                          disabled={!connected || isLoading}
+                          title="Permanently discontinue badge"
+                        >
+                          {isLoading ? '...' : '🚫 Discontinue'}
+                        </button>
+                      )}
+                      
+                      {badge.status === BADGE_STATUS.DISCONTINUED && (
+                        <span className="ba-discontinued-label">Permanently Discontinued</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ─── Import / Export Tab ────────────────────────────────────── */}
       {subTab === 'import' && (
         <div className="ba-import-export">
@@ -1001,6 +1345,9 @@ export default function BadgeAdmin() {
             <p className="ba-hint">Export all badge definitions as JSON. Copy to clipboard or download.</p>
             <button className="ba-btn ba-btn-primary" onClick={handleExport}>
               Export All Badges ({badges.length})
+            </button>
+            <button className="ba-btn ba-btn-secondary" onClick={handleExportScannerConfig} style={{ marginTop: '0.75rem' }}>
+              Export Scanner Config
             </button>
           </div>
 

@@ -7,12 +7,13 @@
  * - Earned status (from awards)
  * - Real-time progress tracking
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import useBadgeStore from './useBadgeStore.js';
 import useBadgeEligibility from './useBadgeEligibility.js';
+import useAutoAttestation from './useAutoAttestation.js';
 import { getEarnedBadgeIds, getUserAwards, subscribe } from '../services/badges/badgeStore.js';
 import { POLLING_INTERVALS } from '../config/badges.js';
-import { hasBadge } from '../services/badgeService.js';
+import { hasBadge, isAllowlisted } from '../services/badgeService.js';
 
 const EMPTY_PRICE_MAP = {};
 
@@ -22,6 +23,13 @@ export const isBadgeEarned = (badgeId, earnedIds, onChainEarnedByBadgeId) => {
 
 export const shouldEvaluateBadgeEligibility = (badge, earnedIds, onChainEarnedByBadgeId) => {
   return !isBadgeEarned(badge.id, earnedIds, onChainEarnedByBadgeId);
+};
+
+const requiresOnChainAllowlistAttestation = (badge) => {
+  if (badge?.onChainBadgeId == null) return false;
+  const criteria = Array.isArray(badge?.criteria) ? badge.criteria : [];
+  // min_balance badges validate eligibility fully on-chain in mint_with_balance.
+  return !criteria.some((criterion) => criterion?.type === 'min_balance');
 };
 
 /**
@@ -45,6 +53,10 @@ export default function useBadges(address, options = {}) {
   const [awardsVersion, setAwardsVersion] = useState(0);
   const [onChainEarnedByBadgeId, setOnChainEarnedByBadgeId] = useState(new Map());
   const [onChainSyncLoading, setOnChainSyncLoading] = useState(false);
+  const [onChainAllowlistedByBadgeId, setOnChainAllowlistedByBadgeId] = useState(new Map());
+  const [onChainAllowlistLoading, setOnChainAllowlistLoading] = useState(false);
+  // Bump this to force a re-check of on-chain allowlist state after auto-attestation
+  const [allowlistVersion, setAllowlistVersion] = useState(0);
 
   const earnedIds = useMemo(() => {
     void awardsVersion;
@@ -123,6 +135,55 @@ export default function useBadges(address, options = {}) {
     };
   }, [address, client, enabledBadges, awardsVersion]);
 
+  // Check allowlist attestation for on-chain badges that require it before mint can succeed.
+  // Re-runs whenever allowlistVersion is bumped (triggered by auto-attestation callbacks).
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncOnChainAllowlistState = async () => {
+      if (!address || !client) {
+        setOnChainAllowlistedByBadgeId(new Map());
+        return;
+      }
+
+      const attestedBadges = enabledBadges.filter((badge) => requiresOnChainAllowlistAttestation(badge));
+      if (attestedBadges.length === 0) {
+        setOnChainAllowlistedByBadgeId(new Map());
+        return;
+      }
+
+      setOnChainAllowlistLoading(true);
+      const results = await Promise.all(
+        attestedBadges.map(async (badge) => {
+          try {
+            const allowlisted = await isAllowlisted(client, Number(badge.onChainBadgeId), address);
+            return [badge.id, allowlisted];
+          } catch {
+            return [badge.id, false];
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setOnChainAllowlistedByBadgeId(new Map(results));
+        setOnChainAllowlistLoading(false);
+      }
+    };
+
+    syncOnChainAllowlistState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, client, enabledBadges, awardsVersion, allowlistVersion]);
+
+  // Auto-attest: when the user becomes eligible, automatically call the backend
+  // to add them to the on-chain allowlist so they can mint immediately.
+  const handleAttested = useCallback(() => {
+    // Bump version to re-check on-chain allowlist state
+    setAllowlistVersion((v) => v + 1);
+  }, []);
+
   // Build enriched badge list with eligibility & earned status
   const awardsByBadgeId = useMemo(() => {
     void awardsVersion;
@@ -135,7 +196,11 @@ export default function useBadges(address, options = {}) {
     return enabledBadges.map(badge => {
       const earned = isBadgeEarned(badge.id, earnedIds, onChainEarnedByBadgeId);
       const evalResult = getResult(badge.id);
-      const eligible = !earned && (evalResult?.eligible || false);
+      const baseEligible = !earned && (evalResult?.eligible || false);
+      const isMintableOnChain = badge.onChainBadgeId != null;
+      const needsAttestation = requiresOnChainAllowlistAttestation(badge);
+      const allowlisted = onChainAllowlistedByBadgeId.get(badge.id) === true;
+      const eligible = baseEligible && isMintableOnChain && (!needsAttestation || allowlisted);
       const progress = evalResult?.overallProgress || 0;
       const criteriaResults = evalResult?.criteriaResults || [];
 
@@ -151,12 +216,26 @@ export default function useBadges(address, options = {}) {
         earned,
         earnedDate,
         eligible,
+        claimable: eligible,
+        baseEligible,
+        onChainMintable: isMintableOnChain,
+        publishPending: baseEligible && !isMintableOnChain,
+        needsOnChainAttestation: needsAttestation,
+        onChainAllowlisted: allowlisted,
+        attestationPending: baseEligible && isMintableOnChain && needsAttestation && !allowlisted,
         progress,
         criteriaResults,
         locked: !earned && !eligible,
       };
     });
-  }, [enabledBadges, earnedIds, getResult, awardsByBadgeId, onChainEarnedByBadgeId]);
+  }, [enabledBadges, earnedIds, getResult, awardsByBadgeId, onChainEarnedByBadgeId, onChainAllowlistedByBadgeId]);
+
+  // Auto-attestation: fires for every badge that is eligible but not yet allowlisted
+  useAutoAttestation({
+    address,
+    eligibleBadges: enrichedBadges,
+    onAttested: handleAttested,
+  });
 
   // Categorized badge groups
   const earnedBadges = useMemo(() => enrichedBadges.filter(b => b.earned), [enrichedBadges]);
@@ -184,7 +263,7 @@ export default function useBadges(address, options = {}) {
     completionPercent,
 
     // Loading state
-    loading: eligibilityLoading || onChainSyncLoading,
+    loading: eligibilityLoading || onChainSyncLoading || onChainAllowlistLoading,
 
     // Methods
     refresh: refreshEligibility,

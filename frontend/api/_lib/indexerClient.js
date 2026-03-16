@@ -20,7 +20,7 @@ const normalizeAddress = (address) => {
   return n;
 };
 
-const queryIndexer = async (query, variables = {}) => {
+export const queryIndexer = async (query, variables = {}) => {
   const res = await fetch(getEndpoint(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

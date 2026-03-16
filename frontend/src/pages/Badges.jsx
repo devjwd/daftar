@@ -14,7 +14,7 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { DEFAULT_NETWORK } from '../config/network.js';
 import { awardBadge } from '../services/badges/badgeStore.js';
-import { mintBadge, mintBadgeWithBalance } from '../services/badgeService.js';
+import { mintBadge, mintBadgeWithBalance, isAllowlisted } from '../services/badgeService.js';
 import { confirmMintAndOwnership } from '../services/badges/mintVerification.js';
 import useBadges from '../hooks/useBadges.js';
 
@@ -44,7 +44,7 @@ export default function Badges() {
     refresh,
   } = useBadges(address, {
     client: movementClient,
-    enablePolling: true,
+    enablePolling: false,
   });
 
   const earnedLabel = `${earnedCount} of ${totalBadges} Earned`;
@@ -168,7 +168,7 @@ export default function Badges() {
         </div>
 
         <div className="achievement-actions">
-          {badge.eligible && !badge.earned && (
+          {badge.claimable && !badge.earned && (
             <button
               className="achievement-claim-btn"
               onClick={(event) => {
@@ -183,6 +183,8 @@ export default function Badges() {
 
           {badge.earned && <span className="achievement-status-pill">Unlocked</span>}
           {!badge.earned && !badge.eligible && <span className="achievement-status-pill">Locked</span>}
+          {badge.publishPending && <span className="achievement-status-pill">Publishing on-chain</span>}
+          {badge.attestationPending && <span className="achievement-status-pill">Attesting…</span>}
 
           <span className="achievement-chevron" aria-hidden="true">›</span>
         </div>
@@ -202,37 +204,43 @@ export default function Badges() {
     setMintingIds(prev => new Set([...prev, badge.id]));
 
     try {
+      if (badge.onChainBadgeId == null) {
+        throw new Error('Badge is not yet published on-chain. Please wait for admin to publish this SBT.');
+      }
+
       let txHash = null;
-      // If badge has on-chain ID, do on-chain mint
-      if (badge.onChainBadgeId != null) {
-        const senderAddress = typeof account.address === 'string' ? account.address : account.address.toString();
-        if (badge.criteria?.some(c => c.type === 'min_balance')) {
-          const balanceCriteria = badge.criteria.find(c => c.type === 'min_balance');
-          const tx = await mintBadgeWithBalance({
-            signAndSubmitTransaction,
-            sender: senderAddress,
-            badgeId: badge.onChainBadgeId,
-            coinType: balanceCriteria.params.coinType,
-          });
-          txHash = await confirmMintAndOwnership({
-            client: movementClient,
-            txResponse: tx,
-            badgeId: badge.onChainBadgeId,
-            owner: senderAddress,
-          });
-        } else {
-          const tx = await mintBadge({
-            signAndSubmitTransaction,
-            sender: senderAddress,
-            badgeId: badge.onChainBadgeId,
-          });
-          txHash = await confirmMintAndOwnership({
-            client: movementClient,
-            txResponse: tx,
-            badgeId: badge.onChainBadgeId,
-            owner: senderAddress,
-          });
+      const senderAddress = typeof account.address === 'string' ? account.address : account.address.toString();
+      if (badge.criteria?.some(c => c.type === 'min_balance')) {
+        const balanceCriteria = badge.criteria.find(c => c.type === 'min_balance');
+        const tx = await mintBadgeWithBalance({
+          signAndSubmitTransaction,
+          sender: senderAddress,
+          badgeId: badge.onChainBadgeId,
+          coinType: balanceCriteria.params.coinType,
+        });
+        txHash = await confirmMintAndOwnership({
+          client: movementClient,
+          txResponse: tx,
+          badgeId: badge.onChainBadgeId,
+          owner: senderAddress,
+        });
+      } else {
+        const allowlisted = await isAllowlisted(movementClient, Number(badge.onChainBadgeId), senderAddress);
+        if (!allowlisted) {
+          throw new Error('Auto-attestation is in progress. Please wait a few seconds and try again.');
         }
+
+        const tx = await mintBadge({
+          signAndSubmitTransaction,
+          sender: senderAddress,
+          badgeId: badge.onChainBadgeId,
+        });
+        txHash = await confirmMintAndOwnership({
+          client: movementClient,
+          txResponse: tx,
+          badgeId: badge.onChainBadgeId,
+          owner: senderAddress,
+        });
       }
 
       // Record the award locally
@@ -403,6 +411,12 @@ export default function Badges() {
               {selectedBadge.eligible && !selectedBadge.earned && <span className="badge-modal-pill is-claim">Ready to claim</span>}
               {!selectedBadge.earned && !selectedBadge.eligible && <span className="badge-modal-pill is-locked">In progress</span>}
             </div>
+
+            {selectedBadge.attestationPending && (
+              <p className="badge-modal-note">
+                You&apos;re eligible! On-chain attestation is being processed automatically — the Claim button will appear shortly.
+              </p>
+            )}
 
             <button
               className="badge-modal-share"

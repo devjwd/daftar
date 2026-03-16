@@ -7,9 +7,106 @@
 import {
   BADGE_STORE_KEY,
   BADGE_AWARDS_KEY,
+  BADGE_RULES,
+  ACTIVITY_BADGE_TIERS,
+  LONGEVITY_BADGE_TIERS,
+  CRITERIA_TYPES,
   createBadgeDefinition,
   validateBadgeDefinition,
 } from '../../config/badges.js';
+
+const BADGE_STORE_META_KEY = 'movement_badges_meta_v1';
+const STORE_SCHEMA_VERSION = 2;
+
+function normalizeBadgeId(value) {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || `badge-${Date.now()}`;
+}
+
+function buildEmojiDataUri(emoji, background = '#111827') {
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">',
+    `<rect width="256" height="256" rx="52" fill="${background}"/>`,
+    '<text x="50%" y="56%" text-anchor="middle" dominant-baseline="middle" font-size="124">',
+    emoji,
+    '</text>',
+    '</svg>',
+  ].join('');
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function buildSystemBadges() {
+  return [];
+}
+
+function normalizeLoadedBadge(rawBadge) {
+  if (!rawBadge || typeof rawBadge !== 'object') return null;
+
+  const id = rawBadge.id && !String(rawBadge.id).startsWith('badge_')
+    ? normalizeBadgeId(rawBadge.id)
+    : normalizeBadgeId(rawBadge.name || rawBadge.id);
+
+  return {
+    ...rawBadge,
+    id,
+    criteria: Array.isArray(rawBadge.criteria) ? rawBadge.criteria : [],
+    metadata: rawBadge.metadata && typeof rawBadge.metadata === 'object' ? rawBadge.metadata : {},
+  };
+}
+
+function migrateAndSeedBadges() {
+  const rawBadges = readStore(BADGE_STORE_KEY, []);
+  const storedMeta = readStore(BADGE_STORE_META_KEY, {});
+  if (Number(storedMeta?.schemaVersion || 0) < STORE_SCHEMA_VERSION) {
+    writeStore(BADGE_STORE_KEY, []);
+    writeStore(BADGE_AWARDS_KEY, []);
+    writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
+    return [];
+  }
+
+  const systemBadges = buildSystemBadges();
+  const merged = [];
+  const seen = new Set();
+
+  rawBadges
+    .map(normalizeLoadedBadge)
+    .filter(Boolean)
+    .forEach((badge) => {
+      if (seen.has(badge.id)) return;
+      seen.add(badge.id);
+      merged.push(badge);
+    });
+
+  for (const systemBadge of systemBadges) {
+    if (!seen.has(systemBadge.id)) {
+      merged.push(systemBadge);
+      seen.add(systemBadge.id);
+    }
+  }
+
+  const shouldPersist =
+    merged.length !== rawBadges.length ||
+    Number(storedMeta?.schemaVersion || 0) < STORE_SCHEMA_VERSION;
+
+  if (shouldPersist) {
+    writeStore(BADGE_STORE_KEY, merged);
+    writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
+  }
+
+  return merged;
+}
+
+function mapCriterionToRule(criterionType) {
+  if (criterionType === CRITERIA_TYPES.TRANSACTION_COUNT) return BADGE_RULES.TRANSACTION_COUNT;
+  if (criterionType === CRITERIA_TYPES.DAYS_ONCHAIN) return BADGE_RULES.DAYS_ONCHAIN;
+  if (criterionType === CRITERIA_TYPES.MIN_BALANCE) return BADGE_RULES.MIN_BALANCE;
+  return null;
+}
 
 // ─── Event Emitter ───────────────────────────────────────────────────
 const listeners = new Map();
@@ -42,7 +139,13 @@ function readStore(key, fallback = []) {
     const raw = localStorage.getItem(key);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : fallback;
+    if (Array.isArray(fallback)) {
+      return Array.isArray(parsed) ? parsed : fallback;
+    }
+    if (fallback && typeof fallback === 'object') {
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+    }
+    return parsed;
   } catch {
     return fallback;
   }
@@ -63,7 +166,7 @@ function writeStore(key, data) {
  * @returns {Array} badge definitions
  */
 export function getAllBadges() {
-  return readStore(BADGE_STORE_KEY, []);
+  return migrateAndSeedBadges();
 }
 
 /**
@@ -233,6 +336,11 @@ export function reorderBadges(orderedIds) {
  */
 export function awardBadge(address, badgeId, extra = {}) {
   const normalized = String(address).toLowerCase();
+  const resolvedBadge = getBadgeById(badgeId);
+  if (!resolvedBadge) {
+    return { success: false, errors: ['Badge definition not found'] };
+  }
+
   const awards = readStore(BADGE_AWARDS_KEY, []);
 
   // Prevent duplicate awards
@@ -353,11 +461,40 @@ export function exportBadges() {
 }
 
 /**
+ * Export scanner-compatible config for backend /api/badges/scan.
+ * Only exports badges whose first criterion maps to a supported server rule.
+ */
+export function exportScannerConfigs() {
+  const configs = [];
+
+  for (const badge of getEnabledBadges()) {
+    const firstCriterion = Array.isArray(badge.criteria) ? badge.criteria[0] : null;
+    if (!firstCriterion?.type) continue;
+
+    const rule = mapCriterionToRule(firstCriterion.type);
+    if (rule == null) continue;
+
+    configs.push({
+      badgeId: badge.id,
+      onChainBadgeId: badge.onChainBadgeId ?? null,
+      rule,
+      params: {
+        badgeId: badge.id,
+        ...(firstCriterion.params || {}),
+      },
+    });
+  }
+
+  return JSON.stringify(configs, null, 2);
+}
+
+/**
  * Clear all badge data (definitions and awards).
  */
 export function clearAllBadgeData() {
   writeStore(BADGE_STORE_KEY, []);
   writeStore(BADGE_AWARDS_KEY, []);
+  writeStore(BADGE_STORE_META_KEY, {});
   emit('badges:changed', []);
   emit('awards:changed', []);
 }
@@ -380,5 +517,6 @@ export default {
   revokeBadge,
   importBadges,
   exportBadges,
+  exportScannerConfigs,
   clearAllBadgeData,
 };

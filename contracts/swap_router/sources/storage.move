@@ -48,6 +48,7 @@ module swap_router::storage {
     const E_ALREADY_INITIALIZED: u64 = 301;
     const E_NOT_INITIALIZED: u64 = 302;
     const E_ROUTE_NOT_FOUND: u64 = 400;
+    const E_ROUTE_ALREADY_EXISTS: u64 = 401;
 
     // =========================================================================
     // LAYER 1 — RouterConfig
@@ -334,7 +335,7 @@ module swap_router::storage {
         now: u64,
     ) acquires RouteRegistry {
         let reg = borrow_global_mut<RouteRegistry>(@swap_router);
-        assert!(!table::contains(&reg.routes, route_id), E_ALREADY_INITIALIZED);
+        assert!(!table::contains(&reg.routes, route_id), E_ROUTE_ALREADY_EXISTS);
         table::add(&mut reg.routes, route_id, RouteInfo {
             name,
             enabled: true,

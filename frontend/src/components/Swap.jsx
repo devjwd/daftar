@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import { DEFAULT_NETWORK, MOSAIC_CONFIG } from "../config/network";
+import { DEFAULT_NETWORK } from "../config/network";
 import { getSwapSettings, updateSwapSettings } from "../services/adminService";
 import {
   clampSlippagePercent,
@@ -14,6 +14,7 @@ import { getTokenDecimals } from "../utils/tokenUtils";
 import { getTokenInfo, getSwapAssetTypeBySymbol, MOVEMENT_TOKENS } from "../config/tokens";
 import { TOKEN_VISUALS } from "../config/display";
 import { useTokenPrices } from "../hooks/useTokenPrices";
+import TransactionToast from "./TransactionToast";
 import "./Swap.css";
 
 // ---------------------------------------------------------------------------
@@ -24,13 +25,13 @@ const DEFAULT_SLIPPAGE = 0.5;
 const DEFAULT_DECIMALS = 8;
 const QUOTE_DEBOUNCE_MS = 600;
 const AUTO_QUOTE_INTERVAL_MS = 10000;
-const SUCCESS_DISMISS_MS = 6000;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000000000000000000000000000";
 const QUOTE_MAX_AGE_MS = 30000;
 const AMOUNT_INPUT_PATTERN = /^\d+(\.\d+)?$/;
 const ALLOWED_MOSAIC_MODULES = new Set(["router"]);
 const MAX_QUOTE_PRICE_IMPACT = 50;
 const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
+const TOAST_DISMISS_MS = 6500;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,7 +77,6 @@ const isValidSwapPayload = (payload) => {
   const fn = String(payload.function || "");
   if (!/^0x[0-9a-f]+::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/i.test(fn)) return false;
   if (!Array.isArray(payload.typeArguments) || !Array.isArray(payload.functionArguments)) return false;
-  if (payload.typeArguments.length > 10 || payload.functionArguments.length > 30) return false;
 
   return true;
 };
@@ -94,11 +94,6 @@ const parseFunctionId = (functionId) => {
 const isAllowedMosaicPayload = (payload) => {
   const parsed = parseFunctionId(payload?.function);
   if (!parsed) return false;
-
-  const expectedRouter = String(MOSAIC_CONFIG.routerAddress || "").trim().toLowerCase();
-  if (!expectedRouter) return false;
-
-  if (parsed.address !== expectedRouter) return false;
   if (!ALLOWED_MOSAIC_MODULES.has(parsed.module)) return false;
   if (!String(parsed.functionName || "").toLowerCase().includes("swap")) return false;
   return true;
@@ -174,10 +169,9 @@ const Swap = ({ balances }) => {
   const [showToSelector, setShowToSelector] = useState(false);
   const [swapping, setSwapping] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [slippage, setSlippage] = useState(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE);
   const [showSettings, setShowSettings] = useState(false);
-  const [txHash, setTxHash] = useState(null);
+  const [txToast, setTxToast] = useState(null);
   const [priceImpact, setPriceImpact] = useState(0);
   const [isQuoting, setIsQuoting] = useState(false);
   const [routingResult, setRoutingResult] = useState(null);
@@ -427,12 +421,12 @@ const Swap = ({ balances }) => {
     }
   }, [availableTokens, fromToken, toToken]);
 
-  // Auto-dismiss success
+  // Auto-dismiss terminal toasts.
   useEffect(() => {
-    if (!success) return;
-    const timer = setTimeout(() => setSuccess(null), SUCCESS_DISMISS_MS);
+    if (!txToast || txToast.type === "pending") return;
+    const timer = setTimeout(() => setTxToast(null), TOAST_DISMISS_MS);
     return () => clearTimeout(timer);
-  }, [success]);
+  }, [txToast]);
 
   // ---- Actions ----
 
@@ -497,8 +491,12 @@ const Swap = ({ balances }) => {
 
     setSwapping(true);
     setError(null);
-    setSuccess(null);
-    setTxHash(null);
+    setTxToast({
+      type: "info",
+      title: "Confirm Swap",
+      message: "Approve this transaction in your wallet.",
+      txHash: null,
+    });
 
     try {
       const payload = buildMosaicSwapPayload(routingResult.best.quoteData);
@@ -527,7 +525,12 @@ const Swap = ({ balances }) => {
       });
 
       if (response?.hash) {
-        setTxHash(response.hash);
+        setTxToast({
+          type: "pending",
+          title: "Transaction Submitted",
+          message: "Waiting for on-chain confirmation.",
+          txHash: response.hash,
+        });
         devLog("📝 Transaction:", response.hash);
 
         const txResult = await movementClient.waitForTransaction({
@@ -536,7 +539,12 @@ const Swap = ({ balances }) => {
         });
 
         if (txResult.success) {
-          setSuccess(`Swapped ${fromAmount} ${fromToken.symbol} for ~${toAmount} ${toToken.symbol}`);
+          setTxToast({
+            type: "success",
+            title: "Swap Complete",
+            message: `Swapped ${fromAmount} ${fromToken.symbol} for ~${toAmount} ${toToken.symbol}`,
+            txHash: response.hash,
+          });
           setFromAmount("");
           setToAmount("");
           setRoutingResult(null);
@@ -549,12 +557,36 @@ const Swap = ({ balances }) => {
       const msg = err.message || "";
       if (msg.includes("rejected") || msg.includes("denied")) {
         setError("Transaction rejected by user");
+        setTxToast({
+          type: "error",
+          title: "Transaction Rejected",
+          message: "The transaction was rejected in your wallet.",
+          txHash: null,
+        });
       } else if (msg.includes("insufficient") || msg.includes("balance")) {
         setError("Insufficient balance");
+        setTxToast({
+          type: "error",
+          title: "Swap Failed",
+          message: "Insufficient balance for this transaction.",
+          txHash: null,
+        });
       } else if (msg.includes("slippage") || msg.includes("INSUFFICIENT_OUTPUT")) {
         setError("Price moved unfavorably. Try increasing slippage.");
+        setTxToast({
+          type: "error",
+          title: "Swap Failed",
+          message: "Price moved too much before execution.",
+          txHash: null,
+        });
       } else {
         setError(msg.substring(0, 120) || "Swap failed. Please try again.");
+        setTxToast({
+          type: "error",
+          title: "Swap Failed",
+          message: msg.substring(0, 120) || "Swap failed. Please try again.",
+          txHash: null,
+        });
       }
     } finally {
       setSwapping(false);
@@ -844,24 +876,6 @@ const Swap = ({ balances }) => {
                 </div>
               )}
 
-              {/* Success */}
-              {success && (
-                <div className="swap-success">
-                  <span className="success-icon">✅</span>
-                  {success}
-                  {txHash && (
-                    <a
-                      href={`${DEFAULT_NETWORK.explorer}/txn/${txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="tx-link"
-                    >
-                      View Transaction ↗
-                    </a>
-                  )}
-                </div>
-              )}
-
               {/* Swap Button */}
               <button
                 className={`swap-execute-btn ${buttonState.disabled ? "disabled" : ""}`}
@@ -933,6 +947,12 @@ const Swap = ({ balances }) => {
 
       {/* Settings Modal */}
       {renderSettings()}
+
+      <TransactionToast
+        toast={txToast}
+        explorerBase={DEFAULT_NETWORK.explorer}
+        onClose={() => setTxToast(null)}
+      />
     </div>
   );
 };

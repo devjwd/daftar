@@ -18,20 +18,10 @@ import { checkAdmin } from '../_lib/auth.js';
 import { runAdaptersForAddress } from '../_lib/badgeAdapters/index.js';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { join, dirname } from 'path';
+import { attestBadgeAllowlistOnChain, getAttestationReadiness } from '../_lib/onchainAttestation.js';
+import { loadResolvedBadgeConfigs } from '../_lib/badgeConfigsState.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const METHODS = ['POST', 'OPTIONS'];
-
-const loadBadgeConfigs = () => {
-  try {
-    return JSON.parse(readFileSync(join(__dirname, '../_lib/badgeConfigs.json'), 'utf8'));
-  } catch {
-    return [];
-  }
-};
 
 export default async function handler(req, res) {
   if (handleOptions(req, res, METHODS)) return;
@@ -64,11 +54,17 @@ export default async function handler(req, res) {
     if (!auth.ok) return sendJson(res, auth.status, { error: auth.error });
   }
 
-  const badgeConfigs = loadBadgeConfigs();
+  const { configs: badgeConfigs } = await loadResolvedBadgeConfigs();
+  const configByBadgeId = new Map(
+    badgeConfigs.map((config) => [String(config?.badgeId || ''), config])
+  );
   const { userAwards, trackedAddresses } = await loadState();
+
+  const readiness = getAttestationReadiness();
 
   let changed = false;
   const awarded = [];
+  const attestationFailures = [];
 
   for (const addr of trackedAddresses) {
     try {
@@ -78,14 +74,59 @@ export default async function handler(req, res) {
       for (const candidate of candidates) {
         const alreadyAwarded = existing.some((r) => r.badgeId === candidate.badgeId);
         if (!alreadyAwarded) {
+          const config = configByBadgeId.get(String(candidate.badgeId || ''));
+          const resolvedOnChainBadgeId =
+            config?.onChainBadgeId ??
+            candidate?.extra?.onChainBadgeId ??
+            null;
+
+          let attestation = null;
+          if (resolvedOnChainBadgeId != null) {
+            if (!readiness.ready) {
+              attestationFailures.push({
+                addr,
+                badgeId: candidate.badgeId,
+                reason: readiness.reason,
+              });
+              continue;
+            }
+
+            attestation = await attestBadgeAllowlistOnChain({
+              ownerAddress: addr,
+              onChainBadgeId: resolvedOnChainBadgeId,
+            });
+
+            if (!attestation.ok) {
+              attestationFailures.push({
+                addr,
+                badgeId: candidate.badgeId,
+                reason: attestation.reason,
+              });
+              continue;
+            }
+          }
+
           const record = {
             badgeId: candidate.badgeId,
-            payload: candidate.extra || {},
+            payload: {
+              ...(candidate.extra || {}),
+              onChainBadgeId: resolvedOnChainBadgeId,
+              attested: Boolean(attestation?.ok),
+              attestationTxHash: attestation?.txHash || null,
+              attestedAt: attestation ? new Date().toISOString() : null,
+              alreadyAllowlisted: Boolean(attestation?.alreadyAllowlisted),
+              attestor: attestation?.attestor || null,
+            },
             awardedAt: new Date().toISOString(),
           };
           existing.push(record);
           changed = true;
-          awarded.push({ addr, badgeId: candidate.badgeId });
+          awarded.push({
+            addr,
+            badgeId: candidate.badgeId,
+            onChainBadgeId: resolvedOnChainBadgeId,
+            attestationTxHash: attestation?.txHash || null,
+          });
           console.log(`[scan] awarded ${candidate.badgeId} to ${addr}`);
         }
       }
@@ -102,5 +143,6 @@ export default async function handler(req, res) {
     status: 'ok',
     tracked: trackedAddresses.length,
     awarded,
+    attestationFailures,
   });
 }

@@ -654,6 +654,207 @@
   color: #ef4444;
 }
 
+/* ─── Additional Button Variants ──────────────────────────────────── */
+.ba-btn-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.ba-btn-warning:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.25);
+}
+.ba-btn-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.ba-btn-success:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+/* ─── On-Chain Management Tab ─────────────────────────────────────── */
+.ba-onchain-manage {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ba-onchain-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(205, 161, 105, 0.1);
+}
+
+.ba-onchain-header h3 {
+  color: #deb884;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.ba-onchain-header .ba-hint {
+  color: #8a7d6f;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.ba-loading {
+  text-align: center;
+  padding: 40px;
+  color: #8a7d6f;
+  font-size: 0.9rem;
+}
+
+.ba-empty {
+  text-align: center;
+  padding: 40px;
+  color: #6b6058;
+  font-size: 0.9rem;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  border: 1px dashed rgba(205, 161, 105, 0.15);
+}
+
+.ba-onchain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ba-onchain-item {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(205, 161, 105, 0.12);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.ba-onchain-item:hover {
+  border-color: rgba(205, 161, 105, 0.25);
+}
+
+.ba-onchain-item.discontinued {
+  opacity: 0.6;
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.15);
+}
+
+.ba-onchain-preview {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(205, 161, 105, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ba-onchain-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ba-onchain-placeholder {
+  font-size: 0.85rem;
+  color: #6b6058;
+  font-weight: 600;
+}
+
+.ba-onchain-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ba-onchain-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ba-onchain-title-row h4 {
+  margin: 0;
+  color: #deb884;
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ba-status-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #fff;
+}
+
+.ba-onchain-desc {
+  margin: 0;
+  color: #9a8f83;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ba-onchain-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: #8a7d6f;
+}
+
+.ba-onchain-stats .ba-sold-out {
+  color: #ef4444;
+}
+
+.ba-onchain-stats .ba-expired {
+  color: #f59e0b;
+}
+
+.ba-onchain-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: #6b6058;
+}
+
+.ba-onchain-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+}
+
+.ba-onchain-actions .ba-btn {
+  min-width: 120px;
+}
+
+.ba-discontinued-label {
+  font-size: 0.75rem;
+  color: #6b6058;
+  font-style: italic;
+  text-align: center;
+}
+
 /* ─── Animations ──────────────────────────────────────────────────── */
 @keyframes ba-slideDown {
   from { opacity: 0; transform: translateY(-8px); }
@@ -693,5 +894,22 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+  /* On-chain responsive */
+  .ba-onchain-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ba-onchain-preview {
+    width: 100%;
+    height: 120px;
+  }
+  .ba-onchain-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .ba-onchain-actions .ba-btn {
+    min-width: auto;
+    flex: 1;
   }
 }

@@ -375,13 +375,25 @@ export default function Layout({ children }) {
               </li>
 
               {SWAP_ENABLED && (
-                <li className="nav-item-disabled">
-                  <button type="button" className="nav-link-btn nav-link-btn--disabled" disabled>{t(language, 'navSwap')}<span className="nav-coming-soon">soon</span></button>
+                <li className={location.pathname.startsWith("/swap") ? "active" : ""}>
+                  <button
+                    type="button"
+                    className="nav-link-btn"
+                    onClick={() => navigate("/swap")}
+                  >
+                    {t(language, 'navSwap')}
+                  </button>
                 </li>
               )}
 
-              <li className="nav-item-disabled">
-                <button type="button" className="nav-link-btn nav-link-btn--disabled" disabled>{t(language, 'navBadges')}<span className="nav-coming-soon">soon</span></button>
+              <li className={location.pathname.startsWith("/badges") ? "active" : ""}>
+                <button
+                  type="button"
+                  className="nav-link-btn"
+                  onClick={() => navigate("/badges")}
+                >
+                  {t(language, 'navBadges')}
+                </button>
               </li>
 
               <li className="nav-item-disabled">
@@ -670,11 +682,11 @@ export default function Layout({ children }) {
             <div className="nav-pass-inline">
               <button
                 type="button"
-                className="nav-pass-pill nav-pass-pill--disabled"
-                disabled
-                aria-label="Level (coming soon)"
+                className="nav-pass-pill"
+                onClick={() => navigate("/level")}
+                aria-label="Level"
               >
-                <span className="nav-pass-text" style={{position:'relative'}}>Level<span className="nav-coming-soon nav-coming-soon--pill">soon</span></span>
+                <span className="nav-pass-text">Level</span>
                 <span className="nav-pass-level">{passLevelLoading ? '•' : passLevel}</span>
               </button>
             </div>
