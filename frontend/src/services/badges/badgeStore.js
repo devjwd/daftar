@@ -14,6 +14,7 @@ import {
   createBadgeDefinition,
   validateBadgeDefinition,
 } from '../../config/badges.js';
+import { awardBadgeToUser, fetchAllBadges, fetchUserBadges, saveBadgeDefinitions } from '../badgeApi.js';
 
 const BADGE_STORE_META_KEY = 'movement_badges_meta_v1';
 const STORE_SCHEMA_VERSION = 2;
@@ -25,19 +26,6 @@ function normalizeBadgeId(value) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
   return normalized || `badge-${Date.now()}`;
-}
-
-function buildEmojiDataUri(emoji, background = '#111827') {
-  const svg = [
-    '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">',
-    `<rect width="256" height="256" rx="52" fill="${background}"/>`,
-    '<text x="50%" y="56%" text-anchor="middle" dominant-baseline="middle" font-size="124">',
-    emoji,
-    '</text>',
-    '</svg>',
-  ].join('');
-
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 function buildSystemBadges() {
@@ -64,7 +52,6 @@ function migrateAndSeedBadges() {
   const storedMeta = readStore(BADGE_STORE_META_KEY, {});
   if (Number(storedMeta?.schemaVersion || 0) < STORE_SCHEMA_VERSION) {
     writeStore(BADGE_STORE_KEY, []);
-    writeStore(BADGE_AWARDS_KEY, []);
     writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
     return [];
   }
@@ -105,6 +92,9 @@ function mapCriterionToRule(criterionType) {
   if (criterionType === CRITERIA_TYPES.TRANSACTION_COUNT) return BADGE_RULES.TRANSACTION_COUNT;
   if (criterionType === CRITERIA_TYPES.DAYS_ONCHAIN) return BADGE_RULES.DAYS_ONCHAIN;
   if (criterionType === CRITERIA_TYPES.MIN_BALANCE) return BADGE_RULES.MIN_BALANCE;
+  if (criterionType === CRITERIA_TYPES.PROTOCOL_COUNT) return BADGE_RULES.PROTOCOL_COUNT;
+  if (criterionType === CRITERIA_TYPES.PROTOCOL_USAGE || criterionType === CRITERIA_TYPES.DAPP_USAGE) return BADGE_RULES.DAPP_USAGE;
+  if (criterionType === CRITERIA_TYPES.ALLOWLIST) return BADGE_RULES.ALLOWLIST;
   return null;
 }
 
@@ -159,6 +149,92 @@ function writeStore(key, data) {
   }
 }
 
+function replaceBadges(badges) {
+  const normalized = Array.isArray(badges)
+    ? badges.map(normalizeLoadedBadge).filter(Boolean)
+    : [];
+  writeStore(BADGE_STORE_KEY, normalized);
+  writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
+  emit('badges:changed', normalized);
+  return normalized;
+}
+
+function normalizeAward(address, award) {
+  const normalizedAddress = String(address || '').trim().toLowerCase();
+  if (!normalizedAddress || !award?.badgeId) return null;
+
+  return {
+    address: normalizedAddress,
+    badgeId: String(award.badgeId),
+    awardedAt: award?.awardedAt || Date.now(),
+    txHash: award?.txHash || award?.payload?.txHash || null,
+    metadata:
+      award?.metadata && typeof award.metadata === 'object' && !Array.isArray(award.metadata)
+        ? award.metadata
+        : award?.payload && typeof award.payload === 'object' && !Array.isArray(award.payload)
+          ? award.payload
+          : {},
+  };
+}
+
+function replaceAwardsForAddress(address, nextAwards) {
+  const normalizedAddress = String(address || '').trim().toLowerCase();
+  if (!normalizedAddress) return [];
+
+  const awards = readStore(BADGE_AWARDS_KEY, []);
+  const preserved = awards.filter((award) => award.address !== normalizedAddress);
+  const normalizedAwards = Array.isArray(nextAwards)
+    ? nextAwards.map((award) => normalizeAward(normalizedAddress, award)).filter(Boolean)
+    : [];
+
+  const merged = [...preserved, ...normalizedAwards];
+  writeStore(BADGE_AWARDS_KEY, merged);
+  emit('awards:changed', merged);
+  return normalizedAwards;
+}
+
+async function persistBadgeList(badges, adminKey) {
+  const response = await saveBadgeDefinitions({ badges, adminKey });
+  if (!response.ok) {
+    return {
+      success: false,
+      errors: [response?.data?.error || 'Failed to save badge definitions'],
+    };
+  }
+
+  const saved = Array.isArray(response?.data?.badges) ? response.data.badges : badges;
+  replaceBadges(saved);
+  return { success: true, badges: saved };
+}
+
+export async function syncBadgesFromBackend() {
+  const cachedBadges = getAllBadges();
+  const response = await fetchAllBadges();
+  if (!response.ok) {
+    return { ok: false, badges: cachedBadges };
+  }
+
+  const remoteBadges = Array.isArray(response.badges) ? response.badges : [];
+  if (remoteBadges.length === 0 && cachedBadges.length > 0) {
+    return { ok: true, badges: cachedBadges };
+  }
+
+  const badges = replaceBadges(remoteBadges);
+  return { ok: true, badges };
+}
+
+export async function syncUserAwardsFromBackend(address) {
+  if (!address) return { ok: true, awards: [] };
+
+  const response = await fetchUserBadges(address);
+  if (!response.ok) {
+    return { ok: false, awards: getUserAwards(address) };
+  }
+
+  const awards = replaceAwardsForAddress(address, response.awards || []);
+  return { ok: true, awards };
+}
+
 // ─── Badge Definition CRUD ───────────────────────────────────────────
 
 /**
@@ -200,7 +276,7 @@ export function getEnabledBadges() {
  * @param {object} badgeData
  * @returns {{ success: boolean, badge?: object, errors?: string[] }}
  */
-export function createBadge(badgeData) {
+export async function createBadge(badgeData, options = {}) {
   const badge = createBadgeDefinition(badgeData);
   const validation = validateBadgeDefinition(badge);
 
@@ -216,10 +292,10 @@ export function createBadge(badgeData) {
   }
 
   badges.push(badge);
-  writeStore(BADGE_STORE_KEY, badges);
-  emit('badge:created', badge);
-  emit('badges:changed', badges);
+  const result = await persistBadgeList(badges, options.adminKey);
+  if (!result.success) return result;
 
+  emit('badge:created', badge);
   return { success: true, badge };
 }
 
@@ -229,7 +305,7 @@ export function createBadge(badgeData) {
  * @param {object} updates - Partial badge data
  * @returns {{ success: boolean, badge?: object, errors?: string[] }}
  */
-export function updateBadge(id, updates) {
+export async function updateBadge(id, updates, options = {}) {
   const badges = getAllBadges();
   const index = badges.findIndex(b => b.id === id);
 
@@ -256,10 +332,10 @@ export function updateBadge(id, updates) {
   }
 
   badges[index] = updated;
-  writeStore(BADGE_STORE_KEY, badges);
-  emit('badge:updated', updated);
-  emit('badges:changed', badges);
+  const result = await persistBadgeList(badges, options.adminKey);
+  if (!result.success) return result;
 
+  emit('badge:updated', updated);
   return { success: true, badge: updated };
 }
 
@@ -268,7 +344,7 @@ export function updateBadge(id, updates) {
  * @param {string} id
  * @returns {{ success: boolean }}
  */
-export function deleteBadge(id) {
+export async function deleteBadge(id, options = {}) {
   const badges = getAllBadges();
   const filtered = badges.filter(b => b.id !== id);
 
@@ -276,7 +352,8 @@ export function deleteBadge(id) {
     return { success: false, errors: ['Badge not found'] };
   }
 
-  writeStore(BADGE_STORE_KEY, filtered);
+  const persistResult = await persistBadgeList(filtered, options.adminKey);
+  if (!persistResult.success) return persistResult;
 
   // Also clean up awards for this badge
   const awards = readStore(BADGE_AWARDS_KEY, []);
@@ -284,7 +361,6 @@ export function deleteBadge(id) {
   writeStore(BADGE_AWARDS_KEY, cleanedAwards);
 
   emit('badge:deleted', { id });
-  emit('badges:changed', filtered);
 
   return { success: true };
 }
@@ -294,10 +370,10 @@ export function deleteBadge(id) {
  * @param {string} id
  * @returns {{ success: boolean, badge?: object }}
  */
-export function toggleBadge(id) {
+export async function toggleBadge(id, options = {}) {
   const badge = getBadgeById(id);
   if (!badge) return { success: false, errors: ['Badge not found'] };
-  return updateBadge(id, { enabled: !badge.enabled });
+  return updateBadge(id, { enabled: !badge.enabled }, options);
 }
 
 /**
@@ -334,7 +410,7 @@ export function reorderBadges(orderedIds) {
  * @param {string} badgeId
  * @param {object} extra - Additional data (tx hash, etc.)
  */
-export function awardBadge(address, badgeId, extra = {}) {
+export async function awardBadge(address, badgeId, extra = {}) {
   const normalized = String(address).toLowerCase();
   const resolvedBadge = getBadgeById(badgeId);
   if (!resolvedBadge) {
@@ -355,6 +431,18 @@ export function awardBadge(address, badgeId, extra = {}) {
     txHash: extra.txHash || null,
     metadata: extra.metadata || {},
   };
+
+  const remoteResult = await awardBadgeToUser(normalized, badgeId, {
+    ...(extra.metadata || {}),
+    txHash: extra.txHash || null,
+    onChainBadgeId: extra.onChainBadgeId ?? resolvedBadge.onChainBadgeId ?? null,
+  });
+
+  if (remoteResult.ok && remoteResult.data) {
+    const cachedAwards = getUserAwards(normalized);
+    replaceAwardsForAddress(normalized, [...cachedAwards, remoteResult.data]);
+    return { success: true, award: normalizeAward(normalized, remoteResult.data) };
+  }
 
   awards.push(award);
   writeStore(BADGE_AWARDS_KEY, awards);
@@ -417,7 +505,7 @@ export function revokeBadge(address, badgeId) {
  * @param {Array} badgeArray
  * @returns {{ imported: number, skipped: number, errors: string[] }}
  */
-export function importBadges(badgeArray) {
+export async function importBadges(badgeArray, options = {}) {
   if (!Array.isArray(badgeArray)) {
     return { imported: 0, skipped: 0, errors: ['Input must be an array'] };
   }
@@ -446,8 +534,10 @@ export function importBadges(badgeArray) {
     }
   }
 
-  writeStore(BADGE_STORE_KEY, existing);
-  emit('badges:changed', existing);
+  const result = await persistBadgeList(existing, options.adminKey);
+  if (!result.success) {
+    return { imported: 0, skipped: badgeArray.length, errors: result.errors || ['Failed to save imported badges'] };
+  }
 
   return { imported, skipped, errors };
 }
@@ -491,12 +581,24 @@ export function exportScannerConfigs() {
 /**
  * Clear all badge data (definitions and awards).
  */
-export function clearAllBadgeData() {
-  writeStore(BADGE_STORE_KEY, []);
+export async function clearAllBadgeData(options = {}) {
+  const response = await saveBadgeDefinitions({
+    badges: [],
+    adminKey: options.adminKey,
+    clearAwards: true,
+  });
+  if (!response.ok) {
+    return {
+      success: false,
+      errors: [response?.data?.error || 'Failed to clear badge data'],
+    };
+  }
+
+  replaceBadges([]);
   writeStore(BADGE_AWARDS_KEY, []);
   writeStore(BADGE_STORE_META_KEY, {});
-  emit('badges:changed', []);
   emit('awards:changed', []);
+  return { success: true };
 }
 
 export default {
@@ -519,4 +621,6 @@ export default {
   exportBadges,
   exportScannerConfigs,
   clearAllBadgeData,
+  syncBadgesFromBackend,
+  syncUserAwardsFromBackend,
 };

@@ -4,10 +4,11 @@
  * Simple hook to get a user's earned badges and awards.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { getUserAwards, getBadgeById, subscribe } from '../services/badges/badgeStore.js';
+import { getUserAwards, getBadgeById, subscribe, syncUserAwardsFromBackend } from '../services/badges/badgeStore.js';
 
 export default function useUserBadges(address) {
   const [awardsVersion, setAwardsVersion] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!address) return undefined;
@@ -17,6 +18,25 @@ export default function useUserBadges(address) {
       setAwardsVersion((v) => v + 1);
     });
     return unsub;
+  }, [address]);
+
+  useEffect(() => {
+    let active = true;
+
+    const hydrate = async () => {
+      setLoading(true);
+      await syncUserAwardsFromBackend(address);
+      if (active) {
+        setAwardsVersion((v) => v + 1);
+        setLoading(false);
+      }
+    };
+
+    if (address) hydrate();
+
+    return () => {
+      active = false;
+    };
   }, [address]);
 
   const awards = useMemo(() => {
@@ -38,7 +58,7 @@ export default function useUserBadges(address) {
     awards,
     earnedBadges,
     earnedIds: new Set(awards.map(a => a.badgeId)),
-    loading: false,
+    loading,
     count: earnedBadges.length,
   };
 }

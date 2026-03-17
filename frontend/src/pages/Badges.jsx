@@ -131,7 +131,7 @@ export default function Badges() {
   }, []);
 
   const renderAchievementCard = (badge) => {
-    const badgeState = badge.earned ? 'earned' : badge.eligible ? 'ready' : 'locked';
+    const badgeState = badge.earned ? 'earned' : (badge.eligible || badge.attestationPending || badge.attestationFailed) ? 'ready' : 'locked';
     const progressClamped = Math.max(0, Math.min(100, badge.progress || 0));
 
     return (
@@ -182,9 +182,10 @@ export default function Badges() {
           )}
 
           {badge.earned && <span className="achievement-status-pill">Unlocked</span>}
-          {!badge.earned && !badge.eligible && <span className="achievement-status-pill">Locked</span>}
+          {!badge.earned && !badge.eligible && !badge.attestationPending && !badge.attestationFailed && <span className="achievement-status-pill">Locked</span>}
           {badge.publishPending && <span className="achievement-status-pill">Publishing on-chain</span>}
           {badge.attestationPending && <span className="achievement-status-pill">Attesting…</span>}
+          {badge.attestationFailed && <span className="achievement-status-pill achievement-status-pill--warn" title="Auto-attestation failed. The on-chain service may not be configured yet.">Attestation unavailable</span>}
 
           <span className="achievement-chevron" aria-hidden="true">›</span>
         </div>
@@ -243,9 +244,9 @@ export default function Badges() {
         });
       }
 
-      // Record the award locally
-      awardBadge(address, badge.id, {
+      await awardBadge(address, badge.id, {
         txHash,
+        onChainBadgeId: badge.onChainBadgeId,
         metadata: { mintedAt: Date.now() },
       });
 
@@ -415,6 +416,11 @@ export default function Badges() {
             {selectedBadge.attestationPending && (
               <p className="badge-modal-note">
                 You&apos;re eligible! On-chain attestation is being processed automatically — the Claim button will appear shortly.
+              </p>
+            )}
+            {selectedBadge.attestationFailed && (
+              <p className="badge-modal-note badge-modal-note--warn">
+                You&apos;re eligible, but the on-chain attestation service isn&apos;t available right now (the badge may not be configured on-chain yet). Contact the admin to enable claiming.
               </p>
             )}
 

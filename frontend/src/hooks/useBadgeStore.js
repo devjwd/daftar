@@ -17,16 +17,34 @@ import {
   exportBadges,
   exportScannerConfigs,
   clearAllBadgeData,
+  syncBadgesFromBackend,
   subscribe,
 } from '../services/badges/badgeStore.js';
 
 export default function useBadgeStore() {
   const [badges, setBadges] = useState(() => getAllBadges());
   const [version, setVersion] = useState(0);
+  const [loading, setLoading] = useState(false);
   const enabledBadges = useMemo(
     () => badges.filter(b => b.enabled !== false),
     [badges]
   );
+
+  useEffect(() => {
+    let active = true;
+
+    const hydrate = async () => {
+      setLoading(true);
+      await syncBadgesFromBackend();
+      if (active) setLoading(false);
+    };
+
+    hydrate();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Subscribe to store changes
   useEffect(() => {
@@ -37,25 +55,24 @@ export default function useBadgeStore() {
     return unsub;
   }, []);
 
-  const handleCreate = useCallback((data) => {
-    const result = createBadge(data);
-    return result;
+  const handleCreate = useCallback(async (data, options) => {
+    return createBadge(data, options);
   }, []);
 
-  const handleUpdate = useCallback((id, updates) => {
-    return updateBadge(id, updates);
+  const handleUpdate = useCallback(async (id, updates, options) => {
+    return updateBadge(id, updates, options);
   }, []);
 
-  const handleDelete = useCallback((id) => {
-    return deleteBadge(id);
+  const handleDelete = useCallback(async (id, options) => {
+    return deleteBadge(id, options);
   }, []);
 
-  const handleToggle = useCallback((id) => {
-    return toggleBadge(id);
+  const handleToggle = useCallback(async (id, options) => {
+    return toggleBadge(id, options);
   }, []);
 
-  const handleImport = useCallback((data) => {
-    return importBadges(data);
+  const handleImport = useCallback(async (data, options) => {
+    return importBadges(data, options);
   }, []);
 
   const handleExport = useCallback(() => {
@@ -66,14 +83,15 @@ export default function useBadgeStore() {
     return exportScannerConfigs();
   }, []);
 
-  const handleClearAll = useCallback(() => {
-    clearAllBadgeData();
+  const handleClearAll = useCallback(async (options) => {
+    return clearAllBadgeData(options);
   }, []);
 
   return {
     badges,
     enabledBadges,
     version,
+    loading,
     getBadgeById,
     getBadgesByCategory,
     createBadge: handleCreate,

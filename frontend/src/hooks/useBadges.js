@@ -11,7 +11,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import useBadgeStore from './useBadgeStore.js';
 import useBadgeEligibility from './useBadgeEligibility.js';
 import useAutoAttestation from './useAutoAttestation.js';
-import { getEarnedBadgeIds, getUserAwards, subscribe } from '../services/badges/badgeStore.js';
+import { getEarnedBadgeIds, getUserAwards, subscribe, syncUserAwardsFromBackend } from '../services/badges/badgeStore.js';
 import { POLLING_INTERVALS } from '../config/badges.js';
 import { hasBadge, isAllowlisted } from '../services/badgeService.js';
 
@@ -32,6 +32,8 @@ const requiresOnChainAllowlistAttestation = (badge) => {
   return !criteria.some((criterion) => criterion?.type === 'min_balance');
 };
 
+const getAttestationFailureKey = (address, badgeId) => `${String(address || '').toLowerCase()}:${badgeId}`;
+
 /**
  * @param {string} address - Wallet address being viewed
  * @param {object} options
@@ -48,7 +50,7 @@ export default function useBadges(address, options = {}) {
     enablePolling = true,
   } = options;
 
-  const { enabledBadges } = useBadgeStore();
+  const { enabledBadges, loading: badgeStoreLoading } = useBadgeStore();
 
   const [awardsVersion, setAwardsVersion] = useState(0);
   const [onChainEarnedByBadgeId, setOnChainEarnedByBadgeId] = useState(new Map());
@@ -57,6 +59,8 @@ export default function useBadges(address, options = {}) {
   const [onChainAllowlistLoading, setOnChainAllowlistLoading] = useState(false);
   // Bump this to force a re-check of on-chain allowlist state after auto-attestation
   const [allowlistVersion, setAllowlistVersion] = useState(0);
+  // Track badges whose auto-attestation permanently failed (exhausted retries)
+  const [attestationFailedIds, setAttestationFailedIds] = useState(new Set());
 
   const earnedIds = useMemo(() => {
     void awardsVersion;
@@ -92,6 +96,23 @@ export default function useBadges(address, options = {}) {
       setAwardsVersion((v) => v + 1);
     });
     return unsub;
+  }, [address]);
+
+  useEffect(() => {
+    let active = true;
+
+    const hydrateAwards = async () => {
+      await syncUserAwardsFromBackend(address);
+      if (active) {
+        setAwardsVersion((v) => v + 1);
+      }
+    };
+
+    if (address) hydrateAwards();
+
+    return () => {
+      active = false;
+    };
   }, [address]);
 
   // Reconcile local earned state with on-chain SBT ownership.
@@ -184,6 +205,11 @@ export default function useBadges(address, options = {}) {
     setAllowlistVersion((v) => v + 1);
   }, []);
 
+  const handleAttestationFailed = useCallback((badgeId) => {
+    const key = getAttestationFailureKey(address, badgeId);
+    setAttestationFailedIds((prev) => new Set([...prev, key]));
+  }, [address]);
+
   // Build enriched badge list with eligibility & earned status
   const awardsByBadgeId = useMemo(() => {
     void awardsVersion;
@@ -201,6 +227,8 @@ export default function useBadges(address, options = {}) {
       const needsAttestation = requiresOnChainAllowlistAttestation(badge);
       const allowlisted = onChainAllowlistedByBadgeId.get(badge.id) === true;
       const eligible = baseEligible && isMintableOnChain && (!needsAttestation || allowlisted);
+      const failureKey = getAttestationFailureKey(address, badge.id);
+      const hasAttestationFailed = attestationFailedIds.has(failureKey);
       const progress = evalResult?.overallProgress || 0;
       const criteriaResults = evalResult?.criteriaResults || [];
 
@@ -222,19 +250,22 @@ export default function useBadges(address, options = {}) {
         publishPending: baseEligible && !isMintableOnChain,
         needsOnChainAttestation: needsAttestation,
         onChainAllowlisted: allowlisted,
-        attestationPending: baseEligible && isMintableOnChain && needsAttestation && !allowlisted,
+        attestationPending: baseEligible && isMintableOnChain && needsAttestation && !allowlisted && !hasAttestationFailed,
+        attestationFailed: baseEligible && isMintableOnChain && needsAttestation && !allowlisted && hasAttestationFailed,
         progress,
         criteriaResults,
-        locked: !earned && !eligible,
+        // locked only when the user genuinely hasn't met criteria yet (not while awaiting allowlist)
+        locked: !earned && !eligible && !(baseEligible && isMintableOnChain && needsAttestation && !allowlisted),
       };
     });
-  }, [enabledBadges, earnedIds, getResult, awardsByBadgeId, onChainEarnedByBadgeId, onChainAllowlistedByBadgeId]);
+  }, [address, enabledBadges, earnedIds, getResult, awardsByBadgeId, onChainEarnedByBadgeId, onChainAllowlistedByBadgeId, attestationFailedIds]);
 
   // Auto-attestation: fires for every badge that is eligible but not yet allowlisted
   useAutoAttestation({
     address,
     eligibleBadges: enrichedBadges,
     onAttested: handleAttested,
+    onFailed: handleAttestationFailed,
   });
 
   // Categorized badge groups
@@ -263,7 +294,7 @@ export default function useBadges(address, options = {}) {
     completionPercent,
 
     // Loading state
-    loading: eligibilityLoading || onChainSyncLoading || onChainAllowlistLoading,
+    loading: badgeStoreLoading || eligibilityLoading || onChainSyncLoading || onChainAllowlistLoading,
 
     // Methods
     refresh: refreshEligibility,

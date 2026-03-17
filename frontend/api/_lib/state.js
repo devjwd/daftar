@@ -77,6 +77,42 @@ const normalizeBadgeConfigs = (value) => {
   return Array.from(deduped.values());
 };
 
+const normalizeBadgeDefinitions = (value) => {
+  if (!Array.isArray(value)) return [];
+
+  const deduped = new Map();
+  for (const entry of value) {
+    if (!isObject(entry)) continue;
+
+    const id = String(entry.id || '').trim();
+    const name = String(entry.name || '').trim();
+    if (!id || !name) continue;
+
+    deduped.set(id, {
+      ...entry,
+      id,
+      name,
+      description: typeof entry.description === 'string' ? entry.description : '',
+      imageUrl: typeof entry.imageUrl === 'string' ? entry.imageUrl : '',
+      category: typeof entry.category === 'string' ? entry.category : 'activity',
+      rarity: typeof entry.rarity === 'string' ? entry.rarity : 'COMMON',
+      xp: Number(entry.xp) || 0,
+      mintFee: Number(entry.mintFee) || 0,
+      criteria: Array.isArray(entry.criteria) ? entry.criteria : [],
+      metadata: isObject(entry.metadata) ? entry.metadata : {},
+      enabled: entry.enabled !== false,
+      onChainBadgeId:
+        entry?.onChainBadgeId == null || entry?.onChainBadgeId === ''
+          ? null
+          : Number(entry.onChainBadgeId),
+      createdAt: entry.createdAt || null,
+      updatedAt: entry.updatedAt || null,
+    });
+  }
+
+  return Array.from(deduped.values());
+};
+
 const mergeStates = (left, right) => {
   const leftAwards = normalizeUserAwards(left?.userAwards);
   const rightAwards = normalizeUserAwards(right?.userAwards);
@@ -88,6 +124,8 @@ const mergeStates = (left, right) => {
 
   const hasRightBadgeConfigs =
     right && Object.prototype.hasOwnProperty.call(right, 'badgeConfigs');
+  const hasRightBadgeDefinitions =
+    right && Object.prototype.hasOwnProperty.call(right, 'badgeDefinitions');
 
   return {
     userAwards: mergedAwards,
@@ -98,6 +136,9 @@ const mergeStates = (left, right) => {
     badgeConfigs: hasRightBadgeConfigs
       ? normalizeBadgeConfigs(right?.badgeConfigs)
       : normalizeBadgeConfigs(left?.badgeConfigs),
+    badgeDefinitions: hasRightBadgeDefinitions
+      ? normalizeBadgeDefinitions(right?.badgeDefinitions)
+      : normalizeBadgeDefinitions(left?.badgeDefinitions),
   };
 };
 
@@ -126,6 +167,13 @@ const stateContains = (container, subset) => {
     if (!containerBadgeIds.has(String(entry?.badgeId || ''))) return false;
   }
 
+  const containerDefinitionIds = new Set(
+    (containerState.badgeDefinitions || []).map((entry) => String(entry?.id || ''))
+  );
+  for (const entry of subsetState.badgeDefinitions || []) {
+    if (!containerDefinitionIds.has(String(entry?.id || ''))) return false;
+  }
+
   return true;
 };
 
@@ -136,20 +184,21 @@ const stateContains = (container, subset) => {
 export async function loadState() {
   try {
     const { blobs } = await list({ prefix: BLOB_PATHNAME, limit: 1 });
-    if (blobs.length === 0) return { userAwards: {}, trackedAddresses: [], badgeConfigs: [] };
+    if (blobs.length === 0) return { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
 
     const res = await fetch(blobs[0].url);
-    if (!res.ok) return { userAwards: {}, trackedAddresses: [], badgeConfigs: [] };
+    if (!res.ok) return { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
 
     const data = await res.json();
     return {
       userAwards: normalizeUserAwards(data.userAwards),
       trackedAddresses: normalizeTrackedAddresses(data.trackedAddresses),
       badgeConfigs: normalizeBadgeConfigs(data.badgeConfigs),
+      badgeDefinitions: normalizeBadgeDefinitions(data.badgeDefinitions),
     };
   } catch (e) {
     console.warn('[state] loadState failed', e.message);
-    return { userAwards: {}, trackedAddresses: [], badgeConfigs: [] };
+    return { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
   }
 }
 
@@ -157,11 +206,12 @@ export async function loadState() {
  * @param {Record<string, object[]>} userAwards  plain-object map of awards
  * @param {string[]}                 trackedAddresses
  */
-export async function saveState(userAwards, trackedAddresses, badgeConfigs) {
+export async function saveState(userAwards, trackedAddresses, badgeConfigs, badgeDefinitions) {
   let intended = mergeStates({}, {
     userAwards,
     trackedAddresses,
     ...(badgeConfigs !== undefined ? { badgeConfigs } : {}),
+    ...(badgeDefinitions !== undefined ? { badgeDefinitions } : {}),
   });
 
   for (let attempt = 0; attempt < MAX_SAVE_RETRIES; attempt += 1) {
@@ -172,6 +222,7 @@ export async function saveState(userAwards, trackedAddresses, badgeConfigs) {
       userAwards: merged.userAwards,
       trackedAddresses: merged.trackedAddresses,
       badgeConfigs: merged.badgeConfigs,
+      badgeDefinitions: merged.badgeDefinitions,
       updatedAt: new Date().toISOString(),
     });
 

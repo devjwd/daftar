@@ -14,20 +14,28 @@
  *
  * Attestation is idempotent on the server – duplicate calls are safe and
  * the endpoint returns { alreadyAllowlisted: true } when the work is done.
+ *
+ * After MAX_RETRIES consecutive non-transient failures the badge is moved to
+ * a "failed" set and onFailed is called so the UI can stop showing "Attesting…".
  */
 import { useEffect, useRef, useCallback } from 'react';
+
+const MAX_RETRIES = 3;
 
 /**
  * @param {object} params
  * @param {string|null}  params.address          - Connected wallet address
  * @param {Array}        params.eligibleBadges   - Enriched badges with { id, onChainBadgeId, criteria, baseEligible, needsOnChainAttestation, onChainAllowlisted }
  * @param {Function}     params.onAttested       - Called with (badgeId) after a successful attestation so parent can refresh allowlist state
+ * @param {Function}     [params.onFailed]       - Called with (badgeId) after MAX_RETRIES permanent failures so parent can mark attestation as failed
  */
-export default function useAutoAttestation({ address, eligibleBadges, onAttested }) {
+export default function useAutoAttestation({ address, eligibleBadges, onAttested, onFailed }) {
   // Track badges currently being attested (prevent duplicate in-flight requests)
   const inflightRef = useRef(new Set());
-  // Track badges that have already been attested this session
+  // Track badges that have already been attested (or permanently failed) this session
   const attestedRef = useRef(new Set());
+  // Consecutive failure count per badge key
+  const failuresRef = useRef(new Map());
 
   const attest = useCallback(
     async (badge) => {
@@ -46,28 +54,55 @@ export default function useAutoAttestation({ address, eligibleBadges, onAttested
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data.ok) {
+          // Success – clear failure counter and mark as done
+          failuresRef.current.delete(key);
           attestedRef.current.add(key);
           if (typeof onAttested === 'function') {
             onAttested(badge.id);
           }
+          return;
         }
-        // On non-2xx (e.g. 403 not eligible, 503 service issue) just log and move on.
-        // The eligibility poller will retry naturally on the next interval.
-        if (!res.ok) {
-          const reason = data?.error || res.statusText;
-          if (res.status !== 429) {
-            // 429 is expected under heavy load; silence it. Everything else worth noting.
-            console.debug(`[autoAttest] ${badge.id}: ${reason}`);
+
+        // 429 is transient – don't count it against the retry budget
+        if (res.status === 429) return;
+
+        const reason = data?.error || res.statusText;
+        const hint = data?.hint ? ` (hint: ${data.hint})` : '';
+        if (res.status === 404 && data?.hint === 'publish_scanner_config') {
+          // Only log this once — it won't resolve until the admin acts
+          console.warn(`[autoAttest] ${badge.id}: scanner config not published yet. Open the Admin panel → Export → Scanner Config and publish it to enable auto-allowlist.`);
+        } else {
+          console.debug(`[autoAttest] ${badge.id}: ${reason}${hint}`);
+        }
+
+        const failures = (failuresRef.current.get(key) || 0) + 1;
+        failuresRef.current.set(key, failures);
+
+        if (failures >= MAX_RETRIES) {
+          // Stop retrying – mark as permanently handled this session
+          attestedRef.current.add(key);
+          failuresRef.current.delete(key);
+          if (typeof onFailed === 'function') {
+            onFailed(badge.id);
           }
         }
       } catch (err) {
-        // Network error – will retry on next eligibility poll
+        // Network error – counts toward the retry budget
         console.debug('[autoAttest] network error:', err.message);
+        const failures = (failuresRef.current.get(key) || 0) + 1;
+        failuresRef.current.set(key, failures);
+        if (failures >= MAX_RETRIES) {
+          attestedRef.current.add(key);
+          failuresRef.current.delete(key);
+          if (typeof onFailed === 'function') {
+            onFailed(badge.id);
+          }
+        }
       } finally {
         inflightRef.current.delete(key);
       }
     },
-    [address, onAttested]
+    [address, onAttested, onFailed]
   );
 
   useEffect(() => {
@@ -92,5 +127,6 @@ export default function useAutoAttestation({ address, eligibleBadges, onAttested
   useEffect(() => {
     attestedRef.current.clear();
     inflightRef.current.clear();
+    failuresRef.current.clear();
   }, [address]);
 }

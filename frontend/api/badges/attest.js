@@ -66,7 +66,10 @@ export default async function handler(req, res) {
   const { configs: badgeConfigs } = await loadResolvedBadgeConfigs();
   const config = badgeConfigs.find((c) => String(c?.badgeId) === String(badgeId));
   if (!config) {
-    return sendJson(res, 404, { error: 'Badge not found in configuration' });
+    return sendJson(res, 404, {
+      error: 'Badge not found in server configuration. Admin must publish the scanner config via the Admin panel (Export → Scanner Config) before auto-allowlisting can work.',
+      hint: 'publish_scanner_config',
+    });
   }
 
   const onChainBadgeId = config.onChainBadgeId ?? null;
