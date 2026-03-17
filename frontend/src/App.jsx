@@ -2815,9 +2815,9 @@ const SwapPageWrapper = () => {
   const walletAddress = connected && account
     ? (typeof account.address === 'string' ? account.address : account.address?.toString?.())
     : null;
-  const { balances } = useIndexerBalances(walletAddress);
+  const { balances, refetch } = useIndexerBalances(walletAddress);
 
-  return <SwapPage balances={balances || []} />;
+  return <SwapPage balances={balances || []} onSwapSuccess={refetch} />;
 };
 
 

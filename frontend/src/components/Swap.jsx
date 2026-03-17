@@ -155,7 +155,31 @@ const isQuotePayloadConsistent = ({ payload, bestRoute, accountAddress }) => {
 // Swap Component
 // ===========================================================================
 
-const Swap = ({ balances }) => {
+const formatDisplayAmount = (symbol, quantity) => {
+  const value = Number(quantity) || 0;
+  const isHighValueToken = ["BTC", "WBTC", "ETH", "WETH"].includes(String(symbol || "").toUpperCase());
+
+  if (isHighValueToken && value < 0.01) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 8,
+    });
+  }
+
+  if (isHighValueToken && value < 1) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 6,
+    });
+  }
+
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
+};
+
+const Swap = ({ balances, onSwapSuccess }) => {
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const { prices: priceMap } = useTokenPrices();
   const [swapSettings, setSwapSettings] = useState(() => normalizeMosaicSwapSettings(getSwapSettings()));
@@ -175,10 +199,16 @@ const Swap = ({ balances }) => {
   const [priceImpact, setPriceImpact] = useState(0);
   const [isQuoting, setIsQuoting] = useState(false);
   const [routingResult, setRoutingResult] = useState(null);
+  const [optimisticBalanceDeltas, setOptimisticBalanceDeltas] = useState({});
 
   const abortRef = useRef(null);
 
   const routeSettings = useMemo(() => ({ ...swapSettings }), [swapSettings]);
+
+  useEffect(() => {
+    // Clear optimistic values once fresh balances arrive from the indexer.
+    setOptimisticBalanceDeltas({});
+  }, [balances]);
 
   // ---- Derived ----
 
@@ -283,8 +313,20 @@ const Swap = ({ balances }) => {
       }
     }
 
+    Object.entries(optimisticBalanceDeltas).forEach(([tokenId, numericAmount]) => {
+      const existing = tokensMap.get(tokenId);
+      if (!existing) return;
+
+      const nextNumericAmount = Math.max(0, Number(numericAmount) || 0);
+      tokensMap.set(tokenId, {
+        ...existing,
+        numericAmount: nextNumericAmount,
+        amount: formatDisplayAmount(existing.symbol, nextNumericAmount),
+      });
+    });
+
     return Array.from(tokensMap.values());
-  }, [balances]);
+  }, [balances, optimisticBalanceDeltas]);
 
   // ---- Quote Fetching (Mosaic) ----
 
@@ -539,12 +581,34 @@ const Swap = ({ balances }) => {
         });
 
         if (txResult.success) {
+          const fromAmountNum = Number.parseFloat(fromAmount) || 0;
+          const toAmountNum = Number.parseFloat(toAmount) || 0;
+          const fromTokenId = fromToken.id;
+          const toTokenId = toToken.id;
+          const fromCurrent = Number(fromToken.numericAmount) || 0;
+          const toCurrent = Number(toToken.numericAmount) || 0;
+
+          setOptimisticBalanceDeltas((prev) => ({
+            ...prev,
+            [fromTokenId]: Math.max(0, fromCurrent - fromAmountNum),
+            [toTokenId]: Math.max(0, toCurrent + toAmountNum),
+          }));
+
           setTxToast({
             type: "success",
             title: "Swap Complete",
             message: `Swapped ${fromAmount} ${fromToken.symbol} for ~${toAmount} ${toToken.symbol}`,
             txHash: response.hash,
           });
+
+          if (typeof onSwapSuccess === "function") {
+            try {
+              await onSwapSuccess();
+            } catch (refreshError) {
+              devLog("Balance refresh failed after swap", refreshError);
+            }
+          }
+
           setFromAmount("");
           setToAmount("");
           setRoutingResult(null);
@@ -615,7 +679,7 @@ const Swap = ({ balances }) => {
     if (fromToken.id === toToken.id) return { text: "Select Different Tokens", disabled: true };
     if (!fromAmount || parseFloat(fromAmount) <= 0) return { text: "Enter Amount", disabled: true };
     if (parseFloat(fromAmount) > (fromToken.numericAmount || 0)) return { text: "Insufficient Balance", disabled: true };
-    if (isQuoting) return { text: "Getting Mosaic Quote...", disabled: true };
+    if (isQuoting) return { text: "Getting Quote...", disabled: true };
     if (!routingResult?.best) return { text: "No Route Available", disabled: true };
     return { text: "Swap", disabled: false };
   }, [swapping, connected, fromToken, toToken, fromAmount, isQuoting, routingResult]);
