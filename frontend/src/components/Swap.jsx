@@ -453,13 +453,25 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
   // Keep selected tokens valid if balances/token list changes.
   useEffect(() => {
-    const availableIds = new Set(availableTokens.map((token) => token.id));
+    const tokenById = new Map(availableTokens.map((token) => [token.id, token]));
+    const availableIds = new Set(tokenById.keys());
 
     if (fromToken && !availableIds.has(fromToken.id)) {
       setFromToken(null);
+    } else if (fromToken) {
+      const latestFromToken = tokenById.get(fromToken.id);
+      if (latestFromToken && latestFromToken !== fromToken) {
+        setFromToken(latestFromToken);
+      }
     }
+
     if (toToken && !availableIds.has(toToken.id)) {
       setToToken(null);
+    } else if (toToken) {
+      const latestToToken = tokenById.get(toToken.id);
+      if (latestToToken && latestToToken !== toToken) {
+        setToToken(latestToToken);
+      }
     }
   }, [availableTokens, fromToken, toToken]);
 
@@ -906,7 +918,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
               {/* To Token Input */}
               <div className="swap-input-group">
                 <div className="swap-input-label">
-                  <span>To (estimated)</span>
+                  <span>To</span>
                   {toToken && <span className="swap-balance">Balance: {toToken.amount}</span>}
                 </div>
                 <div className="swap-input-container">
