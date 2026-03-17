@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { INTERVALS, API_CONFIG } from "../config/constants";
 
+const PRICE_CACHE_KEY = "movement_price_cache_v1";
+
 // Map Movement Network token addresses to CoinGecko IDs
 // CoinGecko provides real-time price data
 const COINGECKO_IDS = {
@@ -50,11 +52,55 @@ const FALLBACK_PRICES = {
   "0xf02c83698b28a544197858c4808b96ff740aa1c01b2f04ba33e80a485b4bf67a": 0, // MOVECAT
 };
 
+const loadCachedPrices = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(PRICE_CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const cachedPrices = parsed.prices && typeof parsed.prices === "object" ? parsed.prices : {};
+    const cachedChanges = parsed.priceChanges && typeof parsed.priceChanges === "object" ? parsed.priceChanges : {};
+
+    return {
+      prices: { ...FALLBACK_PRICES, ...cachedPrices },
+      priceChanges: cachedChanges,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const persistCachedPrices = (prices, priceChanges) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      PRICE_CACHE_KEY,
+      JSON.stringify({
+        prices,
+        priceChanges,
+        updatedAt: Date.now(),
+      })
+    );
+  } catch {
+    // Ignore cache write failures (private mode/quota).
+  }
+};
+
 export const useTokenPrices = () => {
+  const cachedSnapshotRef = useRef(loadCachedPrices());
   // Initialize with fallback prices immediately so UI can render without waiting
-  const [prices, setPrices] = useState(FALLBACK_PRICES);
-  const [priceChanges, setPriceChanges] = useState({}); // 24h price changes
-  const [loading, setLoading] = useState(false); // Start false since we have fallbacks
+  const [prices, setPrices] = useState(() => cachedSnapshotRef.current?.prices || FALLBACK_PRICES);
+  const [priceChanges, setPriceChanges] = useState(() => cachedSnapshotRef.current?.priceChanges || {}); // 24h price changes
+  const [loading, setLoading] = useState(false); // Start false since we have fallback/cache data
   const [error, setError] = useState(null);
   const retryTimeoutRef = useRef(null);
 
@@ -67,8 +113,10 @@ export const useTokenPrices = () => {
       const validIds = Object.entries(COINGECKO_IDS)
         .filter(([address]) => !address.includes("..."))
         .map(([, id]) => id);
+
+      const uniqueIds = Array.from(new Set(validIds));
       
-      if (validIds.length === 0) {
+      if (uniqueIds.length === 0) {
         // No valid IDs, use fallbacks only
         setPrices(FALLBACK_PRICES);
         setPriceChanges({});
@@ -76,7 +124,7 @@ export const useTokenPrices = () => {
         return;
       }
 
-      const ids = validIds.join(",");
+      const ids = uniqueIds.join(",");
       
       // 2. Fetch from CoinGecko (Free API) - include 24h change
       // Create abort controller for timeout (fallback for browsers without AbortSignal.timeout)
@@ -101,9 +149,9 @@ export const useTokenPrices = () => {
           console.warn("CORS proxy also failed. Using fallback prices.");
           throw new Error("Price API unavailable (CORS/network). Using fallback prices.");
         }
+      } finally {
+        clearTimeout(timeoutId);
       }
-      
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`CoinGecko API error: ${response.status} ${response.statusText}`);
@@ -136,12 +184,19 @@ export const useTokenPrices = () => {
         console.log("📊 Real-time prices loaded:", fetchedPrices);
         console.log("📈 24h changes loaded:", newChanges);
       }
-      setPrices((prev) => ({
-        ...FALLBACK_PRICES,
-        ...prev,
-        ...fetchedPrices,
-      }));
+      let mergedPrices = null;
+      setPrices((prev) => {
+        mergedPrices = {
+          ...FALLBACK_PRICES,
+          ...prev,
+          ...fetchedPrices,
+        };
+        return mergedPrices;
+      });
       setPriceChanges(newChanges);
+      if (mergedPrices) {
+        persistCachedPrices(mergedPrices, newChanges);
+      }
       setLoading(false);
     } catch (e) {
       console.warn("Price fetch error:", e.message || e);
