@@ -326,7 +326,204 @@ module swap_router::badges {
         event::emit(FeeTreasuryUpdated { old_treasury, new_treasury, admin: admin_addr, timestamp: timestamp::now_seconds() });
     }
 
+    // --- ADMIN: BADGE LIFECYCLE ---
+
+    public entry fun pause_badge(admin: &signer, badge_id: u64) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+
+        let badge = table::borrow_mut(&mut registry.badges, badge_id);
+        assert!(badge.status == STATUS_ACTIVE, E_BADGE_PAUSED);
+
+        let now = timestamp::now_seconds();
+        badge.status = STATUS_PAUSED;
+        badge.paused_at = now;
+        badge.updated_at = now;
+
+        event::emit(BadgePaused { badge_id, admin: admin_addr, timestamp: now });
+    }
+
+    public entry fun resume_badge(admin: &signer, badge_id: u64) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+
+        let badge = table::borrow_mut(&mut registry.badges, badge_id);
+        assert!(badge.status != STATUS_DISCONTINUED, E_BADGE_DISCONTINUED);
+
+        let now = timestamp::now_seconds();
+        badge.status = STATUS_ACTIVE;
+        badge.updated_at = now;
+
+        event::emit(BadgeResumed { badge_id, admin: admin_addr, timestamp: now });
+    }
+
+    public entry fun discontinue_badge(admin: &signer, badge_id: u64) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+
+        let badge = table::borrow_mut(&mut registry.badges, badge_id);
+        assert!(badge.status != STATUS_DISCONTINUED, E_BADGE_ALREADY_DISCONTINUED);
+
+        let now = timestamp::now_seconds();
+        badge.status = STATUS_DISCONTINUED;
+        badge.discontinued_at = now;
+        badge.updated_at = now;
+
+        event::emit(BadgeDiscontinued { badge_id, admin: admin_addr, timestamp: now });
+    }
+
+    // --- ADMIN: ALLOWLIST MANAGEMENT ---
+
+    public entry fun add_allowlist_entries(
+        admin: &signer,
+        badge_id: u64,
+        addresses: vector<address>,
+    ) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+        assert!(table::contains(&registry.allowlists, badge_id), E_BADGE_NOT_FOUND);
+
+        let now = timestamp::now_seconds();
+        let allowlist = table::borrow_mut(&mut registry.allowlists, badge_id);
+        let len = vector::length(&addresses);
+        let i = 0;
+        let added = 0;
+
+        while (i < len) {
+            let addr = *vector::borrow(&addresses, i);
+            if (!table::contains(&allowlist.entries, addr)) {
+                table::add(&mut allowlist.entries, addr, true);
+                added = added + 1;
+            };
+            i = i + 1;
+        };
+
+        event::emit(AllowlistUpdated {
+            badge_id,
+            addresses_added: added,
+            addresses_removed: 0,
+            admin: admin_addr,
+            timestamp: now,
+        });
+    }
+
+    public entry fun remove_allowlist_entries(
+        admin: &signer,
+        badge_id: u64,
+        addresses: vector<address>,
+    ) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+        assert!(table::contains(&registry.allowlists, badge_id), E_BADGE_NOT_FOUND);
+
+        let now = timestamp::now_seconds();
+        let allowlist = table::borrow_mut(&mut registry.allowlists, badge_id);
+        let len = vector::length(&addresses);
+        let i = 0;
+        let removed = 0;
+
+        while (i < len) {
+            let addr = *vector::borrow(&addresses, i);
+            if (table::contains(&allowlist.entries, addr)) {
+                table::remove(&mut allowlist.entries, addr);
+                removed = removed + 1;
+            };
+            i = i + 1;
+        };
+
+        event::emit(AllowlistUpdated {
+            badge_id,
+            addresses_added: 0,
+            addresses_removed: removed,
+            admin: admin_addr,
+            timestamp: now,
+        });
+    }
+
     // --- VIEW FUNCTIONS ---
+
+    #[view]
+    public fun get_badge_ids(): vector<u64> acquires BadgeRegistry {
+        *&borrow_global<BadgeRegistry>(@swap_router).badge_ids
+    }
+
+    #[view]
+    public fun get_active_badge_ids(): vector<u64> acquires BadgeRegistry {
+        let registry = borrow_global<BadgeRegistry>(@swap_router);
+        let ids = vector::empty<u64>();
+        let len = vector::length(&registry.badge_ids);
+        let i = 0;
+
+        while (i < len) {
+            let badge_id = *vector::borrow(&registry.badge_ids, i);
+            let badge = table::borrow(&registry.badges, badge_id);
+            if (badge.status == STATUS_ACTIVE) {
+                vector::push_back(&mut ids, badge_id);
+            };
+            i = i + 1;
+        };
+
+        ids
+    }
+
+    #[view]
+    public fun get_badge(badge_id: u64): (
+        u64, vector<u8>, vector<u8>, vector<u8>, vector<u8>, vector<u8>, vector<u8>,
+        u8, u64, u8, vector<u8>, u64, vector<u8>, vector<u8>, u8, u64, u64, u64, u64, u64, u64
+    ) acquires BadgeRegistry {
+        let registry = borrow_global<BadgeRegistry>(@swap_router);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+        let badge = table::borrow(&registry.badges, badge_id);
+
+        (
+            badge.id,
+            *&badge.metadata.name,
+            *&badge.metadata.description,
+            *&badge.metadata.image_uri,
+            *&badge.metadata.metadata_uri,
+            *&badge.metadata.metadata_hash,
+            *&badge.metadata.category,
+            badge.metadata.rarity,
+            badge.metadata.xp_value,
+            badge.rule_type,
+            *&badge.rule_note,
+            badge.rule_params.min_value,
+            *&badge.rule_params.coin_type_str,
+            *&badge.rule_params.dapp_address,
+            badge.status,
+            badge.starts_at,
+            badge.ends_at,
+            badge.created_at,
+            badge.updated_at,
+            badge.total_minted,
+            badge.max_supply,
+        )
+    }
+
+    #[view]
+    public fun has_badge(owner: address, badge_id: u64): bool acquires BadgeStore {
+        if (!exists<BadgeStore>(owner)) return false;
+        let store = borrow_global<BadgeStore>(owner);
+        table::contains(&store.badges, badge_id)
+    }
+
+    #[view]
+    public fun is_allowlisted(owner: address, badge_id: u64): bool acquires BadgeRegistry {
+        let registry = borrow_global<BadgeRegistry>(@swap_router);
+        if (!table::contains(&registry.allowlists, badge_id)) return false;
+        let allowlist = table::borrow(&registry.allowlists, badge_id);
+        table::contains(&allowlist.entries, owner)
+    }
 
     #[view]
     public fun is_badge_available(badge_id: u64): bool acquires BadgeRegistry {
@@ -353,5 +550,27 @@ module swap_router::badges {
     #[view]
     public fun get_fee_treasury(): address acquires BadgeRegistry {
         borrow_global<BadgeRegistry>(@swap_router).fee_treasury
+    }
+
+    #[view]
+    public fun get_badge_stats(badge_id: u64): (u64, u64, u8) acquires BadgeRegistry {
+        let registry = borrow_global<BadgeRegistry>(@swap_router);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+        let badge = table::borrow(&registry.badges, badge_id);
+        (badge.total_minted, badge.max_supply, badge.status)
+    }
+
+    #[view]
+    public fun get_user_badge_ids(owner: address): vector<u64> acquires BadgeStore {
+        if (!exists<BadgeStore>(owner)) {
+            vector::empty<u64>()
+        } else {
+            *&borrow_global<BadgeStore>(owner).badge_ids
+        }
+    }
+
+    #[view]
+    public fun get_admin(): address acquires BadgeRegistry {
+        borrow_global<BadgeRegistry>(@swap_router).admin
     }
 }
