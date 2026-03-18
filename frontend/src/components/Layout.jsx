@@ -357,14 +357,14 @@ export default function Layout({ children }) {
             </div>
             <ul className="nav-links">
               <li 
-                className={location.pathname.startsWith("/wallet/") ? "active" : ""}
+                className={location.pathname.startsWith("/wallet/") || location.pathname.startsWith("/profile/") ? "active" : ""}
               >
                 <button
                   type="button"
                   className="nav-link-btn"
                   onClick={() => {
                     if (connected && account) {
-                      navigate(`/wallet/${account.address}`);
+                      navigate(`/profile/${account.address}`);
                     } else {
                       navigate("/");
                     }

@@ -1546,10 +1546,10 @@ const Dashboard = () => {
       devLog("========================");
       
       if (addressString) {
-        // Only auto-navigate to wallet address if user isn't viewing a different searched address
+        // Only auto-navigate to profile address if user isn't viewing a different searched address
         if (!urlAddress || urlAddress.toLowerCase() === addressString.toLowerCase()) {
           setViewingAddress(addressString);
-          navigate(`/wallet/${addressString}`, { replace: true });
+          navigate(`/profile/${addressString}`, { replace: true });
           devLog("✅ Address set, indexer will fetch balances");
         }
       } else {
@@ -2780,6 +2780,7 @@ const App = () => {
                 <Layout>
                   <Routes>
                     <Route path="/wallet/:address" element={<Dashboard />} />
+                    <Route path="/profile/:address" element={<Dashboard />} />
                     <Route
                       path="/swap"
                       element={SWAP_ENABLED ? <SwapPageWrapper /> : <Navigate to="/" replace />}
