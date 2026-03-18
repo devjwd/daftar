@@ -4,6 +4,8 @@ import cron from 'node-cron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { kv } from '@vercel/kv';
+import supabaseAdmin from './supabase.js';
 
 const usersApi = require('./usersApi');
 
@@ -14,6 +16,8 @@ const PORT = Number(process.env.PORT) || 4000;
 const ADMIN_API_KEY = process.env.BADGE_ADMIN_API_KEY || '';
 const BADGE_STATE_FILE = process.env.BADGE_STATE_FILE || path.resolve(__dirname, '../data/badge-state.json');
 const BADGE_CORS_ORIGIN = process.env.BADGE_CORS_ORIGIN || '*';
+const LEADERBOARD_CACHE_KEY = 'leaderboard:top100';
+const LEADERBOARD_CACHE_TTL_SECONDS = 300;
 
 // in-memory storage (would normally be a database)
 const userAwards = new Map(); // address => [{ badgeId, payload, awardedAt }]
@@ -113,6 +117,32 @@ const awardBadge = (address, badgeId, payload = {}) => {
   return record;
 };
 
+const readLeaderboardCache = async () => {
+  try {
+    const cached = await kv.get(LEADERBOARD_CACHE_KEY);
+    return Array.isArray(cached) ? cached : null;
+  } catch (error) {
+    console.warn('[leaderboard] cache read failed', error);
+    return null;
+  }
+};
+
+const writeLeaderboardCache = async (leaderboard) => {
+  try {
+    await kv.set(LEADERBOARD_CACHE_KEY, leaderboard, { ex: LEADERBOARD_CACHE_TTL_SECONDS });
+  } catch (error) {
+    console.warn('[leaderboard] cache write failed', error);
+  }
+};
+
+const invalidateLeaderboardCache = async () => {
+  try {
+    await kv.del(LEADERBOARD_CACHE_KEY);
+  } catch (error) {
+    console.warn('[leaderboard] cache invalidate failed', error);
+  }
+};
+
 const app = express();
 app.use(cors(BADGE_CORS_ORIGIN === '*' ? undefined : { origin: BADGE_CORS_ORIGIN.split(',').map((v) => v.trim()) }));
 app.use(express.json({ limit: '32kb' }));
@@ -139,6 +169,37 @@ loadBadgeConfigs();
 loadPersistedState();
 
 // routes
+app.get('/api/leaderboard', async (req, res) => {
+  const cached = await readLeaderboardCache();
+  if (cached) {
+    return res.json(cached);
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('wallet_address, username, avatar_url, xp')
+    .order('xp', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(100);
+
+  if (error) {
+    console.error('[leaderboard] failed to fetch profiles', error);
+    return res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+
+  const leaderboard = (Array.isArray(data) ? data : []).map((row, index) => ({
+    rank: index + 1,
+    wallet_address: row.wallet_address,
+    username: row.username,
+    avatar_url: row.avatar_url,
+    xp: Number(row.xp || 0),
+  }));
+
+  await writeLeaderboardCache(leaderboard);
+
+  return res.json(leaderboard);
+});
+
 app.get('/api/badges', (req, res) => {
   // simple listing: just return the configs
   res.json(badgeConfigs);
@@ -155,10 +216,23 @@ app.post('/api/badges/award', requireAdmin, adminWriteRateLimit, async (req, res
     return res.status(400).json({ error: 'address and badgeId required' });
   }
   const record = awardBadge(address, badgeId, payload);
+  await invalidateLeaderboardCache();
   // auto-track address for worker
   trackedAddresses.add(normalizeAddress(address));
   await queuePersistState();
   res.json(record);
+});
+
+app.post('/api/badges/claim', requireAdmin, adminWriteRateLimit, async (req, res) => {
+  const { address, badgeId, payload } = req.body || {};
+  if (!address || !badgeId || !isLikelyAddress(address)) {
+    return res.status(400).json({ error: 'address and badgeId required' });
+  }
+  const record = awardBadge(address, badgeId, payload);
+  await invalidateLeaderboardCache();
+  trackedAddresses.add(normalizeAddress(address));
+  await queuePersistState();
+  return res.json(record);
 });
 
 app.post('/api/badges/track', requireAdmin, adminWriteRateLimit, async (req, res) => {

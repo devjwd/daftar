@@ -9,6 +9,8 @@
     "worker": "node server/index.js --worker"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "@vercel/kv": "^3.0.0",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "node-cron": "^3.0.2",
