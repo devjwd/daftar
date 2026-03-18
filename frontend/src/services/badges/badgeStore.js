@@ -196,10 +196,13 @@ function replaceAwardsForAddress(address, nextAwards) {
 async function persistBadgeList(badges, adminKey) {
   const response = await saveBadgeDefinitions({ badges, adminKey });
   if (!response.ok) {
-    return {
-      success: false,
-      errors: [response?.data?.error || 'Failed to save badge definitions'],
-    };
+    let message = response?.data?.error || 'Failed to save badge definitions';
+    if (response.status === 503) {
+      message = 'Server is not configured — set BADGE_ADMIN_API_KEY in Vercel environment variables and redeploy.';
+    } else if (response.status === 401) {
+      message = 'Wrong API key — the value you entered must exactly match BADGE_ADMIN_API_KEY in your Vercel settings (no extra spaces).';
+    }
+    return { success: false, errors: [message] };
   }
 
   const saved = Array.isArray(response?.data?.badges) ? response.data.badges : badges;

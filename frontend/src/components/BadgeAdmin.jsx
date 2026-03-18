@@ -43,7 +43,7 @@ import {
   getBadgeTimeRemaining,
   getBadgeSupplyInfo,
 } from '../services/badgeService.js';
-import { publishScannerConfigs } from '../services/badgeApi.js';
+import { publishScannerConfigs, saveBadgeDefinitions } from '../services/badgeApi.js';
 import { DEFI_PROTOCOLS } from '../config/protocols.js';
 import './BadgeAdmin.css';
 
@@ -772,6 +772,27 @@ export default function BadgeAdmin() {
     autoPublishScannerConfig({ silent: false });
   };
 
+  /** Test that the API key the admin enters actually works against the server. */
+  const handleTestApiKey = useCallback(async () => {
+    const cachedKey = sessionStorage.getItem('badge_admin_api_key') || '';
+    const entered = window.prompt('Enter your BADGE_ADMIN_API_KEY to test:', cachedKey);
+    const adminKey = String(entered || '').trim();
+    if (!adminKey) return;
+    sessionStorage.setItem('badge_admin_api_key', adminKey);
+
+    // POST current badge list unchanged — just to exercise auth
+    const res = await saveBadgeDefinitions({ badges, adminKey });
+    if (res.ok) {
+      showMessage('success', '✅ API key is correct — server accepted the request.');
+    } else if (res.status === 503) {
+      showMessage('error', '🔴 Server missing BADGE_ADMIN_API_KEY — add it to Vercel Environment Variables and redeploy.');
+    } else if (res.status === 401) {
+      showMessage('error', '🔴 Wrong API key — it must exactly match BADGE_ADMIN_API_KEY in Vercel (no spaces, correct case).');
+    } else {
+      showMessage('error', `Server error ${res.status}: ${res.data?.error || 'unknown'}`);
+    }
+  }, [badges, showMessage]);
+
   // ─── Render Criteria Form ───────────────────────────────────────────
   const renderCriterionForm = (criterion, index) => {
     const schema = CRITERIA_PARAM_SCHEMAS[criterion.type] || {};
@@ -1449,6 +1470,14 @@ export default function BadgeAdmin() {
       {/* ─── Import / Export Tab ────────────────────────────────────── */}
       {subTab === 'import' && (
         <div className="ba-import-export">
+          <div className="ba-ie-section">
+            <h3>API Key</h3>
+            <p className="ba-hint">Test whether your <code>BADGE_ADMIN_API_KEY</code> is correctly set in Vercel and matches what you enter here.</p>
+            <button className="ba-btn ba-btn-secondary" onClick={handleTestApiKey}>
+              🔑 Test API Key Connection
+            </button>
+          </div>
+
           <div className="ba-ie-section">
             <h3>Export Badges</h3>
             <p className="ba-hint">Export all badge definitions as JSON. Copy to clipboard or download.</p>
