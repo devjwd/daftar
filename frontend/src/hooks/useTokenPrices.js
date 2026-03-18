@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { INTERVALS, API_CONFIG } from "../config/constants";
 
 const PRICE_CACHE_KEY = "movement_price_cache_v1";
+const PRICE_API_ENDPOINT = "/api/prices";
+const SERVER_PRICE_TIMEOUT_MS = 3500;
+const DIRECT_PRICE_TIMEOUT_MS = Math.min(API_CONFIG.PRICE_FETCH_TIMEOUT, 5000);
 
 // Map Movement Network token addresses to CoinGecko IDs
 // CoinGecko provides real-time price data
@@ -95,144 +98,171 @@ const persistCachedPrices = (prices, priceChanges) => {
   }
 };
 
+const fetchWithTimeout = async (url, timeoutMs) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 export const useTokenPrices = () => {
-  const cachedSnapshotRef = useRef(loadCachedPrices());
-  // Initialize with fallback prices immediately so UI can render without waiting
-  const [prices, setPrices] = useState(() => cachedSnapshotRef.current?.prices || FALLBACK_PRICES);
-  const [priceChanges, setPriceChanges] = useState(() => cachedSnapshotRef.current?.priceChanges || {}); // 24h price changes
+  // Initialize with cache/fallback prices immediately so UI can render without waiting.
+  const [prices, setPrices] = useState(() => loadCachedPrices()?.prices || FALLBACK_PRICES);
+  const [priceChanges, setPriceChanges] = useState(() => loadCachedPrices()?.priceChanges || {}); // 24h price changes
   const [loading, setLoading] = useState(false); // Start false since we have fallback/cache data
   const [error, setError] = useState(null);
-  const retryTimeoutRef = useRef(null);
 
-  const fetchPrices = useCallback(async (retryCount = 0) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // 1. Prepare IDs (filter out placeholder addresses)
-      const validIds = Object.entries(COINGECKO_IDS)
-        .filter(([address]) => !address.includes("..."))
-        .map(([, id]) => id);
+  const fetchDirectFromCoinGecko = useCallback(async () => {
+    const validIds = Object.entries(COINGECKO_IDS)
+      .filter(([address]) => !address.includes("..."))
+      .map(([, id]) => id);
 
-      const uniqueIds = Array.from(new Set(validIds));
-      
-      if (uniqueIds.length === 0) {
-        // No valid IDs, use fallbacks only
-        setPrices(FALLBACK_PRICES);
-        setPriceChanges({});
-        setLoading(false);
-        return;
-      }
+    const uniqueIds = Array.from(new Set(validIds));
 
-      const ids = uniqueIds.join(",");
-      
-      // 2. Fetch from CoinGecko (Free API) - include 24h change
-      // Create abort controller for timeout (fallback for browsers without AbortSignal.timeout)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.PRICE_FETCH_TIMEOUT);
-      
-      // Note: CoinGecko has CORS restrictions for direct browser access
-      // Try direct first, fallback to CORS proxy if needed
-      let response = null;
-      const coingeckoUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
-      
-      try {
-        // Try direct fetch first
-        response = await fetch(coingeckoUrl, { signal: controller.signal });
-      } catch {
-        // If CORS error, try CORS proxy
-        console.warn("Direct CoinGecko fetch failed, attempting CORS proxy...");
-        try {
-          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(coingeckoUrl)}`;
-          response = await fetch(proxyUrl, { signal: controller.signal });
-        } catch {
-          console.warn("CORS proxy also failed. Using fallback prices.");
-          throw new Error("Price API unavailable (CORS/network). Using fallback prices.");
-        }
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-      if (!response.ok) {
-        throw new Error(`CoinGecko API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      // 3. Map Response back to Addresses
-      const fetchedPrices = {};
-      const newChanges = {};
-      
-      Object.keys(COINGECKO_IDS).forEach((address) => {
-        // Skip placeholder addresses
-        if (address.includes("...")) return;
-        
-        const geckoId = COINGECKO_IDS[address];
-        if (data[geckoId]?.usd) {
-          fetchedPrices[address] = data[geckoId].usd;
-          // Store 24h change percentage
-          if (data[geckoId]?.usd_24h_change !== undefined) {
-            newChanges[address] = data[geckoId].usd_24h_change;
-          }
-          if (import.meta.env.DEV) {
-            console.log(`💰 ${address}: $${data[geckoId].usd} (${geckoId}) 24h: ${data[geckoId]?.usd_24h_change?.toFixed(2)}%`);
-          }
-        }
-      });
-
-      if (import.meta.env.DEV) {
-        console.log("📊 Real-time prices loaded:", fetchedPrices);
-        console.log("📈 24h changes loaded:", newChanges);
-      }
-      let mergedPrices = null;
-      setPrices((prev) => {
-        mergedPrices = {
-          ...FALLBACK_PRICES,
-          ...prev,
-          ...fetchedPrices,
-        };
-        return mergedPrices;
-      });
-      setPriceChanges(newChanges);
-      if (mergedPrices) {
-        persistCachedPrices(mergedPrices, newChanges);
-      }
-      setLoading(false);
-    } catch (e) {
-      console.warn("Price fetch error:", e.message || e);
-      
-      // Retry logic with exponential backoff
-      if (retryCount < API_CONFIG.MAX_RETRIES) {
-        const delay = API_CONFIG.RETRY_DELAY * Math.pow(2, retryCount);
-        if (import.meta.env.DEV) {
-          console.log(`Retrying price fetch in ${delay}ms (attempt ${retryCount + 1}/${API_CONFIG.MAX_RETRIES})`);
-        }
-        retryTimeoutRef.current = setTimeout(() => {
-          fetchPrices(retryCount + 1);
-        }, delay);
-      } else {
-        // Max retries reached. Keep last known prices to avoid stale jumps,
-        // while still applying safe fallback values for stable assets.
-        const errorMsg = e.name === 'AbortError' 
-          ? "Price fetch timed out. Using fallback values."
-          : "Failed to fetch prices. Using fallback values.";
-        setError(errorMsg);
-        setPrices((prev) => ({
-          ...FALLBACK_PRICES,
-          ...prev,
-        }));
-        setPriceChanges({});
-        setLoading(false);
-      }
+    if (uniqueIds.length === 0) {
+      return {
+        prices: FALLBACK_PRICES,
+        priceChanges: {},
+      };
     }
+
+    const ids = uniqueIds.join(",");
+    const coingeckoUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
+
+    let response = null;
+    try {
+      response = await fetchWithTimeout(coingeckoUrl, DIRECT_PRICE_TIMEOUT_MS);
+    } catch {
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(coingeckoUrl)}`;
+      response = await fetchWithTimeout(proxyUrl, DIRECT_PRICE_TIMEOUT_MS);
+    }
+
+    if (!response.ok) {
+      throw new Error(`CoinGecko API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const fetchedPrices = {};
+    const newChanges = {};
+
+    Object.keys(COINGECKO_IDS).forEach((address) => {
+      if (address.includes("...")) return;
+
+      const geckoId = COINGECKO_IDS[address];
+      const usdPrice = data?.[geckoId]?.usd;
+      if (usdPrice === undefined || usdPrice === null) return;
+
+      fetchedPrices[address] = usdPrice;
+
+      if (data?.[geckoId]?.usd_24h_change !== undefined) {
+        newChanges[address] = data[geckoId].usd_24h_change;
+      }
+    });
+
+    return {
+      prices: {
+        ...FALLBACK_PRICES,
+        ...fetchedPrices,
+      },
+      priceChanges: newChanges,
+    };
   }, []);
 
+  const fetchFromServerPricesApi = useCallback(async () => {
+    const response = await fetchWithTimeout(PRICE_API_ENDPOINT, SERVER_PRICE_TIMEOUT_MS);
+
+    if (!response.ok) {
+      throw new Error(`Price API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      prices: {
+        ...FALLBACK_PRICES,
+        ...(data?.prices || {}),
+      },
+      priceChanges: data?.priceChanges || {},
+    };
+  }, []);
+
+  const fetchPrices = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    let lastError = null;
+
+    for (let attempt = 0; attempt <= API_CONFIG.MAX_RETRIES; attempt += 1) {
+      try {
+        let nextSnapshot = null;
+
+        try {
+          nextSnapshot = await fetchFromServerPricesApi();
+        } catch (serverError) {
+          if (import.meta.env.DEV) {
+            console.warn("Server price endpoint unavailable, falling back to direct CoinGecko:", serverError?.message || serverError);
+          }
+          nextSnapshot = await fetchDirectFromCoinGecko();
+        }
+
+        let mergedPrices = null;
+        setPrices((prev) => {
+          mergedPrices = {
+            ...FALLBACK_PRICES,
+            ...prev,
+            ...(nextSnapshot?.prices || {}),
+          };
+          return mergedPrices;
+        });
+        const nextChanges = nextSnapshot?.priceChanges || {};
+        setPriceChanges(nextChanges);
+        if (mergedPrices) {
+          persistCachedPrices(mergedPrices, nextChanges);
+        }
+
+        setLoading(false);
+        return;
+      } catch (e) {
+        lastError = e;
+
+        if (attempt >= API_CONFIG.MAX_RETRIES) {
+          break;
+        }
+
+        const delay = Math.min(API_CONFIG.RETRY_DELAY * Math.pow(2, attempt), 10000);
+        if (import.meta.env.DEV) {
+          console.log(`Retrying price fetch in ${delay}ms (attempt ${attempt + 1}/${API_CONFIG.MAX_RETRIES})`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    console.warn("Price fetch error:", lastError?.message || lastError);
+    const errorMsg = lastError?.name === 'AbortError'
+      ? "Price fetch timed out. Using fallback values."
+      : "Failed to fetch prices. Using fallback values.";
+    setError(errorMsg);
+    setPrices((prev) => ({
+      ...FALLBACK_PRICES,
+      ...prev,
+    }));
+    setPriceChanges({});
+    setLoading(false);
+  }, [fetchFromServerPricesApi, fetchDirectFromCoinGecko]);
+
   useEffect(() => {
-    fetchPrices();
-    const interval = setInterval(() => fetchPrices(), INTERVALS.PRICE_UPDATE);
+    const kickoffId = setTimeout(() => {
+      void fetchPrices();
+    }, 0);
+    const interval = setInterval(() => {
+      void fetchPrices();
+    }, INTERVALS.PRICE_UPDATE);
     return () => {
+      clearTimeout(kickoffId);
       clearInterval(interval);
-      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };
   }, [fetchPrices]);
 
