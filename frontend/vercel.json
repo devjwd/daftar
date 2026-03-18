@@ -3,6 +3,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/badges/award",
+      "destination": "/api/badges/claim"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
