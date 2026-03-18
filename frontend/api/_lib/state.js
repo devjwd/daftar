@@ -13,9 +13,34 @@ const MAX_SAVE_RETRIES = 3;
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
+const ADDRESS_RE = /^0x[a-f0-9]{1,128}$/i;
+
+const normalizeAddress = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+
+  const prefixed = raw.startsWith('0x') ? raw : `0x${raw}`;
+  if (ADDRESS_RE.test(prefixed)) return prefixed;
+
+  // Keep legacy/non-hex identifiers untouched so we do not drop existing data.
+  return raw;
+};
+
+const pickNewestBlob = (blobs = []) => {
+  if (!Array.isArray(blobs) || blobs.length === 0) return null;
+
+  return blobs
+    .slice()
+    .sort((a, b) => {
+      const ta = new Date(a.uploadedAt || 0).getTime() || 0;
+      const tb = new Date(b.uploadedAt || 0).getTime() || 0;
+      return tb - ta;
+    })[0];
+};
+
 const normalizeTrackedAddresses = (value) => {
   if (!Array.isArray(value)) return [];
-  return Array.from(new Set(value.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)));
+  return Array.from(new Set(value.map((entry) => normalizeAddress(entry)).filter(Boolean)));
 };
 
 const normalizeAwardsList = (value) => {
@@ -47,7 +72,7 @@ const normalizeUserAwards = (value) => {
 
   const out = {};
   for (const [addr, awards] of Object.entries(value)) {
-    const normalizedAddr = String(addr || '').trim().toLowerCase();
+    const normalizedAddr = normalizeAddress(addr);
     if (!normalizedAddr) continue;
     out[normalizedAddr] = normalizeAwardsList(awards);
   }
@@ -183,10 +208,11 @@ const stateContains = (container, subset) => {
  */
 export async function loadState() {
   try {
-    const { blobs } = await list({ prefix: BLOB_PATHNAME, limit: 1 });
-    if (blobs.length === 0) return { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
+    const { blobs } = await list({ prefix: BLOB_PATHNAME, limit: 20 });
+    const newest = pickNewestBlob(blobs);
+    if (!newest) return { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
 
-    const res = await fetch(blobs[0].url);
+    const res = await fetch(newest.url);
     if (!res.ok) return { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
 
     const data = await res.json();

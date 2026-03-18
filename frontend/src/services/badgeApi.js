@@ -54,9 +54,16 @@ export const fetchAllBadges = async () => {
     console.warn('fetchAllBadges failed', res.error);
   }
 
+  const payload = res.data;
+  const badges = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.badges)
+      ? payload.badges
+      : [];
+
   return {
     ok: res.ok,
-    badges: Array.isArray(res.data) ? res.data : [],
+    badges,
   };
 };
 

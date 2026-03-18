@@ -38,5 +38,6 @@ export default async function handler(req, res) {
 
   const { userAwards } = await loadState();
   const addr = normalizeAddress(address);
-  return sendJson(res, 200, userAwards[addr] || []);
+  const legacyAddr = addr.startsWith('0x') ? addr.slice(2) : addr;
+  return sendJson(res, 200, userAwards[addr] || userAwards[legacyAddr] || []);
 }

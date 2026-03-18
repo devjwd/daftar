@@ -6,48 +6,14 @@
 import { checkAdmin } from '../_lib/auth.js';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
+import {
+  loadResolvedBadgeDefinitions,
+  saveBadgeDefinitions,
+  validateBadgeDefinitionsPayload,
+} from '../_lib/badgeDefinitionsState.js';
 import { loadState, saveState } from '../_lib/state.js';
 
 const METHODS = ['GET', 'POST', 'OPTIONS'];
-
-const normalizeBadgeDefinitions = (value) => {
-  if (!Array.isArray(value)) return [];
-
-  const deduped = new Map();
-  for (const entry of value) {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
-
-    const id = String(entry.id || '').trim();
-    const name = String(entry.name || '').trim();
-    if (!id || !name) continue;
-
-    deduped.set(id, {
-      ...entry,
-      id,
-      name,
-      description: typeof entry.description === 'string' ? entry.description : '',
-      imageUrl: typeof entry.imageUrl === 'string' ? entry.imageUrl : '',
-      category: typeof entry.category === 'string' ? entry.category : 'activity',
-      rarity: typeof entry.rarity === 'string' ? entry.rarity : 'COMMON',
-      xp: Number(entry.xp) || 0,
-      mintFee: Number(entry.mintFee) || 0,
-      criteria: Array.isArray(entry.criteria) ? entry.criteria : [],
-      metadata:
-        entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)
-          ? entry.metadata
-          : {},
-      enabled: entry.enabled !== false,
-      onChainBadgeId:
-        entry?.onChainBadgeId == null || entry?.onChainBadgeId === ''
-          ? null
-          : Number(entry.onChainBadgeId),
-      createdAt: entry.createdAt || null,
-      updatedAt: entry.updatedAt || null,
-    });
-  }
-
-  return Array.from(deduped.values());
-};
 
 export default async function handler(req, res) {
   if (handleOptions(req, res, METHODS)) return;
@@ -77,8 +43,8 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
-    const { badgeDefinitions } = await loadState();
-    return sendJson(res, 200, badgeDefinitions || []);
+    const { badges, source } = await loadResolvedBadgeDefinitions();
+    return sendJson(res, 200, { badges, source });
   }
 
   const auth = checkAdmin(req);
@@ -86,25 +52,19 @@ export default async function handler(req, res) {
 
   const rawDefinitions = Array.isArray(req.body) ? req.body : req.body?.badges;
   const clearAwards = Boolean(req.body?.clearAwards);
-  if (!Array.isArray(rawDefinitions)) {
-    return sendJson(res, 400, { error: 'badges must be an array' });
-  }
-  if (rawDefinitions.length > 1000) {
-    return sendJson(res, 400, { error: 'badges exceeds maximum size (1000)' });
+  const validated = validateBadgeDefinitionsPayload(rawDefinitions);
+  if (!validated.ok) {
+    return sendJson(res, 400, { error: validated.error });
   }
 
-  const badgeDefinitions = normalizeBadgeDefinitions(rawDefinitions);
-  if (badgeDefinitions.length === 0 && rawDefinitions.length > 0) {
-    return sendJson(res, 400, { error: 'badges has no valid entries' });
-  }
+  const badgeDefinitions = validated.normalized;
 
-  const { userAwards, trackedAddresses, badgeConfigs } = await loadState();
-  await saveState(
-    clearAwards ? {} : userAwards,
-    clearAwards ? [] : trackedAddresses,
-    badgeConfigs,
-    badgeDefinitions,
-  );
+  if (clearAwards) {
+    const { badgeConfigs } = await loadState();
+    await saveState({}, [], badgeConfigs, badgeDefinitions);
+  } else {
+    await saveBadgeDefinitions(badgeDefinitions);
+  }
 
   return sendJson(res, 200, {
     status: 'ok',
