@@ -784,6 +784,12 @@ const RouteFallback = () => (
 
 
 
+// Redirect old /wallet/:address links to /profile/:address
+const WalletRedirect = () => {
+  const { address } = useParams();
+  return <Navigate to={`/profile/${address}`} replace />;
+};
+
 // --- MAIN DASHBOARD ---
 
 const Dashboard = () => {
@@ -863,7 +869,7 @@ const Dashboard = () => {
     const addressParam = params.get('address');
     if (addressParam && isValidAddress(addressParam)) {
       // Navigate to wallet route instead of using query param
-      navigate(`/wallet/${addressParam}`, { replace: true });
+      navigate(`/profile/${addressParam}`, { replace: true });
     }
   }, [location.search, navigate]);
 
@@ -2779,7 +2785,7 @@ const App = () => {
               <Suspense fallback={<RouteFallback />}>
                 <Layout>
                   <Routes>
-                    <Route path="/wallet/:address" element={<Dashboard />} />
+                    <Route path="/wallet/:address" element={<WalletRedirect />} />
                     <Route path="/profile/:address" element={<Dashboard />} />
                     <Route
                       path="/swap"

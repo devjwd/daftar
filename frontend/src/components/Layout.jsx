@@ -175,12 +175,12 @@ export default function Layout({ children }) {
     }
   };
 
-  // Navigate to a wallet address
+  // Navigate to a profile address
   const goToWallet = useCallback((address) => {
     if (!address) return;
     const addr = address.trim();
     saveRecentSearch(addr);
-    navigate(`/wallet/${addr}`);
+    navigate(`/profile/${addr}`);
     setSearchQuery("");
     setShowSuggestions(false);
     setSearchResults([]);
@@ -357,7 +357,7 @@ export default function Layout({ children }) {
             </div>
             <ul className="nav-links">
               <li 
-                className={location.pathname.startsWith("/wallet/") || location.pathname.startsWith("/profile/") ? "active" : ""}
+                className={location.pathname.startsWith("/profile/") ? "active" : ""}
               >
                 <button
                   type="button"
