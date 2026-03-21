@@ -130,9 +130,8 @@ curl -X POST http://localhost:4000/api/badges/track \
 \
 The backend exposes the same endpoints consumed by the frontend's
 `badgeApi.js` client (`/api/badges`, `/api/badges/user/:address`,
-`/api/badges/award`).  It keeps data in memory but shows how to wire a
-real database; feel free to swap `userAwards` and `trackedAddresses` with
-persistent stores.
+`/api/badges/award`).  The backend uses Supabase (PostgreSQL) for persistent storage
+of badge awards and tracked addresses.
 
 ## 🛠️ Technology Stack
 
@@ -152,6 +151,7 @@ persistent stores.
 - **Mosaic**: DEX aggregator API
 - **Movement Indexer**: GraphQL balance queries
 - **CoinGecko**: Token pricing
+- **Supabase**: PostgreSQL database for profiles, badges and leaderboard
 
 ## 📖 Documentation
 
@@ -254,6 +254,8 @@ npm run build
 
 ### Environment Variables
 
+Copy `.env.example` to `.env` and fill in your values.
+
 Create `frontend/.env`:
 ```env
 VITE_NETWORK=mainnet              # or testnet
@@ -299,7 +301,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🆘 Support
 
 - **Documentation**: See [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/movement-portfolio/issues)
+- **Issues**: [GitHub Issues](https://github.com/devjwd/daftar/issues)
 - **Movement Discord**: [discord.gg/movementnetwork](https://discord.gg/movementnetwork)
 - **Mosaic Discord**: [discord.gg/mosaicagg](https://discord.gg/mosaicagg)
 

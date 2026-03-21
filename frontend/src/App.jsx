@@ -2,14 +2,6 @@ import React, { useEffect, useState, useCallback, useMemo, Suspense, lazy } from
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import "./App.css";
 
-
-
-// --- IMPORTS ---
-
-
-
-// Movement / Aptos SDKs
-
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
 
 import { PetraWallet } from "petra-plugin-wallet-adapter";
@@ -17,10 +9,6 @@ import { PetraWallet } from "petra-plugin-wallet-adapter";
 import { OKXWallet } from "@okwallet/aptos-wallet-adapter";
 
 import { Aptos, AptosConfig, Network, AccountAddress } from "@aptos-labs/ts-sdk";
-
-
-
-// Utils & Config
 
 import { DEFAULT_NETWORK } from "./config/network";
 import { getEnv } from "./config/envValidator";
@@ -37,9 +25,6 @@ import { TOKEN_VISUALS, DEFI_PROTOCOL_VISUALS, DEFAULT_TOKEN_COLOR, DEFAULT_PROT
 
 import ErrorBoundary from "./components/ErrorBoundary";
 
-
-
-// Hooks
 import { useDeFiPositions } from "./hooks/useDeFiPositions";
 import { useTokenPrices } from "./hooks/useTokenPrices";
 import { useIndexerBalances } from "./hooks/useIndexerBalances";
@@ -49,10 +34,8 @@ import { useCurrency } from "./hooks/useCurrency";
 import useBadges from "./hooks/useBadges";
 import useUserBadges from "./hooks/useUserBadges";
 
-// Indexer services
 import { getWalletAge, getUserNFTHoldings, getYuzuLiquidityPositions, getUserTokenBalances } from "./services/indexer";
 
-// Components
 const Layout = lazy(() => import("./components/Layout"));
 const SwapPage = lazy(() => import("./pages/Swap"));
 const Home = lazy(() => import("./pages/Home"));
@@ -68,11 +51,6 @@ const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 import ProfileCard from "./components/ProfileCard";
 
-
-
-
-// --- COMPONENT: Token Card ---
-
 const SWAP_ENABLED = getEnv('VITE_ENABLE_SWAP', true);
 
 const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
@@ -80,21 +58,17 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
   const isKnownToken = !!tokenInfo;
 
   const symbol = (token.symbol || '').toUpperCase();
-  // Strip .E suffix for logo/color lookup (e.g., WETH.E -> WETH, USDC.E -> USDC)
   const baseSymbol = symbol.replace(/\.E$/i, '');
   const visual = TOKEN_VISUALS[baseSymbol] || TOKEN_VISUALS[symbol] || null;
   const tokenLogo = visual?.logo || null;
   const tokenColor = visual?.color || DEFAULT_TOKEN_COLOR;
 
-  // Parse USD value
   const usdValueNum = parseFloat(token.formattedValue?.replace('$', '').replace(',', '') || '0');
   const hasValue = usdValueNum > 0;
   
-  // Convert to selected currency
   const convertedValue = convertUSD ? convertUSD(usdValueNum) : usdValueNum;
   const displayValue = formatCurrencyValue ? formatCurrencyValue(convertedValue) : `$${usdValueNum.toFixed(2)}`;
 
-  // Format amount with more decimals for high-value coins
   const HIGH_VALUE_COINS = ['ETH', 'WETH', 'BTC', 'WBTC', 'LBTC', 'EZETH', 'RSETH', 'SOLVBTC', 'WEETH'];
   const isHighValueCoin = HIGH_VALUE_COINS.some(coin => baseSymbol.includes(coin));
   const formattedAmount = isHighValueCoin 
@@ -110,12 +84,9 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
         '--token-color-light': tokenColor.secondary,
       }}
     >
-      {/* Glow effect */}
       <div className="token-card-glow" />
       
-      {/* Main content */}
       <div className="token-card-content">
-        {/* Left: Logo & Info */}
         <div className="token-card-left">
           <div className={`token-logo-wrapper ${tokenLogo ? 'has-image' : ''}`}>
             {tokenLogo ? (
@@ -146,7 +117,6 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
           </div>
         </div>
 
-        {/* Right: Balance */}
         <div className="token-card-right">
           <span className="token-balance">{formattedAmount}</span>
           <span className={`token-value ${hasValue ? 'has-value' : ''}`}>
@@ -155,15 +125,10 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
         </div>
       </div>
 
-      {/* Bottom accent line */}
       <div className="token-card-accent" />
     </div>
   );
 };
-
-
-
-// --- COMPONENT: Loading Skeleton Card ---
 
 const SkeletonCard = ({ delay = 0 }) => (
 
@@ -195,10 +160,6 @@ const SkeletonCard = ({ delay = 0 }) => (
 
 );
 
-
-
-// --- COMPONENT: Staking Card ---
-
 const StakingCard = ({ name, value, type, delay }) => (
 
   <div
@@ -223,21 +184,16 @@ const StakingCard = ({ name, value, type, delay }) => (
 
 );
 
-// --- COMPONENT: DeFi Position Card (Professional Design) ---
 const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol }) => {
-  // Get token price
   const getTokenPrice = (symbol) => {
     if (!priceMap) return 0;
     const upperSymbol = (symbol || '').toUpperCase();
-    // Try direct symbol lookup in priceMap
     const address = getTokenAddressBySymbol(upperSymbol);
     if (address && priceMap[address]) return priceMap[address];
-    // Stablecoin fallback
     if (upperSymbol === 'USDC' || upperSymbol === 'USDT') return 1.0;
     return 0;
   };
 
-  // Get protocol info from first position
   const firstPos = protocolPositions[0];
   const getProtocolKey = () => {
     const searchText = `${firstPos.name} ${firstPos.protocolName || ''} ${firstPos.resourceType || ''}`.toLowerCase();
@@ -252,11 +208,9 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
     ? DEFI_PROTOCOL_VISUALS[protocolKey]
     : { ...DEFAULT_PROTOCOL_VISUAL, name: firstPos.protocolName || DEFAULT_PROTOCOL_VISUAL.name };
 
-  // Separate positions by type
   const supplyPositions = protocolPositions.filter(p => p.type === 'Lending' || p.type === 'Staking' || p.type === 'Liquidity');
   const debtPositions = protocolPositions.filter(p => p.type === 'Debt');
   
-  // Format value
   const formatValue = (val) => {
     const num = parseFloat(val);
     if (isNaN(num)) return '0.00';
@@ -265,7 +219,6 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
     return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   };
 
-  // Format USD value with currency conversion
   const formatUsdValue = (val) => {
     const num = parseFloat(val);
     if (isNaN(num) || num === 0) return formatCurrencyValue(0);
@@ -276,7 +229,6 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
     return formatCurrencyValue(converted);
   };
 
-  // Calculate USD values
   const getPositionUsdValue = (pos) => {
     const amount = parseFloat(pos.value || 0);
     const price = getTokenPrice(pos.tokenSymbol);
@@ -299,7 +251,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
     if (!isMovementNativeStaking(pos)) return null;
 
     const pool = String(pos?.poolAddress || "").toLowerCase();
-    const poolSuffix = pool.startsWith("0x") && pool.length > 10 ? `…${pool.slice(-6)}` : null;
+    const poolSuffix = pool.startsWith("0x") && pool.length > 10 ? `...${pool.slice(-6)}` : null;
 
     const pendingStakeRaw = Number(pos?.pendingStakeAmount || 0);
     const pendingWithdrawalRaw = Number(pos?.pendingWithdrawalAmount || 0);
@@ -308,7 +260,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
     const poolPart = poolSuffix ? `Pool ${poolSuffix}` : null;
     const pendingPart = pendingMove > 0 ? `Pending ${formatValue(pendingMove)} MOVE` : null;
 
-    if (poolPart && pendingPart) return `${poolPart} · ${pendingPart}`;
+    if (poolPart && pendingPart) return `${poolPart} - ${pendingPart}`;
     return poolPart || pendingPart;
   };
 
@@ -318,10 +270,8 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
 
   return (
     <div className="defi-card-v2" style={{ animationDelay: `${delay}ms`, '--protocol-color': protocol.color }}>
-      {/* Accent line */}
       <div className="defi-v2-accent" style={{ background: protocol.gradient }} />
       
-      {/* Header */}
       <div className="defi-v2-header">
         <div className="defi-v2-logo">
           <img 
@@ -349,9 +299,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
         )}
       </div>
 
-      {/* Two Column Layout - Fixed Width */}
       <div className="defi-v2-columns">
-        {/* Supply Column */}
         <div className="defi-v2-column supply">
           <div className="defi-v2-column-header">
             <span className="defi-v2-column-label">Supplied</span>
@@ -377,7 +325,6 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
           </div>
         </div>
 
-        {/* Borrow Column */}
         <div className="defi-v2-column borrow">
           <div className="defi-v2-column-header">
             <span className="defi-v2-column-label">Borrowed</span>
@@ -399,7 +346,6 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
         </div>
       </div>
 
-      {/* Footer */}
       <div className="defi-v2-footer">
         <div className="defi-v2-net">
           <span className="defi-v2-net-label">NET POSITION</span>
@@ -426,9 +372,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
   );
 };
 
-// --- COMPONENT: Liquidity Position Card ---
 const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol }) => {
-  // Protocol data for LP positions (only liquidity pools, not lending)
   const LP_PROTOCOLS = {
     canopy: { 
       logo: '/canopy.png', 
@@ -532,12 +476,10 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     });
   };
 
-  // Check if this position was deposited through Canopy (has Canopy vault tokens)
   const isCanopyDeposit = position.protocol === 'canopy' || 
     position.symbol?.startsWith('cv') || 
     position.symbol?.includes('stMOVE');
 
-  // Format values
   const formatValue = (val) => {
     const num = parseFloat(val);
     if (isNaN(num)) return '0.00';
@@ -552,20 +494,16 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     const converted = convertUSD(num);
     if (converted >= 1000000) return `${currencySymbol}${(converted / 1000000).toFixed(2)}M`;
     if (converted >= 1000) return `${currencySymbol}${(converted / 1000).toFixed(2)}K`;
-    // Handle very small values (< equivalent of $0.01) 
     if (converted > 0 && converted < 0.01) return `< ${currencySymbol}0.01`;
-    if (converted < 1) return formatCurrencyValue(converted, undefined, 4); // More precision for small values
+    if (converted < 1) return formatCurrencyValue(converted, undefined, 4);
     return formatCurrencyValue(converted);
   };
 
-  // Get underlying value estimate (for liquid staking, 1:1 with base token)
   const getUnderlyingValue = () => {
-    // If position already has a valid USD value, use it
     if (position.usdValue && position.usdValue > 0) {
       return position.usdValue;
     }
     
-    // If position has liquidityValue (from Yuzu NFT), use it
     if (position.liquidityValue && position.liquidityValue > 0) {
       return position.liquidityValue;
     }
@@ -575,60 +513,49 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     const amount = parseFloat(position.amount) || 0;
     if (amount === 0) return 0;
     
-    // For Yuzu NFT positions, use the stored liquidity value
     if (position.isNFT && position.protocol === 'yuzu') {
-      // Use stored USD value from position data (fetched via view function)
       if (position.usdValue && position.usdValue > 0) {
         return position.usdValue;
       }
-      // Fallback: estimate from liquidity amount if available
       if (position.liquidityValue) {
         return position.liquidityValue;
       }
       return 0;
     }
     
-    // For Meridian LP tokens, value cannot be calculated without pool composition
     if (position.isMeridianLP) {
       return 0;
     }
     
-    // For Canopy cvMOVE or stMOVE, use MOVE price
     if (position.symbol?.includes('cvMOVE') || position.symbol?.includes('stMOVE') || 
         position.symbol?.includes('MOVE') && position.protocol === 'canopy') {
       const movePrice = priceMap['0xa'] || priceMap['0x1'] || 0;
       return amount * movePrice;
     }
     
-    // For Canopy cvWBTC or BTC positions
     if (position.symbol?.includes('cvWBTC') || position.symbol?.includes('WBTC') || position.symbol?.includes('BTC')) {
-      // Find BTC price in priceMap
       const btcPrice = Object.entries(priceMap).find(([addr]) => 
         addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
-      )?.[1] || 95000; // Fallback BTC price
+      )?.[1] || 95000;
       return amount * btcPrice;
     }
     
-    // For cvWETH or ETH positions
     if (position.symbol?.includes('cvWETH') || position.symbol?.includes('WETH') || position.symbol?.includes('ETH')) {
       const ethPrice = Object.entries(priceMap).find(([addr]) => 
         addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
-      )?.[1] || 3500; // Fallback ETH price
+      )?.[1] || 3500;
       return amount * ethPrice;
     }
     
-    // For LayerBank lMOVE, use MOVE price
     if (position.symbol?.includes('lMOVE')) {
       const movePrice = priceMap['0xa'] || priceMap['0x1'] || 0;
       return amount * movePrice;
     }
     
-    // For Meridian LP tokens - cannot value without pool composition data
     if (position.protocol === 'meridian' && position.symbol?.includes('MER-LP')) {
       return 0;
     }
     
-    // For stablecoins (USDC, USDT), value is 1:1 with USD
     if (position.symbol?.includes('USDC') || position.symbol?.includes('USDT') ||
         position.underlying?.includes('USDC') || position.underlying?.includes('USDT')) {
       return amount;
@@ -689,10 +616,8 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
         '--lp-color': protocol.color 
       }}
     >
-      {/* Accent */}
       <div className="lp-card-accent" style={{ background: protocol.gradient }} />
       
-      {/* Header */}
       <div className="lp-card-header">
         <div className="lp-card-logo">
           <img 
@@ -705,7 +630,7 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
           <h4 className="lp-card-name" title={protocol.name}>{protocol.name}</h4>
           <div className="lp-card-subline">
             <span className="lp-card-type">{protocol.type}</span>
-            <span className="lp-card-dot">•</span>
+            <span className="lp-card-dot">*</span>
             <span className="lp-card-symbol" title={position.symbol}>{position.symbol}</span>
           </div>
           {(position.isNFT || (isCanopyDeposit && position.protocol !== 'canopy')) && (
@@ -732,7 +657,6 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
         )}
       </div>
 
-      {/* Body */}
       <div className="lp-card-body">
         <div className="lp-card-stats-row">
           <div className="lp-card-stat">
@@ -768,7 +692,6 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
   );
 };
 
-// --- COMPONENT: Error Message ---
 const ErrorMessage = ({ message, onRetry }) => (
   <div className="error-message">
     <p>{message}</p>
@@ -782,15 +705,10 @@ const RouteFallback = () => (
   <div className="loading-indicator">Loading...</div>
 );
 
-
-
-// Redirect old /wallet/:address links to /profile/:address
 const WalletRedirect = () => {
   const { address } = useParams();
   return <Navigate to={`/profile/${address}`} replace />;
 };
-
-// --- MAIN DASHBOARD ---
 
 const Dashboard = () => {
 
@@ -799,8 +717,6 @@ const Dashboard = () => {
   const location = useLocation();
   const { address: urlAddress } = useParams();
  
-  // State
-
   const [balances, setBalances] = useState([]);
 
   const [assetsLoading, setAssetsLoading] = useState(false);
@@ -811,11 +727,10 @@ const Dashboard = () => {
 
   const [viewingAddress, setViewingAddress] = useState(null);
 
-  const [walletAge, setWalletAge] = useState(null); // { firstTxTimestamp, txCount }
-  const [liquidityPositions, setLiquidityPositions] = useState([]); // LP/Vault positions
+  const [walletAge, setWalletAge] = useState(null);
+  const [liquidityPositions, setLiquidityPositions] = useState([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  // Custom Hooks - pass viewingAddress to support address search
   const { positions, loading: defiLoading } = useDeFiPositions(viewingAddress);
   const { prices: priceMap, priceChanges } = useTokenPrices();
   const { convertUSD, formatValue: formatCurrencyValue, currencySymbol } = useCurrency();
@@ -828,19 +743,16 @@ const Dashboard = () => {
     });
   }, [positions]);
   
-  // Use indexer for balances (optimized for token queries)
   const { 
     balances: indexerBalances, 
     loading: indexerLoading, 
     error: indexerError,
   } = useIndexerBalances(viewingAddress);
 
-  // Use profile hook to get user profile data
   const { profile: userProfile } = useProfile(viewingAddress);
   const { level: viewingLevel } = useUserLevel(viewingAddress);
 
   const modalProfileAddress = showProfileModal ? viewingAddress : null;
-  // Calculate level only when profile modal is open
   const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(modalProfileAddress);
   const userAvatarSrc = getLevelBasedPfp({
     level: viewingLevel,
@@ -853,27 +765,22 @@ const Dashboard = () => {
     preferredPfp: userProfile?.pfp,
   });
 
-  // Initialize viewingAddress from URL param — this is the primary source of truth
   useEffect(() => {
     if (urlAddress && isValidAddress(urlAddress)) {
       setViewingAddress(urlAddress);
     } else if (!urlAddress && !connected) {
-      // No URL address and not connected — clear viewing address
       setViewingAddress(null);
     }
   }, [urlAddress, connected]);
 
-  // Check for address in URL query params (from Layout search)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const addressParam = params.get('address');
     if (addressParam && isValidAddress(addressParam)) {
-      // Navigate to wallet route instead of using query param
       navigate(`/profile/${addressParam}`, { replace: true });
     }
   }, [location.search, navigate]);
 
-  // Config
   const currentNetwork = DEFAULT_NETWORK;
   const movementClient = useMemo(() => new Aptos(new AptosConfig({
 
@@ -884,12 +791,8 @@ const Dashboard = () => {
   })), [currentNetwork]);
 
   const modalBadgeAddress = modalProfileAddress;
-  // Load badge data only when profile modal is open to avoid global navigation overhead
   const { badges: onchainBadges, loading: onchainBadgesLoading } = useBadges(modalBadgeAddress, { client: movementClient, enablePolling: false });
-  // Persisted user badges from backend (if you run a server worker that stores `user_badges`)
   const { earnedBadges: persistedBadges } = useUserBadges(modalBadgeAddress);
-
-  // Calculate total DeFi net value (supply - debt) in USD
   const defiNetValue = useMemo(() => {
     if (!visibleDeFiPositions || visibleDeFiPositions.length === 0 || !priceMap) return 0;
     
@@ -918,8 +821,6 @@ const Dashboard = () => {
     
     return totalSupply - totalDebt;
   }, [visibleDeFiPositions, priceMap]);
-
-  // Calculate total LP/Liquidity positions value
   const liquidityTotalValue = useMemo(() => {
     if (!liquidityPositions || liquidityPositions.length === 0) return 0;
     
@@ -928,19 +829,13 @@ const Dashboard = () => {
       return total + value;
     }, 0);
   }, [liquidityPositions]);
-
-  // Combined net worth (token balances + DeFi net value + LP positions)
   const combinedNetWorth = useMemo(() => {
     return totalUsdValue + defiNetValue + liquidityTotalValue;
   }, [totalUsdValue, defiNetValue, liquidityTotalValue]);
-
-  // Calculate weighted 24h portfolio change percentage
   const portfolio24hChange = useMemo(() => {
     if (!balances || balances.length === 0 || !priceChanges || combinedNetWorth === 0) {
       return null;
     }
-
-    // Calculate weighted average of price changes based on USD value of each holding
     let weightedChange = 0;
     let totalWeight = 0;
 
@@ -954,8 +849,6 @@ const Dashboard = () => {
         totalWeight += usdValue;
       }
     });
-
-    // If we have weighted values, calculate the percentage
     if (totalWeight > 0) {
       return weightedChange / totalWeight;
     }
@@ -1192,11 +1085,6 @@ const Dashboard = () => {
       return null;
     }
   }, [movementClient]);
-
-
-
-  // --- ASSET FETCHING LOGIC ---
-  // Always use RPC as primary source (more reliable), indexer as optional enhancement
   const fetchAssets = useCallback(async (address) => {
     if (!address) {
       setBalances([]);
@@ -1208,28 +1096,22 @@ const Dashboard = () => {
     setError(null);
 
     try {
-      // Normalize address - handle both string and object formats
       let normalizedAddress;
       if (typeof address === "string") {
         normalizedAddress = address.trim();
       } else if (address && typeof address === "object") {
-        // Handle wallet adapter address objects (AccountAddress type)
-        // Try common methods to extract address string
         if (address.toString) {
           normalizedAddress = address.toString();
         } else if (address.hex) {
           normalizedAddress = address.hex();
         } else if (address.data && typeof address.data === "object") {
-          // Handle Uint8Array - convert to hex string
           const hex = Array.from(address.data)
             .map(b => b.toString(16).padStart(2, "0"))
             .join("");
           normalizedAddress = `0x${hex}`;
         } else {
-          // Fallback: try to stringify and extract
           normalizedAddress = String(address);
         }
-        // Ensure it's trimmed
         normalizedAddress = normalizedAddress.trim();
       } else {
         normalizedAddress = String(address).trim();
@@ -1238,9 +1120,6 @@ const Dashboard = () => {
       devLog("Fetching assets for address:", normalizedAddress);
       devLog("Original address type:", typeof address, address);
       devLog("Using RPC endpoint:", currentNetwork.rpc);
-      
-      // Always fetch from RPC (most reliable source)
-      // Movement Network uses Aptos-compatible API
       const resources = await movementClient.getAccountResources({ 
         accountAddress: normalizedAddress 
       });
@@ -1251,20 +1130,13 @@ const Dashboard = () => {
       devLog("RPC Resources fetched:", resources.length);
       devLog("All resource types:", resources.map(r => r.type).join("\n"));
       devLog("=== END DEBUG ===");
-      
-      // Filter for coin resources - Movement Network can have CoinStore in different modules
-      // Standard: ::coin::CoinStore
-      // Router: ::router::CoinStore
-      // Others: Any module with CoinStore
       const coinResources = resources.filter((r) => 
         r.type.includes("CoinStore") && r.type.includes("<")
       );
       
       devLog("Coin resources found:", coinResources.length);
-      
-      // If no CoinStore found, log all resource types for debugging
       if (coinResources.length === 0) {
-        console.warn("❌ NO COINSTORES FOUND!");
+        console.warn("ERROR NO COINSTORES FOUND!");
         console.warn("All resource types returned from RPC:");
         resources.forEach((r, idx) => {
           devLog(`  ${idx + 1}. ${r.type}`);
@@ -1274,8 +1146,6 @@ const Dashboard = () => {
         console.warn("  2. The wallet address is incorrect");
         console.warn("  3. The wallet has no tokens on this network");
         console.warn("  4. The wallet was just created and not indexed yet");
-        
-        // Check if there are any resources that might contain token data
         const potentialTokenResources = resources.filter(r => 
           r.type.includes("CoinStore") || 
           r.type.includes("coin") || 
@@ -1290,19 +1160,15 @@ const Dashboard = () => {
             hasData: !!r.data,
             dataKeys: r.data ? Object.keys(r.data) : []
           })));
-          
-          // If we found CoinStore resources but they weren't caught by our filter, log them
           const coinStoreResources = potentialTokenResources.filter(r => r.type.includes("CoinStore"));
           if (coinStoreResources.length > 0) {
-            devLog("⚠️ Found CoinStore resources that should be processed:", coinStoreResources.map(r => ({
+            devLog("Warning: Found CoinStore resources that should be processed:", coinStoreResources.map(r => ({
               type: r.type,
               data: r.data
             })));
           }
         }
       }
-      
-      // Log first coin resource structure for debugging
       if (coinResources.length > 0) {
         devLog("Sample coin resource:", {
           type: coinResources[0].type,
@@ -1331,8 +1197,6 @@ const Dashboard = () => {
                 coinKeys: coin.data?.coin ? Object.keys(coin.data.coin) : null
               });
             }
-
-            // Log for debugging if we can't find the value
             if (!coinValue || coinValue === "0" || coinValue === "undefined" || coinValue === "null") {
               console.warn("Could not extract coin value for:", coin.type);
               console.warn("Full coin data:", JSON.stringify(coin.data, null, 2));
@@ -1348,67 +1212,48 @@ const Dashboard = () => {
             if (quantity <= 0) {
               return null;
             }
-
-            // Try multiple price lookup strategies
             let price = 0;
-            
-            // 1. Try direct address lookup
             if (priceMap[tokenMeta.address]) {
               price = priceMap[tokenMeta.address];
             }
-            // 2. Try symbol-based fallback for stablecoins
             else if (tokenMeta.symbol === "USDT" || tokenMeta.symbol === "USDC") {
               price = 1.0;
             }
-            // 3. Try full type as fallback
             else {
               price = priceMap[tokenMeta.fullType] ?? 0;
             }
             
             const usdValue = quantity * price;
-
-            // Smart formatting for different token types
-            // High-value tokens (BTC, ETH) need more decimals for small amounts
             const isHighValueToken = ['BTC', 'WBTC', 'ETH', 'WETH'].includes(tokenMeta.symbol);
-            
-            // Format balance based on token type and amount
             let formattedAmount;
             if (isHighValueToken && quantity < 0.01) {
-              // Very small BTC/ETH amounts - show up to 8 decimals
               formattedAmount = quantity.toLocaleString(undefined, {
                 minimumFractionDigits: 4,
                 maximumFractionDigits: 8,
               });
             } else if (isHighValueToken && quantity < 1) {
-              // Small BTC/ETH amounts - show up to 6 decimals
               formattedAmount = quantity.toLocaleString(undefined, {
                 minimumFractionDigits: 4,
                 maximumFractionDigits: 6,
               });
             } else {
-              // Normal formatting
               formattedAmount = quantity.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 4,
               });
             }
-
-            // Format USD value - show more decimals for small values
             let formattedUsdValue;
             if (usdValue > 0 && usdValue < 0.01) {
-              // Very small USD value - show up to 6 decimals
               formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
                 minimumFractionDigits: 4,
                 maximumFractionDigits: 6,
               })}`;
             } else if (usdValue > 0 && usdValue < 1) {
-              // Small USD value - show up to 4 decimals
               formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 4,
               })}`;
             } else {
-              // Normal USD formatting
               formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
@@ -1434,13 +1279,9 @@ const Dashboard = () => {
           }
         })
         .filter(Boolean);
-
-      // Only keep verified tokens from registry
       processed = processed.filter((t) => t && t.isKnown);
 
       devLog("Processed verified tokens:", processed.length);
-
-      // Sort by USD value and calculate total
       processed.sort((a, b) => b.usdValue - a.usdValue);
       const totalUsd = processed.reduce((sum, token) => sum + token.usdValue, 0);
 
@@ -1456,8 +1297,6 @@ const Dashboard = () => {
         address: address,
         rpc: currentNetwork.rpc
       });
-      
-      // Provide user-friendly error message
       let errorMessage = "Failed to fetch assets.";
       if (fetchError.message?.includes("network") || fetchError.message?.includes("fetch")) {
         errorMessage = "Network error. Please check your connection and try again.";
@@ -1473,24 +1312,15 @@ const Dashboard = () => {
       setAssetsLoading(false);
     }
   }, [movementClient, priceMap, currentNetwork, extractRawCoinValue]);
-
-
-
-  // Helper function to extract address string from account object
   const getAddressString = (accountObj) => {
     if (!accountObj || !accountObj.address) return null;
     
     const addr = accountObj.address;
-    
-    // If it's already a string, return it
     if (typeof addr === "string") {
       return addr.trim();
     }
-    
-    // If it's an AccountAddress object from Aptos SDK
     if (addr && typeof addr === "object") {
       try {
-        // Try common methods first
         if (typeof addr.toString === "function" && addr.toString !== Object.prototype.toString) {
           const str = addr.toString();
           if (str && str.startsWith("0x")) {
@@ -1500,7 +1330,6 @@ const Dashboard = () => {
         if (typeof addr.hex === "function") {
           return addr.hex();
         }
-        // Handle Uint8Array data
         if (addr.data) {
           let dataArray;
           if (addr.data instanceof Uint8Array) {
@@ -1510,7 +1339,6 @@ const Dashboard = () => {
           }
           
           if (dataArray && dataArray.length > 0) {
-            // Convert Uint8Array to hex string
             const hex = dataArray
               .map(b => {
                 const num = typeof b === "number" ? b : parseInt(b, 10);
@@ -1524,8 +1352,6 @@ const Dashboard = () => {
         console.warn("Error converting address object:", e);
       }
     }
-    
-    // Fallback: try to stringify
     const str = String(addr).trim();
     if (str && str !== "[object Object]") {
       return str;
@@ -1540,10 +1366,6 @@ const Dashboard = () => {
     viewingAddress &&
     connectedWalletAddress.toLowerCase() === viewingAddress.toLowerCase()
   );
-
-  // Trigger Fetch when wallet connects/disconnects
-  // Only reacts to actual wallet connect/disconnect events (account, connected)
-  // NOT to location changes — URL-driven address is handled by the urlAddress effect above
   useEffect(() => {
     if (account && connected) {
       const addressString = getAddressString(account);
@@ -1552,18 +1374,16 @@ const Dashboard = () => {
       devLog("========================");
       
       if (addressString) {
-        // Only auto-navigate to profile address if user isn't viewing a different searched address
         if (!urlAddress || urlAddress.toLowerCase() === addressString.toLowerCase()) {
           setViewingAddress(addressString);
           navigate(`/profile/${addressString}`, { replace: true });
-          devLog("✅ Address set, indexer will fetch balances");
+          devLog("Address set, indexer will fetch balances");
         }
       } else {
         console.error("Could not extract address from account object:", account);
         setError("Could not extract wallet address. Please try reconnecting.");
       }
     } else if (!connected) {
-      // Only clear state if we're NOT viewing a searched address from URL
       if (!urlAddress) {
         setViewingAddress(null);
         setBalances([]);
@@ -1572,86 +1392,61 @@ const Dashboard = () => {
       }
     }
   }, [account, connected, navigate, urlAddress]);
-
-  // Close dropdown when clicking outside
-  // Update balances when viewing address changes (for search)
-  // Note: Removed fetchAssets call - indexer hook handles this automatically
   useEffect(() => {
     if (viewingAddress && (!account || viewingAddress !== account.address)) {
-      devLog("📍 Viewing searched address:", viewingAddress, "(indexer will fetch)");
+      devLog("Viewing searched address:", viewingAddress, "(indexer will fetch)");
     }
   }, [viewingAddress, account]);
-
-  // Use indexer balances when available (indexer is optimized for token queries)
-  // Show balances IMMEDIATELY without waiting for prices - then update when prices arrive
   useEffect(() => {
     if (indexerLoading) {
-      // Only show loading if we don't already have balances
       if (balances.length === 0) {
         setAssetsLoading(true);
       }
-      devLog("⏳ Indexer loading...");
+      devLog("Indexer loading...");
       return; // Early return - don't process yet
     }
     
     if (indexerError && viewingAddress) {
-      console.warn("⚠️ Indexer error, trying RPC fallback:", indexerError);
-      // Don't set error yet - try RPC fallback first
+      console.warn("Warning: Indexer error, trying RPC fallback:", indexerError);
       fetchAssets(viewingAddress);
       return;
     }
     
     if (indexerBalances && indexerBalances.length > 0) {
-      devLog("✅ Using indexer balances:", indexerBalances.length, "tokens");
-      
-      // Calculate total USD value with price map
+      devLog("Using indexer balances:", indexerBalances.length, "tokens");
       const withPrices = indexerBalances.map(balance => {
-        // Try multiple price lookup strategies
         let price = 0;
-        
-        // 1. Try direct address lookup
         if (priceMap[balance.address]) {
           price = priceMap[balance.address];
         }
-        // 2. Try symbol-based fallback for MOVE token
         else if (balance.symbol === "MOVE" || balance.symbol === "move") {
-          // MOVE token - use 0xa price
           price = priceMap["0xa"] || priceMap["0x1"] || 0;
         }
-        // 3. Try symbol-based fallback for stablecoins
         else if (balance.symbol === "USDT" || balance.symbol === "USDC") {
           price = 1.0;
         }
-        // 4. Try full type as fallback
         else {
           price = priceMap[balance.fullType] ?? 0;
         }
         
         const usdValue = balance.numericAmount * price;
-        
-        // Smart formatting for USD value - show more decimals for small values
         let formattedUsdValue;
         if (usdValue > 0 && usdValue < 0.01) {
-          // Very small USD value - show up to 6 decimals
           formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
             minimumFractionDigits: 4,
             maximumFractionDigits: 6,
           })}`;
         } else if (usdValue > 0 && usdValue < 1) {
-          // Small USD value - show up to 4 decimals
           formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
             minimumFractionDigits: 2,
             maximumFractionDigits: 4,
           })}`;
         } else {
-          // Normal USD formatting
           formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}`;
         }
-        
-        // Update amount formatting for high-value tokens if needed
         const isHighValueToken = ['BTC', 'WBTC', 'ETH', 'WETH'].includes(balance.symbol);
         let updatedAmount = balance.amount;
         if (isHighValueToken && balance.numericAmount < 0.01) {
@@ -1674,12 +1469,8 @@ const Dashboard = () => {
           formattedValue: formattedUsdValue,
         };
       });
-      
-      // Only keep verified tokens
       const verified = withPrices.filter((t) => t && t.isKnown);
-      // Sort by USD value
       verified.sort((a, b) => b.usdValue - a.usdValue);
-      // Recompute total based on verified set
       const totalUsd = verified.reduce((sum, t) => sum + (t.usdValue || 0), 0);
       
       setBalances(verified);
@@ -1687,49 +1478,33 @@ const Dashboard = () => {
       setAssetsLoading(false);
       setError(null);
     } else if (indexerBalances && indexerBalances.length === 0 && !indexerLoading && viewingAddress) {
-      // Indexer returned empty - try RPC fallback
-      console.warn("⚠️ Indexer returned no balances, trying RPC fallback...");
+      console.warn("Warning: Indexer returned no balances, trying RPC fallback...");
       fetchAssets(viewingAddress);
     } else if (!indexerLoading && !viewingAddress) {
-      // No address - clear loading state
       setAssetsLoading(false);
     }
   }, [indexerBalances, indexerLoading, indexerError, priceMap, viewingAddress, fetchAssets, balances.length]);
-
-  // Detect LP (Liquidity Pool) positions from indexer balances and NFT holdings
-  // NOTE: Only includes actual LP tokens, not lending receipts (those are in DeFi Positions)
-  // Yuzu uses NFT-based position tokens for concentrated liquidity
   useEffect(() => {
     let cancelled = false;
     const detectLPPositions = async () => {
       const lpPositions = [];
-
-      // 1. Detect fungible LP tokens from indexer balances
       if (indexerBalances && indexerBalances.length > 0) {
-        // LP token patterns to detect (only actual liquidity pool tokens)
         const LP_PATTERNS = [
-          // Canopy liquid staking vault tokens (liquid staking = providing liquidity)
           { pattern: /cvMOVE|cvUSDC|cvUSDT|cvWBTC|cvWETH/i, protocol: 'canopy', underlying: 'MOVE' },
           { pattern: /stMOVE|StakedMove/i, protocol: 'canopy', underlying: 'MOVE' },
-          // Meridian LP tokens - mark as needing pool composition lookup
           { pattern: /MER-LP|Meridian LP/i, protocol: 'meridian', underlying: 'MERIDIAN_LP' },
-          // Yuzu fungible LP tokens (if any)
           { pattern: /YuzuLP|Yuzu-LP/i, protocol: 'yuzu', underlying: 'LP' },
         ];
-
-        // For Meridian LP tokens, collect composition data from positions hook
         let meridianCompositions = [];
         if (positions && positions.length > 0) {
-          devLog('🔷 All positions from hook:', positions.map(p => ({ id: p.id, protocolName: p.protocolName, type: p.type, liquidityX: p.liquidityX })));
+          devLog('Meridian positions from hook:', positions.map(p => ({ id: p.id, protocolName: p.protocolName, type: p.type, liquidityX: p.liquidityX })));
           meridianCompositions = positions.filter(pos => 
             pos.protocolName === 'Meridian' && 
             (pos.liquidityX !== undefined || pos.liquidityY !== undefined || pos.liquidityTokens !== undefined || pos.stakedAmount !== undefined)
           );
-          devLog('🔷 Meridian positions with composition:', meridianCompositions.length, 
+          devLog('Meridian positions with composition:', meridianCompositions.length, 
             meridianCompositions.map(p => ({ liquidityX: p.liquidityX, liquidityY: p.liquidityY, liquidityTokens: p.liquidityTokens, tokenX: p.tokenX, tokenY: p.tokenY })));
         }
-
-        // Track which Meridian LP token we're processing (to match with composition data)
         let meridianLPIndex = 0;
 
         const normalizeMeridianSymbol = (value) => {
@@ -1764,8 +1539,6 @@ const Dashboard = () => {
           const matched = expectedTokens.filter((token) => poolTokenSet.has(token)).length;
           return matched >= Math.min(2, expectedTokens.length);
         };
-
-        // Resolve Meridian pool reserves for exact token composition per LP token
         const meridianPoolInfoByAddress = {};
         const meridianPoolAddresses = Array.from(
           new Set(
@@ -1792,46 +1565,35 @@ const Dashboard = () => {
           
           for (const { pattern, protocol, underlying } of LP_PATTERNS) {
             if (pattern.test(symbol) || pattern.test(name)) {
-              // Determine underlying asset from symbol
               let underlyingAsset = underlying;
               if (symbol.includes('USDC')) underlyingAsset = 'USDC.e';
               else if (symbol.includes('USDT')) underlyingAsset = 'USDT.e';
               else if (symbol.includes('WBTC') || symbol.includes('BTC')) underlyingAsset = 'WBTC.e';
               else if (symbol.includes('WETH') || symbol.includes('ETH')) underlyingAsset = 'WETH.e';
               else if (symbol.includes('MOVE') || symbol === 'lMOVE') underlyingAsset = 'MOVE';
-
-              // Calculate USD value based on underlying asset price
               let usdValue = 0;
               const amount = balance.numericAmount || 0;
               
               if (priceMap && underlyingAsset !== 'MERIDIAN_LP') {
                 if (underlyingAsset === 'MOVE' || symbol.includes('MOVE') || symbol.includes('stMOVE')) {
-                  // cvMOVE, stMOVE = 1:1 with MOVE
                   const movePrice = priceMap['0xa'] || priceMap['0x1'] || 0;
                   usdValue = amount * movePrice;
                 } else if (underlyingAsset === 'USDC.e' || underlyingAsset === 'USDT.e') {
-                  // Stablecoins = 1:1 with USD
                   usdValue = amount;
                 } else if (underlyingAsset === 'WBTC.e') {
-                  // Find BTC price
                   const btcPrice = Object.entries(priceMap).find(([addr]) => 
                     addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
                   )?.[1] || 95000; // Fallback BTC price
                   usdValue = amount * btcPrice;
                 } else if (underlyingAsset === 'WETH.e') {
-                  // Find ETH price
                   const ethPrice = Object.entries(priceMap).find(([addr]) => 
                     addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
                   )?.[1] || 3500; // Fallback ETH price
                   usdValue = amount * ethPrice;
                 }
               }
-              // For Meridian LP, value will be 0 (Price N/A) since we need pool composition
-
-              // For Meridian LP, use composition data from positions hook
               let meridianComposition = {};
               if (protocol === 'meridian' && meridianCompositions.length > 0) {
-                // Use composition from the corresponding meridian position
                 const compositionIndex = meridianLPIndex < meridianCompositions.length ? meridianLPIndex : 0;
                 meridianComposition = {
                   liquidityX: meridianCompositions[compositionIndex].liquidityX,
@@ -1846,7 +1608,7 @@ const Dashboard = () => {
                 if (!meridianComposition.liquidityTokens || meridianComposition.liquidityTokens <= 0) {
                   meridianComposition.liquidityTokens = Math.round(amount * 1_000_000);
                 }
-                devLog('🔷 Adding Meridian LP #' + meridianLPIndex + ' with composition:', meridianComposition);
+                devLog('Adding Meridian LP #' + meridianLPIndex + ' with composition:', meridianComposition);
                 meridianLPIndex++;
               } else if (protocol === 'meridian') {
                 meridianComposition = {
@@ -1912,7 +1674,7 @@ const Dashboard = () => {
                         }
                       }
                     } else {
-                      console.warn('⚠️ Meridian pool token mismatch, skipping pool override', {
+                      console.warn('Warning: Meridian pool token mismatch, skipping pool override', {
                         expected: [meridianComposition.tokenX, meridianComposition.tokenY],
                         actual: poolTokens.map((token) => token.symbol),
                         poolId: poolInfo.poolId,
@@ -1942,24 +1704,17 @@ const Dashboard = () => {
           }
         });
       }
-
-      // 2. Detect Yuzu NFT-based LP positions
-      // Yuzu uses concentrated liquidity with Position NFTs
       if (viewingAddress) {
         try {
-          // Fetch NFT holdings and Yuzu liquidity events in parallel
           const [nftHoldings, yuzuEvents] = await Promise.all([
             getUserNFTHoldings(viewingAddress),
             getYuzuLiquidityPositions(viewingAddress)
           ]);
-          
-          // Build a map of position_id -> liquidity data from events
           const yuzuLiquidityMap = {};
           for (const event of yuzuEvents) {
             try {
               const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
               if (data && data.position_id) {
-                // Store the most recent liquidity data for each position
                 const posId = String(data.position_id);
                 if (!yuzuLiquidityMap[posId] || event.transaction_version > yuzuLiquidityMap[posId].version) {
                   yuzuLiquidityMap[posId] = {
@@ -1972,56 +1727,35 @@ const Dashboard = () => {
                 }
               }
             } catch {
-              // Skip malformed events
             }
           }
-          devLog('🍋 Yuzu liquidity map from events:', yuzuLiquidityMap);
-          
-          // Filter for Yuzu position NFTs
-          // Yuzu NFT manager address: 0x1d0434ae92598710f5ccbfbf51cf66cf2fe8ba8e77381bed92f45bb32d237bc2
+          devLog('Yuzu liquidity map from events:', yuzuLiquidityMap);
           const YUZU_NFT_MANAGER = '0x1d0434ae92598710f5ccbfbf51cf66cf2fe8ba8e77381bed92f45bb32d237bc2';
           
           for (const nft of nftHoldings) {
             const collectionName = nft.current_token_data?.current_collection?.collection_name || '';
             const creatorAddress = nft.current_token_data?.current_collection?.creator_address || '';
             const tokenName = nft.current_token_data?.token_name || '';
-            
-            // Check if this is a Yuzu liquidity position NFT
-            // Collection name contains "liquidity position" or creator is Yuzu NFT manager
             const isYuzuPosition = 
               collectionName.toLowerCase().includes('yuzu') ||
               collectionName.toLowerCase().includes('liquidity position') ||
               creatorAddress.toLowerCase() === YUZU_NFT_MANAGER;
             
             if (isYuzuPosition) {
-              devLog("🍋 Processing Yuzu NFT:", { tokenName, collectionName, creatorAddress, tokenDataId: nft.token_data_id });
-              
-              // Token name IS the position ID (e.g., "2450", "9410", "61152")
+              devLog("Processing Yuzu NFT:", { tokenName, collectionName, creatorAddress, tokenDataId: nft.token_data_id });
               const positionId = tokenName;
-              
-              // IMPORTANT: The creatorAddress of the NFT collection IS the Yuzu pool address!
-              // This is how Yuzu structures their position NFTs
               const poolAddress = creatorAddress;
-              
-              // Collection name format: "Yuzuswap liquidity position | USDC.e/USDT.e | fee: 100 | tick spacing: 2"
-              // Or: "Yuzuswap liquidity position | MOVE/USDC.e | fee: 2500 | tick spacing: 50"
               let poolPair = 'LP Position';
-              
-              // Parse pool pair from collection name
               const collectionMatch = collectionName.match(/\|\s*([A-Za-z0-9.]+\/[A-Za-z0-9.]+)\s*\|/i);
               if (collectionMatch) {
                 poolPair = collectionMatch[1].replace('/', ' / ');
-                devLog("🍋 Parsed pool pair from collection:", poolPair);
+                devLog("Parsed pool pair from collection:", poolPair);
               }
               
-              devLog("🍋 Position info:", { positionId, poolPair, poolAddress: poolAddress.substring(0, 20) + '...' });
-              
-              // Fetch position value from Yuzu view function
+              devLog("Yuzu position info:", { positionId, poolPair, poolAddress: poolAddress.substring(0, 20) + '...' });
               let liquidityValue = 0;
               let token0Amount = 0;
               let token1Amount = 0;
-              
-              // Get MOVE price with multiple fallbacks
               const getMovePrice = () => {
                 if (!priceMap) return 0.5; // Default fallback
                 return priceMap['0xa'] || priceMap['0x1'] || 
@@ -2029,11 +1763,9 @@ const Dashboard = () => {
                     addr.toLowerCase() === '0xa' || addr.toLowerCase() === '0x1'
                   )?.[1] || 0.5;
               };
-              
-              // Try view function with pool address (creatorAddress) and position ID
               if (poolAddress && positionId) {
                 try {
-                  devLog('🍋 Trying get_position_token_amounts with:', { poolAddress: poolAddress.substring(0, 20), positionId });
+                  devLog('Trying get_position_token_amounts with:', { poolAddress: poolAddress.substring(0, 20), positionId });
                   const response = await fetch(`${DEFAULT_NETWORK.rpc}/view`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2046,79 +1778,59 @@ const Dashboard = () => {
                   
                   if (response.ok) {
                     const result = await response.json();
-                    devLog('🍋 Yuzu view function result:', result);
-                    // Result is [amount_0, amount_1] in smallest units
+                    devLog('Yuzu view function result:', result);
                     if (Array.isArray(result) && result.length >= 2) {
-                      // Parse token symbols from pool pair (e.g., "MOVE / USDC.e" -> ["MOVE", "USDC.e"])
                       const tokens = poolPair.split('/').map(t => t.trim().replace(/\.e$/, '').toUpperCase());
-                      
-                      // Helper to determine decimals for a token symbol
                       const getTokenDecimals = (symbol) => {
-                        // Check common stablecoins (6 decimals)
                         if (['USDC', 'USDT', 'USDA', 'USDE', 'DAI'].includes(symbol)) {
                           return 6;
                         }
-                        // Default to 8 decimals for other tokens (MOVE, WETH, WBTC, etc.)
                         return 8;
                       };
                       
                       const decimals0 = tokens[0] ? getTokenDecimals(tokens[0]) : 8;
                       const decimals1 = tokens[1] ? getTokenDecimals(tokens[1]) : 8;
                       
-                      devLog('🍋 Token decimals:', { token0: tokens[0], decimals0, token1: tokens[1], decimals1 });
+                      devLog('Yuzu token decimals:', { token0: tokens[0], decimals0, token1: tokens[1], decimals1 });
                       
                       token0Amount = Number(result[0]) / Math.pow(10, decimals0);
                       token1Amount = Number(result[1]) / Math.pow(10, decimals1);
-                      
-                      // Calculate USD value
                       const token0Symbol = tokens[0] || '';
                       const token1Symbol = tokens[1] || '';
                       const isStable0 = ['USDC', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token0Symbol);
                       const isStable1 = ['USDC', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token1Symbol);
-                      
-                      // Check if tokens are meme/unknown tokens (no price data)
                       const MEME_TOKENS = ['CAPY', 'MOVECAT', 'GMOVE', 'TUBI', 'GCAT'];
                       const isMeme0 = MEME_TOKENS.includes(token0Symbol);
                       const isMeme1 = MEME_TOKENS.includes(token1Symbol);
-                      
-                      // Only calculate USD value if we have price data for tokens
-                      // Don't show value for pairs with meme tokens or unknown tokens
                       if (isMeme0 || isMeme1) {
-                        // Meme token pair - don't calculate USD value
                         liquidityValue = 0;
-                        devLog('🍋 Meme token detected, skipping USD calculation:', { token0Symbol, token1Symbol });
+                        devLog('Meme token detected, skipping USD calculation:', { token0Symbol, token1Symbol });
                       } else if (isStable0 && isStable1) {
-                        // Pure stablecoin pair
                         liquidityValue = token0Amount + token1Amount;
                       } else if (token0Symbol === 'MOVE' && isStable1) {
-                        // MOVE/stablecoin pair
                         const movePrice = getMovePrice();
                         liquidityValue = (token0Amount * movePrice) + token1Amount;
-                        devLog('🍋 MOVE pair calculation (token0):', { token0Amount, movePrice, token1Amount, liquidityValue });
+                        devLog('MOVE pair calculation (token0):', { token0Amount, movePrice, token1Amount, liquidityValue });
                       } else if (token1Symbol === 'MOVE' && isStable0) {
-                        // stablecoin/MOVE pair
                         const movePrice = getMovePrice();
                         liquidityValue = token0Amount + (token1Amount * movePrice);
-                        devLog('🍋 MOVE pair calculation (token1):', { token0Amount, token1Amount, movePrice, liquidityValue });
+                        devLog('MOVE pair calculation (token1):', { token0Amount, token1Amount, movePrice, liquidityValue });
                       } else {
-                        // Unknown pair without stablecoin reference - can't accurately price
                         liquidityValue = 0;
-                        devLog('🍋 No stablecoin or known token for pricing, skipping USD calculation');
+                        devLog('No stablecoin or known token for pricing, skipping USD calculation');
                       }
-                      devLog('🍋 Yuzu position values:', { token0Amount, token1Amount, liquidityValue });
+                      devLog('Yuzu position values:', { token0Amount, token1Amount, liquidityValue });
                     }
                   } else {
                     const errText = await response.text();
-                    console.warn('🍋 Yuzu view function failed:', errText);
+                    console.warn('Yuzu view function failed:', errText);
                   }
                 } catch (err) {
-                  console.warn('🍋 Failed to fetch Yuzu position value:', err);
+                  console.warn('Failed to fetch Yuzu position value:', err);
                 }
               }
-              
-              // Log final status
               if (liquidityValue === 0) {
-                devLog('🍋 Yuzu position - value unavailable, showing as active position');
+                devLog('Yuzu position value unavailable, showing as active position');
               }
               
               lpPositions.push({
@@ -2140,7 +1852,7 @@ const Dashboard = () => {
                 tokenDataId: nft.token_data_id,
               });
               
-              devLog("🍋 Found Yuzu NFT position:", { positionId, poolPair, liquidityValue, token0Amount, token1Amount });
+              devLog("Found Yuzu NFT position:", { positionId, poolPair, liquidityValue, token0Amount, token1Amount });
             }
           }
         } catch (error) {
@@ -2148,7 +1860,7 @@ const Dashboard = () => {
         }
       }
 
-      devLog("💧 Detected LP/Vault positions:", lpPositions.length);
+      devLog("Detected LP/Vault positions:", lpPositions.length);
       if (!cancelled) {
         setLiquidityPositions(lpPositions);
       }
@@ -2157,8 +1869,6 @@ const Dashboard = () => {
     detectLPPositions();
     return () => { cancelled = true; };
   }, [indexerBalances, viewingAddress, priceMap, positions, fetchMeridianPoolInfo]);
-
-  // Fetch wallet age when viewingAddress changes
   useEffect(() => {
     const fetchWalletData = async () => {
       if (!viewingAddress) {
@@ -2167,10 +1877,9 @@ const Dashboard = () => {
       }
 
       try {
-        // Fetch wallet age
         const ageData = await getWalletAge(viewingAddress);
         setWalletAge(ageData);
-        devLog("📅 Wallet age data:", ageData);
+        devLog("Wallet age data:", ageData);
       } catch (err) {
         console.warn("Failed to fetch wallet data:", err);
       }
@@ -2178,8 +1887,6 @@ const Dashboard = () => {
 
     fetchWalletData();
   }, [viewingAddress]);
-
-  // Format wallet age as days
   const formatWalletAge = (ageData) => {
     if (!ageData?.firstTxTimestamp) return null;
     
@@ -2191,10 +1898,6 @@ const Dashboard = () => {
     if (diffDays < 1) return "< 1";
     return diffDays.toString();
   };
-
-
-
-  // Handlers
 
   const handleRefresh = () => {
     if (viewingAddress) {
@@ -2216,17 +1919,12 @@ const Dashboard = () => {
   return (
     <>
 
-            {/* HERO - NET WORTH V3 - Reference Design */}
-
             <section className="hero-v3 fade-in">
 
               <div className="hero-v3-left">
-
-                {/* User Profile Section */}
                 {viewingAddress && (
                   <div className="hero-profile-section">
                     <div className="hero-profile-card">
-                      {/* Profile Picture */}
                       <div 
                         className="hero-profile-avatar"
                         onClick={() => setShowProfileModal(true)}
@@ -2240,8 +1938,6 @@ const Dashboard = () => {
                           className="hero-avatar-image" 
                         />
                       </div>
-
-                      {/* Social Links */}
                       <div className="hero-profile-socials-grid">
                         {userProfile?.twitter ? (
                           <a 
@@ -2251,7 +1947,7 @@ const Dashboard = () => {
                             className="hero-social-link"
                             title={`Twitter: @${userProfile.twitter.replace('@', '')}`}
                           >
-                            <span className="hero-social-icon">𝕏</span>
+                            <span className="hero-social-icon">X</span>
                           </a>
                         ) : null}
                         {userProfile?.telegram ? (
@@ -2296,7 +1992,7 @@ const Dashboard = () => {
 
                       <span className={`hero-v3-change ${portfolio24hChange >= 0 ? 'positive' : 'negative'}`}>
 
-                        {portfolio24hChange >= 0 ? '↑' : '↓'} {Math.abs(portfolio24hChange).toFixed(2)}%
+                        {portfolio24hChange >= 0 ? '+' : '-'} {Math.abs(portfolio24hChange).toFixed(2)}%
 
                       </span>
 
@@ -2395,10 +2091,6 @@ const Dashboard = () => {
 
             </section>
 
-
-
-            {/* BALANCES */}
-
             <section className="grid-section">
 
               <h3 className="section-title">Wallet balance</h3>
@@ -2461,10 +2153,6 @@ const Dashboard = () => {
 
             </section>
 
-
-
-            {/* DEFI POSITIONS */}
-
             <section className="grid-section">
 
               <h3 className="section-title">DeFi Positions</h3>
@@ -2502,7 +2190,6 @@ const Dashboard = () => {
 
 
                 {!defiLoading && visibleDeFiPositions.length > 0 && (() => {
-                    // Group positions by protocol
                   const groupedByProtocol = visibleDeFiPositions.reduce((acc, pos) => {
                       const key = pos.protocolName || 'Unknown';
                       if (!acc[key]) acc[key] = [];
@@ -2562,8 +2249,6 @@ const Dashboard = () => {
               </div>
 
             </section>
-
-            {/* LIQUIDITY POSITIONS */}
             <section className="grid-section">
               <h3 className="section-title">
                 <span></span> Liquidity Positions
@@ -2597,16 +2282,13 @@ const Dashboard = () => {
                 ))}
               </div>
             </section>
-
-        {/* Profile Modal */}
         {showProfileModal && (
           <div className="profile-modal-overlay" onClick={() => setShowProfileModal(false)}>
             <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={() => setShowProfileModal(false)}>×</button>
+              <button className="modal-close" onClick={() => setShowProfileModal(false)}>x</button>
               
               <div className="profile-modal-content">
                 <div className="profile-modal-main">
-                  {/* Profile Picture */}
                   <div className="modal-avatar-section">
                     <img 
                       src={modalAvatarSrc} 
@@ -2614,8 +2296,6 @@ const Dashboard = () => {
                       className="modal-avatar-image" 
                     />
                   </div>
-
-                  {/* User Info */}
                   <div className="modal-info-section">
                     <h2 className="modal-username">{userProfile?.username || 'Anonymous User'}</h2>
                     <div className="modal-address">
@@ -2652,8 +2332,6 @@ const Dashboard = () => {
                       </button>
                     )}
                   </div>
-
-                  {/* Level Details Section */}
                   {!levelLoading && (
                     <div className="modal-level-section">
                       <div className="modal-level-row">
@@ -2670,12 +2348,8 @@ const Dashboard = () => {
                     </div>
                   )}
                 </div>
-
-                {/* Badges Section */}
                 <div className="modal-badges-section">
                   <h3 className="modal-badges-title">Collected Badges ({userBadges.length})</h3>
-
-                  {/* On-chain badges (available in module) */}
                   <div className="modal-onchain-badges">
                     <h4 className="modal-onchain-title">Available Badges</h4>
                     {onchainBadgesLoading ? (
@@ -2684,7 +2358,7 @@ const Dashboard = () => {
                       <div className="modal-onchain-badges-grid">
                         {onchainBadges.map((b) => (
                           <div key={b.id} className={`modal-onchain-badge ${b.earned ? 'owned' : 'locked'}`}>
-                            <div className="modal-onchain-badge-icon">{b.imageUrl ? <img src={b.imageUrl} alt={b.name} onError={(e)=>{e.target.style.display='none'}}/> : (b.name ? b.name[0] : '🏅')}</div>
+                            <div className="modal-onchain-badge-icon">{b.imageUrl ? <img src={b.imageUrl} alt={b.name} onError={(e)=>{e.target.style.display='none'}}/> : (b.name ? b.name[0] : 'B')}</div>
                             <div className="modal-onchain-badge-info">
                               <div className="modal-onchain-badge-name">{b.name}</div>
                               <div className="modal-onchain-badge-meta">{b.earned ? 'Owned' : 'Not owned'}</div>
@@ -2701,7 +2375,7 @@ const Dashboard = () => {
                       {(persistedBadges && persistedBadges.length > 0 ? persistedBadges : userBadges).map(badge => (
                         <div key={badge.id} className="modal-badge-item">
                           <div className="modal-badge-icon-box">
-                            <span className="modal-badge-icon">{badge.icon || '🏆'}</span>
+                            <span className="modal-badge-icon">{badge.icon || 'Badge'}</span>
                           </div>
                           <div className="modal-badge-info">
                             <div className="modal-badge-name">{badge.name}</div>
@@ -2724,10 +2398,6 @@ const Dashboard = () => {
   );
 
 };
-
-
-
-// --- APP WRAPPER ---
 
 const App = () => {
 
@@ -2815,8 +2485,6 @@ const App = () => {
   );
 
 };
-
-// Wrapper to get balances for SwapPage
 const SwapPageWrapper = () => {
   const { account, connected } = useWallet();
   const walletAddress = connected && account
