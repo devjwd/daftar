@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { kv } from '@vercel/kv';
 import supabaseAdmin from './supabase.js';
+import { runAdaptersForAddress } from './badgeAdapters/index.js';
+import { getWalletAge, checkAccountExists } from './indexerClient.js';
 
 const usersApi = require('./usersApi');
 
@@ -19,7 +21,6 @@ const BADGE_CORS_ORIGIN = process.env.BADGE_CORS_ORIGIN || '*';
 const LEADERBOARD_CACHE_KEY = 'leaderboard:top100';
 const LEADERBOARD_CACHE_TTL_SECONDS = 300;
 
-// in-memory storage (would normally be a database)
 const userAwards = new Map(); // address => [{ badgeId, payload, awardedAt }]
 const trackedAddresses = new Set();
 
@@ -107,7 +108,6 @@ const requireAdmin = (req, res, next) => {
   return next();
 };
 
-// helper utilities
 const awardBadge = (address, badgeId, payload = {}) => {
   const normalized = normalizeAddress(address);
   const list = userAwards.get(normalized) || [];
@@ -147,13 +147,11 @@ const app = express();
 app.use(cors(BADGE_CORS_ORIGIN === '*' ? undefined : { origin: BADGE_CORS_ORIGIN.split(',').map((v) => v.trim()) }));
 app.use(express.json({ limit: '32kb' }));
 
-// User file API
 app.use('/api/users', usersApi);
 
 const adminWriteRateLimit = createRateLimiter({ windowMs: 60_000, max: 30 });
 const adminScanRateLimit = createRateLimiter({ windowMs: 60_000, max: 5 });
 
-// expose badge configurations (load from shared file)
 let badgeConfigs = [];
 const loadBadgeConfigs = () => {
   try {
@@ -168,7 +166,6 @@ const loadBadgeConfigs = () => {
 loadBadgeConfigs();
 loadPersistedState();
 
-// routes
 app.get('/api/leaderboard', async (req, res) => {
   const cached = await readLeaderboardCache();
   if (cached) {
@@ -201,7 +198,6 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 app.get('/api/badges', (req, res) => {
-  // simple listing: just return the configs
   res.json(badgeConfigs);
 });
 
@@ -217,7 +213,6 @@ app.post('/api/badges/award', requireAdmin, adminWriteRateLimit, async (req, res
   }
   const record = awardBadge(address, badgeId, payload);
   await invalidateLeaderboardCache();
-  // auto-track address for worker
   trackedAddresses.add(normalizeAddress(address));
   await queuePersistState();
   res.json(record);
@@ -243,8 +238,100 @@ app.post('/api/badges/track', requireAdmin, adminWriteRateLimit, async (req, res
   res.json({ tracked: Array.from(trackedAddresses) });
 });
 
-// worker logic - runs periodically and on demand
-import { runAdaptersForAddress } from './badgeAdapters/index.js';
+// ─── Per-wallet rate limiter for verify-eligibility (10 req/wallet/min) ───────
+const verifyEligibilityBuckets = new Map();
+const verifyEligibilityRateLimit = (req, res, next) => {
+  const walletAddress = req.body?.walletAddress;
+  const wallet = walletAddress && isLikelyAddress(walletAddress)
+    ? normalizeAddress(walletAddress)
+    : req.ip;
+  const now = Date.now();
+  const bucket = verifyEligibilityBuckets.get(wallet) || { count: 0, resetAt: now + 60_000 };
+  if (now > bucket.resetAt) {
+    bucket.count = 0;
+    bucket.resetAt = now + 60_000;
+  }
+  bucket.count += 1;
+  verifyEligibilityBuckets.set(wallet, bucket);
+  if (bucket.count > 10) {
+    return res.status(429).json({ eligible: false, reason: 'Rate limit exceeded. Try again in a minute.' });
+  }
+  return next();
+};
+
+// ─── Criteria verifiers ────────────────────────────────────────────────────────
+const MOSAIC_API_URL = process.env.MOSAIC_API_URL || 'https://api.mosaic.ag/v1';
+
+const verifyTransactionCount = async (wallet, params) => {
+  const minCount = Number(params?.minCount ?? 1);
+  const { txCount } = await checkAccountExists(wallet);
+  if (txCount >= minCount) {
+    return { eligible: true, reason: `Wallet has ${txCount} transactions (required: ${minCount})` };
+  }
+  return { eligible: false, reason: `Wallet has ${txCount} transactions, needs ${minCount}` };
+};
+
+const verifyDaysOnchain = async (wallet, params) => {
+  const minDays = Number(params?.minDays ?? 1);
+  const { firstTxTimestamp } = await getWalletAge(wallet);
+  if (!firstTxTimestamp) {
+    return { eligible: false, reason: 'No transaction history found for this wallet' };
+  }
+  const daysOnchain = Math.floor((Date.now() - new Date(firstTxTimestamp).getTime()) / 86_400_000);
+  if (daysOnchain >= minDays) {
+    return { eligible: true, reason: `Wallet has been on-chain for ${daysOnchain} days (required: ${minDays})` };
+  }
+  return { eligible: false, reason: `Wallet has been on-chain for ${daysOnchain} days, needs ${minDays}` };
+};
+
+const verifyDexVolume = async (wallet, params) => {
+  const minVolume = Number(params?.minVolume ?? 0);
+  try {
+    const url = `${MOSAIC_API_URL}/accounts/${encodeURIComponent(wallet)}/volume`;
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      return { eligible: false, reason: 'DEX volume data unavailable' };
+    }
+    const data = await response.json();
+    const volume = Number(data?.volume ?? data?.total_volume ?? 0);
+    if (volume >= minVolume) {
+      return { eligible: true, reason: `DEX swap volume $${volume.toFixed(2)} meets required $${minVolume}` };
+    }
+    return { eligible: false, reason: `DEX swap volume $${volume.toFixed(2)} is below required $${minVolume}` };
+  } catch {
+    return { eligible: false, reason: 'DEX volume data unavailable' };
+  }
+};
+
+// ─── POST /api/badges/verify-eligibility ──────────────────────────────────────
+app.post('/api/badges/verify-eligibility', verifyEligibilityRateLimit, async (req, res) => {
+  const { walletAddress, badgeId: _badgeId, criteriaType, params } = req.body || {};
+
+  if (!walletAddress || !criteriaType) {
+    return res.status(400).json({ eligible: false, reason: 'walletAddress and criteriaType are required' });
+  }
+  if (!isLikelyAddress(walletAddress)) {
+    return res.status(400).json({ eligible: false, reason: 'Invalid wallet address format' });
+  }
+
+  const wallet = normalizeAddress(walletAddress);
+
+  try {
+    switch (criteriaType) {
+      case 'TRANSACTION_COUNT':
+        return res.json(await verifyTransactionCount(wallet, params));
+      case 'DAYS_ONCHAIN':
+        return res.json(await verifyDaysOnchain(wallet, params));
+      case 'DEX_VOLUME':
+        return res.json(await verifyDexVolume(wallet, params));
+      default:
+        return res.status(400).json({ eligible: false, reason: `Unknown criteriaType: ${criteriaType}` });
+    }
+  } catch (err) {
+    console.error('[verify-eligibility] error:', err);
+    return res.status(500).json({ eligible: false, reason: 'Verification failed due to an internal error' });
+  }
+});
 
 const performScan = async () => {
   console.log('[worker] scanning', trackedAddresses.size, 'addresses');
@@ -254,7 +341,6 @@ const performScan = async () => {
       const awards = await runAdaptersForAddress(addr, badgeConfigs);
       awards.forEach((a) => {
         const existing = userAwards.get(addr) || [];
-        // avoid duplicates
         if (!existing.some((r) => r.badgeId === a.badgeId)) {
           awardBadge(addr, a.badgeId, a.extra || {});
           changed = true;
@@ -270,12 +356,10 @@ const performScan = async () => {
   }
 };
 
-// schedule job once every hour
 cron.schedule('0 * * * *', () => {
   performScan();
 });
 
-// allow manual trigger via authenticated endpoint
 app.post('/api/badges/scan', requireAdmin, adminScanRateLimit, async (req, res) => {
   await performScan();
   res.json({ status: 'scanned', tracked: Array.from(trackedAddresses) });
@@ -287,7 +371,6 @@ app.listen(PORT, () => {
     console.warn('BADGE_ADMIN_API_KEY is missing; admin endpoints are disabled until configured.');
   }
   if (process.argv.includes('--worker')) {
-    // run an immediate scan if invoked with --worker
     performScan();
   }
 });

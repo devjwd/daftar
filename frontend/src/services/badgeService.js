@@ -1,4 +1,5 @@
 import { getBadgeFunction, BADGE_RULES, BADGE_STATUS, getRuleLabel } from "../config/badges";
+import { supabase } from "../config/supabase";
 
 export const decodeBytes = (value) => {
   if (value === null || value === undefined) return "";
@@ -166,26 +167,26 @@ export const fetchBadge = async (client, badgeId) => {
 
 export const fetchBadges = async (client) => {
   const ids = await fetchBadgeIds(client);
-  const badges = [];
 
-  for (const badgeId of ids) {
-    const badge = await fetchBadge(client, badgeId);
-    if (badge) badges.push(badge);
-  }
+  const results = await Promise.all(
+    ids.map((badgeId) =>
+      fetchBadge(client, badgeId).catch(() => null)
+    )
+  );
 
-  return badges;
+  return results.filter(Boolean);
 };
 
 export const fetchActiveBadges = async (client) => {
   const ids = await fetchActiveBadgeIds(client);
-  const badges = [];
 
-  for (const badgeId of ids) {
-    const badge = await fetchBadge(client, badgeId);
-    if (badge) badges.push(badge);
-  }
+  const results = await Promise.all(
+    ids.map((badgeId) =>
+      fetchBadge(client, badgeId).catch(() => null)
+    )
+  );
 
-  return badges;
+  return results.filter(Boolean);
 };
 
 export const hasBadge = async (client, badgeId, owner) => {
@@ -782,15 +783,61 @@ export const removeAllowlistEntries = async ({
 // USER FUNCTIONS - Badge Minting
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 
+const syncBadgeToSupabase = async (sender, badge) => {
+  try {
+    const claimedAt = new Date().toISOString();
+
+    const { error: badgeInsertError } = await supabase.from("badges").insert({
+      wallet_address: sender,
+      badge_id: badge.id,
+      badge_name: badge.name,
+      rarity: badge.rarity,
+      xp_value: badge.xpValue,
+      claimed_at: claimedAt,
+    });
+    if (badgeInsertError) {
+      console.error("[mintBadge] Supabase badges insert failed (non-blocking):", badgeInsertError);
+    }
+
+    const { data: profile, error: profileSelectError } = await supabase
+      .from("profiles")
+      .select("xp")
+      .eq("wallet_address", sender)
+      .single();
+    if (profileSelectError) {
+      console.error("[mintBadge] Supabase profile lookup failed (non-blocking):", profileSelectError);
+      return;
+    }
+
+    const currentXp = profile?.xp ?? 0;
+    const { error: xpUpdateError } = await supabase
+      .from("profiles")
+      .update({ xp: currentXp + Number(badge.xpValue) })
+      .eq("wallet_address", sender);
+    if (xpUpdateError) {
+      console.error("[mintBadge] Supabase XP update failed (non-blocking):", xpUpdateError);
+    }
+  } catch (err) {
+    console.error("[mintBadge] Supabase sync failed (non-blocking):", err);
+  }
+};
+
 export const mintBadge = async ({
+  client,
   signAndSubmitTransaction,
   sender,
   badgeId,
+  badge,
 }) => {
   const fn = getBadgeFunction("mint");
   if (!fn) throw new Error("Badge module address not configured");
 
-  return await signAndSubmitTransaction({
+  if (client) {
+    const alreadyOwned = await hasBadge(client, badgeId, sender);
+    if (alreadyOwned) throw new Error("You already own this badge");
+  }
+
+  const result = await signAndSubmitTransaction({
     sender,
     data: {
       function: fn,
@@ -798,6 +845,12 @@ export const mintBadge = async ({
       functionArguments: [badgeId],
     },
   });
+
+  if (badge) {
+    syncBadgeToSupabase(sender, badge);
+  }
+
+  return result;
 };
 
 export const mintBadgeWithBalance = async ({
