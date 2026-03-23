@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/badges/attest",
+      "destination": "/api/badges/attest"
+    },
+    {
       "source": "/api/badges/(.*)",
       "destination": "/api/badges?route=$1"
     },
