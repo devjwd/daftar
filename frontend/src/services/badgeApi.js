@@ -1,5 +1,47 @@
 import supabase from '../config/supabase.js';
 
+const getBadgeApiBase = () => String(import.meta.env.VITE_BADGE_API_BASE || '').trim().replace(/\/+$/, '');
+
+const buildBadgeApiUrl = (path) => {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const base = getBadgeApiBase();
+  return base ? `${base}${normalizedPath}` : normalizedPath;
+};
+
+const parseJsonSafe = async (response) => {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
+const callBadgeApi = async ({ path, method = 'GET', body, headers = {} }) => {
+  try {
+    const response = await fetch(buildBadgeApiUrl(path), {
+      method,
+      headers: {
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+    const data = await parseJsonSafe(response);
+    return {
+      ok: response.ok,
+      status: response.status,
+      data,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      data: { error: String(error?.message || 'Network error') },
+    };
+  }
+};
+
 const normalizeAddress = (address) => {
   const value = String(address || '').trim().toLowerCase();
   if (!value) return '';
@@ -33,49 +75,64 @@ export const fetchUserBadges = async (address) => {
   if (!address) return { ok: true, awards: [] };
 
   const walletAddress = normalizeAddress(address);
-  const { data, error } = await supabase
-    .from('badges')
-    .select('id, badge_id, badge_name, rarity, xp_value, claimed_at')
-    .eq('wallet_address', walletAddress)
-    .order('claimed_at', { ascending: false });
+  const response = await callBadgeApi({
+    path: `/api/badges/user/${encodeURIComponent(walletAddress)}`,
+  });
 
-  if (error) {
-    console.warn('fetchUserBadges failed', error);
+  if (!response.ok) {
+    console.warn('fetchUserBadges failed', response.status, response.data);
     return { ok: false, awards: [] };
   }
 
+  const rows = Array.isArray(response.data) ? response.data : response.data?.awards;
+
   return {
     ok: true,
-    awards: Array.isArray(data) ? data.map(mapBadgeRowToAward) : [],
+    awards: Array.isArray(rows)
+      ? rows.map((row) => {
+          if (row?.badge_id) return mapBadgeRowToAward(row);
+          return {
+            badgeId: String(row?.badgeId || ''),
+            awardedAt: row?.awardedAt || null,
+            payload:
+              row?.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+                ? row.payload
+                : {},
+            txHash: row?.txHash || row?.payload?.txHash || null,
+          };
+        })
+      : [],
   };
 };
 
 export const fetchAllBadges = async () => {
-  const { data, error } = await supabase
-    .from('badges')
-    .select('id, wallet_address, badge_id, badge_name, rarity, xp_value, claimed_at')
-    .order('claimed_at', { ascending: false });
+  const response = await callBadgeApi({ path: '/api/badges' });
 
-  if (error) {
-    console.warn('fetchAllBadges failed', error);
+  if (!response.ok) {
+    console.warn('fetchAllBadges failed', response.status, response.data);
     return { ok: false, badges: [] };
   }
 
   return {
     ok: true,
-    badges: Array.isArray(data) ? data : [],
+    badges: Array.isArray(response.data?.badges) ? response.data.badges : [],
   };
 };
 
 export const saveBadgeDefinitions = async ({ badges, adminKey, clearAwards = false }) => {
-  void adminKey;
-  void clearAwards;
-  const payload = Array.isArray(badges) ? badges : [];
-  return {
-    ok: true,
-    status: 200,
-    data: { badges: payload },
-  };
+  const response = await callBadgeApi({
+    path: '/api/badges',
+    method: 'POST',
+    headers: {
+      ...(adminKey ? { 'x-admin-key': adminKey } : {}),
+    },
+    body: {
+      badges: Array.isArray(badges) ? badges : [],
+      clearAwards: Boolean(clearAwards),
+    },
+  });
+
+  return response;
 };
 
 export const awardBadgeToUser = async (address, badgeId, payload = {}) => {
@@ -89,90 +146,77 @@ export const awardBadgeToUser = async (address, badgeId, payload = {}) => {
     };
   }
 
-  const nowIso = new Date().toISOString();
-  const badgeName = String(payload.badgeName || payload.badge_name || normalizedBadgeId);
-  const rarity = String(payload.rarity || 'common');
-  const xpValue = Number(payload.xpValue ?? payload.xp_value ?? 0) || 0;
-
-  const profileUpsert = await supabase
-    .from('profiles')
-    .upsert(
-      {
-        wallet_address: walletAddress,
-        created_at: nowIso,
+  const response = await callBadgeApi({
+    path: '/api/badges/claim',
+    method: 'POST',
+    body: {
+      address: walletAddress,
+      badgeId: normalizedBadgeId,
+      payload: {
+        ...(payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}),
       },
-      { onConflict: 'wallet_address', ignoreDuplicates: true }
-    );
+    },
+  });
 
-  if (profileUpsert.error) {
-    console.warn('awardBadgeToUser profile upsert failed', profileUpsert.error);
-    return {
-      ok: false,
-      status: 500,
-      data: { error: profileUpsert.error.message || 'Failed to ensure profile' },
-    };
-  }
+  if (!response.ok) return response;
 
-  const { data, error } = await supabase
-    .from('badges')
-    .insert({
-      wallet_address: walletAddress,
-      badge_id: normalizedBadgeId,
-      badge_name: badgeName,
-      rarity,
-      xp_value: xpValue,
-      claimed_at: nowIso,
-    })
-    .select('id, wallet_address, badge_id, badge_name, rarity, xp_value, claimed_at')
-    .single();
-
-  if (error) {
-    console.warn('awardBadgeToUser failed', error);
-    return {
-      ok: false,
-      status: 500,
-      data: { error: error.message || 'Failed to award badge' },
-    };
-  }
-
-  const { data: profileData, error: profileFetchError } = await supabase
-    .from('profiles')
-    .select('xp')
-    .eq('wallet_address', walletAddress)
-    .single();
-
-  if (profileFetchError) {
-    console.warn('awardBadgeToUser profile fetch failed', profileFetchError);
-  } else {
-    const nextXp = Number(profileData?.xp || 0) + xpValue;
-    const { error: profileUpdateError } = await supabase
-      .from('profiles')
-      .update({ xp: nextXp })
-      .eq('wallet_address', walletAddress);
-    if (profileUpdateError) {
-      console.warn('awardBadgeToUser profile xp update failed', profileUpdateError);
-    }
-  }
-
+  const row = response.data;
   return {
     ok: true,
-    status: 200,
-    data: mapBadgeRowToAward(data),
+    status: response.status,
+    data: {
+      badgeId: String(row?.badgeId || normalizedBadgeId),
+      awardedAt: row?.awardedAt || null,
+      payload:
+        row?.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+          ? row.payload
+          : {},
+      txHash: row?.payload?.txHash || payload?.txHash || null,
+    },
   };
 };
 
 export const fetchPublishedScannerConfigs = async () => {
+  const response = await callBadgeApi({ path: '/api/badges/config' });
+  if (!response.ok) {
+    return {
+      badgeConfigs: [],
+      source: 'error',
+      error: response.data?.error || 'Failed to load scanner config',
+      httpStatus: response.status,
+    };
+  }
+
   return {
-    badgeConfigs: [],
-    source: 'supabase',
+    badgeConfigs: Array.isArray(response.data?.badgeConfigs) ? response.data.badgeConfigs : [],
+    source: response.data?.source || 'state',
   };
 };
 
 export const publishScannerConfigs = async ({ badgeConfigs, adminKey }) => {
-  void adminKey;
+  const response = await callBadgeApi({
+    path: '/api/badges/config',
+    method: 'POST',
+    headers: {
+      ...(adminKey ? { 'x-admin-key': adminKey } : {}),
+    },
+    body: {
+      badgeConfigs: Array.isArray(badgeConfigs) ? badgeConfigs : [],
+    },
+  });
+
+  if (!response.ok) {
+    return {
+      status: 'error',
+      error: response.data?.error || 'Failed to publish scanner config',
+      httpStatus: response.status,
+    };
+  }
+
   return {
     status: 'ok',
-    count: Array.isArray(badgeConfigs) ? badgeConfigs.length : 0,
+    count: Number(response.data?.count || 0),
+    badgeConfigs: Array.isArray(response.data?.badgeConfigs) ? response.data.badgeConfigs : [],
   };
 };
 
