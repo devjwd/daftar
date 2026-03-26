@@ -13,8 +13,8 @@ Thank you for considering contributing to this project! Here's how you can help.
 
 ### 1. Fork & Clone
 ```bash
-git clone https://github.com/your-username/movement-portfolio.git
-cd movement-portfolio
+git clone https://github.com/devjwd/daftar.git
+cd daftar
 ```
 
 ### 2. Setup Development Environment
