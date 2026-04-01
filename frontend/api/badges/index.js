@@ -15,6 +15,11 @@ import { loadState, saveState } from '../_lib/state.js';
 
 const METHODS = ['GET', 'POST', 'OPTIONS'];
 
+const wantsPrivate = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
+};
+
 export default async function handler(req, res) {
   if (handleOptions(req, res, METHODS)) return;
   setApiHeaders(req, res, METHODS);
@@ -44,7 +49,16 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
     const { badges, source } = await loadResolvedBadgeDefinitions();
-    return sendJson(res, 200, { badges, source });
+    const includePrivate = wantsPrivate(req.query?.includePrivate);
+
+    if (includePrivate) {
+      const auth = checkAdmin(req);
+      if (!auth.ok) return sendJson(res, auth.status, { error: auth.error });
+      return sendJson(res, 200, { badges, source, includePrivate: true });
+    }
+
+    const publicBadges = badges.filter((badge) => badge?.isPublic !== false);
+    return sendJson(res, 200, { badges: publicBadges, source, includePrivate: false });
   }
 
   const auth = checkAdmin(req);

@@ -105,8 +105,14 @@ export const fetchUserBadges = async (address) => {
   };
 };
 
-export const fetchAllBadges = async () => {
-  const response = await callBadgeApi({ path: '/api/badges' });
+export const fetchAllBadges = async ({ includePrivate = false, adminKey = '' } = {}) => {
+  const query = includePrivate ? '?includePrivate=true' : '';
+  const response = await callBadgeApi({
+    path: `/api/badges${query}`,
+    headers: {
+      ...(adminKey ? { 'x-admin-key': adminKey } : {}),
+    },
+  });
 
   if (!response.ok) {
     console.warn('fetchAllBadges failed', response.status, response.data);

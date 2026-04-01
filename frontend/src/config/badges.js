@@ -280,6 +280,7 @@ export const createBadgeDefinition = ({
   mintFee = 0,
   criteria = [],
   metadata = {},
+  isPublic = true,
   enabled = true,
   onChainBadgeId = null,
 }) => {
@@ -320,6 +321,7 @@ export const createBadgeDefinition = ({
         },
       },
     },
+    isPublic: isPublic !== false,
     enabled,
     onChainBadgeId,
     createdAt: now,

@@ -35,6 +35,7 @@ import {
   buildMetadataJson,
   computeSha256Hex,
   createBadge as createOnChainBadge,
+  createBadgeMinBalance as createOnChainMinBalanceBadge,
   fetchBadgeIds,
   fetchBadges as fetchOnChainBadges,
   pauseBadge as pauseOnChainBadge,
@@ -100,6 +101,7 @@ const EMPTY_FORM = {
   mintFeeMove: '0',
   criteria: [{ ...EMPTY_CRITERION }],
   metadata: { externalUrl: '', attributes: [] },
+  isPublic: true,
   enabled: true,
 };
 
@@ -138,6 +140,7 @@ export default function BadgeAdmin() {
   const {
     badges,
     createBadge,
+    updateBadge,
     deleteBadge,
     toggleBadge,
     importBadges,
@@ -423,30 +426,54 @@ export default function BadgeAdmin() {
       minValue = Math.max(1, Number(firstCriterion.params?.minProtocols ?? 1));
     }
 
-    await createOnChainBadge({
-      signAndSubmitTransaction,
-      sender,
-      name: badgeData.name,
-      description: badgeData.description,
-      imageUri: badgeData.imageUrl,
-      metadataUri,
-      metadataHash,
-      category: badgeData.category,
-      rarity: getRarityInfo(badgeData.rarity || 'COMMON').level,
-      xpValue: Number(badgeData.xp) || 10,
-      ruleType: criteriaToRuleType(firstCriterion?.type) || BADGE_RULES.OFFCHAIN_ALLOWLIST,
-      ruleNote: firstCriterion?.type
-        ? `${firstCriterion.type}:${JSON.stringify(firstCriterion.params || {})}`
-        : 'offchain',
-      minValue,
-      coinTypeStr,
-      dappAddress: '',
-      extraData: firstCriterion?.type === CRITERIA_TYPES.ALLOWLIST ? 'allowlist' : '',
-      startsAt,
-      endsAt,
-      maxSupply: Number(specialSettings.maxSupply) || 0,
-      mintFee: Number(badgeData.mintFee) || 0,
-    });
+    const ruleNote = firstCriterion?.type
+      ? `${firstCriterion.type}:${JSON.stringify(firstCriterion.params || {})}`
+      : 'offchain';
+
+    if (firstCriterion?.type === CRITERIA_TYPES.MIN_BALANCE) {
+      await createOnChainMinBalanceBadge({
+        signAndSubmitTransaction,
+        sender,
+        name: badgeData.name,
+        description: badgeData.description,
+        imageUri: badgeData.imageUrl,
+        metadataUri,
+        metadataHash,
+        category: badgeData.category,
+        rarity: getRarityInfo(badgeData.rarity || 'COMMON').level,
+        xpValue: Number(badgeData.xp) || 10,
+        coinType: String(firstCriterion.params?.coinType || '').trim(),
+        coinTypeStr,
+        minBalance: minValue,
+        ruleNote,
+        startsAt,
+        endsAt,
+        maxSupply: Number(specialSettings.maxSupply) || 0,
+        mintFee: Number(badgeData.mintFee) || 0,
+      });
+    } else {
+      await createOnChainBadge({
+        signAndSubmitTransaction,
+        sender,
+        name: badgeData.name,
+        description: badgeData.description,
+        imageUri: badgeData.imageUrl,
+        metadataUri,
+        metadataHash,
+        category: badgeData.category,
+        rarity: getRarityInfo(badgeData.rarity || 'COMMON').level,
+        ruleType: criteriaToRuleType(firstCriterion?.type) || BADGE_RULES.OFFCHAIN_ALLOWLIST,
+        ruleNote,
+        minValue,
+        coinTypeStr,
+        dappAddress: '',
+        extraData: firstCriterion?.type === CRITERIA_TYPES.ALLOWLIST ? 'allowlist' : '',
+        startsAt,
+        endsAt,
+        maxSupply: Number(specialSettings.maxSupply) || 0,
+        mintFee: Number(badgeData.mintFee) || 0,
+      });
+    }
 
     const afterIds = await fetchBadgeIds(movementClient);
     const beforeSet = new Set((beforeIds || []).map((id) => Number(id)));
@@ -542,7 +569,7 @@ export default function BadgeAdmin() {
 
   /**
    * Push the current badge scanner config to the server so the auto-attestation
-   * endpoint (/api/badges/attest) can verify eligibility for each badge.
+  * endpoint (/api/badges/eligibility) can verify eligibility for each badge.
    * Uses the admin API key cached in sessionStorage from a prior manual publish or key entry.
    * If no key is cached, prompts the admin once and saves it for subsequent calls.
    *
@@ -621,6 +648,7 @@ export default function BadgeAdmin() {
         attributes: Array.isArray(badge.metadata?.attributes) ? badge.metadata.attributes : [],
         special: buildSpecialSettings(badge.metadata?.special || {}),
       },
+      isPublic: badge.isPublic !== false,
       enabled: badge.enabled,
     });
     setEditingId(badge.id);
@@ -654,6 +682,22 @@ export default function BadgeAdmin() {
     const result = await toggleBadge(id, { adminKey });
     if (!result.success) {
       showMessage('error', result.errors?.join(', ') || 'Failed to update badge');
+    }
+  };
+
+  const handleTogglePublic = async (id) => {
+    const badge = badges.find((item) => item.id === id);
+    if (!badge) return;
+
+    const adminKey = requireAdminKey();
+    if (!adminKey) {
+      showMessage('error', 'BADGE admin API key is required to update badge visibility');
+      return;
+    }
+
+    const result = await updateBadge(id, { isPublic: badge.isPublic === false }, { adminKey });
+    if (!result.success) {
+      showMessage('error', result.errors?.join(', ') || 'Failed to update badge visibility');
     }
   };
 
@@ -940,6 +984,7 @@ export default function BadgeAdmin() {
                         <span className="ba-category-tag">{
                           Object.values(BADGE_CATEGORIES).find(cat => cat.id === badge.category)?.icon
                         } {badge.category}</span>
+                        <span className="ba-criteria-tag">{badge.isPublic === false ? 'Private' : 'Public'}</span>
                         {badge.metadata?.special?.isSpecial && (
                           <span className="ba-criteria-tag">✨ Special</span>
                         )}
@@ -952,6 +997,13 @@ export default function BadgeAdmin() {
                       </div>
                     </div>
                     <div className="ba-badge-actions">
+                      <button
+                        className="ba-btn-icon"
+                        onClick={() => handleTogglePublic(badge.id)}
+                        title={badge.isPublic === false ? 'Make public' : 'Make private'}
+                      >
+                        {badge.isPublic === false ? '🔒' : '🌍'}
+                      </button>
                       <button className="ba-btn-icon" onClick={() => handleToggle(badge.id)} title={badge.enabled ? 'Disable' : 'Enable'}>
                         {badge.enabled ? '🟢' : '🔴'}
                       </button>
@@ -1267,10 +1319,21 @@ export default function BadgeAdmin() {
                 <label className="ba-toggle-label">
                   <input
                     type="checkbox"
+                    checked={form.isPublic !== false}
+                    onChange={(e) => updateForm('isPublic', e.target.checked)}
+                  />
+                  <span>Public badge (visible to everyone)</span>
+                </label>
+              </div>
+
+              <div className="ba-field-toggle">
+                <label className="ba-toggle-label">
+                  <input
+                    type="checkbox"
                     checked={form.enabled}
                     onChange={(e) => updateForm('enabled', e.target.checked)}
                   />
-                  <span>Enabled (visible to users)</span>
+                  <span>Enabled (active in eligibility/mint flow)</span>
                 </label>
               </div>
             </div>

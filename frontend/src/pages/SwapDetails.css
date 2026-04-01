@@ -1,0 +1,195 @@
+.swap-details-page {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  justify-content: center;
+  padding: 1.4rem 1rem 2rem;
+}
+
+.swap-details-shell {
+  width: min(470px, 100%);
+  border-radius: 24px;
+  border: 1px solid rgba(130, 99, 171, 0.42);
+  background:
+    radial-gradient(circle at 10% -10%, rgba(78, 196, 186, 0.12), transparent 52%),
+    radial-gradient(circle at 100% 100%, rgba(205, 161, 105, 0.12), transparent 44%),
+    linear-gradient(165deg, rgba(29, 15, 46, 0.96), rgba(17, 9, 31, 0.96));
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.45);
+  padding: 1rem;
+}
+
+.swap-details-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.swap-details-header h1 {
+  margin: 0;
+  text-align: center;
+  font: 700 1.35rem/1.1 "Space Grotesk", "Avenir Next", sans-serif;
+  color: #f8f1ff;
+}
+
+.swap-details-back {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(143, 113, 181, 0.45);
+  background: rgba(44, 24, 68, 0.84);
+  color: #e6d8f4;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.swap-details-spacer {
+  width: 34px;
+  height: 34px;
+}
+
+.swap-details-meta {
+  margin-top: 0.95rem;
+  display: flex;
+  justify-content: space-between;
+  color: #ccb6df;
+  font-size: 0.8rem;
+}
+
+.swap-details-card {
+  margin-top: 0.78rem;
+  border-radius: 16px;
+  border: 1px solid rgba(130, 99, 171, 0.44);
+  background: linear-gradient(150deg, rgba(53, 30, 78, 0.9), rgba(38, 22, 57, 0.88));
+  padding: 0.9rem;
+}
+
+.swap-details-card.compact {
+  padding: 0.84rem;
+}
+
+.swap-details-card-title {
+  color: #e7d8f5;
+  font: 700 1rem/1.2 "Space Grotesk", "Avenir Next", sans-serif;
+}
+
+.swap-details-token-row {
+  margin-top: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.swap-details-token-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.36rem;
+}
+
+.swap-details-token-amount {
+  color: #ffffff;
+  font: 700 1.5rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+}
+
+.swap-details-token-symbol {
+  color: #d6c4e8;
+  font-weight: 600;
+}
+
+.swap-details-arrow {
+  color: #a989c7;
+  font-size: 1rem;
+}
+
+.swap-details-provider {
+  margin-top: 0.7rem;
+  color: #bfece3;
+  font-weight: 600;
+}
+
+.swap-details-status-list {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.36rem;
+}
+
+.swap-details-status {
+  color: #cfeee6;
+  font-size: 0.88rem;
+}
+
+.swap-details-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  color: #d4c1e6;
+  font-size: 0.86rem;
+}
+
+.swap-details-kv + .swap-details-kv {
+  margin-top: 0.36rem;
+}
+
+.swap-details-kv strong {
+  color: #f4ebff;
+}
+
+.swap-details-transfer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  color: #dbc7ed;
+  font-weight: 600;
+}
+
+.swap-details-open {
+  color: #c6f2e8;
+  text-decoration: none;
+  font-size: 0.84rem;
+}
+
+.swap-details-open:hover {
+  text-decoration: underline;
+}
+
+.swap-details-card code {
+  margin-top: 0.6rem;
+  display: block;
+  color: #f5efff;
+  word-break: break-all;
+  font-size: 0.8rem;
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.swap-details-support {
+  width: 100%;
+  margin-top: 0.84rem;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(100deg, #7348a9, #8f66c2);
+  color: #faf7ff;
+  font: 700 0.95rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+}
+
+.swap-details-empty {
+  margin-top: 1rem;
+  border-radius: 14px;
+  border: 1px dashed rgba(144, 111, 184, 0.52);
+  padding: 1.2rem;
+  text-align: center;
+  color: #ddc9ef;
+}
+
+.swap-details-empty button {
+  margin-top: 0.7rem;
+  border: none;
+  border-radius: 999px;
+  padding: 0.66rem 0.9rem;
+  background: rgba(116, 77, 165, 0.95);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}

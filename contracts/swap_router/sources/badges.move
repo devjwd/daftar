@@ -29,6 +29,7 @@ module swap_router::badges {
     const E_SUPPLY_REACHED: u64 = 17;
     const E_INSUFFICIENT_FEE: u64 = 18;
     const E_FEE_TREASURY_NOT_SET: u64 = 19;
+    const E_REGISTRY_PAUSED: u64 = 20;
 
     // --- CONSTANTS ---
     const RULE_ALLOWLIST: u8 = 1;
@@ -91,6 +92,7 @@ module swap_router::badges {
     struct BadgeRegistry has key {
         admin: address,
         pending_admin: address,
+        paused: bool,
         fee_treasury: address,
         next_id: u64,
         badge_ids: vector<u64>,
@@ -120,6 +122,9 @@ module swap_router::badges {
     #[event] struct BadgeFeeUpdated has drop, store { badge_id: u64, old_fee: u64, new_fee: u64, admin: address, timestamp: u64 }
     #[event] struct FeeTreasuryUpdated has drop, store { old_treasury: address, new_treasury: address, admin: address, timestamp: u64 }
     #[event] struct AllowlistUpdated has drop, store { badge_id: u64, addresses_added: u64, addresses_removed: u64, admin: address, timestamp: u64 }
+    #[event] struct AdminTransferInitiated has drop, store { current_admin: address, pending_admin: address, timestamp: u64 }
+    #[event] struct AdminTransferCompleted has drop, store { old_admin: address, new_admin: address, timestamp: u64 }
+    #[event] struct RegistryPauseUpdated has drop, store { admin: address, paused: bool, timestamp: u64 }
 
     // --- INITIALIZATION ---
     public entry fun initialize(admin: &signer) {
@@ -130,6 +135,7 @@ module swap_router::badges {
         move_to(admin, BadgeRegistry {
             admin: admin_addr,
             pending_admin: @0x0,
+            paused: false,
             fee_treasury: admin_addr,  // Fees go to admin by default
             next_id: 1,
             badge_ids: vector::empty<u64>(),
@@ -166,6 +172,7 @@ module swap_router::badges {
         
         if (starts_at > 0 && ends_at > 0) assert!(ends_at > starts_at, E_INVALID_TIME_RANGE);
         assert!(rule_type >= RULE_ALLOWLIST && rule_type <= RULE_COMPOSITE, E_BAD_RULE);
+        assert!(rule_type != RULE_MIN_BALANCE, E_BAD_RULE);
 
         let badge_id = registry.next_id;
         registry.next_id = registry.next_id + 1;
@@ -196,18 +203,77 @@ module swap_router::badges {
         event::emit(BadgeCreated { badge_id, name, rule_type, mint_fee, admin: admin_addr, timestamp: now });
     }
 
+    public entry fun create_badge_min_balance<CoinType>(
+        admin: &signer,
+        name: vector<u8>,
+        description: vector<u8>,
+        image_uri: vector<u8>,
+        metadata_uri: vector<u8>,
+        metadata_hash: vector<u8>,
+        category: vector<u8>,
+        rarity: u8,
+        xp_value: u64,
+        coin_type_str: vector<u8>,
+        min_balance: u64,
+        rule_note: vector<u8>,
+        starts_at: u64,
+        ends_at: u64,
+        max_supply: u64,
+        mint_fee: u64,
+    ) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+
+        if (starts_at > 0 && ends_at > 0) assert!(ends_at > starts_at, E_INVALID_TIME_RANGE);
+
+        let badge_id = registry.next_id;
+        registry.next_id = registry.next_id + 1;
+        vector::push_back(&mut registry.badge_ids, badge_id);
+
+        let now = timestamp::now_seconds();
+
+        let metadata = BadgeMetadata { name: copy name, description, image_uri, metadata_uri, metadata_hash, category, rarity, xp_value };
+        let rule_params = RuleParams {
+            min_value: min_balance,
+            coin_type: type_info::type_of<CoinType>(),
+            coin_type_str,
+            dapp_address: b"",
+            extra_data: b"",
+        };
+
+        let definition = BadgeDefinition {
+            id: badge_id, metadata, rule_type: RULE_MIN_BALANCE, rule_params, rule_note,
+            status: STATUS_ACTIVE, starts_at, ends_at,
+            created_at: now, updated_at: now, paused_at: 0, discontinued_at: 0,
+            mint_fee,
+            total_minted: 0, max_supply
+        };
+
+        table::add(&mut registry.badges, badge_id, definition);
+        table::add(&mut registry.allowlists, badge_id, BadgeAllowlist { entries: table::new() });
+
+        event::emit(BadgeCreated { badge_id, name, rule_type: RULE_MIN_BALANCE, mint_fee, admin: admin_addr, timestamp: now });
+    }
+
     public entry fun mint(user: &signer, badge_id: u64) acquires BadgeRegistry, BadgeStore {
         let user_addr = signer::address_of(user);
         let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(!registry.paused, E_REGISTRY_PAUSED);
         
         // 1. Validate existence and global eligibility
         assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
         let badge_ref = table::borrow(&registry.badges, badge_id);
         validate_mint_eligibility(badge_ref);
 
-        // 2. Validate Rule Specifics (Allowlist/Attestation)
-        let allowlist = table::borrow(&registry.allowlists, badge_id);
-        assert!(table::contains(&allowlist.entries, user_addr), E_NOT_ELIGIBLE);
+        // 2. Validate rule specifics.
+        if (badge_ref.rule_type == RULE_ALLOWLIST || badge_ref.rule_type == RULE_ATTESTATION) {
+            let allowlist = table::borrow(&registry.allowlists, badge_id);
+            assert!(table::contains(&allowlist.entries, user_addr), E_NOT_ELIGIBLE);
+        } else {
+            // Min-balance badges must be minted through mint_with_balance<CoinType>.
+            assert!(badge_ref.rule_type != RULE_MIN_BALANCE, E_BAD_RULE);
+        };
 
         // 3. Process Mint
         execute_mint(user, registry, badge_id);
@@ -216,6 +282,7 @@ module swap_router::badges {
     public entry fun mint_with_balance<CoinType>(user: &signer, badge_id: u64) acquires BadgeRegistry, BadgeStore {
         let user_addr = signer::address_of(user);
         let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(!registry.paused, E_REGISTRY_PAUSED);
         
         assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
         let badge_ref = table::borrow(&registry.badges, badge_id);
@@ -326,6 +393,91 @@ module swap_router::badges {
         event::emit(FeeTreasuryUpdated { old_treasury, new_treasury, admin: admin_addr, timestamp: timestamp::now_seconds() });
     }
 
+    public entry fun transfer_admin(
+        admin: &signer,
+        new_admin: address,
+    ) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+        assert!(new_admin != @0x0, E_BAD_ADMIN_ADDRESS);
+        assert!(new_admin != admin_addr, E_BAD_ADMIN_ADDRESS);
+
+        registry.pending_admin = new_admin;
+        event::emit(AdminTransferInitiated {
+            current_admin: admin_addr,
+            pending_admin: new_admin,
+            timestamp: timestamp::now_seconds(),
+        });
+    }
+
+    public entry fun accept_admin(new_admin: &signer) acquires BadgeRegistry {
+        let new_admin_addr = signer::address_of(new_admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(new_admin_addr == registry.pending_admin, E_NOT_PENDING_ADMIN);
+
+        let old_admin = registry.admin;
+        registry.admin = new_admin_addr;
+        registry.pending_admin = @0x0;
+
+        event::emit(AdminTransferCompleted {
+            old_admin,
+            new_admin: new_admin_addr,
+            timestamp: timestamp::now_seconds(),
+        });
+    }
+
+    public entry fun cancel_admin_transfer(admin: &signer) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+        registry.pending_admin = @0x0;
+    }
+
+    public entry fun set_paused(admin: &signer, is_paused: bool) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+
+        registry.paused = is_paused;
+        event::emit(RegistryPauseUpdated {
+            admin: admin_addr,
+            paused: is_paused,
+            timestamp: timestamp::now_seconds(),
+        });
+    }
+
+    public entry fun update_badge_metadata(
+        admin: &signer,
+        badge_id: u64,
+        name: vector<u8>,
+        description: vector<u8>,
+        image_uri: vector<u8>,
+        metadata_uri: vector<u8>,
+        metadata_hash: vector<u8>,
+        category: vector<u8>,
+        rarity: u8,
+        xp_value: u64,
+        rule_note: vector<u8>,
+    ) acquires BadgeRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<BadgeRegistry>(@swap_router);
+        assert!(admin_addr == registry.admin, E_NOT_ADMIN);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+
+        let badge = table::borrow_mut(&mut registry.badges, badge_id);
+        badge.metadata.name = name;
+        badge.metadata.description = description;
+        badge.metadata.image_uri = image_uri;
+        badge.metadata.metadata_uri = metadata_uri;
+        badge.metadata.metadata_hash = metadata_hash;
+        badge.metadata.category = category;
+        badge.metadata.rarity = rarity;
+        badge.metadata.xp_value = xp_value;
+        badge.rule_note = rule_note;
+        badge.updated_at = timestamp::now_seconds();
+    }
+
     // --- ADMIN: BADGE LIFECYCLE ---
 
     public entry fun pause_badge(admin: &signer, badge_id: u64) acquires BadgeRegistry {
@@ -353,6 +505,7 @@ module swap_router::badges {
 
         let badge = table::borrow_mut(&mut registry.badges, badge_id);
         assert!(badge.status != STATUS_DISCONTINUED, E_BADGE_DISCONTINUED);
+        assert!(badge.status == STATUS_PAUSED, E_BADGE_ALREADY_ACTIVE);
 
         let now = timestamp::now_seconds();
         badge.status = STATUS_ACTIVE;
@@ -532,6 +685,7 @@ module swap_router::badges {
         let badge = table::borrow(&registry.badges, badge_id);
 
         let now = timestamp::now_seconds();
+        (!registry.paused) &&
         (badge.status == STATUS_ACTIVE) &&
         (badge.starts_at == 0 || now >= badge.starts_at) &&
         (badge.ends_at == 0 || now <= badge.ends_at) &&
@@ -572,5 +726,386 @@ module swap_router::badges {
     #[view]
     public fun get_admin(): address acquires BadgeRegistry {
         borrow_global<BadgeRegistry>(@swap_router).admin
+    }
+
+    #[view]
+    public fun get_pending_admin(): address acquires BadgeRegistry {
+        borrow_global<BadgeRegistry>(@swap_router).pending_admin
+    }
+
+    #[view]
+    public fun is_paused(): bool acquires BadgeRegistry {
+        borrow_global<BadgeRegistry>(@swap_router).paused
+    }
+
+    // =========================================================================
+    // Tests
+    // =========================================================================
+
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use aptos_framework::coin::MintCapability;
+    #[test_only]
+    use std::string;
+
+    #[test_only]
+    fun setup_test(admin: &signer, framework: &signer): MintCapability<aptos_coin::AptosCoin> {
+        timestamp::set_time_has_started_for_testing(framework);
+        let (burn_cap, freeze_cap, mint_cap) = coin::initialize<aptos_coin::AptosCoin>(
+            framework,
+            string::utf8(b"AptosCoin"),
+            string::utf8(b"APT"),
+            8,
+            true,
+        );
+        coin::destroy_burn_cap(burn_cap);
+        coin::destroy_freeze_cap(freeze_cap);
+
+        account::create_account_for_test(signer::address_of(admin));
+        coin::register<aptos_coin::AptosCoin>(admin);
+        mint_cap
+    }
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    public fun test_initialize(admin: &signer, framework: &signer) acquires BadgeRegistry {
+        let mint_cap = setup_test(admin, framework);
+        initialize(admin);
+
+        assert!(get_admin() == @swap_router, 1);
+        assert!(get_pending_admin() == @0x0, 2);
+        assert!(!is_paused(), 3);
+
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    public fun test_create_badge(admin: &signer, framework: &signer) acquires BadgeRegistry {
+        let mint_cap = setup_test(admin, framework);
+        initialize(admin);
+
+        create_badge(
+            admin,
+            b"Genesis",
+            b"First badge",
+            b"https://img",
+            b"https://meta",
+            b"hash",
+            b"activity",
+            1,
+            10,
+            RULE_ALLOWLIST,
+            b"allowlist",
+            0,
+            b"",
+            b"",
+            b"",
+            0,
+            0,
+            0,
+            0,
+        );
+
+        let ids = get_badge_ids();
+        assert!(vector::length(&ids) == 1, 1);
+        assert!(*vector::borrow(&ids, 0) == 1, 2);
+
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, user = @0xB0B, framework = @0x1)]
+    public fun test_mint_allowlist(admin: &signer, user: &signer, framework: &signer) acquires BadgeRegistry, BadgeStore {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(user));
+        coin::register<aptos_coin::AptosCoin>(user);
+        initialize(admin);
+
+        create_badge(
+            admin,
+            b"Allowlisted",
+            b"",
+            b"",
+            b"",
+            b"",
+            b"activity",
+            1,
+            10,
+            RULE_ALLOWLIST,
+            b"",
+            0,
+            b"",
+            b"",
+            b"",
+            0,
+            0,
+            0,
+            0,
+        );
+
+        let addresses = vector::empty<address>();
+        vector::push_back(&mut addresses, signer::address_of(user));
+        add_allowlist_entries(admin, 1, addresses);
+
+        mint(user, 1);
+        assert!(has_badge(signer::address_of(user), 1), 1);
+
+        let (total_minted, _, _) = get_badge_stats(1);
+        assert!(total_minted == 1, 2);
+
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, user = @0xB0B, framework = @0x1)]
+    #[expected_failure(abort_code = E_ALREADY_MINTED)]
+    public fun test_mint_already_minted(admin: &signer, user: &signer, framework: &signer) acquires BadgeRegistry, BadgeStore {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(user));
+        coin::register<aptos_coin::AptosCoin>(user);
+        initialize(admin);
+
+        create_badge(
+            admin,
+            b"Single",
+            b"",
+            b"",
+            b"",
+            b"",
+            b"activity",
+            1,
+            10,
+            RULE_ALLOWLIST,
+            b"",
+            0,
+            b"",
+            b"",
+            b"",
+            0,
+            0,
+            0,
+            0,
+        );
+
+        let addresses = vector::empty<address>();
+        vector::push_back(&mut addresses, signer::address_of(user));
+        add_allowlist_entries(admin, 1, addresses);
+
+        mint(user, 1);
+        mint(user, 1);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, user = @0xB0B, framework = @0x1)]
+    #[expected_failure(abort_code = E_BADGE_PAUSED)]
+    public fun test_mint_paused(admin: &signer, user: &signer, framework: &signer) acquires BadgeRegistry, BadgeStore {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(user));
+        initialize(admin);
+
+        create_badge(
+            admin,
+            b"Pausable",
+            b"",
+            b"",
+            b"",
+            b"",
+            b"activity",
+            1,
+            10,
+            RULE_ALLOWLIST,
+            b"",
+            0,
+            b"",
+            b"",
+            b"",
+            0,
+            0,
+            0,
+            0,
+        );
+
+        let addresses = vector::empty<address>();
+        vector::push_back(&mut addresses, signer::address_of(user));
+        add_allowlist_entries(admin, 1, addresses);
+
+        pause_badge(admin, 1);
+        mint(user, 1);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, user1 = @0xB0B, user2 = @0xCAFE, framework = @0x1)]
+    #[expected_failure(abort_code = E_SUPPLY_REACHED)]
+    public fun test_supply_cap(admin: &signer, user1: &signer, user2: &signer, framework: &signer) acquires BadgeRegistry, BadgeStore {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(user1));
+        account::create_account_for_test(signer::address_of(user2));
+        initialize(admin);
+
+        create_badge(
+            admin,
+            b"Limited",
+            b"",
+            b"",
+            b"",
+            b"",
+            b"special",
+            3,
+            50,
+            RULE_ALLOWLIST,
+            b"",
+            0,
+            b"",
+            b"",
+            b"",
+            0,
+            0,
+            1,
+            0,
+        );
+
+        let addresses = vector::empty<address>();
+        vector::push_back(&mut addresses, signer::address_of(user1));
+        vector::push_back(&mut addresses, signer::address_of(user2));
+        add_allowlist_entries(admin, 1, addresses);
+
+        mint(user1, 1);
+        mint(user2, 1);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, user = @0xB0B, treasury = @0x999, framework = @0x1)]
+    public fun test_fee_collection(admin: &signer, user: &signer, treasury: &signer, framework: &signer) acquires BadgeRegistry, BadgeStore {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(user));
+        account::create_account_for_test(signer::address_of(treasury));
+        coin::register<aptos_coin::AptosCoin>(user);
+        coin::register<aptos_coin::AptosCoin>(treasury);
+        initialize(admin);
+
+        set_fee_treasury(admin, signer::address_of(treasury));
+
+        create_badge(
+            admin,
+            b"Paid",
+            b"",
+            b"",
+            b"",
+            b"",
+            b"activity",
+            1,
+            10,
+            RULE_ALLOWLIST,
+            b"",
+            0,
+            b"",
+            b"",
+            b"",
+            0,
+            0,
+            0,
+            10_000_000,
+        );
+
+        let funding = coin::mint(100_000_000, &mint_cap);
+        coin::deposit(signer::address_of(user), funding);
+
+        let addresses = vector::empty<address>();
+        vector::push_back(&mut addresses, signer::address_of(user));
+        add_allowlist_entries(admin, 1, addresses);
+
+        let treasury_before = coin::balance<aptos_coin::AptosCoin>(signer::address_of(treasury));
+        mint(user, 1);
+        let treasury_after = coin::balance<aptos_coin::AptosCoin>(signer::address_of(treasury));
+        assert!(treasury_after - treasury_before == 10_000_000, 1);
+
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, user = @0xB0B, framework = @0x1)]
+    #[expected_failure(abort_code = E_REGISTRY_PAUSED)]
+    public fun test_global_pause_blocks_mint(admin: &signer, user: &signer, framework: &signer) acquires BadgeRegistry, BadgeStore {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(user));
+        initialize(admin);
+
+        create_badge(
+            admin,
+            b"GlobalPause",
+            b"",
+            b"",
+            b"",
+            b"",
+            b"activity",
+            1,
+            10,
+            RULE_ALLOWLIST,
+            b"",
+            0,
+            b"",
+            b"",
+            b"",
+            0,
+            0,
+            0,
+            0,
+        );
+
+        let addresses = vector::empty<address>();
+        vector::push_back(&mut addresses, signer::address_of(user));
+        add_allowlist_entries(admin, 1, addresses);
+
+        set_paused(admin, true);
+        mint(user, 1);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, new_admin = @0xBEEF, framework = @0x1)]
+    public fun test_admin_transfer(admin: &signer, new_admin: &signer, framework: &signer) acquires BadgeRegistry {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(new_admin));
+        initialize(admin);
+
+        transfer_admin(admin, signer::address_of(new_admin));
+        assert!(get_pending_admin() == signer::address_of(new_admin), 1);
+
+        accept_admin(new_admin);
+        assert!(get_admin() == signer::address_of(new_admin), 2);
+        assert!(get_pending_admin() == @0x0, 3);
+
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(admin = @swap_router, user = @0xB0B, framework = @0x1)]
+    public fun test_create_and_mint_min_balance_badge(admin: &signer, user: &signer, framework: &signer) acquires BadgeRegistry, BadgeStore {
+        let mint_cap = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(user));
+        coin::register<aptos_coin::AptosCoin>(user);
+        initialize(admin);
+
+        create_badge_min_balance<aptos_coin::AptosCoin>(
+            admin,
+            b"Whale",
+            b"",
+            b"",
+            b"",
+            b"",
+            b"defi",
+            2,
+            25,
+            b"0x1::aptos_coin::AptosCoin",
+            50_000_000,
+            b"min-balance",
+            0,
+            0,
+            0,
+            0,
+        );
+
+        let funding = coin::mint(100_000_000, &mint_cap);
+        coin::deposit(signer::address_of(user), funding);
+
+        mint_with_balance<aptos_coin::AptosCoin>(user, 1);
+        assert!(has_badge(signer::address_of(user), 1), 1);
+
+        coin::destroy_mint_cap(mint_cap);
     }
 }

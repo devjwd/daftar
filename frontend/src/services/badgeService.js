@@ -410,6 +410,7 @@ export const createBadgeMinBalance = async ({
   startsAt,
   endsAt,
   maxSupply,
+  mintFee,
 }) => {
   const fn = getBadgeFunction("create_badge_min_balance");
   if (!fn) throw new Error("Badge module address not configured");
@@ -434,6 +435,7 @@ export const createBadgeMinBalance = async ({
         startsAt || 0,
         endsAt || 0,
         maxSupply || 0,
+        mintFee ?? 0,
       ],
     },
   });

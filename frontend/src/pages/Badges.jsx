@@ -14,9 +14,133 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { DEFAULT_NETWORK } from '../config/network.js';
 import { awardBadge } from '../services/badges/badgeStore.js';
-import { mintBadge, mintBadgeWithBalance, isAllowlisted } from '../services/badgeService.js';
+import { mintBadge, mintBadgeWithBalance } from '../services/badgeService.js';
 import { confirmMintAndOwnership } from '../services/badges/mintVerification.js';
 import useBadges from '../hooks/useBadges.js';
+import useBadgeEligibility from '../hooks/useBadgeEligibility.js';
+
+const getProgressMessage = (progress, fallbackReason) => {
+  const current = Number(progress?.current);
+  const required = Number(progress?.required);
+
+  if (Number.isFinite(current) && Number.isFinite(required) && required > 0) {
+    const ratio = current / required;
+    const suffix = ratio >= 0.9 ? 'almost there!' : 'keep going';
+    return `${Math.floor(current)}/${Math.floor(required)} — ${suffix}`;
+  }
+
+  return fallbackReason || 'Not eligible yet';
+};
+
+const isMinBalanceRule = (badge) => {
+  const directRule = String(badge?.rule_type || badge?.ruleType || '').trim().toUpperCase();
+  if (directRule === 'MIN_BALANCE') return true;
+
+  const criteria = Array.isArray(badge?.criteria) ? badge.criteria : [];
+  return criteria.some((criterion) => String(criterion?.type || '').toLowerCase() === 'min_balance');
+};
+
+function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
+  const { status, progress, reason, checkEligibility, isLoading } = useBadgeEligibility(badge.id);
+  const effectiveStatus = badge.earned ? 'already_owned' : status;
+
+  if (effectiveStatus === 'loading' || isLoading) {
+    return (
+      <div className="achievement-inline-status" role="status" aria-live="polite">
+        <span className="achievement-inline-spinner" />
+        <span>Checking your wallet...</span>
+      </div>
+    );
+  }
+
+  if (effectiveStatus === 'eligible') {
+    return (
+      <div className="achievement-claim-wrap">
+        <span className="achievement-ok">✓ Eligible</span>
+        <button
+          className="achievement-claim-btn"
+          onClick={(event) => {
+            event.stopPropagation();
+            onMint(badge);
+          }}
+          disabled={minting || disabled}
+        >
+          {minting ? 'Claiming...' : 'Claim Badge'}
+        </button>
+      </div>
+    );
+  }
+
+  if (effectiveStatus === 'not_eligible') {
+    const progressMessage = getProgressMessage(progress, reason);
+    const width = Number(progress?.required) > 0
+      ? Math.max(4, Math.min(100, (Number(progress?.current || 0) / Number(progress.required)) * 100))
+      : 8;
+
+    return (
+      <div className="achievement-not-eligible-wrap">
+        <p className="achievement-progress-text">{progressMessage}</p>
+        <div className="achievement-progress" aria-label={progressMessage}>
+          <div className="achievement-progress-fill" style={{ width: `${width}%` }} />
+        </div>
+        <button
+          className="achievement-check-btn"
+          onClick={(event) => {
+            event.stopPropagation();
+            checkEligibility({ force: true });
+          }}
+          type="button"
+        >
+          Re-check
+        </button>
+      </div>
+    );
+  }
+
+  if (effectiveStatus === 'already_owned') {
+    return (
+      <button className="achievement-check-btn" disabled type="button">
+        You own this badge ✓
+      </button>
+    );
+  }
+
+  if (effectiveStatus === 'requires_admin') {
+    return <p className="achievement-muted-note">Contact admin to enable claiming</p>;
+  }
+
+  if (effectiveStatus === 'error') {
+    return (
+      <div className="achievement-not-eligible-wrap">
+        <p className="achievement-muted-note">Check failed — try again</p>
+        {reason ? <p className="achievement-muted-note achievement-muted-note-small">{reason}</p> : null}
+        <button
+          className="achievement-check-btn"
+          onClick={(event) => {
+            event.stopPropagation();
+            checkEligibility({ force: true });
+          }}
+          type="button"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className="achievement-check-btn"
+      onClick={(event) => {
+        event.stopPropagation();
+        checkEligibility();
+      }}
+      type="button"
+    >
+      Check Eligibility
+    </button>
+  );
+}
 
 export default function Badges() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
@@ -25,6 +149,7 @@ export default function Badges() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [selectedBadge, setSelectedBadge] = useState(null);
+  const [claimedAnimIds, setClaimedAnimIds] = useState(new Set());
 
   const movementClient = useMemo(
     () => new Aptos(new AptosConfig({ network: Network.CUSTOM, fullnode: DEFAULT_NETWORK.rpc })),
@@ -133,11 +258,13 @@ export default function Badges() {
   const renderAchievementCard = (badge) => {
     const badgeState = badge.earned ? 'earned' : (badge.eligible || badge.attestationPending || badge.attestationFailed) ? 'ready' : 'locked';
     const progressClamped = Math.max(0, Math.min(100, badge.progress || 0));
+    const isMinting = mintingIds.has(badge.id);
+    const successPulse = claimedAnimIds.has(badge.id);
 
     return (
       <article
         key={badge.id}
-        className={`achievement-card achievement-${badgeState} ${badge.isExpired ? 'achievement-expired' : ''}`}
+        className={`achievement-card achievement-${badgeState} ${badge.isExpired ? 'achievement-expired' : ''} ${successPulse ? 'achievement-success-pop' : ''}`}
         onClick={() => setSelectedBadge(badge)}
         role="button"
         tabIndex={0}
@@ -168,18 +295,12 @@ export default function Badges() {
         </div>
 
         <div className="achievement-actions">
-          {badge.claimable && !badge.earned && (
-            <button
-              className="achievement-claim-btn"
-              onClick={(event) => {
-                event.stopPropagation();
-                handleMint(badge);
-              }}
-              disabled={mintingIds.has(badge.id)}
-            >
-              {mintingIds.has(badge.id) ? 'Claiming...' : 'Claim'}
-            </button>
-          )}
+          <BadgeEligibilityActions
+            badge={badge}
+            minting={isMinting}
+            onMint={handleMint}
+            disabled={badge.isExpired}
+          />
 
           {badge.earned && <span className="achievement-status-pill">Unlocked</span>}
           {!badge.earned && !badge.eligible && !badge.attestationPending && !badge.attestationFailed && <span className="achievement-status-pill">Locked</span>}
@@ -211,13 +332,22 @@ export default function Badges() {
 
       let txHash = null;
       const senderAddress = typeof account.address === 'string' ? account.address : account.address.toString();
-      if (badge.criteria?.some(c => c.type === 'min_balance')) {
-        const balanceCriteria = badge.criteria.find(c => c.type === 'min_balance');
+      if (isMinBalanceRule(badge)) {
+        const criteria = Array.isArray(badge.criteria) ? badge.criteria : [];
+        const balanceCriteria = criteria.find((c) => String(c?.type || '').toLowerCase() === 'min_balance');
+        const coinType =
+          String(badge?.rule_params?.coinType || '').trim() ||
+          String(balanceCriteria?.params?.coinType || '').trim();
+
+        if (!coinType) {
+          throw new Error('MIN_BALANCE badge requires coinType in rule params.');
+        }
+
         const tx = await mintBadgeWithBalance({
           signAndSubmitTransaction,
           sender: senderAddress,
           badgeId: badge.onChainBadgeId,
-          coinType: balanceCriteria.params.coinType,
+          coinType,
         });
         txHash = await confirmMintAndOwnership({
           client: movementClient,
@@ -226,11 +356,6 @@ export default function Badges() {
           owner: senderAddress,
         });
       } else {
-        const allowlisted = await isAllowlisted(movementClient, Number(badge.onChainBadgeId), senderAddress);
-        if (!allowlisted) {
-          throw new Error('Auto-attestation is in progress. Please wait a few seconds and try again.');
-        }
-
         const tx = await mintBadge({
           signAndSubmitTransaction,
           sender: senderAddress,
@@ -244,11 +369,42 @@ export default function Badges() {
         });
       }
 
+      try {
+        const syncResponse = await fetch('/api/badges/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: senderAddress,
+            badgeId: badge.id,
+            onChainBadgeId: badge.onChainBadgeId,
+            txHash,
+            xpValue: Number(badge.xp || 0),
+            badgeName: badge.name,
+            rarity: badge.rarity,
+          }),
+        });
+
+        if (!syncResponse.ok) {
+          console.warn('[badges] sync endpoint returned non-OK status', syncResponse.status);
+        }
+      } catch (syncError) {
+        console.warn('[badges] sync endpoint call failed', syncError);
+      }
+
       await awardBadge(address, badge.id, {
         txHash,
         onChainBadgeId: badge.onChainBadgeId,
         metadata: { mintedAt: Date.now() },
       });
+
+      setClaimedAnimIds((prev) => new Set([...prev, badge.id]));
+      setTimeout(() => {
+        setClaimedAnimIds((prev) => {
+          const next = new Set(prev);
+          next.delete(badge.id);
+          return next;
+        });
+      }, 1400);
 
       setSuccessMsg(`"${badge.name}" badge claimed!`);
       setTimeout(() => setSuccessMsg(''), 4000);

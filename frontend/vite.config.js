@@ -1,12 +1,13 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 /**
  * Vite Configuration for Movement Network Portfolio Tracker
  * https://vite.dev/config/
  */
-export default defineConfig(({ command }) => {
-  const vercelDevTarget = process.env.VITE_VERCEL_DEV_URL || 'http://localhost:3001';
+export default defineConfig(({ command, mode }) => {
+  const env = loadEnv(mode, '.', '');
+  const vercelDevTarget = env.VITE_VERCEL_DEV_URL || 'http://localhost:3001';
 
   return {
     plugins: [react()],

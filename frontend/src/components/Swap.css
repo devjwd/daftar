@@ -529,6 +529,135 @@
   text-decoration: underline;
 }
 
+.swap-complete-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(8, 8, 14, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.swap-complete-modal {
+  width: min(430px, 100%);
+  border-radius: 24px;
+  border: 1px solid rgba(126, 94, 165, 0.45);
+  background:
+    radial-gradient(circle at 20% -10%, rgba(78, 196, 186, 0.16), transparent 50%),
+    radial-gradient(circle at 95% 95%, rgba(205, 161, 105, 0.14), transparent 46%),
+    linear-gradient(160deg, rgba(34, 20, 55, 0.97), rgba(19, 10, 34, 0.96));
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+  padding: 1.4rem;
+}
+
+.swap-complete-check {
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 0.95rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #4ee3ae;
+  font: 700 2rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+  background: radial-gradient(circle at 30% 20%, rgba(78, 227, 174, 0.3), rgba(19, 63, 53, 0.35));
+  border: 1px solid rgba(78, 227, 174, 0.45);
+}
+
+.swap-complete-modal h3 {
+  margin: 0 0 1rem;
+  text-align: center;
+  color: #f7f0ff;
+  font: 700 1.75rem/1.08 "Space Grotesk", "Avenir Next", sans-serif;
+}
+
+.swap-complete-received {
+  border-radius: 16px;
+  border: 1px solid rgba(133, 104, 170, 0.45);
+  background: linear-gradient(145deg, rgba(51, 28, 74, 0.9), rgba(35, 19, 55, 0.88));
+  padding: 0.9rem;
+}
+
+.swap-complete-label {
+  display: block;
+  color: #d4c2e6;
+  font: 600 0.8rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.swap-complete-amount-row {
+  margin-top: 0.58rem;
+  display: flex;
+  align-items: center;
+  gap: 0.68rem;
+}
+
+.swap-complete-token-logo,
+.swap-complete-token-fallback {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.swap-complete-token-logo {
+  object-fit: cover;
+}
+
+.swap-complete-token-fallback {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #231735;
+  background: linear-gradient(145deg, #f4e4ff, #c9b0e6);
+}
+
+.swap-complete-amount {
+  color: #ffffff;
+  font: 700 1.2rem/1.15 "Space Grotesk", "Avenir Next", sans-serif;
+}
+
+.swap-complete-sub {
+  margin-top: 0.15rem;
+  color: #c9b3df;
+  font-size: 0.82rem;
+}
+
+.swap-complete-actions {
+  margin-top: 1.1rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+
+.swap-complete-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.82rem 1rem;
+  font: 700 0.95rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.swap-complete-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.swap-complete-btn-ghost {
+  color: #e7d7f6;
+  border: 1px solid rgba(146, 116, 184, 0.5);
+  background: rgba(67, 41, 94, 0.78);
+}
+
+.swap-complete-btn-primary {
+  color: #f9f8ff;
+  background: linear-gradient(100deg, #7044a6, #8861be);
+}
+
 .tx-toast-pending {
   border-color: rgba(229, 196, 64, 0.32);
 }
@@ -567,6 +696,15 @@
     right: 0.75rem;
     bottom: 0.75rem;
     width: calc(100vw - 1.5rem);
+  }
+
+  .swap-complete-modal {
+    border-radius: 20px;
+    padding: 1.15rem;
+  }
+
+  .swap-complete-modal h3 {
+    font-size: 1.4rem;
   }
 }
 

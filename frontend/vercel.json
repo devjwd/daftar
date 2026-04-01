@@ -3,10 +3,6 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/badges/attest",
-      "destination": "/api/badges/attest"
-    },
-    {
       "source": "/api/badges/award",
       "destination": "/api/badges/claim"
     },

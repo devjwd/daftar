@@ -125,6 +125,7 @@ const normalizeBadgeDefinitions = (value) => {
       mintFee: Number(entry.mintFee) || 0,
       criteria: Array.isArray(entry.criteria) ? entry.criteria : [],
       metadata: isObject(entry.metadata) ? entry.metadata : {},
+      isPublic: entry.isPublic !== false,
       enabled: entry.enabled !== false,
       onChainBadgeId:
         entry?.onChainBadgeId == null || entry?.onChainBadgeId === ''

@@ -1,192 +1,135 @@
-/**
- * useBadgeEligibility Hook
- * 
- * Real-time eligibility checking with polling, caching, and abort control.
- * Evaluates all badges for a given address and provides live progress.
- */
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { evaluateAllBadges, clearUserCache } from '../services/badges/eligibilityEngine.js';
-import { POLLING_INTERVALS } from '../config/badges.js';
+import { useCallback, useRef, useState } from 'react';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
 
-const EMPTY_BADGES = [];
-const EMPTY_PRICE_MAP = {};
+const normalizeAddress = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  return raw.startsWith('0x') ? raw : `0x${raw}`;
+};
 
-/**
- * @param {string} address     - User address to check eligibility for
- * @param {object} options
- * @param {Array} options.badges      - Badge definitions to evaluate
- * @param {object} options.client     - Aptos client instance
- * @param {object} options.priceMap   - Token price map
- * @param {number} options.pollInterval - Polling interval in ms (0 = no polling)
- * @param {boolean} options.enabled   - Whether to run evaluations
- */
-export default function useBadgeEligibility(address, options = {}) {
-  const {
-    badges = EMPTY_BADGES,
-    client = null,
-    priceMap = EMPTY_PRICE_MAP,
-    pollInterval = POLLING_INTERVALS.ELIGIBILITY_CHECK,
-    enabled = true,
-  } = options;
+const getWalletAddress = (account) => {
+  if (!account?.address) return '';
+  const value = typeof account.address === 'string' ? account.address : account.address.toString();
+  return normalizeAddress(value);
+};
 
-  const badgesRef = useRef(Array.isArray(badges) ? badges : []);
-  const badgesKey = useMemo(() => {
-    if (!Array.isArray(badges) || badges.length === 0) return '';
-    return badges
-      .map((badge) => `${badge.id}:${badge.updatedAt || badge.createdAt || 0}:${badge.enabled !== false ? 1 : 0}`)
-      .sort()
-      .join('|');
-  }, [badges]);
-  const hasBadgesToEvaluate = badgesKey.length > 0;
+export default function useBadgeEligibility(badgeId) {
+  const { account } = useWallet();
+  const walletAddress = getWalletAddress(account);
 
-  const [results, setResults] = useState(new Map());
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [lastEvaluated, setLastEvaluated] = useState(null);
-  const [isTabVisible, setIsTabVisible] = useState(
-    typeof document === 'undefined' ? true : document.visibilityState === 'visible'
-  );
-  const abortRef = useRef(null);
-  const mountedRef = useRef(true);
-  const wasTabVisibleRef = useRef(isTabVisible);
+  const [status, setStatus] = useState('idle');
+  const [progress, setProgress] = useState(null);
+  const [proof, setProof] = useState(null);
+  const [reason, setReason] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      abortRef.current?.abort();
-    };
+  const cacheRef = useRef({
+    wallet: null,
+    badgeId: null,
+    result: null,
+  });
+
+  const applyResult = useCallback((result) => {
+    setStatus(result.status || 'error');
+    setProgress(result.progress || null);
+    setProof(result.proof || null);
+    setReason(result.reason || null);
   }, []);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined;
+  const checkEligibility = useCallback(async (options = {}) => {
+    const force = Boolean(options?.force);
+    const numericBadgeId = Number(badgeId);
 
-    const onVisibilityChange = () => {
-      setIsTabVisible(document.visibilityState === 'visible');
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, []);
-
-  useEffect(() => {
-    badgesRef.current = Array.isArray(badges) ? badges : [];
-  }, [badges, badgesKey]);
-
-  const evaluate = useCallback(async (opts = {}) => {
-    const { silent = false } = opts;
-
-    if (!address || !enabled || !hasBadgesToEvaluate) {
-      if (mountedRef.current) {
-        setResults(new Map());
-        setLoading(false);
-      }
-      return;
+    if (!walletAddress) {
+      const result = {
+        status: 'error',
+        progress: null,
+        proof: null,
+        reason: 'Wallet not connected',
+      };
+      applyResult(result);
+      return result;
     }
 
-    // Abort any in-flight evaluation
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    if (!silent) {
-      setLoading(true);
+    if (!Number.isInteger(numericBadgeId) || numericBadgeId < 0) {
+      const result = {
+        status: 'error',
+        progress: null,
+        proof: null,
+        reason: 'Invalid badgeId',
+      };
+      applyResult(result);
+      return result;
     }
-    setError(null);
+
+    const cached = cacheRef.current;
+    const canUseCache = !force && cached.result && cached.wallet === walletAddress && cached.badgeId === numericBadgeId;
+    if (canUseCache) {
+      applyResult(cached.result);
+      return cached.result;
+    }
+
+    setIsLoading(true);
+    setStatus('loading');
+    setReason(null);
 
     try {
-      const context = { client, priceMap };
-      const evalResults = await evaluateAllBadges(
-        address,
-        badgesRef.current,
-        context,
-        { signal: controller.signal, concurrency: 3 }
-      );
+      const query = new URLSearchParams({
+        wallet: walletAddress,
+        badgeId: String(numericBadgeId),
+      });
 
-      if (!mountedRef.current || controller.signal.aborted) return;
+      const response = await fetch(`/api/badges/eligibility?${query.toString()}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
 
-      setResults(evalResults);
-      setLastEvaluated(Date.now());
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-      if (mountedRef.current) {
-        setError(err);
-        console.error('[useBadgeEligibility] evaluation failed:', err);
-      }
+      const data = await response.json().catch(() => ({}));
+      const normalizedStatus =
+        data?.status === 'eligible' ||
+        data?.status === 'not_eligible' ||
+        data?.status === 'already_owned' ||
+        data?.status === 'requires_admin'
+          ? data.status
+          : response.ok
+            ? 'error'
+            : data?.status || 'error';
+
+      const result = {
+        status: normalizedStatus,
+        progress: data?.progress || null,
+        proof: data?.proof || null,
+        reason: data?.reason || data?.error || null,
+      };
+
+      cacheRef.current = {
+        wallet: walletAddress,
+        badgeId: numericBadgeId,
+        result,
+      };
+
+      applyResult(result);
+      return result;
+    } catch (error) {
+      const result = {
+        status: 'error',
+        progress: null,
+        proof: null,
+        reason: String(error?.message || 'Eligibility check failed'),
+      };
+      applyResult(result);
+      return result;
     } finally {
-      if (mountedRef.current) {
-        if (!silent) {
-          setLoading(false);
-        }
-      }
+      setIsLoading(false);
     }
-  }, [address, enabled, hasBadgesToEvaluate, client, priceMap]);
-
-  // Initial evaluation and re-evaluate when address changes
-  useEffect(() => {
-    if (!address || !enabled || !hasBadgesToEvaluate) {
-      setResults(new Map());
-      setLoading(false);
-      return;
-    }
-
-    evaluate({ silent: false });
-  }, [address, enabled, hasBadgesToEvaluate, badgesKey, evaluate]);
-
-  // Polling
-  useEffect(() => {
-    if (!address || !enabled || !hasBadgesToEvaluate || !isTabVisible || !pollInterval || pollInterval <= 0) return;
-
-    const timer = setInterval(() => evaluate({ silent: true }), pollInterval);
-    return () => clearInterval(timer);
-  }, [address, enabled, hasBadgesToEvaluate, isTabVisible, pollInterval, evaluate]);
-
-  useEffect(() => {
-    const becameVisible = !wasTabVisibleRef.current && isTabVisible;
-    wasTabVisibleRef.current = isTabVisible;
-
-    if (becameVisible && address && enabled && hasBadgesToEvaluate && lastEvaluated && pollInterval > 0) {
-      evaluate({ silent: true });
-    }
-  }, [isTabVisible, address, enabled, hasBadgesToEvaluate, lastEvaluated, pollInterval, evaluate]);
-
-  // Force refresh
-  const refresh = useCallback(() => {
-    if (address) {
-      clearUserCache(address);
-    }
-    return evaluate({ silent: false });
-  }, [address, evaluate]);
-
-  // Convenience getters
-  const getResult = useCallback((badgeId) => {
-    return results.get(badgeId) || null;
-  }, [results]);
-
-  const isEligible = useCallback((badgeId) => {
-    return results.get(badgeId)?.eligible || false;
-  }, [results]);
-
-  const getProgress = useCallback((badgeId) => {
-    return results.get(badgeId)?.overallProgress || 0;
-  }, [results]);
-
-  const eligibleBadgeIds = new Set();
-  for (const [id, result] of results) {
-    if (result.eligible) eligibleBadgeIds.add(id);
-  }
+  }, [applyResult, badgeId, walletAddress]);
 
   return {
-    results,
-    loading,
-    error,
-    lastEvaluated,
-    refresh,
-    getResult,
-    isEligible,
-    getProgress,
-    eligibleBadgeIds,
-    eligibleCount: eligibleBadgeIds.size,
+    status,
+    progress,
+    proof,
+    reason,
+    checkEligibility,
+    isLoading,
   };
 }

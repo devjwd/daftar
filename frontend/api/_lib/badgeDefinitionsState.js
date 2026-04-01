@@ -31,6 +31,7 @@ const normalizeBadgeDefinitions = (value) => {
         entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)
           ? entry.metadata
           : {},
+      isPublic: entry.isPublic !== false,
       enabled: entry.enabled !== false,
       onChainBadgeId:
         entry?.onChainBadgeId == null || entry?.onChainBadgeId === ''

@@ -632,7 +632,7 @@ module swap_router::router {
     #[test]
     #[expected_failure(abort_code = E_NOT_INITIALIZED)]
     public fun test_get_config_not_initialized() {
-        let _ = get_config();
+        get_config();
     }
 
     // -- Collect fee tests --

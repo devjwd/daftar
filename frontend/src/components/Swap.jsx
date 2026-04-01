@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { DEFAULT_NETWORK } from "../config/network";
@@ -32,6 +33,7 @@ const ALLOWED_MOSAIC_MODULES = new Set(["router"]);
 const MAX_QUOTE_PRICE_IMPACT = 50;
 const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
 const TOAST_DISMISS_MS = 6500;
+const SWAP_DETAILS_STORAGE_KEY = "movement_last_swap_details_v1";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -180,6 +182,7 @@ const formatDisplayAmount = (symbol, quantity) => {
 };
 
 const Swap = ({ balances, onSwapSuccess }) => {
+  const navigate = useNavigate();
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const { prices: priceMap } = useTokenPrices();
   const [swapSettings, setSwapSettings] = useState(() => normalizeMosaicSwapSettings(getSwapSettings()));
@@ -196,6 +199,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
   const [slippage, setSlippage] = useState(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE);
   const [showSettings, setShowSettings] = useState(false);
   const [txToast, setTxToast] = useState(null);
+  const [swapComplete, setSwapComplete] = useState(null);
   const [priceImpact, setPriceImpact] = useState(0);
   const [isQuoting, setIsQuoting] = useState(false);
   const [routingResult, setRoutingResult] = useState(null);
@@ -606,12 +610,34 @@ const Swap = ({ balances, onSwapSuccess }) => {
             [toTokenId]: Math.max(0, toCurrent + toAmountNum),
           }));
 
-          setTxToast({
-            type: "success",
-            title: "Swap Complete",
-            message: `Swapped ${fromAmount} ${fromToken.symbol} for ~${toAmount} ${toToken.symbol}`,
+          const fromNumeric = Number.parseFloat(fromAmount) || 0;
+          const toNumeric = Number.parseFloat(toAmount) || 0;
+          const rate = fromNumeric > 0 ? toNumeric / fromNumeric : 0;
+
+          const details = {
             txHash: response.hash,
-          });
+            fromAmount: fromAmount,
+            fromSymbol: fromToken.symbol,
+            toAmount: toAmount,
+            toSymbol: toToken.symbol,
+            fromLogo: getTokenLogo(fromToken),
+            toLogo: getTokenLogo(toToken),
+            provider: bestProvider,
+            slippage,
+            priceImpact: Number.isFinite(priceImpact) ? Number(priceImpact.toFixed(2)) : 0,
+            networkCostLabel: "~0.001 MOVE",
+            rateLabel: rate > 0 ? `1 ${fromToken.symbol} ≈ ${rate.toFixed(6)} ${toToken.symbol}` : "Rate unavailable",
+            completedAt: new Date().toISOString(),
+            explorerBase: DEFAULT_NETWORK.explorer,
+          };
+
+          setSwapComplete(details);
+          setTxToast(null);
+          try {
+            sessionStorage.setItem(SWAP_DETAILS_STORAGE_KEY, JSON.stringify(details));
+          } catch {
+            // Ignore storage failures (private mode or disabled storage).
+          }
 
           if (typeof onSwapSuccess === "function") {
             try {
@@ -1029,6 +1055,50 @@ const Swap = ({ balances, onSwapSuccess }) => {
         explorerBase={DEFAULT_NETWORK.explorer}
         onClose={() => setTxToast(null)}
       />
+
+      {swapComplete ? (
+        <div className="swap-complete-overlay" role="dialog" aria-modal="true" aria-label="Swap complete">
+          <div className="swap-complete-modal">
+            <div className="swap-complete-check">✓</div>
+            <h3>Swap successful</h3>
+
+            <div className="swap-complete-received">
+              <span className="swap-complete-label">Received</span>
+              <div className="swap-complete-amount-row">
+                {swapComplete.toLogo ? (
+                  <img src={swapComplete.toLogo} alt={`${swapComplete.toSymbol} logo`} className="swap-complete-token-logo" />
+                ) : (
+                  <span className="swap-complete-token-fallback">{String(swapComplete.toSymbol || "?").charAt(0)}</span>
+                )}
+                <div>
+                  <div className="swap-complete-amount">{swapComplete.toAmount} {swapComplete.toSymbol}</div>
+                  <div className="swap-complete-sub">via {swapComplete.provider}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="swap-complete-actions">
+              <button
+                type="button"
+                className="swap-complete-btn swap-complete-btn-ghost"
+                onClick={() => {
+                  navigate("/swap/details", { state: { swapDetails: swapComplete } });
+                  setSwapComplete(null);
+                }}
+              >
+                See details
+              </button>
+              <button
+                type="button"
+                className="swap-complete-btn swap-complete-btn-primary"
+                onClick={() => setSwapComplete(null)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

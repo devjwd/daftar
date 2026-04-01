@@ -4,12 +4,12 @@ import cron from 'node-cron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { timingSafeEqual } from 'crypto';
 import { kv } from '@vercel/kv';
 import supabaseAdmin from './supabase.js';
 import { runAdaptersForAddress } from './badgeAdapters/index.js';
 import { getWalletAge, checkAccountExists } from './indexerClient.js';
-
-const usersApi = require('./usersApi');
+import usersApi from './usersApi.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,8 +101,17 @@ const requireAdmin = (req, res, next) => {
   if (!ADMIN_API_KEY) {
     return res.status(503).json({ error: 'Server missing BADGE_ADMIN_API_KEY' });
   }
-  const key = req.get('x-admin-key') || req.query.adminKey || req.body?.adminKey;
-  if (key !== ADMIN_API_KEY) {
+  const key = String(req.get('x-admin-key') || '');
+  const expected = String(ADMIN_API_KEY || '');
+
+  const keyBuffer = Buffer.from(key, 'utf8');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const valid =
+    keyBuffer.length > 0 &&
+    keyBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(keyBuffer, expectedBuffer);
+
+  if (!valid) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   return next();

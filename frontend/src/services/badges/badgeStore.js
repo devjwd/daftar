@@ -42,6 +42,7 @@ function normalizeLoadedBadge(rawBadge) {
   return {
     ...rawBadge,
     id,
+    isPublic: rawBadge.isPublic !== false,
     criteria: Array.isArray(rawBadge.criteria) ? rawBadge.criteria : [],
     metadata: rawBadge.metadata && typeof rawBadge.metadata === 'object' ? rawBadge.metadata : {},
   };
@@ -212,7 +213,17 @@ async function persistBadgeList(badges, adminKey) {
 
 export async function syncBadgesFromBackend() {
   const cachedBadges = getAllBadges();
-  const response = await fetchAllBadges();
+  let adminKey = '';
+  try {
+    adminKey = String(sessionStorage.getItem('badge_admin_api_key') || '').trim();
+  } catch {
+    adminKey = '';
+  }
+
+  const response = await fetchAllBadges({
+    includePrivate: Boolean(adminKey),
+    adminKey,
+  });
   if (!response.ok) {
     return { ok: false, badges: cachedBadges };
   }
@@ -554,7 +565,7 @@ export function exportBadges() {
 }
 
 /**
- * Export scanner-compatible config for backend /api/badges/scan.
+ * Export scanner-compatible config for backend badge admin workflows.
  * Only exports badges whose first criterion maps to a supported server rule.
  */
 export function exportScannerConfigs() {
