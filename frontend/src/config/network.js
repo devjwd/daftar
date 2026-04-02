@@ -80,3 +80,25 @@ export const YUZU_CONFIG = {
   defaultFeeTier: 2500, // 0.25%
 };
 
+/**
+ * Canopy Finance Configuration
+ */
+export const CANOPY_CONFIG = {
+  coreRouterAddress: getEnv(
+    'VITE_CANOPY_CORE_ROUTER_ADDRESS',
+    '0x717b417949cd5bfa6dc02822eacb727d820de2741f6ea90bf16be6c0ed46ff4b'
+  ),
+  coreVaultsAddress: getEnv(
+    'VITE_CANOPY_CORE_VAULTS_ADDRESS',
+    '0xb10bd32b3979c9d04272c769d9ef52afbc6edc4bf03982a9e326b96ac25e7f2d'
+  ),
+  liquidswapVaultsAddress: getEnv(
+    'VITE_CANOPY_LIQUIDSWAP_VAULTS_ADDRESS',
+    '0x5cd341a0cd4c2fb8d9e342814c00d7b388ad7579365d657ebb5b18e35c3c761b'
+  ),
+  rewardsAddress: getEnv(
+    'VITE_CANOPY_REWARDS_ADDRESS',
+    '0x113a1769acc5ce21b5ece6f9533eef6dd34c758911fa5235124c87ff1298633b'
+  ),
+};
+

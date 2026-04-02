@@ -39,6 +39,7 @@ import { getWalletAge, getUserNFTHoldings, getYuzuLiquidityPositions, getUserTok
 const Layout = lazy(() => import("./components/Layout"));
 const SwapPage = lazy(() => import("./pages/Swap"));
 const SwapDetails = lazy(() => import("./pages/SwapDetails"));
+const Earn = lazy(() => import("./pages/Earn"));
 const Home = lazy(() => import("./pages/Home"));
 const Profile = lazy(() => import("./pages/Profile"));
 const ProfileView = lazy(() => import("./pages/ProfileView"));
@@ -2467,6 +2468,7 @@ const App = () => {
                       path="/swap/details"
                       element={SWAP_ENABLED ? <SwapDetails /> : <Navigate to="/" replace />}
                     />
+                    <Route path="/earn" element={<Earn />} />
                     <Route path="/badges" element={<Badges />} />
                     <Route path="/leaderboard" element={<Leaderboard />} />
                     <Route path="/profile" element={<Profile />} />

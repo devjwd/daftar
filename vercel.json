@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/swap/tokens",
+      "destination": "/api/swap/quote?endpoint=tokens"
+    },
+    {
       "source": "/api/badges/attest",
       "destination": "/api/badges/attest"
     },

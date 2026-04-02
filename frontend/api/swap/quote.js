@@ -24,6 +24,54 @@ const getMosaicApiKey = () => {
   return String(process.env.VITE_MOSAIC_API_KEY || '').trim();
 };
 
+const handleTokensRequest = async (req, res) => {
+  const ip = getClientIp(req);
+  const limiter = enforceRateLimit({
+    key: `swap:tokens:read:${ip}`,
+    limit: Number(process.env.SWAP_READ_RATE_LIMIT || 180),
+    windowMs: Number(process.env.SWAP_READ_RATE_WINDOW_MS || 60_000),
+  });
+
+  if (!limiter.ok) {
+    res.setHeader('Retry-After', String(limiter.retryAfterSeconds));
+    return sendJson(res, 429, { error: 'Too many requests' });
+  }
+
+  const headers = { Accept: 'application/json' };
+  const mosaicApiKey = getMosaicApiKey();
+  if (mosaicApiKey) {
+    headers['X-API-Key'] = mosaicApiKey;
+  }
+
+  try {
+    const response = await fetch(`${getMosaicApiUrl()}/tokens`, {
+      method: 'GET',
+      headers,
+    });
+
+    const body = await response.text();
+    if (!response.ok) {
+      return sendJson(res, response.status, {
+        error: `Mosaic tokens failed (${response.status})`,
+        body: body.slice(0, 400),
+      });
+    }
+
+    try {
+      const parsed = JSON.parse(body);
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+      return sendJson(res, 200, parsed);
+    } catch {
+      return sendJson(res, 502, { error: 'Mosaic returned invalid JSON' });
+    }
+  } catch (error) {
+    return sendJson(res, 502, {
+      error: 'Failed to fetch tokens from Mosaic',
+      reason: String(error?.message || 'unknown').slice(0, 240),
+    });
+  }
+};
+
 const validateQuery = (query) => {
   const srcAsset = String(query.srcAsset || '').trim().toLowerCase();
   const dstAsset = String(query.dstAsset || '').trim().toLowerCase();
@@ -102,6 +150,10 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') {
     return methodNotAllowed(res, req.method, METHODS);
+  }
+
+  if (String(req.query?.endpoint || '').trim().toLowerCase() === 'tokens') {
+    return handleTokensRequest(req, res);
   }
 
   const ip = getClientIp(req);
