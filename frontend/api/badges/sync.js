@@ -86,6 +86,28 @@ const createSupabaseAdmin = () => {
   return { ok: true, supabase };
 };
 
+const getBadgeDefinitionOnChainBadgeId = (badgeDefinition) => {
+  const value = badgeDefinition?.on_chain_badge_id ?? badgeDefinition?.onChainBadgeId;
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) && numericValue >= 0 ? numericValue : null;
+};
+
+const getBadgeDefinitionXpValue = (badgeDefinition, fallbackValue = 0) => {
+  const value = badgeDefinition?.xp_value ?? badgeDefinition?.xpValue ?? fallbackValue;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const getBadgeDefinitionRarity = (badgeDefinition, fallbackValue = 'COMMON') => {
+  const value = badgeDefinition?.rarity;
+  return typeof value === 'string' && value.trim() ? value.trim().toUpperCase() : fallbackValue;
+};
+
+const getBadgeDefinitionName = (badgeDefinition, fallbackValue = '') => {
+  const value = badgeDefinition?.name ?? badgeDefinition?.badge_name;
+  return typeof value === 'string' && value.trim() ? value.trim() : fallbackValue;
+};
+
 const hasBadgeOnChain = async ({ ownerAddress, badgeId }) => {
   const moduleAddress = getBadgeModuleAddress();
   if (!moduleAddress || !ADDRESS_RE.test(moduleAddress)) {
@@ -164,33 +186,24 @@ export default async function handler(req, res) {
 
   try {
     const walletAddress = normalizeAddress(req.body?.walletAddress);
-    const badgeId = Number(req.body?.badgeId);
+    const badgeId = String(req.body?.badgeId || '').trim();
+    const onChainBadgeId = Number(req.body?.onChainBadgeId);
     const txHash = String(req.body?.txHash || '').trim() || null;
 
     if (!ADDRESS_RE.test(walletAddress)) {
       return sendJson(res, 400, { error: 'Invalid walletAddress' });
     }
 
-    if (!Number.isInteger(badgeId) || badgeId < 0) {
-      return sendJson(res, 400, { error: 'badgeId must be a non-negative integer' });
+    if (!badgeId) {
+      return sendJson(res, 400, { error: 'badgeId is required' });
+    }
+
+    if (!Number.isInteger(onChainBadgeId) || onChainBadgeId < 0) {
+      return sendJson(res, 400, { error: 'onChainBadgeId must be a non-negative integer' });
     }
 
     if (!txHash) {
       return sendJson(res, 400, { error: 'txHash is required' });
-    }
-
-    const ownership = await hasBadgeOnChain({ ownerAddress: walletAddress, badgeId });
-    if (!ownership.ok) {
-      return sendJson(res, 500, { error: ownership.error });
-    }
-
-    if (!ownership.owned) {
-      return sendJson(res, 400, { error: 'Badge not found on-chain' });
-    }
-
-    const badgeDetails = await getBadgeOnChain({ badgeId });
-    if (!badgeDetails.ok) {
-      return sendJson(res, 500, { error: badgeDetails.error });
     }
 
     const supabaseResult = createSupabaseAdmin();
@@ -199,7 +212,54 @@ export default async function handler(req, res) {
     }
 
     const supabase = supabaseResult.supabase;
-    const badge = badgeDetails.badge;
+    const badgeDefinitionResult = await supabase
+      .from('badge_definitions')
+      .select('*')
+      .eq('badge_id', badgeId)
+      .maybeSingle();
+
+    if (badgeDefinitionResult.error) {
+      return sendJson(res, 500, {
+        error: badgeDefinitionResult.error.message || 'Failed to fetch badge definition',
+      });
+    }
+
+    const badgeDefinition = badgeDefinitionResult.data;
+    if (!badgeDefinition) {
+      console.error(`[badges/sync] badge definition not found for badgeId: ${badgeId}`);
+      return sendJson(res, 404, { error: 'Badge definition not found' });
+    }
+
+    const expectedOnChainBadgeId = getBadgeDefinitionOnChainBadgeId(badgeDefinition);
+    if (expectedOnChainBadgeId != null && expectedOnChainBadgeId !== onChainBadgeId) {
+      console.error(
+        `[badges/sync] on-chain badge mismatch for badgeId ${badgeId}: expected ${expectedOnChainBadgeId}, received ${onChainBadgeId}`
+      );
+      return sendJson(res, 400, { error: 'Badge definition does not match the provided on-chain badge ID' });
+    }
+
+    const ownership = await hasBadgeOnChain({ ownerAddress: walletAddress, badgeId: onChainBadgeId });
+    if (!ownership.ok) {
+      return sendJson(res, 500, { error: ownership.error });
+    }
+
+    if (!ownership.owned) {
+      return sendJson(res, 400, { error: 'Badge not found on-chain' });
+    }
+
+    const badgeDetails = await getBadgeOnChain({ badgeId: onChainBadgeId });
+    if (!badgeDetails.ok) {
+      return sendJson(res, 500, { error: badgeDetails.error });
+    }
+
+    const onChainBadge = badgeDetails.badge;
+    const badge = {
+      badge_id: badgeId,
+      badge_name: getBadgeDefinitionName(badgeDefinition, onChainBadge.badge_name || `Badge ${badgeId}`),
+      rarity: getBadgeDefinitionRarity(badgeDefinition, onChainBadge.rarity),
+      xp_value: getBadgeDefinitionXpValue(badgeDefinition, onChainBadge.xp_value),
+      on_chain_badge_id: onChainBadge.badge_id,
+    };
 
     const profileUpsert = await supabase
       .from('profiles')
@@ -218,7 +278,7 @@ export default async function handler(req, res) {
 
     const existingBadge = await supabase.from('badges').select('id')
       .eq('wallet_address', walletAddress)
-      .eq('badge_id', String(badge.badge_id))
+      .eq('badge_id', badge.badge_id)
       .maybeSingle();
 
     if (existingBadge.error) {
@@ -229,8 +289,8 @@ export default async function handler(req, res) {
       .from('badges')
       .upsert({
         wallet_address: walletAddress,
-        badge_id: String(badge.badge_id),
-        badge_name: badge.badge_name || `Badge #${badge.badge_id}`,
+        badge_id: badge.badge_id,
+        badge_name: badge.badge_name || `Badge ${badge.badge_id}`,
         rarity: badge.rarity,
         xp_value: badge.xp_value,
         claimed_at: new Date().toISOString(),

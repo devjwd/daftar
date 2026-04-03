@@ -730,7 +730,7 @@ module swap_router::router {
     }
 
     #[test(admin = @swap_router, framework = @0x1)]
-    #[expected_failure(abort_code = 401)] // E_ROUTE_ALREADY_EXISTS from storage
+    #[expected_failure(abort_code = 401, location = swap_router::storage)] // E_ROUTE_ALREADY_EXISTS from storage
     public fun test_add_route_duplicate_fails(admin: &signer, framework: &signer) {
         let _mint_cap = setup_test(admin, framework);
         initialize(admin, 30, @0x999);

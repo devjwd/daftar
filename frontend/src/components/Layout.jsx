@@ -406,10 +406,6 @@ export default function Layout({ children }) {
                 </button>
               </li>
 
-              <li className="nav-item-disabled">
-                <button type="button" className="nav-link-btn nav-link-btn--disabled" disabled>{t(language, 'navLeaderboard')}<span className="nav-coming-soon">soon</span></button>
-              </li>
-
               <li className="more-dropdown-container">
                 <button 
                   className={`nav-more-btn ${moreDropdownOpen ? 'active' : ''}`}

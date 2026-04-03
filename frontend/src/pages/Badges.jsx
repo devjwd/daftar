@@ -212,6 +212,38 @@ export default function Badges() {
     setSelectedBadge(null);
   }, []);
 
+  const syncBadgeMint = useCallback(async ({ senderAddress, badge, txHash, attempt = 0 }) => {
+    const response = await fetch('/api/badges/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: senderAddress,
+        badgeId: badge.id,
+        onChainBadgeId: badge.onChainBadgeId,
+        txHash,
+        xpValue: Number(badge.xp || 0),
+        badgeName: badge.name,
+        rarity: badge.rarity,
+      }),
+    });
+
+    if (response.ok) {
+      return true;
+    }
+
+    if (attempt === 0) {
+      setSuccessMsg('Badge minted successfully but XP sync failed. Your XP will update shortly.');
+      setTimeout(() => setSuccessMsg(''), 6500);
+      setTimeout(() => {
+        void syncBadgeMint({ senderAddress, badge, txHash, attempt: 1 });
+      }, 5000);
+    }
+
+    const payload = await response.json().catch(() => null);
+    console.warn('[badges] sync endpoint returned non-OK status', response.status, payload);
+    return false;
+  }, []);
+
   useEffect(() => {
     if (!selectedBadge) return undefined;
 
@@ -369,25 +401,16 @@ export default function Badges() {
         });
       }
 
+      let syncOk = true;
       try {
-        const syncResponse = await fetch('/api/badges/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: senderAddress,
-            badgeId: badge.id,
-            onChainBadgeId: badge.onChainBadgeId,
-            txHash,
-            xpValue: Number(badge.xp || 0),
-            badgeName: badge.name,
-            rarity: badge.rarity,
-          }),
-        });
-
-        if (!syncResponse.ok) {
-          console.warn('[badges] sync endpoint returned non-OK status', syncResponse.status);
-        }
+        syncOk = await syncBadgeMint({ senderAddress, badge, txHash });
       } catch (syncError) {
+        syncOk = false;
+        setSuccessMsg('Badge minted successfully but XP sync failed. Your XP will update shortly.');
+        setTimeout(() => setSuccessMsg(''), 6500);
+        setTimeout(() => {
+          void syncBadgeMint({ senderAddress, badge, txHash, attempt: 1 });
+        }, 5000);
         console.warn('[badges] sync endpoint call failed', syncError);
       }
 
@@ -406,8 +429,10 @@ export default function Badges() {
         });
       }, 1400);
 
-      setSuccessMsg(`"${badge.name}" badge claimed!`);
-      setTimeout(() => setSuccessMsg(''), 4000);
+      if (syncOk) {
+        setSuccessMsg(`"${badge.name}" badge claimed!`);
+        setTimeout(() => setSuccessMsg(''), 4000);
+      }
     } catch (err) {
       console.error('Mint error:', err);
       setError(err.message || 'Failed to claim badge. Please try again.');
@@ -418,7 +443,7 @@ export default function Badges() {
         return next;
       });
     }
-  }, [connected, account, signAndSubmitTransaction, address, movementClient]);
+  }, [connected, account, signAndSubmitTransaction, address, movementClient, syncBadgeMint]);
 
   return (
     <div className="badges-page">

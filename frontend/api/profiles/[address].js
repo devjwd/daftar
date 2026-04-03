@@ -1,10 +1,49 @@
-import { loadProfilesState, saveProfilesState } from '../_lib/profilesState.js';
+import { createClient } from '@supabase/supabase-js';
 import { createHash, timingSafeEqual } from 'crypto';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
 import { normalizeAddress } from '../_lib/profileValidation.js';
 
 const METHODS = ['GET', 'DELETE', 'OPTIONS'];
+
+const createSupabaseAdmin = () => {
+  const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
+  const supabaseServiceKey = String(process.env.SUPABASE_SERVICE_KEY || '').trim();
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return { ok: false, error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_KEY' };
+  }
+
+  return {
+    ok: true,
+    supabase: createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    }),
+  };
+};
+
+const mapProfileRow = (row) => {
+  if (!row || typeof row !== 'object') return null;
+
+  return {
+    address: normalizeAddress(row.wallet_address || row.address),
+    username: typeof row.username === 'string' ? row.username : '',
+    bio: typeof row.bio === 'string' ? row.bio : '',
+    twitter: typeof row.twitter === 'string' ? row.twitter : '',
+    telegram: typeof row.telegram === 'string' ? row.telegram : '',
+    pfp: typeof row.pfp === 'string'
+      ? row.pfp
+      : typeof row.avatar_url === 'string'
+        ? row.avatar_url
+        : null,
+    createdAt: row.created_at || row.createdAt || null,
+    updatedAt: row.updated_at || row.updatedAt || null,
+    editKeyHash: row.edit_key_hash || row.editKeyHash || '',
+  };
+};
 
 const toPublicProfile = (profile) => {
   if (!profile) return null;
@@ -46,6 +85,13 @@ export default async function handler(req, res) {
   if (handleOptions(req, res, METHODS)) return;
   setApiHeaders(req, res, METHODS);
 
+  const supabaseResult = createSupabaseAdmin();
+  if (!supabaseResult.ok) {
+    return sendJson(res, 500, { error: supabaseResult.error });
+  }
+
+  const { supabase } = supabaseResult;
+
   const ip = getClientIp(req);
   const writeLimiter = enforceRateLimit({
     key: `profiles:address:write:${ip}`,
@@ -70,8 +116,17 @@ export default async function handler(req, res) {
     }
 
     try {
-      const { profiles } = await loadProfilesState();
-      return sendJson(res, 200, toPublicProfile(profiles[address] || null));
+      const result = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('wallet_address', address)
+        .maybeSingle();
+
+      if (result.error) {
+        return sendJson(res, 500, { error: result.error.message || 'Failed to load profile' });
+      }
+
+      return sendJson(res, 200, toPublicProfile(mapProfileRow(result.data)));
     } catch {
       return sendJson(res, 500, { error: 'Failed to load profile' });
     }
@@ -84,8 +139,17 @@ export default async function handler(req, res) {
     }
 
     try {
-      const { profiles } = await loadProfilesState();
-      const target = profiles[address];
+      const result = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('wallet_address', address)
+        .maybeSingle();
+
+      if (result.error) {
+        return sendJson(res, 500, { error: result.error.message || 'Failed to load profile' });
+      }
+
+      const target = mapProfileRow(result.data);
       if (!target) {
         return sendJson(res, 200, { deleted: false });
       }
@@ -95,12 +159,16 @@ export default async function handler(req, res) {
         return sendJson(res, 403, { error: 'Invalid profile edit key for this address' });
       }
 
-      const existed = Boolean(profiles[address]);
-      if (existed) {
-        delete profiles[address];
-        await saveProfilesState(profiles);
+      const deleteResult = await supabase
+        .from('profiles')
+        .delete()
+        .eq('wallet_address', address);
+
+      if (deleteResult.error) {
+        return sendJson(res, 500, { error: deleteResult.error.message || 'Failed to delete profile' });
       }
-      return sendJson(res, 200, { deleted: existed });
+
+      return sendJson(res, 200, { deleted: true });
     } catch {
       return sendJson(res, 500, { error: 'Failed to delete profile' });
     }
