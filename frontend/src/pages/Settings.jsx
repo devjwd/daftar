@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { getStoredLanguagePreference, saveLanguagePreference, t } from '../utils/language';
 import { applyTheme, getStoredThemePreference, saveThemePreference } from '../utils/theme';
+import {
+  DEFAULT_HIDE_POSITION_THRESHOLD,
+  formatHidePositionThresholdLabel,
+  getSettingsStorageKey,
+  getStoredHidePositionThreshold,
+  HIDE_POSITION_THRESHOLD_OPTIONS,
+  writeStoredSettings,
+} from '../utils/settings';
 import './Settings.css';
 
 export default function Settings() {
@@ -9,25 +17,21 @@ export default function Settings() {
   const [currency, setCurrency] = useState('USD');
   const [theme, setTheme] = useState('dark');
   const [language, setLanguage] = useState('en');
+  const [hidePositionThreshold, setHidePositionThreshold] = useState(DEFAULT_HIDE_POSITION_THRESHOLD);
 
-  const accountSettingsKey = account?.address
-    ? `settings_${typeof account.address === 'string' ? account.address : account.address.toString()}`
-    : null;
-  const settingsKey = accountSettingsKey || 'settings_global';
+  const accountSettingsKey = account?.address ? getSettingsStorageKey(account.address) : null;
+  const settingsKey = accountSettingsKey || getSettingsStorageKey(null);
 
   const persistSettings = (overrides = {}) => {
     const settingsData = {
       currency,
       theme,
       language,
+      hidePositionThreshold,
       ...overrides,
     };
 
-    localStorage.setItem(settingsKey, JSON.stringify(settingsData));
-    if (accountSettingsKey) {
-      localStorage.setItem('settings_global', JSON.stringify(settingsData));
-    }
-
+    writeStoredSettings(settingsKey, settingsData, Boolean(accountSettingsKey));
     return settingsData;
   };
 
@@ -42,11 +46,13 @@ export default function Settings() {
       setTheme(storedTheme);
       applyTheme(storedTheme);
       setLanguage(data.language || getStoredLanguagePreference(settingsKey));
+      setHidePositionThreshold(getStoredHidePositionThreshold(settingsKey));
     } else {
       const storedTheme = getStoredThemePreference(settingsKey);
       setTheme(storedTheme);
       applyTheme(storedTheme);
       setLanguage(getStoredLanguagePreference(settingsKey));
+      setHidePositionThreshold(getStoredHidePositionThreshold(settingsKey));
     }
   }, [settingsKey]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -75,6 +81,7 @@ export default function Settings() {
       setCurrency('USD');
       setTheme('dark');
       setLanguage('en');
+      setHidePositionThreshold(DEFAULT_HIDE_POSITION_THRESHOLD);
       localStorage.removeItem(settingsKey);
       saveThemePreference('dark', settingsKey);
       saveLanguagePreference('en', settingsKey);
@@ -102,17 +109,7 @@ export default function Settings() {
                 value={currency}
                 onChange={(e) => {
                   setCurrency(e.target.value);
-                  // Save immediately on change
-                  const settingsData = {
-                    currency: e.target.value,
-                    theme,
-                    language,
-                  };
-                  if (settingsKey) {
-                    localStorage.setItem(settingsKey, JSON.stringify(settingsData));
-                    // Also save to global settings for non-connected users
-                    localStorage.setItem('settings_global', JSON.stringify(settingsData));
-                  }
+                  persistSettings({ currency: e.target.value });
                 }}
                 className="setting-select"
               >
@@ -155,6 +152,28 @@ export default function Settings() {
                 <option value="zh">{t(language, 'chinese')}</option>
                 <option value="ko">{t(language, 'korean')}</option>
                 <option value="tr">{t(language, 'turkish')}</option>
+              </select>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <label>{t(language, 'hidePositions')}</label>
+                <span className="setting-description">{t(language, 'hidePositionsDescription')}</span>
+              </div>
+              <select
+                value={hidePositionThreshold}
+                onChange={(e) => {
+                  const nextThreshold = Number(e.target.value);
+                  setHidePositionThreshold(nextThreshold);
+                  persistSettings({ hidePositionThreshold: nextThreshold });
+                }}
+                className="setting-select"
+              >
+                {HIDE_POSITION_THRESHOLD_OPTIONS.map((threshold) => (
+                  <option key={threshold} value={threshold}>
+                    {formatHidePositionThresholdLabel(threshold)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

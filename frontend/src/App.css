@@ -2269,12 +2269,91 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  min-width: 320px;
 }
 
 @media (max-width: 900px) {
   .hero-v3-right {
     flex: 1;
     width: 100%;
+    min-width: 0;
+  }
+}
+
+.portfolio-tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: var(--spacing-xl);
+  padding: 0 4px;
+}
+
+.portfolio-tab-btn {
+  position: relative;
+  padding: 10px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.portfolio-tab-btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #cda169, #f0d9b5);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.2s ease;
+}
+
+.portfolio-tab-btn:hover {
+  color: var(--text-secondary);
+  transform: translateY(-1px);
+}
+
+.portfolio-tab-btn.active {
+  color: var(--text-primary);
+}
+
+.portfolio-tab-btn.active::after {
+  transform: scaleX(1);
+}
+
+.portfolio-content-panel {
+  animation: portfolioPanelEnter 0.24s ease;
+  transform-origin: top center;
+}
+
+@keyframes portfolioPanelEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolio-tabs-row {
+    gap: 14px;
+  }
+
+  .portfolio-tab-btn {
+    font-size: 11px;
+    letter-spacing: 0.08em;
   }
 }
 

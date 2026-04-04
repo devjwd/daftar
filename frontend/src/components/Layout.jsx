@@ -386,16 +386,6 @@ export default function Layout({ children }) {
                 </li>
               )}
 
-              <li className={location.pathname.startsWith("/earn") ? "active" : ""}>
-                <button
-                  type="button"
-                  className="nav-link-btn"
-                  onClick={() => navigate("/earn")}
-                >
-                  EARN
-                </button>
-              </li>
-
               <li className={location.pathname.startsWith("/badges") ? "active" : ""}>
                 <button
                   type="button"
