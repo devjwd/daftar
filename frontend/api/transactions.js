@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 import { handleOptions, methodNotAllowed, sendJson, setApiHeaders } from './_lib/http.js';
-import { getOrFetchTransactions } from '../src/services/transactionService.js';
+import { CACHE_TTL_MS, getOrFetchTransactions, TRANSACTION_HISTORY_LIMIT } from '../src/services/transactionService.js';
 
 const METHODS = ['GET', 'OPTIONS'];
 const PAGE_SIZE = 50;
@@ -77,10 +77,18 @@ const buildTransactionsQuery = ({ supabase, wallet, type, page }) => {
   return query;
 };
 
-const buildExistenceQuery = ({ supabase, wallet }) => supabase
+const buildLatestFetchQuery = ({ supabase, wallet }) => supabase
   .from('transaction_history')
-  .select('tx_hash', { count: 'exact', head: true })
-  .eq('wallet_address', wallet);
+  .select('fetched_at')
+  .eq('wallet_address', wallet)
+  .order('tx_timestamp', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+const isCacheFresh = (fetchedAt) => {
+  const fetchedTime = new Date(fetchedAt || 0).getTime();
+  return Number.isFinite(fetchedTime) && fetchedTime > 0 && (Date.now() - fetchedTime) < CACHE_TTL_MS;
+};
 
 const formatTransactionsResponse = ({ rows, total, page }) => ({
   transactions: Array.isArray(rows) ? rows.map((row) => ({
@@ -102,6 +110,11 @@ const formatTransactionsResponse = ({ rows, total, page }) => ({
   hasMore: (page * PAGE_SIZE) < total,
 });
 
+const clampPageToStoredHistory = (page) => {
+  const maxPage = Math.max(1, Math.ceil(TRANSACTION_HISTORY_LIMIT / PAGE_SIZE));
+  return Math.min(page, maxPage);
+};
+
 export default async function handler(req, res) {
   if (handleOptions(req, res, METHODS)) return;
   setApiHeaders(req, res, METHODS);
@@ -112,7 +125,7 @@ export default async function handler(req, res) {
 
   try {
     const wallet = normalizeWallet(req.query.wallet);
-    const requestedPage = normalizePage(req.query.page);
+    const requestedPage = clampPageToStoredHistory(normalizePage(req.query.page));
     const type = normalizeType(req.query.type);
     const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
     const supabaseKey = String(process.env.SUPABASE_SERVICE_KEY || '').trim();
@@ -139,19 +152,21 @@ export default async function handler(req, res) {
     const supabase = supabaseResult.supabase;
     let page = requestedPage;
 
-    const { count: existingCount, error: existenceError } = await buildExistenceQuery({
+    const { data: latestFetchRow, error: latestFetchError } = await buildLatestFetchQuery({
       supabase,
       wallet,
     });
 
-    if (existenceError) {
-      console.error('[transactions] failed to check existing transactions', existenceError);
+    if (latestFetchError) {
+      console.error('[transactions] failed to check cached transactions', latestFetchError);
       return sendJson(res, 500, { error: 'Failed to fetch transactions' });
     }
 
-    if (!existingCount) {
+    if (!isCacheFresh(latestFetchRow?.fetched_at)) {
       await getOrFetchTransactions(wallet);
-      page = 1;
+      if (!latestFetchRow?.fetched_at) {
+        page = 1;
+      }
     }
 
     const { data, count, error } = await buildTransactionsQuery({

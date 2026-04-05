@@ -294,11 +294,8 @@ export default function TrxHistory({ walletAddress }) {
   };
 
   const txCountLabel = useMemo(() => {
-    if (!transactions.length) {
-      return '0 results';
-    }
-
-    return `${Math.min(transactions.length, total || transactions.length)} of ${total || transactions.length}`;
+    const totalTransactions = Math.max(Number(total || 0), transactions.length);
+    return `${totalTransactions} ${totalTransactions === 1 ? 'transaction' : 'transactions'}`;
   }, [total, transactions.length]);
 
   if (!walletAddress) {

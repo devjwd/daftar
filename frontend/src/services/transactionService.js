@@ -5,9 +5,11 @@ import { getTokenInfo } from "../config/tokens.js";
 import { parseCoinType, getTokenDecimals, isValidAddress } from "../utils/tokenUtils.js";
 
 const REQUEST_TIMEOUT_MS = 10_000;
-const CACHE_TTL_MS = 10 * 60 * 1000;
-const DEFAULT_LIMIT = 500;
-const MAX_LIMIT = 500;
+export const CACHE_TTL_MS = 10 * 60 * 1000;
+export const TRANSACTION_HISTORY_LIMIT = 100;
+const DEFAULT_LIMIT = TRANSACTION_HISTORY_LIMIT;
+const MAX_LIMIT = TRANSACTION_HISTORY_LIMIT;
+const PRUNE_BATCH_SIZE = 250;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
 const COINGECKO_TOKEN_IDS = {
@@ -164,6 +166,11 @@ const postGraphQL = async (query, variables = {}) => {
 const toNumber = (value) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : 0;
+};
+
+const getTimestampMs = (value) => {
+  const timestamp = new Date(value || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
 };
 
 const toIsoDate = (value) => {
@@ -565,6 +572,55 @@ const uniqueTransactions = (rows = []) => {
   return output;
 };
 
+const sortTransactionsByTimestampDesc = (rows = []) => {
+  return [...rows].sort((left, right) => getTimestampMs(right?.tx_timestamp || right?.timestamp) - getTimestampMs(left?.tx_timestamp || left?.timestamp));
+};
+
+const trimTransactions = (rows = [], limit = DEFAULT_LIMIT) => {
+  return sortTransactionsByTimestampDesc(rows).slice(0, normalizeLimit(limit));
+};
+
+const pruneStoredTransactions = async (supabase, walletAddress, keepLimit = DEFAULT_LIMIT) => {
+  if (!supabase || !walletAddress) {
+    return;
+  }
+
+  const normalizedKeepLimit = normalizeLimit(keepLimit);
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("transaction_history")
+      .select("tx_hash")
+      .eq("wallet_address", walletAddress)
+      .order("tx_timestamp", { ascending: false })
+      .range(normalizedKeepLimit, normalizedKeepLimit + PRUNE_BATCH_SIZE - 1);
+
+    if (error) {
+      console.error("Failed to read transaction history for pruning:", error);
+      return;
+    }
+
+    const hashesToDelete = Array.isArray(data)
+      ? data.map((row) => row?.tx_hash).filter(Boolean)
+      : [];
+
+    if (hashesToDelete.length === 0) {
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("transaction_history")
+      .delete()
+      .eq("wallet_address", walletAddress)
+      .in("tx_hash", hashesToDelete);
+
+    if (deleteError) {
+      console.error("Failed to prune transaction history:", deleteError);
+      return;
+    }
+  }
+};
+
 const fetchCoinGeckoHistoricalPrice = async (tokenSymbol, date) => {
   const geckoId = COINGECKO_TOKEN_IDS[String(tokenSymbol || "").toUpperCase()];
   const formattedDate = toCoinGeckoDate(date);
@@ -659,16 +715,16 @@ export const fetchTransactions = async (walletAddress, limit = DEFAULT_LIMIT) =>
   try {
     const primaryRows = await fetchPrimaryTransactions(normalizedAddress, normalizedLimit);
     if (primaryRows.length > 0) {
-      return uniqueTransactions(primaryRows);
+      return trimTransactions(uniqueTransactions(primaryRows), normalizedLimit);
     }
 
     const fallbackRows = await fetchUserTransactionsFallback(normalizedAddress, normalizedLimit);
     if (fallbackRows.length > 0) {
-      return uniqueTransactions(fallbackRows);
+      return trimTransactions(uniqueTransactions(fallbackRows), normalizedLimit);
     }
 
     const activityRows = await fetchActivityFallback(normalizedAddress, normalizedLimit);
-    return uniqueTransactions(activityRows);
+    return trimTransactions(uniqueTransactions(activityRows), normalizedLimit);
   } catch (error) {
     console.error("fetchTransactions failed:", error);
     return [];
@@ -887,13 +943,17 @@ export const getOrFetchTransactions = async (walletAddress) => {
       if (cacheError) {
         console.error("Failed to read transaction cache:", cacheError);
       } else if (Array.isArray(cachedRows) && cachedRows.length > 0) {
+        if (cachedRows.length > limit) {
+          await pruneStoredTransactions(supabase, normalizedAddress, limit);
+        }
+
         const freshestFetch = cachedRows.reduce((latest, row) => {
           const nextTime = new Date(row?.fetched_at || 0).getTime();
           return nextTime > latest ? nextTime : latest;
         }, 0);
 
         if (freshestFetch > 0 && (Date.now() - freshestFetch) < CACHE_TTL_MS) {
-          return cachedRows;
+          return trimTransactions(cachedRows, limit);
         }
       }
     }
@@ -903,7 +963,10 @@ export const getOrFetchTransactions = async (walletAddress) => {
       .map((row) => parseTransaction(row))
       .filter((row) => row.tx_hash);
 
-    const enrichedTransactions = await enrichTransactionsWithUsd(normalizedAddress, parsedTransactions);
+    const enrichedTransactions = trimTransactions(
+      await enrichTransactionsWithUsd(normalizedAddress, parsedTransactions),
+      limit
+    );
 
     if (supabase && enrichedTransactions.length > 0) {
       try {
@@ -914,6 +977,8 @@ export const getOrFetchTransactions = async (walletAddress) => {
         if (error) {
           console.error("Failed to upsert transaction history:", error);
         }
+
+        await pruneStoredTransactions(supabase, normalizedAddress, limit);
       } catch (error) {
         console.error("Failed to save transaction history:", error);
       }
@@ -929,16 +994,14 @@ export const getOrFetchTransactions = async (walletAddress) => {
         if (refreshedError) {
           console.error("Failed to read refreshed transaction history:", refreshedError);
         } else if (Array.isArray(refreshedRows)) {
-          return refreshedRows;
+          return trimTransactions(refreshedRows, limit);
         }
       } catch (error) {
         console.error("Failed to fetch refreshed transaction history:", error);
       }
     }
 
-    return enrichedTransactions
-      .sort((left, right) => new Date(right.tx_timestamp || 0).getTime() - new Date(left.tx_timestamp || 0).getTime())
-      .slice(0, limit);
+    return trimTransactions(enrichedTransactions, limit);
   } catch (error) {
     console.error("getOrFetchTransactions failed:", error);
     return [];
