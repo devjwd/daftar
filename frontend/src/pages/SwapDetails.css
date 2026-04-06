@@ -8,12 +8,12 @@
 .swap-details-shell {
   width: min(470px, 100%);
   border-radius: 24px;
-  border: 1px solid rgba(130, 99, 171, 0.42);
+  border: 1px solid var(--border-subtle);
   background:
-    radial-gradient(circle at 10% -10%, rgba(78, 196, 186, 0.12), transparent 52%),
-    radial-gradient(circle at 100% 100%, rgba(205, 161, 105, 0.12), transparent 44%),
-    linear-gradient(165deg, rgba(29, 15, 46, 0.96), rgba(17, 9, 31, 0.96));
-  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.45);
+    radial-gradient(circle at 12% -12%, rgba(205, 161, 105, 0.14), transparent 52%),
+    radial-gradient(circle at 100% 100%, rgba(222, 184, 132, 0.1), transparent 42%),
+    linear-gradient(165deg, rgba(31, 26, 23, 0.96), rgba(20, 17, 15, 0.96));
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
   padding: 1rem;
 }
 
@@ -28,16 +28,16 @@
   margin: 0;
   text-align: center;
   font: 700 1.35rem/1.1 "Space Grotesk", "Avenir Next", sans-serif;
-  color: #f8f1ff;
+  color: var(--text-primary);
 }
 
 .swap-details-back {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  border: 1px solid rgba(143, 113, 181, 0.45);
-  background: rgba(44, 24, 68, 0.84);
-  color: #e6d8f4;
+  border: 1px solid var(--border-subtle);
+  background: var(--glass);
+  color: var(--text-primary);
   font-size: 1.2rem;
   cursor: pointer;
 }
@@ -51,15 +51,15 @@
   margin-top: 0.95rem;
   display: flex;
   justify-content: space-between;
-  color: #ccb6df;
+  color: var(--text-secondary);
   font-size: 0.8rem;
 }
 
 .swap-details-card {
   margin-top: 0.78rem;
   border-radius: 16px;
-  border: 1px solid rgba(130, 99, 171, 0.44);
-  background: linear-gradient(150deg, rgba(53, 30, 78, 0.9), rgba(38, 22, 57, 0.88));
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(150deg, rgba(205, 161, 105, 0.1), rgba(29, 25, 22, 0.88));
   padding: 0.9rem;
 }
 
@@ -68,7 +68,7 @@
 }
 
 .swap-details-card-title {
-  color: #e7d8f5;
+  color: var(--text-primary);
   font: 700 1rem/1.2 "Space Grotesk", "Avenir Next", sans-serif;
 }
 
@@ -87,23 +87,23 @@
 }
 
 .swap-details-token-amount {
-  color: #ffffff;
+  color: var(--text-primary);
   font: 700 1.5rem/1 "Space Grotesk", "Avenir Next", sans-serif;
 }
 
 .swap-details-token-symbol {
-  color: #d6c4e8;
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
 .swap-details-arrow {
-  color: #a989c7;
+  color: var(--primary);
   font-size: 1rem;
 }
 
 .swap-details-provider {
   margin-top: 0.7rem;
-  color: #bfece3;
+  color: var(--primary-light);
   font-weight: 600;
 }
 
@@ -114,7 +114,7 @@
 }
 
 .swap-details-status {
-  color: #cfeee6;
+  color: var(--success);
   font-size: 0.88rem;
 }
 
@@ -122,7 +122,7 @@
   display: flex;
   justify-content: space-between;
   gap: 0.7rem;
-  color: #d4c1e6;
+  color: var(--text-secondary);
   font-size: 0.86rem;
 }
 
@@ -131,7 +131,7 @@
 }
 
 .swap-details-kv strong {
-  color: #f4ebff;
+  color: var(--text-primary);
 }
 
 .swap-details-transfer-head {
@@ -139,12 +139,12 @@
   justify-content: space-between;
   align-items: center;
   gap: 0.6rem;
-  color: #dbc7ed;
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
 .swap-details-open {
-  color: #c6f2e8;
+  color: var(--primary-light);
   text-decoration: none;
   font-size: 0.84rem;
 }
@@ -156,7 +156,7 @@
 .swap-details-card code {
   margin-top: 0.6rem;
   display: block;
-  color: #f5efff;
+  color: var(--text-primary);
   word-break: break-all;
   font-size: 0.8rem;
   font-family: "IBM Plex Mono", "Courier New", monospace;
@@ -167,8 +167,8 @@
   margin-top: 0.84rem;
   border: none;
   border-radius: 999px;
-  background: linear-gradient(100deg, #7348a9, #8f66c2);
-  color: #faf7ff;
+  background: var(--gradient-primary);
+  color: var(--bg-primary);
   font: 700 0.95rem/1 "Space Grotesk", "Avenir Next", sans-serif;
   padding: 0.85rem 1rem;
   cursor: pointer;
@@ -177,19 +177,19 @@
 .swap-details-empty {
   margin-top: 1rem;
   border-radius: 14px;
-  border: 1px dashed rgba(144, 111, 184, 0.52);
+  border: 1px dashed var(--border-subtle);
   padding: 1.2rem;
   text-align: center;
-  color: #ddc9ef;
+  color: var(--text-secondary);
 }
 
 .swap-details-empty button {
   margin-top: 0.7rem;
-  border: none;
+  border: 1px solid var(--border-subtle);
   border-radius: 999px;
   padding: 0.66rem 0.9rem;
-  background: rgba(116, 77, 165, 0.95);
-  color: #fff;
+  background: var(--glass-hover);
+  color: var(--text-primary);
   font-weight: 600;
   cursor: pointer;
 }

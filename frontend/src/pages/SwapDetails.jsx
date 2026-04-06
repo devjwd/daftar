@@ -127,7 +127,7 @@ export default function SwapDetails() {
 
         <section className="swap-details-card compact">
           <div className="swap-details-transfer-head">
-            <span>Transfer ID</span>
+            <span>Trx hash</span>
             {txLink ? (
               <a href={txLink} target="_blank" rel="noopener noreferrer" className="swap-details-open">
                 Open ↗

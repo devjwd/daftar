@@ -544,12 +544,12 @@
 .swap-complete-modal {
   width: min(430px, 100%);
   border-radius: 24px;
-  border: 1px solid rgba(126, 94, 165, 0.45);
+  border: 1px solid var(--border-medium);
   background:
-    radial-gradient(circle at 20% -10%, rgba(78, 196, 186, 0.16), transparent 50%),
-    radial-gradient(circle at 95% 95%, rgba(205, 161, 105, 0.14), transparent 46%),
-    linear-gradient(160deg, rgba(34, 20, 55, 0.97), rgba(19, 10, 34, 0.96));
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+    radial-gradient(circle at 18% -10%, rgba(205, 161, 105, 0.16), transparent 50%),
+    radial-gradient(circle at 95% 95%, rgba(222, 184, 132, 0.1), transparent 44%),
+    linear-gradient(160deg, rgba(31, 26, 23, 0.98), rgba(18, 15, 13, 0.96));
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
   padding: 1.4rem;
 }
 
@@ -560,29 +560,29 @@
   border-radius: 999px;
   display: grid;
   place-items: center;
-  color: #4ee3ae;
+  color: #d7ffee;
   font: 700 2rem/1 "Space Grotesk", "Avenir Next", sans-serif;
-  background: radial-gradient(circle at 30% 20%, rgba(78, 227, 174, 0.3), rgba(19, 63, 53, 0.35));
-  border: 1px solid rgba(78, 227, 174, 0.45);
+  background: radial-gradient(circle at 30% 20%, rgba(54, 198, 144, 0.3), rgba(17, 49, 40, 0.5));
+  border: 1px solid rgba(205, 161, 105, 0.3);
 }
 
 .swap-complete-modal h3 {
   margin: 0 0 1rem;
   text-align: center;
-  color: #f7f0ff;
+  color: var(--text-primary);
   font: 700 1.75rem/1.08 "Space Grotesk", "Avenir Next", sans-serif;
 }
 
 .swap-complete-received {
   border-radius: 16px;
-  border: 1px solid rgba(133, 104, 170, 0.45);
-  background: linear-gradient(145deg, rgba(51, 28, 74, 0.9), rgba(35, 19, 55, 0.88));
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(145deg, rgba(205, 161, 105, 0.12), rgba(29, 25, 22, 0.88));
   padding: 0.9rem;
 }
 
 .swap-complete-label {
   display: block;
-  color: #d4c2e6;
+  color: var(--text-secondary);
   font: 600 0.8rem/1 "Space Grotesk", "Avenir Next", sans-serif;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -611,18 +611,18 @@
   display: grid;
   place-items: center;
   font-weight: 700;
-  color: #231735;
-  background: linear-gradient(145deg, #f4e4ff, #c9b0e6);
+  color: #2a1f1a;
+  background: linear-gradient(145deg, #deb884, #cda169);
 }
 
 .swap-complete-amount {
-  color: #ffffff;
+  color: var(--text-primary);
   font: 700 1.2rem/1.15 "Space Grotesk", "Avenir Next", sans-serif;
 }
 
 .swap-complete-sub {
   margin-top: 0.15rem;
-  color: #c9b3df;
+  color: var(--text-muted);
   font-size: 0.82rem;
 }
 
@@ -648,14 +648,14 @@
 }
 
 .swap-complete-btn-ghost {
-  color: #e7d7f6;
-  border: 1px solid rgba(146, 116, 184, 0.5);
-  background: rgba(67, 41, 94, 0.78);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  background: var(--glass-hover);
 }
 
 .swap-complete-btn-primary {
-  color: #f9f8ff;
-  background: linear-gradient(100deg, #7044a6, #8861be);
+  color: var(--bg-primary);
+  background: var(--gradient-primary);
 }
 
 .tx-toast-pending {
