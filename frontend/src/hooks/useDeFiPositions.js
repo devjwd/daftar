@@ -39,6 +39,220 @@ const devLog = (...args) => {
   }
 };
 
+const DEFI_POSITION_CACHE_TTL_MS = 2 * 60 * 1000;
+const RESOURCE_CACHE_TTL_MS = 45 * 1000;
+const ACCOUNT_TX_CACHE_TTL_MS = 5 * 60 * 1000;
+const VIEW_CACHE_TTL_MS = 10 * 60 * 1000;
+const DEFI_POSITION_CACHE_PREFIX = "movement_defi_positions_v1:";
+
+const accountResourcesCache = new Map();
+const accountTransactionsCache = new Map();
+const viewResultCache = new Map();
+const defiPositionsCache = new Map();
+
+const getFreshCacheEntry = (cache, key, ttlMs) => {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (entry.value !== undefined && (Date.now() - entry.cachedAt) < ttlMs) {
+    return entry.value;
+  }
+  return null;
+};
+
+const getOrLoadCached = async (cache, key, ttlMs, loader) => {
+  const cachedValue = getFreshCacheEntry(cache, key, ttlMs);
+  if (cachedValue !== null) {
+    return cachedValue;
+  }
+
+  const inFlight = cache.get(key);
+  if (inFlight?.promise) {
+    return inFlight.promise;
+  }
+
+  const promise = Promise.resolve()
+    .then(loader)
+    .then((value) => {
+      cache.set(key, {
+        value,
+        cachedAt: Date.now(),
+      });
+      return value;
+    })
+    .catch((error) => {
+      cache.delete(key);
+      throw error;
+    });
+
+  cache.set(key, {
+    promise,
+    cachedAt: Date.now(),
+  });
+
+  return promise;
+};
+
+const loadPersistedDeFiPositions = (address) => {
+  if (!address) return null;
+
+  const memoryEntry = getFreshCacheEntry(defiPositionsCache, address, DEFI_POSITION_CACHE_TTL_MS);
+  if (memoryEntry) {
+    return memoryEntry;
+  }
+
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(`${DEFI_POSITION_CACHE_PREFIX}${address}`);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.positions) || !Number.isFinite(parsed.cachedAt)) {
+      return null;
+    }
+
+    if ((Date.now() - parsed.cachedAt) >= DEFI_POSITION_CACHE_TTL_MS) {
+      return null;
+    }
+
+    defiPositionsCache.set(address, {
+      value: parsed,
+      cachedAt: parsed.cachedAt,
+    });
+
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const persistDeFiPositions = (address, positions) => {
+  if (!address || !Array.isArray(positions)) return;
+
+  const snapshot = {
+    positions,
+    cachedAt: Date.now(),
+  };
+
+  defiPositionsCache.set(address, {
+    value: snapshot,
+    cachedAt: snapshot.cachedAt,
+  });
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(`${DEFI_POSITION_CACHE_PREFIX}${address}`, JSON.stringify(snapshot));
+  } catch {
+    // ignore storage failures
+  }
+};
+
+const sortDetectedPositions = (positions = []) => {
+  const typeOrder = {
+    "Lending": 0, "Staking": 1, "Liquidity": 2,
+    "Farming": 3, "Yield": 4, "CDP": 5, "Debt": 6, "DeFi": 7,
+  };
+
+  return [...positions].sort((a, b) => {
+    const orderDiff = (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
+    if (orderDiff !== 0) return orderDiff;
+    return (b.numericValue || 0) - (a.numericValue || 0);
+  });
+};
+
+const discoverNativeStakingPositions = async ({ client, targetAddress, protocolInfo }) => {
+  const accountTxns = await getOrLoadCached(
+    accountTransactionsCache,
+    `account_tx:${targetAddress}`,
+    ACCOUNT_TX_CACHE_TTL_MS,
+    () => client.getAccountTransactions({
+      accountAddress: targetAddress,
+      options: { limit: 100 },
+    })
+  );
+
+  const poolAddresses = new Set();
+
+  for (const tx of accountTxns || []) {
+    const fn = String(tx?.payload?.function || "").toLowerCase();
+    if (!fn.startsWith("0x1::delegation_pool::")) continue;
+
+    const args = tx?.payload?.arguments;
+    const maybePool = String(Array.isArray(args) ? args[0] || "" : "").toLowerCase();
+    if (/^0x[0-9a-f]+$/.test(maybePool)) {
+      poolAddresses.add(maybePool);
+    }
+  }
+
+  const poolResults = await Promise.all(
+    Array.from(poolAddresses).map(async (poolAddress) => {
+      try {
+        const stakeResult = await client.view({
+          payload: {
+            function: "0x1::delegation_pool::get_stake",
+            typeArguments: [],
+            functionArguments: [poolAddress, targetAddress],
+          },
+        });
+
+        const activeStakeRaw = Number(stakeResult?.[0] || 0);
+        const inactiveStakeRaw = Number(stakeResult?.[1] || 0);
+        const pendingActiveRaw = Number(stakeResult?.[2] || 0);
+
+        let pendingWithdrawalRaw = 0;
+        try {
+          const pendingWithdrawalResult = await client.view({
+            payload: {
+              function: "0x1::delegation_pool::get_pending_withdrawal",
+              typeArguments: [],
+              functionArguments: [poolAddress, targetAddress],
+            },
+          });
+          pendingWithdrawalRaw = Number(pendingWithdrawalResult?.[0] || 0);
+        } catch {
+          // optional path; some pools may return no pending withdrawal
+        }
+
+        const totalRaw = activeStakeRaw + inactiveStakeRaw + pendingActiveRaw + pendingWithdrawalRaw;
+        const numericValue = totalRaw / 100000000;
+        if (numericValue <= 0.0001) {
+          return null;
+        }
+
+        devLog(`  ✅ Native staking: ${numericValue.toFixed(4)} MOVE @ ${poolAddress.slice(0, 12)}...`);
+
+        return {
+          id: `movement_native_staking_${poolAddress.slice(2, 10)}`,
+          name: "Movement Native Staking",
+          type: "Staking",
+          value: numericValue.toFixed(4),
+          numericValue,
+          tokenSymbol: "MOVE",
+          resourceType: `0x1::delegation_pool::get_stake<${poolAddress}>`,
+          source: "view",
+          protocol: protocolInfo,
+          protocolName: protocolInfo.name,
+          protocolWebsite: protocolInfo.website,
+          stakedAmount: activeStakeRaw,
+          pendingStakeAmount: inactiveStakeRaw + pendingActiveRaw,
+          pendingWithdrawalAmount: pendingWithdrawalRaw,
+          poolAddress,
+        };
+      } catch (poolError) {
+        devLog(`  ⚠️ Could not read native stake for pool ${poolAddress.slice(0, 12)}...:`, poolError?.message || poolError);
+        return null;
+      }
+    })
+  );
+
+  return poolResults.filter(Boolean);
+};
+
 // =============================================================================
 // DEFI RESOURCE PATTERNS - Intelligent Pattern Matching
 // =============================================================================
@@ -348,6 +562,7 @@ export const useDeFiPositions = (searchAddress = null) => {
   const [error, setError] = useState(null);
   const fetchInProgress = useRef(false);
   const lastFetchedAddress = useRef(null);
+  const fetchGeneration = useRef(0);
 
   // Aptos client (memoized to prevent re-initialization)
   const client = useMemo(() => 
@@ -405,7 +620,9 @@ export const useDeFiPositions = (searchAddress = null) => {
   /**
    * Main fetch function - scans account resources for DeFi positions
    */
-  const fetchPositions = useCallback(async () => {
+  const fetchPositions = useCallback(async (options = {}) => {
+    const forceRefresh = options.force === true;
+
     if (!targetAddress) {
       setPositions([]);
       setError(null);
@@ -421,12 +638,27 @@ export const useDeFiPositions = (searchAddress = null) => {
       return;
     }
     
+    const cachedSnapshot = loadPersistedDeFiPositions(targetAddress);
+    const hasFreshCachedPositions = Boolean(cachedSnapshot?.positions?.length);
+
+    if (hasFreshCachedPositions && !forceRefresh) {
+      lastFetchedAddress.current = targetAddress;
+      setPositions(cachedSnapshot.positions);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     // Check if we're fetching a different address - if so, clear cache
     if (lastFetchedAddress.current !== targetAddress) {
       if (import.meta.env.DEV) {
         console.log("🔄 New address detected, clearing cache...");
       }
-      setPositions([]); // Clear old positions for new address
+      if (hasFreshCachedPositions) {
+        setPositions(cachedSnapshot.positions);
+      } else {
+        setPositions([]);
+      }
     }
     
     // Note: removed stale cache check — the useEffect guards against unnecessary re-fetches
@@ -434,6 +666,8 @@ export const useDeFiPositions = (searchAddress = null) => {
 
     fetchInProgress.current = true;
     lastFetchedAddress.current = targetAddress;
+    fetchGeneration.current += 1;
+    const currentFetchGeneration = fetchGeneration.current;
     setLoading(true);
     setError(null);
 
@@ -446,9 +680,14 @@ export const useDeFiPositions = (searchAddress = null) => {
 
     try {
       // Fetch all account resources via RPC
-      const resources = await client.getAccountResources({
-        accountAddress: targetAddress,
-      });
+      const resources = await getOrLoadCached(
+        accountResourcesCache,
+        `resources:${targetAddress}`,
+        RESOURCE_CACHE_TTL_MS,
+        () => client.getAccountResources({
+          accountAddress: targetAddress,
+        })
+      );
 
       if (import.meta.env.DEV) {
         console.log(`📦 Total resources fetched: ${resources.length}`);
@@ -594,99 +833,115 @@ export const useDeFiPositions = (searchAddress = null) => {
           const collateralItems = resourceData?.collaterals?.items || [];
           const collateralKeys = resourceData?.collaterals?.keys?.items || [];
           
-          for (let index = 0; index < collateralKeys.length; index++) {
-            const rawNotes = collateralItems[index];
-            if (!rawNotes || Number(rawNotes) <= 0) continue;
-            
-            const tokenInfo = decodeTokenInfo(collateralKeys[index]?.struct_name);
-            if (!tokenInfo) continue;
-            
-            try {
-              // Call view function to convert deposit notes to actual coin amount
-              const result = await client.view({
-                payload: {
-                  function: `${MOVEPOSITION_CONTRACT}::broker::calc_coins_from_dnotes`,
-                  typeArguments: [tokenInfo.coinType],
-                  functionArguments: [rawNotes]
-                }
-              });
-              
-              const actualAmount = Number(result[0]);
-              const decimals = getDecimals(tokenInfo.symbol);
-              const value = actualAmount / Math.pow(10, decimals);
-              
-              // Skip dust amounts
-              if (value < 0.001) continue;
-              
-              devLog(`  ✅ Found: MovePosition Supply - ${tokenInfo.symbol}`);
-              devLog(`     Notes: ${rawNotes} → Actual: ${value.toFixed(4)} ${tokenInfo.symbol}`);
-              
-              detectedPositions.push({
-                id: `moveposition_supply_${tokenInfo.symbol.toLowerCase()}_${detectedPositions.length}`,
-                name: `MovePosition Supply`,
-                type: "Lending",
-                value: value.toFixed(4),
-                numericValue: value,
-                tokenSymbol: tokenInfo.symbol,
-                resourceType: resourceType,
-                source: "rpc",
-                protocol: PROTOCOL_REGISTRY.MOVEPOSITION,
-                protocolName: "MovePosition",
-                protocolWebsite: "https://moveposition.xyz",
-              });
-            } catch (err) {
-              devLog(`  ⚠️ Could not get actual value for ${tokenInfo.symbol}:`, err.message);
-            }
-          }
+          const collateralResults = await Promise.all(
+            collateralKeys.map(async (collateralKey, index) => {
+              const rawNotes = collateralItems[index];
+              if (!rawNotes || Number(rawNotes) <= 0) return null;
+
+              const tokenInfo = decodeTokenInfo(collateralKey?.struct_name);
+              if (!tokenInfo) return null;
+
+              try {
+                const result = await client.view({
+                  payload: {
+                    function: `${MOVEPOSITION_CONTRACT}::broker::calc_coins_from_dnotes`,
+                    typeArguments: [tokenInfo.coinType],
+                    functionArguments: [rawNotes]
+                  }
+                });
+
+                const actualAmount = Number(result[0]);
+                const decimals = getDecimals(tokenInfo.symbol);
+                const value = actualAmount / Math.pow(10, decimals);
+
+                if (value < 0.001) return null;
+
+                devLog(`  ✅ Found: MovePosition Supply - ${tokenInfo.symbol}`);
+                devLog(`     Notes: ${rawNotes} → Actual: ${value.toFixed(4)} ${tokenInfo.symbol}`);
+
+                return {
+                  idPrefix: `moveposition_supply_${tokenInfo.symbol.toLowerCase()}`,
+                  name: `MovePosition Supply`,
+                  type: "Lending",
+                  value: value.toFixed(4),
+                  numericValue: value,
+                  tokenSymbol: tokenInfo.symbol,
+                  resourceType: resourceType,
+                  source: "rpc",
+                  protocol: PROTOCOL_REGISTRY.MOVEPOSITION,
+                  protocolName: "MovePosition",
+                  protocolWebsite: "https://moveposition.xyz",
+                };
+              } catch (err) {
+                devLog(`  ⚠️ Could not get actual value for ${tokenInfo.symbol}:`, err.message);
+                return null;
+              }
+            })
+          );
+
+          collateralResults.filter(Boolean).forEach((position) => {
+            detectedPositions.push({
+              ...position,
+              id: `${position.idPrefix}_${detectedPositions.length}`,
+            });
+          });
           
           // Process liability (borrow) positions with view function calls
           const liabilityItems = resourceData?.liabilities?.items || [];
           const liabilityKeys = resourceData?.liabilities?.keys?.items || [];
           
-          for (let index = 0; index < liabilityKeys.length; index++) {
-            const rawNotes = liabilityItems[index];
-            if (!rawNotes || Number(rawNotes) <= 0) continue;
-            
-            const tokenInfo = decodeTokenInfo(liabilityKeys[index]?.struct_name);
-            if (!tokenInfo) continue;
-            
-            try {
-              // Call view function to convert loan notes to actual coin amount
-              const result = await client.view({
-                payload: {
-                  function: `${MOVEPOSITION_CONTRACT}::broker::calc_coins_from_lnotes`,
-                  typeArguments: [tokenInfo.coinType],
-                  functionArguments: [rawNotes]
-                }
-              });
-              
-              const actualAmount = Number(result[0]);
-              const decimals = getDecimals(tokenInfo.symbol);
-              const value = actualAmount / Math.pow(10, decimals);
-              
-              // Skip dust amounts
-              if (value < 0.001) continue;
-              
-              devLog(`  ✅ Found: MovePosition Debt - ${tokenInfo.symbol}`);
-              devLog(`     Notes: ${rawNotes} → Actual: ${value.toFixed(4)} ${tokenInfo.symbol}`);
-              
-              detectedPositions.push({
-                id: `moveposition_debt_${tokenInfo.symbol.toLowerCase()}_${detectedPositions.length}`,
-                name: `MovePosition Debt`,
-                type: "Debt",
-                value: value.toFixed(4),
-                numericValue: value,
-                tokenSymbol: tokenInfo.symbol,
-                resourceType: resourceType,
-                source: "rpc",
-                protocol: PROTOCOL_REGISTRY.MOVEPOSITION,
-                protocolName: "MovePosition",
-                protocolWebsite: "https://moveposition.xyz",
-              });
-            } catch (err) {
-              devLog(`  ⚠️ Could not get actual value for ${tokenInfo.symbol}:`, err.message);
-            }
-          }
+          const liabilityResults = await Promise.all(
+            liabilityKeys.map(async (liabilityKey, index) => {
+              const rawNotes = liabilityItems[index];
+              if (!rawNotes || Number(rawNotes) <= 0) return null;
+
+              const tokenInfo = decodeTokenInfo(liabilityKey?.struct_name);
+              if (!tokenInfo) return null;
+
+              try {
+                const result = await client.view({
+                  payload: {
+                    function: `${MOVEPOSITION_CONTRACT}::broker::calc_coins_from_lnotes`,
+                    typeArguments: [tokenInfo.coinType],
+                    functionArguments: [rawNotes]
+                  }
+                });
+
+                const actualAmount = Number(result[0]);
+                const decimals = getDecimals(tokenInfo.symbol);
+                const value = actualAmount / Math.pow(10, decimals);
+
+                if (value < 0.001) return null;
+
+                devLog(`  ✅ Found: MovePosition Debt - ${tokenInfo.symbol}`);
+                devLog(`     Notes: ${rawNotes} → Actual: ${value.toFixed(4)} ${tokenInfo.symbol}`);
+
+                return {
+                  idPrefix: `moveposition_debt_${tokenInfo.symbol.toLowerCase()}`,
+                  name: `MovePosition Debt`,
+                  type: "Debt",
+                  value: value.toFixed(4),
+                  numericValue: value,
+                  tokenSymbol: tokenInfo.symbol,
+                  resourceType: resourceType,
+                  source: "rpc",
+                  protocol: PROTOCOL_REGISTRY.MOVEPOSITION,
+                  protocolName: "MovePosition",
+                  protocolWebsite: "https://moveposition.xyz",
+                };
+              } catch (err) {
+                devLog(`  ⚠️ Could not get actual value for ${tokenInfo.symbol}:`, err.message);
+                return null;
+              }
+            })
+          );
+
+          liabilityResults.filter(Boolean).forEach((position) => {
+            detectedPositions.push({
+              ...position,
+              id: `${position.idPrefix}_${detectedPositions.length}`,
+            });
+          });
           
           continue; // Move to next resource
         }
@@ -736,119 +991,141 @@ export const useDeFiPositions = (searchAddress = null) => {
           // Process collateral (supply) positions
           const collateralData = resourceData?.collaterals?.data || [];
           
-          for (const collateral of collateralData) {
-            const marketAddr = collateral?.key?.inner;
-            const shares = collateral?.value;
-            
-            if (!marketAddr || !shares || Number(shares) <= 0) continue;
-            
-            try {
-              // Get market asset name first
-              const nameResult = await client.view({
-                payload: {
-                  function: `${ECHELON_CONTRACT}::lending::market_asset_name`,
-                  typeArguments: [],
-                  functionArguments: [marketAddr]
-                }
-              });
-              const assetName = nameResult[0] || "Unknown";
-              const { symbol, decimals, supported } = getAssetInfo(assetName);
-              if (!supported) continue;
-              
-              // Get actual coin amount using account_coins view function
-              const coinsResult = await client.view({
-                payload: {
-                  function: `${ECHELON_CONTRACT}::lending::account_coins`,
-                  typeArguments: [],
-                  functionArguments: [targetAddress, marketAddr]
-                }
-              });
-              
-              const actualAmount = Number(coinsResult[0]);
-              const value = actualAmount / Math.pow(10, decimals);
-              
-              // Keep tiny amounts for Echelon (e.g. 0.00000018 WBTC)
-              if (value <= 0) continue;
-              
-              devLog(`  ✅ Found: Echelon Supply - ${symbol}`);
-              devLog(`     Shares: ${shares} → Actual: ${value.toFixed(4)} ${symbol}`);
-              
-              detectedPositions.push({
-                id: `echelon_supply_${symbol.toLowerCase()}_${detectedPositions.length}`,
-                name: `Echelon Supply`,
-                type: "Lending",
-                value: value < 0.01 ? value.toFixed(8) : value.toFixed(4),
-                numericValue: value,
-                tokenSymbol: symbol,
-                resourceType: resourceType,
-                source: "rpc",
-                protocol: PROTOCOL_REGISTRY.ECHELON,
-                protocolName: "Echelon",
-                protocolWebsite: "https://app.echelon.market",
-              });
-            } catch (err) {
-              devLog(`  ⚠️ Could not get Echelon supply for market ${marketAddr}:`, err.message);
-            }
-          }
+          const collateralResults = await Promise.all(
+            collateralData.map(async (collateral) => {
+              const marketAddr = collateral?.key?.inner;
+              const shares = collateral?.value;
+
+              if (!marketAddr || !shares || Number(shares) <= 0) return null;
+
+              try {
+                const nameResult = await getOrLoadCached(
+                  viewResultCache,
+                  `echelon_market_name:${marketAddr}`,
+                  VIEW_CACHE_TTL_MS,
+                  () => client.view({
+                    payload: {
+                      function: `${ECHELON_CONTRACT}::lending::market_asset_name`,
+                      typeArguments: [],
+                      functionArguments: [marketAddr]
+                    }
+                  })
+                );
+                const assetName = nameResult[0] || "Unknown";
+                const { symbol, decimals, supported } = getAssetInfo(assetName);
+                if (!supported) return null;
+
+                const coinsResult = await client.view({
+                  payload: {
+                    function: `${ECHELON_CONTRACT}::lending::account_coins`,
+                    typeArguments: [],
+                    functionArguments: [targetAddress, marketAddr]
+                  }
+                });
+
+                const actualAmount = Number(coinsResult[0]);
+                const value = actualAmount / Math.pow(10, decimals);
+                if (value <= 0) return null;
+
+                devLog(`  ✅ Found: Echelon Supply - ${symbol}`);
+                devLog(`     Shares: ${shares} → Actual: ${value.toFixed(4)} ${symbol}`);
+
+                return {
+                  idPrefix: `echelon_supply_${symbol.toLowerCase()}`,
+                  name: `Echelon Supply`,
+                  type: "Lending",
+                  value: value < 0.01 ? value.toFixed(8) : value.toFixed(4),
+                  numericValue: value,
+                  tokenSymbol: symbol,
+                  resourceType: resourceType,
+                  source: "rpc",
+                  protocol: PROTOCOL_REGISTRY.ECHELON,
+                  protocolName: "Echelon",
+                  protocolWebsite: "https://app.echelon.market",
+                };
+              } catch (err) {
+                devLog(`  ⚠️ Could not get Echelon supply for market ${marketAddr}:`, err.message);
+                return null;
+              }
+            })
+          );
+
+          collateralResults.filter(Boolean).forEach((position) => {
+            detectedPositions.push({
+              ...position,
+              id: `${position.idPrefix}_${detectedPositions.length}`,
+            });
+          });
           
           // Process liability (borrow) positions
           const liabilityData = resourceData?.liabilities?.data || [];
           
-          for (const liability of liabilityData) {
-            const marketAddr = liability?.key?.inner;
-            const liabilityInfo = liability?.value;
-            const principal = liabilityInfo?.principal;
-            
-            if (!marketAddr || !principal || Number(principal) <= 0) continue;
-            
-            try {
-              // Get market asset name first
-              const nameResult = await client.view({
-                payload: {
-                  function: `${ECHELON_CONTRACT}::lending::market_asset_name`,
-                  typeArguments: [],
-                  functionArguments: [marketAddr]
-                }
-              });
-              const assetName = nameResult[0] || "Unknown";
-              const { symbol, decimals, supported } = getAssetInfo(assetName);
-              if (!supported) continue;
-              
-              // Get actual liability amount using account_liability view function
-              const debtResult = await client.view({
-                payload: {
-                  function: `${ECHELON_CONTRACT}::lending::account_liability`,
-                  typeArguments: [],
-                  functionArguments: [targetAddress, marketAddr]
-                }
-              });
-              
-              const actualDebt = Number(debtResult[0]);
-              const value = actualDebt / Math.pow(10, decimals);
-              
-              // Keep tiny amounts for Echelon (e.g. very small borrow balances)
-              if (value <= 0) continue;
-              
-              devLog(`  ✅ Found: Echelon Debt - ${symbol}`);
-              devLog(`     Principal: ${principal} → Actual: ${value.toFixed(4)} ${symbol}`);
-              
-              detectedPositions.push({
-                id: `echelon_debt_${symbol.toLowerCase()}_${detectedPositions.length}`,
-                name: `Echelon Debt`,
-                type: "Debt",
-                value: value < 0.01 ? value.toFixed(8) : value.toFixed(4),
-                numericValue: value,
-                tokenSymbol: symbol,
-                resourceType: resourceType,
-                source: "rpc",
-                protocol: PROTOCOL_REGISTRY.ECHELON,
-                protocolName: "Echelon",
-                protocolWebsite: "https://app.echelon.market",
-              });
-            } catch (err) {
-              devLog(`  ⚠️ Could not get Echelon debt for market ${marketAddr}:`, err.message);
-            }
-          }
+          const liabilityResults = await Promise.all(
+            liabilityData.map(async (liability) => {
+              const marketAddr = liability?.key?.inner;
+              const liabilityInfo = liability?.value;
+              const principal = liabilityInfo?.principal;
+
+              if (!marketAddr || !principal || Number(principal) <= 0) return null;
+
+              try {
+                const nameResult = await getOrLoadCached(
+                  viewResultCache,
+                  `echelon_market_name:${marketAddr}`,
+                  VIEW_CACHE_TTL_MS,
+                  () => client.view({
+                    payload: {
+                      function: `${ECHELON_CONTRACT}::lending::market_asset_name`,
+                      typeArguments: [],
+                      functionArguments: [marketAddr]
+                    }
+                  })
+                );
+                const assetName = nameResult[0] || "Unknown";
+                const { symbol, decimals, supported } = getAssetInfo(assetName);
+                if (!supported) return null;
+
+                const debtResult = await client.view({
+                  payload: {
+                    function: `${ECHELON_CONTRACT}::lending::account_liability`,
+                    typeArguments: [],
+                    functionArguments: [targetAddress, marketAddr]
+                  }
+                });
+
+                const actualDebt = Number(debtResult[0]);
+                const value = actualDebt / Math.pow(10, decimals);
+                if (value <= 0) return null;
+
+                devLog(`  ✅ Found: Echelon Debt - ${symbol}`);
+                devLog(`     Principal: ${principal} → Actual: ${value.toFixed(4)} ${symbol}`);
+
+                return {
+                  idPrefix: `echelon_debt_${symbol.toLowerCase()}`,
+                  name: `Echelon Debt`,
+                  type: "Debt",
+                  value: value < 0.01 ? value.toFixed(8) : value.toFixed(4),
+                  numericValue: value,
+                  tokenSymbol: symbol,
+                  resourceType: resourceType,
+                  source: "rpc",
+                  protocol: PROTOCOL_REGISTRY.ECHELON,
+                  protocolName: "Echelon",
+                  protocolWebsite: "https://app.echelon.market",
+                };
+              } catch (err) {
+                devLog(`  ⚠️ Could not get Echelon debt for market ${marketAddr}:`, err.message);
+                return null;
+              }
+            })
+          );
+
+          liabilityResults.filter(Boolean).forEach((position) => {
+            detectedPositions.push({
+              ...position,
+              id: `${position.idPrefix}_${detectedPositions.length}`,
+            });
+          });
           
           continue; // Move to next resource
         }
@@ -1008,13 +1285,18 @@ export const useDeFiPositions = (searchAddress = null) => {
         devLog("  🏦 Scanning LayerBank positions...");
         
         try {
-          const reservesResult = await client.view({
-            payload: {
-              function: `${LAYERBANK_CONTRACT}::pool_data_provider::get_user_all_reserves_data`,
-              typeArguments: [],
-              functionArguments: [targetAddress]
-            }
-          });
+          const reservesResult = await getOrLoadCached(
+            viewResultCache,
+            `layerbank_reserves:${targetAddress}`,
+            RESOURCE_CACHE_TTL_MS,
+            () => client.view({
+              payload: {
+                function: `${LAYERBANK_CONTRACT}::pool_data_provider::get_user_all_reserves_data`,
+                typeArguments: [],
+                functionArguments: [targetAddress]
+              }
+            })
+          );
           
           const TOKEN_MAP = {
             "0xa": { symbol: "MOVE", decimals: 8 },
@@ -1076,100 +1358,8 @@ export const useDeFiPositions = (searchAddress = null) => {
         }
       }
 
-      // =================================================================
-      // PHASE 1.6: Native Movement Staking (delegation pool)
-      // Uses account transaction history to discover pool addresses,
-      // then reads current stake via 0x1::delegation_pool::get_stake.
-      // =================================================================
-      {
-        const MOVEMENT_STAKING = PROTOCOL_REGISTRY.MOVEMENT || {
-          name: "Movement Native Staking",
-          website: "https://explorer.movementnetwork.xyz",
-        };
-
-        devLog("  🏛️ Scanning native delegation pool staking...");
-
-        try {
-          const accountTxns = await client.getAccountTransactions({
-            accountAddress: targetAddress,
-            options: { limit: 100 },
-          });
-
-          const poolAddresses = new Set();
-
-          for (const tx of accountTxns || []) {
-            const fn = String(tx?.payload?.function || "").toLowerCase();
-            if (!fn.startsWith("0x1::delegation_pool::")) continue;
-
-            const args = tx?.payload?.arguments;
-            const maybePool = String(Array.isArray(args) ? args[0] || "" : "").toLowerCase();
-            if (/^0x[0-9a-f]+$/.test(maybePool)) {
-              poolAddresses.add(maybePool);
-            }
-          }
-
-          devLog(`     Found ${poolAddresses.size} delegation pool candidate(s)`);
-
-          for (const poolAddress of poolAddresses) {
-            try {
-              const stakeResult = await client.view({
-                payload: {
-                  function: "0x1::delegation_pool::get_stake",
-                  typeArguments: [],
-                  functionArguments: [poolAddress, targetAddress],
-                },
-              });
-
-              const activeStakeRaw = Number(stakeResult?.[0] || 0);
-              const inactiveStakeRaw = Number(stakeResult?.[1] || 0);
-              const pendingActiveRaw = Number(stakeResult?.[2] || 0);
-
-              let pendingWithdrawalRaw = 0;
-              try {
-                const pendingWithdrawalResult = await client.view({
-                  payload: {
-                    function: "0x1::delegation_pool::get_pending_withdrawal",
-                    typeArguments: [],
-                    functionArguments: [poolAddress, targetAddress],
-                  },
-                });
-                pendingWithdrawalRaw = Number(pendingWithdrawalResult?.[0] || 0);
-              } catch {
-                // optional path; some pools may return no pending withdrawal
-              }
-
-              const totalRaw = activeStakeRaw + inactiveStakeRaw + pendingActiveRaw + pendingWithdrawalRaw;
-              const numericValue = totalRaw / 100000000;
-
-              if (numericValue > 0.0001) {
-                detectedPositions.push({
-                  id: `movement_native_staking_${poolAddress.slice(2, 10)}_${detectedPositions.length}`,
-                  name: "Movement Native Staking",
-                  type: "Staking",
-                  value: numericValue.toFixed(4),
-                  numericValue,
-                  tokenSymbol: "MOVE",
-                  resourceType: `0x1::delegation_pool::get_stake<${poolAddress}>`,
-                  source: "view",
-                  protocol: MOVEMENT_STAKING,
-                  protocolName: MOVEMENT_STAKING.name,
-                  protocolWebsite: MOVEMENT_STAKING.website,
-                  stakedAmount: activeStakeRaw,
-                  pendingStakeAmount: inactiveStakeRaw + pendingActiveRaw,
-                  pendingWithdrawalAmount: pendingWithdrawalRaw,
-                  poolAddress,
-                });
-
-                devLog(`  ✅ Native staking: ${numericValue.toFixed(4)} MOVE @ ${poolAddress.slice(0, 12)}...`);
-              }
-            } catch (poolError) {
-              devLog(`  ⚠️ Could not read native stake for pool ${poolAddress.slice(0, 12)}...:`, poolError?.message || poolError);
-            }
-          }
-        } catch (err) {
-          devLog("  ⚠️ Native staking scan error:", err?.message || err);
-        }
-      }
+      // Native staking is fetched after the first DeFi render so the initial card paint
+      // isn't blocked by account transaction history + delegation pool lookups.
 
       // =================================================================
       // PHASE 1.75: Generic Adapter-Based Position Detection
@@ -1371,23 +1561,45 @@ export const useDeFiPositions = (searchAddress = null) => {
       // =================================================================
       // PHASE 2: Sort positions by type and value
       // =================================================================
-      const typeOrder = { 
-        "Lending": 0, "Staking": 1, "Liquidity": 2, 
-        "Farming": 3, "Yield": 4, "CDP": 5, "Debt": 6, "DeFi": 7 
-      };
-      
-      detectedPositions.sort((a, b) => {
-        const orderDiff = (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
-        if (orderDiff !== 0) return orderDiff;
-        return b.numericValue - a.numericValue;
-      });
+      const sortedPositions = sortDetectedPositions(detectedPositions);
 
       devLog("\n═══════════════════════════════════════════════════════════════════");
-      devLog(`🎯 SCAN COMPLETE: Found ${detectedPositions.length} DeFi positions`);
+      devLog(`🎯 SCAN COMPLETE: Found ${sortedPositions.length} DeFi positions`);
       devLog("═══════════════════════════════════════════════════════════════════\n");
 
-      setPositions(detectedPositions);
+      setPositions(sortedPositions);
+      persistDeFiPositions(targetAddress, sortedPositions);
       setError(null);
+
+      const movementNativeStaking = PROTOCOL_REGISTRY.MOVEMENT || {
+        name: "Movement Native Staking",
+        website: "https://explorer.movementnetwork.xyz",
+      };
+
+      void discoverNativeStakingPositions({
+        client,
+        targetAddress,
+        protocolInfo: movementNativeStaking,
+      }).then((nativePositions) => {
+        if (!nativePositions.length) {
+          return;
+        }
+
+        if (currentFetchGeneration !== fetchGeneration.current || lastFetchedAddress.current !== targetAddress) {
+          return;
+        }
+
+        setPositions((previousPositions) => {
+          const withoutNativeStaking = previousPositions.filter(
+            (position) => !(position.protocolName === movementNativeStaking.name && position.source === "view")
+          );
+          const mergedPositions = sortDetectedPositions([...withoutNativeStaking, ...nativePositions]);
+          persistDeFiPositions(targetAddress, mergedPositions);
+          return mergedPositions;
+        });
+      }).catch((nativeStakingError) => {
+        devLog("  ⚠️ Native staking scan error:", nativeStakingError?.message || nativeStakingError);
+      });
 
     } catch (err) {
       console.error("❌ DeFi scan error:", err);
@@ -1421,7 +1633,7 @@ export const useDeFiPositions = (searchAddress = null) => {
   // Expose a refetch that always forces a fresh scan
   const forceRefetch = useCallback(() => {
     lastFetchedAddress.current = null; // Clear cache so fetchPositions runs
-    return fetchPositions();
+    return fetchPositions({ force: true });
   }, [fetchPositions]);
 
   return {

@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
@@ -31,6 +31,8 @@ const PORTFOLIO_TABS = {
   OVERVIEW: "overview",
   TRX: "trx",
 };
+
+const LP_DISCOVERY_CACHE_TTL_MS = 90 * 1000;
 
 const getTokenPriceFromMap = (symbol, priceMap) => {
   if (!priceMap) return null;
@@ -794,6 +796,8 @@ const Dashboard = () => {
   const [liquidityPositions, setLiquidityPositions] = useState([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [hidePositionThreshold, setHidePositionThreshold] = useState(0);
+  const meridianPoolInfoCacheRef = useRef(new Map());
+  const yuzuDiscoveryCacheRef = useRef(new Map());
 
   const settingsKey = useMemo(() => getSettingsStorageKey(account?.address), [account?.address]);
 
@@ -1191,6 +1195,85 @@ const Dashboard = () => {
       return null;
     }
   }, [movementClient]);
+
+  const getCachedMeridianPoolInfo = useCallback(async (poolAddress) => {
+    if (!poolAddress || typeof poolAddress !== 'string') return null;
+
+    const normalizedPoolAddress = poolAddress.trim().toLowerCase();
+    const now = Date.now();
+    const cacheEntry = meridianPoolInfoCacheRef.current.get(normalizedPoolAddress);
+
+    if (cacheEntry?.value && (now - cacheEntry.cachedAt) < LP_DISCOVERY_CACHE_TTL_MS) {
+      return cacheEntry.value;
+    }
+
+    if (cacheEntry?.promise) {
+      return cacheEntry.promise;
+    }
+
+    const promise = fetchMeridianPoolInfo(normalizedPoolAddress)
+      .then((value) => {
+        meridianPoolInfoCacheRef.current.set(normalizedPoolAddress, {
+          value,
+          cachedAt: Date.now(),
+        });
+        return value;
+      })
+      .catch((error) => {
+        meridianPoolInfoCacheRef.current.delete(normalizedPoolAddress);
+        throw error;
+      });
+
+    meridianPoolInfoCacheRef.current.set(normalizedPoolAddress, {
+      promise,
+      cachedAt: now,
+    });
+
+    return promise;
+  }, [fetchMeridianPoolInfo]);
+
+  const getCachedYuzuDiscovery = useCallback(async (address) => {
+    if (!address || typeof address !== 'string') {
+      return {
+        nftHoldings: [],
+        yuzuEvents: [],
+      };
+    }
+
+    const normalizedAddress = address.trim().toLowerCase();
+    const now = Date.now();
+    const cacheEntry = yuzuDiscoveryCacheRef.current.get(normalizedAddress);
+
+    if (cacheEntry?.value && (now - cacheEntry.cachedAt) < LP_DISCOVERY_CACHE_TTL_MS) {
+      return cacheEntry.value;
+    }
+
+    if (cacheEntry?.promise) {
+      return cacheEntry.promise;
+    }
+
+    const promise = Promise.all([
+      getUserNFTHoldings(normalizedAddress),
+      getYuzuLiquidityPositions(normalizedAddress),
+    ]).then(([nftHoldings, yuzuEvents]) => {
+      const value = { nftHoldings, yuzuEvents };
+      yuzuDiscoveryCacheRef.current.set(normalizedAddress, {
+        value,
+        cachedAt: Date.now(),
+      });
+      return value;
+    }).catch((error) => {
+      yuzuDiscoveryCacheRef.current.delete(normalizedAddress);
+      throw error;
+    });
+
+    yuzuDiscoveryCacheRef.current.set(normalizedAddress, {
+      promise,
+      cachedAt: now,
+    });
+
+    return promise;
+  }, []);
   const fetchAssets = useCallback(async (address) => {
     if (!address) {
       setBalances([]);
@@ -1661,7 +1744,7 @@ const Dashboard = () => {
 
         await Promise.all(
           meridianPoolAddresses.map(async (poolAddress) => {
-            meridianPoolInfoByAddress[poolAddress] = await fetchMeridianPoolInfo(poolAddress);
+            meridianPoolInfoByAddress[poolAddress] = await getCachedMeridianPoolInfo(poolAddress);
           })
         );
 
@@ -1812,10 +1895,7 @@ const Dashboard = () => {
       }
       if (viewingAddress) {
         try {
-          const [nftHoldings, yuzuEvents] = await Promise.all([
-            getUserNFTHoldings(viewingAddress),
-            getYuzuLiquidityPositions(viewingAddress)
-          ]);
+          const { nftHoldings, yuzuEvents } = await getCachedYuzuDiscovery(viewingAddress);
           const yuzuLiquidityMap = {};
           for (const event of yuzuEvents) {
             try {
@@ -1975,7 +2055,7 @@ const Dashboard = () => {
 
     detectLPPositions();
     return () => { cancelled = true; };
-  }, [indexerBalances, viewingAddress, priceMap, positions, fetchMeridianPoolInfo]);
+  }, [getCachedMeridianPoolInfo, getCachedYuzuDiscovery, indexerBalances, viewingAddress, priceMap, positions]);
   useEffect(() => {
     const fetchWalletData = async () => {
       if (!viewingAddress) {
@@ -2295,7 +2375,7 @@ const Dashboard = () => {
 
               <div className="grid-container">
 
-                {defiLoading && (
+                {defiLoading && visibleDeFiPositions.length === 0 && (
 
                   <>
 
@@ -2325,7 +2405,7 @@ const Dashboard = () => {
 
 
 
-                {!defiLoading && visibleDeFiPositions.length > 0 && (() => {
+                {visibleDeFiPositions.length > 0 && (() => {
                   const groupedByProtocol = visibleDeFiPositions.reduce((acc, pos) => {
                       const key = pos.protocolName || 'Unknown';
                       if (!acc[key]) acc[key] = [];
