@@ -14,6 +14,8 @@ const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
 const COINGECKO_TOKEN_IDS = {
   MOVE: "movement-2",
+  GMOVE: "movement-2",
+  gMOVE: "movement-2",
   USDC: "usd-coin",
   USDT: "tether",
   WETH: "ethereum",
@@ -52,7 +54,6 @@ const resolveEnv = () => {
       env.VITE_SUPABASE_ANON_KEY ||
       processEnv.VITE_SUPABASE_ANON_KEY ||
       processEnv.SUPABASE_ANON_KEY ||
-      processEnv.SUPABASE_SERVICE_KEY ||
       ""
     ).trim() || null,
   };
@@ -580,6 +581,17 @@ const trimTransactions = (rows = [], limit = DEFAULT_LIMIT) => {
   return sortTransactionsByTimestampDesc(rows).slice(0, normalizeLimit(limit));
 };
 
+export const filterTransactionsByType = (rows = [], type = "all") => {
+  const normalizedType = String(type || "all").trim().toLowerCase();
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+
+  if (normalizedType === "all") {
+    return normalizedRows;
+  }
+
+  return normalizedRows.filter((row) => String(row?.tx_type || "other").toLowerCase() === normalizedType);
+};
+
 const pruneStoredTransactions = async (supabase, walletAddress, keepLimit = DEFAULT_LIMIT) => {
   if (!supabase || !walletAddress) {
     return;
@@ -921,18 +933,20 @@ export const calculatePNL = (transactions) => {
   }
 };
 
-export const getOrFetchTransactions = async (walletAddress) => {
+export const getOrFetchTransactions = async (walletAddress, options = {}) => {
   const normalizedAddress = normalizeAddress(walletAddress);
   if (!isValidAddress(normalizedAddress)) {
     console.error("getOrFetchTransactions failed: invalid wallet address", walletAddress);
     return [];
   }
 
-  const supabase = getSupabaseClient();
-  const limit = DEFAULT_LIMIT;
+  const persist = options.persist !== false;
+  const allowCachedRead = options.allowCachedRead !== false;
+  const limit = normalizeLimit(options.limit ?? DEFAULT_LIMIT);
+  const supabase = persist || allowCachedRead ? getSupabaseClient() : null;
 
   try {
-    if (supabase) {
+    if (supabase && allowCachedRead) {
       const { data: cachedRows, error: cacheError } = await supabase
         .from("transaction_history")
         .select("*")
@@ -968,7 +982,7 @@ export const getOrFetchTransactions = async (walletAddress) => {
       limit
     );
 
-    if (supabase && enrichedTransactions.length > 0) {
+    if (persist && supabase && enrichedTransactions.length > 0) {
       try {
         const { error } = await supabase
           .from("transaction_history")

@@ -2,13 +2,36 @@
  * GET /api/badges/user/[address]
  * Returns the list of badge awards for a given wallet address.
  */
-import { loadState } from '../../_lib/state.js';
 import { enforceRateLimit } from '../../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../../_lib/http.js';
+import { loadState } from '../../_lib/state.js';
+import { getSupabaseAdmin } from '../supabase.js';
+
+const WALLET_REGEX = /^0x[a-fA-F0-9]{1,64}$/;
 
 const normalizeAddress = (address) => {
   const n = String(address || '').trim().toLowerCase();
   return n.startsWith('0x') ? n : `0x${n}`;
+};
+
+const mapAttestationToAward = (row) => ({
+  badgeId: String(row?.badge_id || ''),
+  awardedAt: row?.verified_at || null,
+  payload: {
+    eligible: row?.eligible === true,
+    proofHash: row?.proof_hash || null,
+  },
+});
+
+const getBlobAwards = async (address) => {
+  try {
+    const { userAwards } = await loadState();
+    const legacyAddr = address.startsWith('0x') ? address.slice(2) : address;
+    return userAwards[address] || userAwards[legacyAddr] || [];
+  } catch (error) {
+    console.error('[user awards] getBlobAwards failed:', error.message);
+    return [];
+  }
 };
 
 const METHODS = ['GET', 'OPTIONS'];
@@ -36,8 +59,41 @@ export default async function handler(req, res) {
   const { address } = req.query;
   if (!address) return sendJson(res, 400, { error: 'address required' });
 
-  const { userAwards } = await loadState();
   const addr = normalizeAddress(address);
-  const legacyAddr = addr.startsWith('0x') ? addr.slice(2) : addr;
-  return sendJson(res, 200, userAwards[addr] || userAwards[legacyAddr] || []);
+  if (!WALLET_REGEX.test(addr)) {
+    return sendJson(res, 400, { error: 'Invalid wallet address' });
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseAdmin();
+  } catch (error) {
+    console.error('[user awards] Supabase client init failed:', error);
+    const blobAwards = await getBlobAwards(addr);
+    return sendJson(res, 200, blobAwards);
+  }
+
+  const { data, error } = await supabase
+    .from('badge_attestations')
+    .select('badge_id, eligible, verified_at, proof_hash')
+    .eq('wallet_address', addr)
+    .eq('eligible', true);
+
+  if (error) {
+    console.error('[user awards] Supabase query failed:', error);
+    const blobAwards = await getBlobAwards(addr);
+    return sendJson(res, 200, blobAwards);
+  }
+
+  if (Array.isArray(data) && data.length > 0) {
+    return sendJson(res, 200, data.map(mapAttestationToAward));
+  }
+
+  const blobAwards = await getBlobAwards(addr);
+  if (Array.isArray(blobAwards) && blobAwards.length > 0) {
+    console.warn('[user awards] Supabase empty, falling back to Blob for:', address);
+    return sendJson(res, 200, blobAwards);
+  }
+
+  return sendJson(res, 200, []);
 }

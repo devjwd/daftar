@@ -1,9 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import { Account, Aptos, AptosConfig, Ed25519PrivateKey, Network } from '@aptos-labs/ts-sdk';
+import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+import { checkAdmin } from '../_lib/auth.js';
 import { handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
+import { getValidatedAttestorAccount } from './attestorConfig.js';
 
 const METHODS = ['POST', 'OPTIONS'];
 const ADDRESS_RE = /^0x[a-f0-9]{1,128}$/i;
+const WALLET_REGEX = /^0x[a-fA-F0-9]{1,64}$/;
 
 const normalizeAddress = (value) => {
   const raw = String(value || '').trim().toLowerCase();
@@ -39,59 +42,6 @@ const getBadgeModuleAddress = () => {
 
   if (!raw) return '';
   return raw.startsWith('0x') ? raw : `0x${raw}`;
-};
-
-const getAdminKeyFromRequest = (req) => {
-  const auth = String(req.headers.authorization || '').trim();
-  if (auth.toLowerCase().startsWith('bearer ')) {
-    return auth.slice(7).trim();
-  }
-
-  if (auth) return auth;
-
-  return String(req.headers['x-admin-key'] || '').trim();
-};
-
-const verifyAdminAuth = (req) => {
-  const expected = String(process.env.BADGE_ADMIN_API_KEY || '').trim();
-  if (!expected) {
-    return { ok: false, status: 500, error: 'BADGE_ADMIN_API_KEY is not configured' };
-  }
-
-  const provided = getAdminKeyFromRequest(req);
-  if (!provided || provided !== expected) {
-    return { ok: false, status: 401, error: 'Unauthorized' };
-  }
-
-  return { ok: true };
-};
-
-const getAttestorAccount = () => {
-  const privateKeyHexRaw = String(process.env.BADGE_ATTESTOR_PRIVATE_KEY || '').trim();
-  if (!privateKeyHexRaw) {
-    return { ok: false, error: 'BADGE_ATTESTOR_PRIVATE_KEY is missing' };
-  }
-
-  const privateKeyHex = privateKeyHexRaw.startsWith('0x') ? privateKeyHexRaw : `0x${privateKeyHexRaw}`;
-
-  try {
-    const privateKey = new Ed25519PrivateKey(privateKeyHex);
-    const account = Account.fromPrivateKey({ privateKey });
-
-    const expectedAddress = normalizeAddress(process.env.BADGE_ATTESTOR_ADDRESS || '');
-    const actualAddress = String(account.accountAddress).toLowerCase();
-
-    if (expectedAddress && expectedAddress !== actualAddress) {
-      return {
-        ok: false,
-        error: 'BADGE_ATTESTOR_ADDRESS does not match BADGE_ATTESTOR_PRIVATE_KEY',
-      };
-    }
-
-    return { ok: true, account, attestorAddress: actualAddress };
-  } catch {
-    return { ok: false, error: 'Invalid BADGE_ATTESTOR_PRIVATE_KEY format' };
-  }
 };
 
 const createAptosClient = () => {
@@ -138,9 +88,9 @@ const validatePayload = (body) => {
   }
 
   const addresses = rawAddresses.map(normalizeAddress);
-  const invalid = addresses.filter((address) => !ADDRESS_RE.test(address));
+  const invalid = addresses.filter((address) => !WALLET_REGEX.test(address));
   if (invalid.length > 0) {
-    return { ok: false, status: 400, error: `Invalid address format: ${invalid[0]}` };
+    return { ok: false, status: 400, error: 'Invalid wallet address' };
   }
 
   const deduped = Array.from(new Set(addresses));
@@ -218,7 +168,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const auth = verifyAdminAuth(req);
+    const auth = checkAdmin(req);
     if (!auth.ok) {
       return sendJson(res, auth.status, { error: auth.error });
     }
@@ -233,9 +183,11 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: 'BADGE_MODULE_ADDRESS is missing or invalid' });
     }
 
-    const attestor = getAttestorAccount();
-    if (!attestor.ok) {
-      return sendJson(res, 500, { error: attestor.error });
+    let attestor;
+    try {
+      attestor = getValidatedAttestorAccount();
+    } catch (error) {
+      return sendJson(res, 500, { error: String(error?.message || 'Attestor account unavailable') });
     }
 
     const supabaseResult = createSupabaseAdmin();

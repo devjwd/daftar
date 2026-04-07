@@ -14,6 +14,7 @@ import { createAttestation } from '../services/attestationSigner.js';
 
 const METHODS = ['GET', 'OPTIONS'];
 const ADDRESS_RE = /^0x[a-f0-9]{1,128}$/i;
+const WALLET_REGEX = /^0x[a-fA-F0-9]{1,64}$/;
 const NEGATIVE_CACHE_MINUTES = 30;
 const POSITIVE_CACHE_MINUTES = 24 * 60;
 
@@ -92,39 +93,49 @@ const hasFreshNegativeResult = (record) => {
 };
 
 const getCachedAttestation = async (supabase, walletAddress, badgeId) => {
-  const { data, error } = await supabase
-    .from('badge_attestations')
-    .select('wallet_address, badge_id, eligible, verified_at, expires_at, proof_hash')
-    .eq('wallet_address', walletAddress)
-    .eq('badge_id', badgeId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from('badge_attestations')
+      .select('wallet_address, badge_id, eligible, verified_at, expires_at, proof_hash')
+      .eq('wallet_address', walletAddress)
+      .eq('badge_id', badgeId)
+      .maybeSingle();
 
-  if (error) {
-    return { record: null, error: error.message || 'Failed to read attestation cache' };
+    if (error) {
+      return { record: null, error: error.message || 'Failed to read attestation cache' };
+    }
+
+    return { record: data || null, error: null };
+  } catch (error) {
+    console.error('[eligibility] getCachedAttestation failed:', error.message);
+    return null;
   }
-
-  return { record: data || null, error: null };
 };
 
 const saveAttestationToSupabase = async ({ supabase, walletAddress, badgeId, eligible, expiresAt, proofHash }) => {
-  const payload = {
-    wallet_address: walletAddress,
-    badge_id: badgeId,
-    eligible: Boolean(eligible),
-    verified_at: new Date().toISOString(),
-    expires_at: expiresAt || null,
-    proof_hash: proofHash || null,
-  };
+  try {
+    const payload = {
+      wallet_address: walletAddress,
+      badge_id: badgeId,
+      eligible: Boolean(eligible),
+      verified_at: new Date().toISOString(),
+      expires_at: expiresAt || null,
+      proof_hash: proofHash || null,
+    };
 
-  const result = await supabase.from('badge_attestations').upsert(payload, {
-    onConflict: 'wallet_address,badge_id',
-  });
+    const result = await supabase.from('badge_attestations').upsert(payload, {
+      onConflict: 'wallet_address,badge_id',
+    });
 
-  if (result.error) {
-    return { ok: false, error: result.error.message || 'Failed to persist attestation cache' };
+    if (result.error) {
+      return { ok: false, error: result.error.message || 'Failed to persist attestation cache' };
+    }
+
+    return { ok: true, error: null };
+  } catch (error) {
+    console.error('[eligibility] saveAttestationToSupabase failed:', error.message);
+    return false;
   }
-
-  return { ok: true, error: null };
 };
 
 const viewBool = async ({ client, fn, walletAddress, badgeId }) => {
@@ -328,7 +339,11 @@ export default async function handler(req, res) {
     const walletAddress = normalizeAddress(req.query?.wallet);
     const badgeId = parseBadgeId(req.query?.badgeId);
 
-    if (!ADDRESS_RE.test(walletAddress) || badgeId == null) {
+    if (!WALLET_REGEX.test(walletAddress)) {
+      return sendJson(res, 400, { error: 'Invalid wallet address' });
+    }
+
+    if (badgeId == null) {
       return sendJson(res, 400, {
         error: 'Invalid wallet or badgeId',
         status: 'invalid_request',
@@ -382,6 +397,10 @@ export default async function handler(req, res) {
     const supabase = createSupabaseAdmin();
 
     const cachedResult = await getCachedAttestation(supabase, walletAddress, badgeId);
+    if (cachedResult === null) {
+      return sendJson(res, 500, { status: 'error', error: 'Failed to read attestation cache' });
+    }
+
     if (cachedResult.error) {
       return sendJson(res, 500, { status: 'error', error: cachedResult.error });
     }
@@ -449,6 +468,13 @@ export default async function handler(req, res) {
         expiresAt: negativeExpiresAt,
         proofHash: null,
       });
+
+      if (persistNegative === false) {
+        return sendJson(res, 500, {
+          status: 'error',
+          error: 'Failed to persist attestation cache',
+        });
+      }
 
       if (!persistNegative.ok) {
         return sendJson(res, 500, {

@@ -1,5 +1,4 @@
 import { getBadgeFunction, BADGE_RULES, BADGE_STATUS, getRuleLabel } from "../config/badges";
-import { supabase } from "../config/supabase";
 
 export const decodeBytes = (value) => {
   if (value === null || value === undefined) return "";
@@ -55,11 +54,16 @@ export const buildMetadataDataUri = (metadataJson) => {
 };
 
 export const computeSha256Hex = async (input) => {
-  const bytes = new TextEncoder().encode(input);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  try {
+    const bytes = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch (error) {
+    console.error('[badgeService] computeSha256Hex failed:', error.message);
+    return null;
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -67,266 +71,336 @@ export const computeSha256Hex = async (input) => {
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 
 export const fetchBadgeIds = async (client) => {
-  const fn = getBadgeFunction("get_badge_ids");
-  if (!fn) return [];
+  try {
+    const fn = getBadgeFunction("get_badge_ids");
+    if (!fn) return [];
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [],
+      },
+    });
 
-  return (result && result[0]) || [];
+    return (result && result[0]) || [];
+  } catch (error) {
+    console.error('[badgeService] fetchBadgeIds failed:', error.message);
+    return [];
+  }
 };
 
 export const fetchActiveBadgeIds = async (client) => {
-  const fn = getBadgeFunction("get_active_badge_ids");
-  if (!fn) return [];
+  try {
+    const fn = getBadgeFunction("get_active_badge_ids");
+    if (!fn) return [];
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [],
+      },
+    });
 
-  return (result && result[0]) || [];
+    return (result && result[0]) || [];
+  } catch (error) {
+    console.error('[badgeService] fetchActiveBadgeIds failed:', error.message);
+    return [];
+  }
 };
 
 export const fetchBadge = async (client, badgeId) => {
-  const fn = getBadgeFunction("get_badge");
-  if (!fn) return null;
+  try {
+    const fn = getBadgeFunction("get_badge");
+    if (!fn) return null;
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [badgeId],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [badgeId],
+      },
+    });
 
-  if (!result) return null;
+    if (!result) return null;
 
-  const [
-    id,
-    name,
-    description,
-    imageUri,
-    metadataUri,
-    metadataHash,
-    category,
-    rarity,
-    xpValue,
-    ruleType,
-    ruleNote,
-    minValue,
-    coinTypeStr,
-    dappAddress,
-    status,
-    startsAt,
-    endsAt,
-    createdAt,
-    updatedAt,
-    totalMinted,
-    maxSupply,
-  ] = result;
+    const [
+      id,
+      name,
+      description,
+      imageUri,
+      metadataUri,
+      metadataHash,
+      category,
+      rarity,
+      xpValue,
+      ruleType,
+      ruleNote,
+      minValue,
+      coinTypeStr,
+      dappAddress,
+      status,
+      startsAt,
+      endsAt,
+      createdAt,
+      updatedAt,
+      totalMinted,
+      maxSupply,
+    ] = result;
 
-  return {
-    id: Number(id),
-    name: decodeBytes(name),
-    description: decodeBytes(description),
-    imageUri: decodeBytes(imageUri),
-    metadataUri: decodeBytes(metadataUri),
-    metadataHash: decodeBytes(metadataHash),
-    category: decodeBytes(category),
-    rarity: Number(rarity),
-    xpValue: Number(xpValue),
-    ruleType: Number(ruleType),
-    ruleNote: decodeBytes(ruleNote),
-    minValue: Number(minValue),
-    coinTypeStr: decodeBytes(coinTypeStr),
-    dappAddress: decodeBytes(dappAddress),
-    status: Number(status),
-    startsAt: Number(startsAt),
-    endsAt: Number(endsAt),
-    createdAt: Number(createdAt),
-    updatedAt: Number(updatedAt),
-    totalMinted: Number(totalMinted),
-    maxSupply: Number(maxSupply),
-    // Computed
-    isActive: Number(status) === BADGE_STATUS.ACTIVE,
-    isPaused: Number(status) === BADGE_STATUS.PAUSED,
-    isDiscontinued: Number(status) === BADGE_STATUS.DISCONTINUED,
-    isTimeLimited: Number(startsAt) > 0 || Number(endsAt) > 0,
-    hasMaxSupply: Number(maxSupply) > 0,
-  };
+    return {
+      id: Number(id),
+      name: decodeBytes(name),
+      description: decodeBytes(description),
+      imageUri: decodeBytes(imageUri),
+      metadataUri: decodeBytes(metadataUri),
+      metadataHash: decodeBytes(metadataHash),
+      category: decodeBytes(category),
+      rarity: Number(rarity),
+      xpValue: Number(xpValue),
+      ruleType: Number(ruleType),
+      ruleNote: decodeBytes(ruleNote),
+      minValue: Number(minValue),
+      coinTypeStr: decodeBytes(coinTypeStr),
+      dappAddress: decodeBytes(dappAddress),
+      status: Number(status),
+      startsAt: Number(startsAt),
+      endsAt: Number(endsAt),
+      createdAt: Number(createdAt),
+      updatedAt: Number(updatedAt),
+      totalMinted: Number(totalMinted),
+      maxSupply: Number(maxSupply),
+      // Computed
+      isActive: Number(status) === BADGE_STATUS.ACTIVE,
+      isPaused: Number(status) === BADGE_STATUS.PAUSED,
+      isDiscontinued: Number(status) === BADGE_STATUS.DISCONTINUED,
+      isTimeLimited: Number(startsAt) > 0 || Number(endsAt) > 0,
+      hasMaxSupply: Number(maxSupply) > 0,
+    };
+  } catch (error) {
+    console.error('[badgeService] fetchBadge failed:', error.message);
+    return null;
+  }
 };
 
 export const fetchBadges = async (client) => {
-  const ids = await fetchBadgeIds(client);
+  try {
+    const ids = await fetchBadgeIds(client);
 
-  const results = await Promise.all(
-    ids.map((badgeId) =>
-      fetchBadge(client, badgeId).catch(() => null)
-    )
-  );
+    const results = await Promise.all(
+      ids.map((badgeId) =>
+        fetchBadge(client, badgeId).catch(() => null)
+      )
+    );
 
-  return results.filter(Boolean);
+    return results.filter(Boolean);
+  } catch (error) {
+    console.error('[badgeService] fetchBadges failed:', error.message);
+    return [];
+  }
 };
 
 export const fetchActiveBadges = async (client) => {
-  const ids = await fetchActiveBadgeIds(client);
+  try {
+    const ids = await fetchActiveBadgeIds(client);
 
-  const results = await Promise.all(
-    ids.map((badgeId) =>
-      fetchBadge(client, badgeId).catch(() => null)
-    )
-  );
+    const results = await Promise.all(
+      ids.map((badgeId) =>
+        fetchBadge(client, badgeId).catch(() => null)
+      )
+    );
 
-  return results.filter(Boolean);
+    return results.filter(Boolean);
+  } catch (error) {
+    console.error('[badgeService] fetchActiveBadges failed:', error.message);
+    return [];
+  }
 };
 
 export const hasBadge = async (client, badgeId, owner) => {
-  const fn = getBadgeFunction("has_badge");
-  if (!fn) return false;
+  try {
+    const fn = getBadgeFunction("has_badge");
+    if (!fn) return false;
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [owner, badgeId],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [owner, badgeId],
+      },
+    });
 
-  return Boolean(result && result[0]);
+    return Boolean(result && result[0]);
+  } catch (error) {
+    console.error('[badgeService] hasBadge failed:', error.message);
+    return false;
+  }
 };
 
 export const isAllowlisted = async (client, badgeId, owner) => {
-  const fn = getBadgeFunction("is_allowlisted");
-  if (!fn) return false;
+  try {
+    const fn = getBadgeFunction("is_allowlisted");
+    if (!fn) return false;
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [owner, badgeId],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [owner, badgeId],
+      },
+    });
 
-  return Boolean(result && result[0]);
+    return Boolean(result && result[0]);
+  } catch (error) {
+    console.error('[badgeService] isAllowlisted failed:', error.message);
+    return false;
+  }
 };
 
 export const isBadgeAvailable = async (client, badgeId) => {
-  const fn = getBadgeFunction("is_badge_available");
-  if (!fn) return false;
+  try {
+    const fn = getBadgeFunction("is_badge_available");
+    if (!fn) return false;
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [badgeId],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [badgeId],
+      },
+    });
 
-  return Boolean(result && result[0]);
+    return Boolean(result && result[0]);
+  } catch (error) {
+    console.error('[badgeService] isBadgeAvailable failed:', error.message);
+    return false;
+  }
 };
 
 export const getBadgeStats = async (client, badgeId) => {
-  const fn = getBadgeFunction("get_badge_stats");
-  if (!fn) return { totalMinted: 0, maxSupply: 0, status: BADGE_STATUS.ACTIVE };
+  try {
+    const fn = getBadgeFunction("get_badge_stats");
+    if (!fn) return { totalMinted: 0, maxSupply: 0, status: BADGE_STATUS.ACTIVE };
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [badgeId],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [badgeId],
+      },
+    });
 
-  if (!result) return { totalMinted: 0, maxSupply: 0, status: BADGE_STATUS.ACTIVE };
+    if (!result) return { totalMinted: 0, maxSupply: 0, status: BADGE_STATUS.ACTIVE };
 
-  return {
-    totalMinted: Number(result[0]),
-    maxSupply: Number(result[1]),
-    status: Number(result[2]),
-  };
+    return {
+      totalMinted: Number(result[0]),
+      maxSupply: Number(result[1]),
+      status: Number(result[2]),
+    };
+  } catch (error) {
+    console.error('[badgeService] getBadgeStats failed:', error.message);
+    return { totalMinted: 0, maxSupply: 0, status: BADGE_STATUS.ACTIVE };
+  }
 };
 
 export const getUserBadgeIds = async (client, owner) => {
-  const fn = getBadgeFunction("get_user_badge_ids");
-  if (!fn) return [];
+  try {
+    const fn = getBadgeFunction("get_user_badge_ids");
+    if (!fn) return [];
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [owner],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [owner],
+      },
+    });
 
-  return (result && result[0]) || [];
+    return (result && result[0]) || [];
+  } catch (error) {
+    console.error('[badgeService] getUserBadgeIds failed:', error.message);
+    return [];
+  }
 };
 
 export const getCoinBalance = async (client, owner, coinType) => {
-  if (!coinType) return 0;
+  try {
+    if (!coinType) return 0;
 
-  const result = await client.view({
-    payload: {
-      function: "0x1::coin::balance",
-      typeArguments: [coinType],
-      functionArguments: [owner],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: "0x1::coin::balance",
+        typeArguments: [coinType],
+        functionArguments: [owner],
+      },
+    });
 
-  return Number(result && result[0]) || 0;
+    return Number(result && result[0]) || 0;
+  } catch (error) {
+    console.error('[badgeService] getCoinBalance failed:', error.message);
+    return 0;
+  }
 };
 
 export const getAdmin = async (client) => {
-  const fn = getBadgeFunction("get_admin");
-  if (!fn) return null;
+  try {
+    const fn = getBadgeFunction("get_admin");
+    if (!fn) return null;
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [],
+      },
+    });
 
-  return result && result[0];
+    return result && result[0];
+  } catch (error) {
+    console.error('[badgeService] getAdmin failed:', error.message);
+    return null;
+  }
 };
 
 export const getBadgeFee = async (client, badgeId) => {
-  const fn = getBadgeFunction("get_badge_fee");
-  if (!fn) return 0;
+  try {
+    const fn = getBadgeFunction("get_badge_fee");
+    if (!fn) return 0;
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [badgeId],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [badgeId],
+      },
+    });
 
-  return Number(result && result[0]) || 0;
+    return Number(result && result[0]) || 0;
+  } catch (error) {
+    console.error('[badgeService] getBadgeFee failed:', error.message);
+    return 0;
+  }
 };
 
 export const getFeeTreasury = async (client) => {
-  const fn = getBadgeFunction("get_fee_treasury");
-  if (!fn) return null;
+  try {
+    const fn = getBadgeFunction("get_fee_treasury");
+    if (!fn) return null;
 
-  const result = await client.view({
-    payload: {
-      function: fn,
-      typeArguments: [],
-      functionArguments: [],
-    },
-  });
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [],
+      },
+    });
 
-  return result && result[0];
+    return result && result[0];
+  } catch (error) {
+    console.error('[badgeService] getFeeTreasury failed:', error.message);
+    return null;
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -785,51 +859,12 @@ export const removeAllowlistEntries = async ({
 // USER FUNCTIONS - Badge Minting
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 
-const syncBadgeToSupabase = async (sender, badge) => {
-  try {
-    const claimedAt = new Date().toISOString();
-
-    const { error: badgeInsertError } = await supabase.from("badges").insert({
-      wallet_address: sender,
-      badge_id: badge.id,
-      badge_name: badge.name,
-      rarity: badge.rarity,
-      xp_value: badge.xpValue,
-      claimed_at: claimedAt,
-    });
-    if (badgeInsertError) {
-      console.error("[mintBadge] Supabase badges insert failed (non-blocking):", badgeInsertError);
-    }
-
-    const { data: profile, error: profileSelectError } = await supabase
-      .from("profiles")
-      .select("xp")
-      .eq("wallet_address", sender)
-      .single();
-    if (profileSelectError) {
-      console.error("[mintBadge] Supabase profile lookup failed (non-blocking):", profileSelectError);
-      return;
-    }
-
-    const currentXp = profile?.xp ?? 0;
-    const { error: xpUpdateError } = await supabase
-      .from("profiles")
-      .update({ xp: currentXp + Number(badge.xpValue) })
-      .eq("wallet_address", sender);
-    if (xpUpdateError) {
-      console.error("[mintBadge] Supabase XP update failed (non-blocking):", xpUpdateError);
-    }
-  } catch (err) {
-    console.error("[mintBadge] Supabase sync failed (non-blocking):", err);
-  }
-};
-
 export const mintBadge = async ({
   client,
   signAndSubmitTransaction,
   sender,
   badgeId,
-  badge,
+  badge: _badge,
 }) => {
   const fn = getBadgeFunction("mint");
   if (!fn) throw new Error("Badge module address not configured");
@@ -848,10 +883,6 @@ export const mintBadge = async ({
     },
   });
 
-  if (badge) {
-    syncBadgeToSupabase(sender, badge);
-  }
-
   return result;
 };
 
@@ -860,11 +891,12 @@ export const mintBadgeWithBalance = async ({
   sender,
   badgeId,
   coinType,
+  badge: _badge,
 }) => {
   const fn = getBadgeFunction("mint_with_balance");
   if (!fn) throw new Error("Badge module address not configured");
 
-  return await signAndSubmitTransaction({
+  const result = await signAndSubmitTransaction({
     sender,
     data: {
       function: fn,
@@ -872,6 +904,8 @@ export const mintBadgeWithBalance = async ({
       functionArguments: [badgeId],
     },
   });
+
+  return result;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════

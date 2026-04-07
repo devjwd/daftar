@@ -86,22 +86,28 @@ export const fetchUserBadges = async (address) => {
 
   const rows = Array.isArray(response.data) ? response.data : response.data?.awards;
 
+  const awards = Array.isArray(rows)
+    ? rows.map((row) => {
+        if (row?.badge_id) return mapBadgeRowToAward(row);
+        return {
+          badgeId: String(row?.badgeId || ''),
+          awardedAt: row?.awardedAt || null,
+          payload:
+            row?.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+              ? row.payload
+              : {},
+          txHash: row?.txHash || row?.payload?.txHash || null,
+        };
+      })
+    : [];
+
+  if (awards.length === 0) {
+    console.warn('[badges] fetchUserBadges returned empty for:', address);
+  }
+
   return {
     ok: true,
-    awards: Array.isArray(rows)
-      ? rows.map((row) => {
-          if (row?.badge_id) return mapBadgeRowToAward(row);
-          return {
-            badgeId: String(row?.badgeId || ''),
-            awardedAt: row?.awardedAt || null,
-            payload:
-              row?.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
-                ? row.payload
-                : {},
-            txHash: row?.txHash || row?.payload?.txHash || null,
-          };
-        })
-      : [],
+    awards,
   };
 };
 
@@ -115,6 +121,8 @@ export const fetchAllBadges = async ({ includePrivate = false, adminKey = '' } =
   });
 
   if (!response.ok) {
+    const error = response.data?.error || response.status || 'Unknown error';
+    console.error('[badges] fetchAllBadges failed:', error);
     console.warn('fetchAllBadges failed', response.status, response.data);
     return { ok: false, badges: [] };
   }
@@ -141,9 +149,10 @@ export const saveBadgeDefinitions = async ({ badges, adminKey, clearAwards = fal
   return response;
 };
 
-export const awardBadgeToUser = async (address, badgeId, payload = {}) => {
+export const awardBadgeToUser = async (address, badgeId, payload = {}, options = {}) => {
   const walletAddress = normalizeAddress(address);
   const normalizedBadgeId = String(badgeId || '').trim();
+  const adminKey = String(options?.adminKey || '').trim();
   if (!walletAddress || !normalizedBadgeId) {
     return {
       ok: false,
@@ -155,6 +164,9 @@ export const awardBadgeToUser = async (address, badgeId, payload = {}) => {
   const response = await callBadgeApi({
     path: '/api/badges/claim',
     method: 'POST',
+    headers: {
+      ...(adminKey ? { 'x-admin-key': adminKey } : {}),
+    },
     body: {
       address: walletAddress,
       badgeId: normalizedBadgeId,

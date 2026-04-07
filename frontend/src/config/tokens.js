@@ -73,6 +73,15 @@ export const MOVEMENT_TOKENS = {
     isNative: false,
     verified: true,
   },
+  // gMOVE - Movement Liquid Staking Token on Movement Mainnet
+  "0xba070099efd401e69ae924e31464541bb9c815b9a1866367f07499d9b3698b2c": {
+    symbol: "gMOVE",
+    name: "Movement Liquid Staking Token",
+    decimals: 8,
+    address: "0xba070099efd401e69ae924e31464541bb9c815b9a1866367f07499d9b3698b2c",
+    isNative: false,
+    verified: true,
+  },
   // LBTC - Lombard BTC
   "0x0658f4ef6f76c8eeffdc06a30946f3f06723a7f9532e2413312b2a612183759c": {
     symbol: "LBTC",

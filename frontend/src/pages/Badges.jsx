@@ -380,6 +380,7 @@ export default function Badges() {
           sender: senderAddress,
           badgeId: badge.onChainBadgeId,
           coinType,
+          badge,
         });
         txHash = await confirmMintAndOwnership({
           client: movementClient,
@@ -392,6 +393,7 @@ export default function Badges() {
           signAndSubmitTransaction,
           sender: senderAddress,
           badgeId: badge.onChainBadgeId,
+          badge,
         });
         txHash = await confirmMintAndOwnership({
           client: movementClient,

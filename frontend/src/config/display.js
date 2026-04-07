@@ -10,6 +10,8 @@ export const TOKEN_VISUALS = {
   WBTC: { logo: "/BTC.png", color: { primary: "#f7931a", secondary: "#ffb84d" } },
   CAPY: { logo: "/capy.png", color: { primary: "#ff6b9d", secondary: "#ff9ec4" } },
   MOVECAT: { logo: "/movecat.jfif", color: { primary: "#9b59b6", secondary: "#c39bd3" } },
+  gMOVE: { logo: "/gmove.png", color: { primary: "#2dbd85", secondary: "#77e0b9" } },
+  GMOVE: { logo: "/gmove.png", color: { primary: "#2dbd85", secondary: "#77e0b9" } },
   LBTC: { logo: "/LBTC.webp", color: { primary: "#f7931a", secondary: "#ffb84d" } },
   EZETH: { logo: "/ezETH.webp", color: { primary: "#00d395", secondary: "#4eebb3" } },
   RSETH: { logo: "/rsETH.webp", color: { primary: "#4caf50", secondary: "#81c784" } },

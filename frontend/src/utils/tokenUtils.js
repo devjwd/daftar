@@ -1,5 +1,5 @@
 // Token utility functions for Movement Network
-import { getTokenInfo } from "../config/tokens";
+import { getTokenInfo } from "../config/tokens.js";
 
 /**
  * Extract token metadata from coin type string

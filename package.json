@@ -9,9 +9,11 @@
     "worker": "node server/index.js --worker"
   },
   "dependencies": {
+    "@aptos-labs/ts-sdk": "^1.3.0",
     "@supabase/supabase-js": "^2.49.8",
     "@vercel/kv": "^3.0.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
     "express": "^4.18.2",
     "node-cron": "^3.0.2",
     "node-fetch": "^3.3.2"

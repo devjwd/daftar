@@ -27,12 +27,21 @@ export default function useBadges(address, options = {}) {
   const [awardsVersion, setAwardsVersion] = useState(0);
   const [onChainEarnedByBadgeId, setOnChainEarnedByBadgeId] = useState(new Map());
   const [onChainSyncLoading, setOnChainSyncLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const earnedIds = useMemo(() => {
     void awardsVersion;
     if (!address) return new Set();
     return getEarnedBadgeIds(address);
   }, [address, awardsVersion]);
+
+  const storeError = useMemo(() => {
+    if (!address) return null;
+    if (!badgeStoreLoading && enabledBadges.length === 0) {
+      return 'No badge definitions are available right now.';
+    }
+    return null;
+  }, [address, badgeStoreLoading, enabledBadges.length]);
 
   useEffect(() => {
     if (!address) return undefined;
@@ -44,16 +53,23 @@ export default function useBadges(address, options = {}) {
   }, [address]);
 
   useEffect(() => {
+    if (!address) return undefined;
+
     let active = true;
 
     const hydrateAwards = async () => {
-      await syncUserAwardsFromBackend(address);
+      const result = await syncUserAwardsFromBackend(address);
       if (active) {
+        if (!result.ok) {
+          setError('Failed to load user badge awards.');
+        } else {
+          setError(null);
+        }
         setAwardsVersion((v) => v + 1);
       }
     };
 
-    if (address) hydrateAwards();
+    hydrateAwards();
 
     return () => {
       active = false;
@@ -108,6 +124,10 @@ export default function useBadges(address, options = {}) {
     return new Map(awards.map(award => [award.badgeId, award]));
   }, [address, awardsVersion]);
 
+  const userBadges = useMemo(() => {
+    return Array.from(awardsByBadgeId.values());
+  }, [awardsByBadgeId]);
+
   const enrichedBadges = useMemo(() => {
     return enabledBadges.map(badge => {
       const earned = isBadgeEarned(badge.id, earnedIds, onChainEarnedByBadgeId);
@@ -153,9 +173,27 @@ export default function useBadges(address, options = {}) {
   const completionPercent = totalBadges > 0 ? Math.round((earnedCount / totalBadges) * 100) : 0;
 
   const refresh = useCallback(async () => {
-    await syncUserAwardsFromBackend(address);
+    const result = await syncUserAwardsFromBackend(address);
+    if (!result.ok) {
+      setError('Failed to refresh user badge awards.');
+    } else {
+      setError(null);
+    }
     setAwardsVersion((v) => v + 1);
   }, [address]);
+
+  useEffect(() => {
+    if (storeError) {
+      console.warn('[useBadges] badge store is empty — check /api/badges response');
+    }
+  }, [storeError]);
+
+  useEffect(() => {
+    if (!address || badgeStoreLoading || onChainSyncLoading) return;
+    if (userBadges.length === 0) {
+      console.warn('[useBadges] no user awards found — check /api/badges/user/', address);
+    }
+  }, [address, badgeStoreLoading, onChainSyncLoading, userBadges.length]);
 
   const getResult = useCallback(() => null, []);
   const isEligible = useCallback(() => false, []);
@@ -164,6 +202,7 @@ export default function useBadges(address, options = {}) {
   return {
     // All enriched badges
     badges: enrichedBadges,
+    userBadges,
 
     // Categorized
     earnedBadges,
@@ -178,6 +217,7 @@ export default function useBadges(address, options = {}) {
 
     // Loading state
     loading: badgeStoreLoading || onChainSyncLoading,
+    error: storeError || error,
 
     // Methods
     refresh,

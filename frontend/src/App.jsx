@@ -5,6 +5,7 @@ import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapte
 import "./App.css";
 
 import ErrorBoundary from "./components/ErrorBoundary";
+import LoadingScreen from "./components/LoadingScreen";
 import { getEnv } from "./config/envValidator";
 import { useIndexerBalances } from "./hooks/useIndexerBalances";
 import { applyTheme, getStoredThemePreference } from "./utils/theme";
@@ -27,7 +28,7 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 
 const SWAP_ENABLED = getEnv("VITE_ENABLE_SWAP", true);
 
-const RouteFallback = () => <div className="loading-indicator">Loading...</div>;
+const RouteFallback = () => <LoadingScreen />;
 
 const WalletRedirect = () => {
   const { address } = useParams();

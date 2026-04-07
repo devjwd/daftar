@@ -9,6 +9,7 @@ import { getUserAwards, getBadgeById, subscribe, syncUserAwardsFromBackend } fro
 export default function useUserBadges(address) {
   const [awardsVersion, setAwardsVersion] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!address) return undefined;
@@ -21,18 +22,36 @@ export default function useUserBadges(address) {
   }, [address]);
 
   useEffect(() => {
+    if (!address) return undefined;
+
     let active = true;
+
+    const waitForRetry = () =>
+      new Promise((resolve) => {
+        window.setTimeout(resolve, 2000);
+      });
 
     const hydrate = async () => {
       setLoading(true);
-      await syncUserAwardsFromBackend(address);
+      setError(null);
+
+      let result = await syncUserAwardsFromBackend(address);
+      if (!result.ok) {
+        await waitForRetry();
+        if (!active) return;
+        result = await syncUserAwardsFromBackend(address);
+      }
+
       if (active) {
+        if (!result.ok) {
+          setError('Failed to load user badges.');
+        }
         setAwardsVersion((v) => v + 1);
         setLoading(false);
       }
     };
 
-    if (address) hydrate();
+    hydrate();
 
     return () => {
       active = false;
@@ -58,7 +77,8 @@ export default function useUserBadges(address) {
     awards,
     earnedBadges,
     earnedIds: new Set(awards.map(a => a.badgeId)),
-    loading,
+    loading: address ? loading : false,
+    error: address ? error : null,
     count: earnedBadges.length,
   };
 }

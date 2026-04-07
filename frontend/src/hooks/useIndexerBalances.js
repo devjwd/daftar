@@ -31,15 +31,14 @@ const normalizeAssetAddress = (value) => {
 const isNativeMoveAsset = (assetType, metadata) => {
   const type = String(assetType || "").toLowerCase();
   const symbol = String(metadata?.symbol || "").toUpperCase();
-  const name = String(metadata?.name || "").toLowerCase();
+  const name = String(metadata?.name || "").trim().toLowerCase();
 
   return (
     type === "0x1" ||
     type === "0xa" ||
     type.includes("::aptos_coin::aptoscoin") ||
-    type.includes("::move") ||
     symbol === "MOVE" ||
-    name.includes("movement")
+    name === "movement"
   );
 };
 
@@ -67,14 +66,11 @@ export const useIndexerBalances = (address) => {
           try {
             const assetType = String(item.asset_type || "");
             const assetAddress = normalizeAssetAddress(assetType);
+            let tokenInfo = getTokenInfo(assetAddress) || getTokenInfo(assetType);
             
             // Use metadata from indexer if available
             const hasMetadata = Boolean(item.metadata?.symbol);
-            const nativeMove = isNativeMoveAsset(assetType, item.metadata);
-            
-            // Look up token info from our registry by address
-            // Try both original case and lowercase
-            let tokenInfo = getTokenInfo(assetAddress) || getTokenInfo(assetType);
+            const nativeMove = Boolean(tokenInfo?.isNative) || (!tokenInfo && isNativeMoveAsset(assetType, item.metadata));
             
             // Fallback classification for native MOVE if registry lookup misses.
             if (!tokenInfo && nativeMove) {

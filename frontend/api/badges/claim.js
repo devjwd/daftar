@@ -1,16 +1,17 @@
 /**
  * POST /api/badges/claim
  * Persists a minted badge after verifying current on-chain ownership.
- * Public endpoint: anyone can submit, but the address must already own the badge.
+ * Admin endpoint: requires BADGE_ADMIN_API_KEY and verifies current on-chain ownership.
  */
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
-import { createClient } from '@supabase/supabase-js';
+import { checkAdmin } from '../_lib/auth.js';
 import { loadState, saveState } from '../_lib/state.js';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
+import { getSupabaseAdmin } from './supabase.js';
 
 const METHODS = ['POST', 'OPTIONS'];
-const ADDRESS_PATTERN = /^0x[a-f0-9]{1,128}$/i;
+const WALLET_REGEX = /^0x[a-fA-F0-9]{1,64}$/;
 
 const normalizeAddress = (address) => {
   const n = String(address || '').trim().toLowerCase();
@@ -40,45 +41,31 @@ const getFullnodeUrl = () => {
 
 const createAptosClient = () => new Aptos(new AptosConfig({ network: Network.CUSTOM, fullnode: getFullnodeUrl() }));
 
-const createSupabaseAdmin = () => {
-  const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
-  const supabaseServiceKey = String(process.env.SUPABASE_SERVICE_KEY || '').trim();
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return { ok: false, error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_KEY' };
-  }
-
-  return {
-    ok: true,
-    supabase: createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    }),
-  };
-};
-
 const loadBadgeDefinition = async (supabase, badgeId) => {
-  const result = await supabase
-    .from('badge_definitions')
-    .select('*')
-    .eq('badge_id', String(badgeId))
-    .maybeSingle();
+  try {
+    const result = await supabase
+      .from('badge_definitions')
+      .select('*')
+      .eq('badge_id', String(badgeId))
+      .maybeSingle();
 
-  if (result.error) {
+    if (result.error) {
+      return {
+        ok: false,
+        error: result.error.message || 'Failed to fetch badge definition',
+        badgeDefinition: null,
+      };
+    }
+
     return {
-      ok: false,
-      error: result.error.message || 'Failed to fetch badge definition',
-      badgeDefinition: null,
+      ok: true,
+      error: null,
+      badgeDefinition: result.data || null,
     };
+  } catch (error) {
+    console.error('[claim] loadBadgeDefinition failed:', error.message);
+    return null;
   }
-
-  return {
-    ok: true,
-    error: null,
-    badgeDefinition: result.data || null,
-  };
 };
 
 const getBadgeDefinitionOnChainBadgeId = (badgeDefinition) => {
@@ -89,7 +76,7 @@ const getBadgeDefinitionOnChainBadgeId = (badgeDefinition) => {
 
 const verifyOwnership = async ({ ownerAddress, onChainBadgeId }) => {
   const moduleAddress = getBadgeModuleAddress();
-  if (!moduleAddress || !ADDRESS_PATTERN.test(moduleAddress)) {
+  if (!moduleAddress || !WALLET_REGEX.test(moduleAddress)) {
     return { ok: false, reason: 'BADGE_MODULE_ADDRESS is missing or invalid' };
   }
 
@@ -134,9 +121,16 @@ export default async function handler(req, res) {
     return sendJson(res, 429, { error: 'Too many requests' });
   }
 
+  const auth = checkAdmin(req);
+  if (!auth.ok) return sendJson(res, auth.status, { error: auth.error });
+
   const { address, badgeId, payload } = req.body || {};
   const normalizedAddress = normalizeAddress(address);
-  if (!badgeId || !ADDRESS_PATTERN.test(normalizedAddress)) {
+  if (!WALLET_REGEX.test(normalizedAddress)) {
+    return sendJson(res, 400, { error: 'Invalid wallet address' });
+  }
+
+  if (!badgeId) {
     return sendJson(res, 400, { error: 'address and badgeId required' });
   }
 
@@ -150,12 +144,20 @@ export default async function handler(req, res) {
     return sendJson(res, 400, { error: 'onChainBadgeId required to persist a claimed badge' });
   }
 
-  const supabaseResult = createSupabaseAdmin();
-  if (!supabaseResult.ok) {
-    return sendJson(res, 500, { error: supabaseResult.error });
+  let supabase;
+  try {
+    supabase = getSupabaseAdmin();
+  } catch (error) {
+    return sendJson(res, 500, {
+      error: String(error?.message || 'Missing SUPABASE_URL or SUPABASE_SERVICE_KEY').slice(0, 240),
+    });
   }
 
-  const badgeDefinitionResult = await loadBadgeDefinition(supabaseResult.supabase, badgeId);
+  const badgeDefinitionResult = await loadBadgeDefinition(supabase, badgeId);
+  if (badgeDefinitionResult === null) {
+    return sendJson(res, 500, { error: 'Failed to fetch badge definition' });
+  }
+
   if (!badgeDefinitionResult.ok) {
     return sendJson(res, 500, { error: badgeDefinitionResult.error });
   }
@@ -199,5 +201,60 @@ export default async function handler(req, res) {
   if (!trackedAddresses.includes(normalizedAddress)) trackedAddresses.push(normalizedAddress);
 
   await saveState(userAwards, trackedAddresses);
+
+  // MIGRATION: writing to Supabase in parallel with Blob
+  try {
+    const verifiedAt = new Date().toISOString();
+    const proofHash =
+      badgeDefinitionResult.badgeDefinition?.proof_hash ??
+      badgeDefinitionResult.badgeDefinition?.proofHash ??
+      null;
+
+    const { error: attestationError } = await supabase
+      .from('badge_attestations')
+      .upsert(
+        {
+          wallet_address: normalizedAddress,
+          badge_id: String(badgeId),
+          eligible: true,
+          verified_at: verifiedAt,
+          proof_hash: proofHash,
+        },
+        { onConflict: 'wallet_address,badge_id' }
+      );
+
+    if (attestationError) {
+      console.error('[badges/claim] badge_attestations upsert failed', {
+        wallet_address: normalizedAddress,
+        badge_id: String(badgeId),
+        error: attestationError,
+      });
+    }
+
+    const { error: trackedError } = await supabase
+      .from('badge_tracked_addresses')
+      .upsert(
+        {
+          wallet_address: normalizedAddress,
+          added_at: verifiedAt,
+        },
+        { onConflict: 'wallet_address' }
+      );
+
+    if (trackedError) {
+      console.error('[badges/claim] badge_tracked_addresses upsert failed', {
+        wallet_address: normalizedAddress,
+        badge_id: String(badgeId),
+        error: trackedError,
+      });
+    }
+  } catch (error) {
+    console.error('[badges/claim] Supabase migration write failed', {
+      wallet_address: normalizedAddress,
+      badge_id: String(badgeId),
+      error,
+    });
+  }
+
   return sendJson(res, 200, record);
 }

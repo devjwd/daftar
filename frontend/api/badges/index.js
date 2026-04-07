@@ -7,17 +7,60 @@ import { checkAdmin } from '../_lib/auth.js';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
 import {
-  loadResolvedBadgeDefinitions,
+  loadStaticBadgeDefinitions,
   saveBadgeDefinitions,
   validateBadgeDefinitionsPayload,
 } from '../_lib/badgeDefinitionsState.js';
 import { loadState, saveState } from '../_lib/state.js';
+import { getSupabaseAdmin } from './supabase.js';
 
 const METHODS = ['GET', 'POST', 'OPTIONS'];
 
 const wantsPrivate = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === '1' || normalized === 'true' || normalized === 'yes';
+};
+
+const mapBadgeDefinitionRow = (row) => ({
+  id: String(row?.badge_id || '').trim(),
+  name: String(row?.name || '').trim(),
+  description: typeof row?.description === 'string' ? row.description : '',
+  imageUrl: typeof row?.image_url === 'string' ? row.image_url : typeof row?.imageUrl === 'string' ? row.imageUrl : '',
+  category: typeof row?.category === 'string' ? row.category : 'activity',
+  rarity: typeof row?.rarity === 'string' ? row.rarity : 'COMMON',
+  xp: Number(row?.xp_value ?? row?.xp ?? 0) || 0,
+  mintFee: Number(row?.mint_fee ?? row?.mintFee ?? 0) || 0,
+  criteria: Array.isArray(row?.criteria) ? row.criteria : [],
+  metadata: row?.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {},
+  isPublic: row?.is_public !== false && row?.isPublic !== false,
+  enabled: row?.enabled !== false,
+  onChainBadgeId:
+    row?.on_chain_badge_id == null || row?.on_chain_badge_id === ''
+      ? row?.onChainBadgeId == null || row?.onChainBadgeId === ''
+        ? null
+        : Number(row.onChainBadgeId)
+      : Number(row.on_chain_badge_id),
+  createdAt: row?.created_at || row?.createdAt || null,
+  updatedAt: row?.updated_at || row?.updatedAt || null,
+});
+
+const loadBadgeDefinitionsFromSupabase = async () => {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('badge_definitions')
+    .select('*')
+    .eq('is_active', true)
+    .order('badge_id');
+
+  if (error) {
+    throw error;
+  }
+
+  const badges = Array.isArray(data)
+    ? data.map(mapBadgeDefinitionRow).filter((badge) => badge.id && badge.name)
+    : [];
+
+  return { badges, source: 'supabase' };
 };
 
 export default async function handler(req, res) {
@@ -48,7 +91,20 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
-    const { badges, source } = await loadResolvedBadgeDefinitions();
+    let badgeResponse;
+    try {
+      badgeResponse = await loadBadgeDefinitionsFromSupabase();
+      if (!Array.isArray(badgeResponse.badges) || badgeResponse.badges.length === 0) {
+        console.warn('[definitions] Supabase empty, using static fallback');
+        badgeResponse = { badges: loadStaticBadgeDefinitions(), source: 'static' };
+      }
+    } catch (error) {
+      console.error('[definitions] Supabase query failed:', error);
+      console.warn('[definitions] Supabase empty, using static fallback');
+      badgeResponse = { badges: loadStaticBadgeDefinitions(), source: 'static' };
+    }
+
+    const { badges, source } = badgeResponse;
     const includePrivate = wantsPrivate(req.query?.includePrivate);
 
     if (includePrivate) {

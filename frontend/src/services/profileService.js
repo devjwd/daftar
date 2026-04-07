@@ -230,7 +230,13 @@ export const deleteProfile = (address) => {
       localStorage.setItem(PROFILES_INDEX, JSON.stringify(index));
     }
 
-    localStorage.removeItem(PROFILE_EDIT_KEY_PREFIX + normalizedAddress);
+    const editKeyStorageKey = PROFILE_EDIT_KEY_PREFIX + normalizedAddress;
+    localStorage.removeItem(editKeyStorageKey);
+    try {
+      sessionStorage.removeItem(editKeyStorageKey);
+    } catch {
+      // ignore sessionStorage cleanup failures
+    }
     
     return true;
   } catch (error) {
@@ -352,11 +358,51 @@ const cacheProfiles = (profiles) => {
   profiles.forEach((profile) => cacheProfile(profile));
 };
 
-const getStoredEditKey = (address) => localStorage.getItem(PROFILE_EDIT_KEY_PREFIX + address) || '';
+const getStoredEditKey = (address) => {
+  const key = PROFILE_EDIT_KEY_PREFIX + address;
+
+  try {
+    const sessionValue = sessionStorage.getItem(key) || '';
+    if (sessionValue) {
+      return sessionValue;
+    }
+  } catch {
+    // ignore sessionStorage access failures
+  }
+
+  try {
+    const legacyValue = localStorage.getItem(key) || '';
+    if (legacyValue) {
+      try {
+        sessionStorage.setItem(key, legacyValue);
+      } catch {
+        // ignore sessionStorage migration failures
+      }
+      localStorage.removeItem(key);
+      return legacyValue;
+    }
+  } catch {
+    // ignore localStorage access failures
+  }
+
+  return '';
+};
 
 const storeEditKey = (address, editKey) => {
   if (!address || !editKey) return;
-  localStorage.setItem(PROFILE_EDIT_KEY_PREFIX + address, String(editKey));
+  const key = PROFILE_EDIT_KEY_PREFIX + address;
+
+  try {
+    sessionStorage.setItem(key, String(editKey));
+  } catch {
+    // ignore sessionStorage write failures
+  }
+
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ignore localStorage cleanup failures
+  }
 };
 
 const shouldFallbackToLocalProfileStore = (status) => status === 404 || status === 405;

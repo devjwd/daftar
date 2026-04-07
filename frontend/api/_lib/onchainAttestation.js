@@ -1,15 +1,10 @@
-import { Account, Aptos, AptosConfig, Ed25519PrivateKey, Network } from '@aptos-labs/ts-sdk';
+import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+import { getValidatedAttestorAccount } from '../badges/attestorConfig.js';
 
 const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
 
 const normalizeAddress = (value) => {
   const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw.startsWith('0x') ? raw : `0x${raw}`;
-};
-
-const normalizePrivateKey = (value) => {
-  const raw = String(value || '').trim();
   if (!raw) return '';
   return raw.startsWith('0x') ? raw : `0x${raw}`;
 };
@@ -33,27 +28,6 @@ const getBadgeModuleAddress = () => {
   );
 };
 
-const getAttestorAccount = () => {
-  const privateKeyHex = normalizePrivateKey(process.env.BADGE_ATTESTOR_PRIVATE_KEY || '');
-  if (!privateKeyHex) {
-    return { account: null, reason: 'BADGE_ATTESTOR_PRIVATE_KEY is missing' };
-  }
-
-  try {
-    const privateKey = new Ed25519PrivateKey(privateKeyHex);
-    const account = Account.fromPrivateKey({ privateKey });
-    const expectedAddress = normalizeAddress(process.env.BADGE_ATTESTOR_ADDRESS || '');
-
-    if (expectedAddress && String(account.accountAddress).toLowerCase() !== expectedAddress) {
-      return { account: null, reason: 'BADGE_ATTESTOR_ADDRESS does not match BADGE_ATTESTOR_PRIVATE_KEY' };
-    }
-
-    return { account, reason: null };
-  } catch {
-    return { account: null, reason: 'Invalid BADGE_ATTESTOR_PRIVATE_KEY format' };
-  }
-};
-
 const createClient = () => {
   const fullnode = getFullnodeUrl();
   return new Aptos(new AptosConfig({ network: Network.CUSTOM, fullnode }));
@@ -61,17 +35,19 @@ const createClient = () => {
 
 export const getAttestationReadiness = () => {
   const moduleAddress = getBadgeModuleAddress();
-  const { account, reason } = getAttestorAccount();
 
   if (!moduleAddress || !ADDRESS_PATTERN.test(moduleAddress)) {
     return { ready: false, reason: 'BADGE_MODULE_ADDRESS is missing or invalid' };
   }
 
-  if (!account) {
-    return { ready: false, reason: reason || 'Attestor account unavailable' };
+  let attestor;
+  try {
+    attestor = getValidatedAttestorAccount();
+  } catch (error) {
+    return { ready: false, reason: String(error?.message || 'Attestor account unavailable') };
   }
 
-  return { ready: true, reason: null, moduleAddress, attestorAddress: String(account.accountAddress).toLowerCase() };
+  return { ready: true, reason: null, moduleAddress, attestorAddress: attestor.attestorAddress };
 };
 
 const isAlreadyAllowlisted = async (client, moduleAddress, ownerAddress, onChainBadgeId) => {
@@ -106,10 +82,14 @@ export const attestBadgeAllowlistOnChain = async ({ ownerAddress, onChainBadgeId
     return { ok: false, skipped: true, reason: 'BADGE_MODULE_ADDRESS is missing or invalid' };
   }
 
-  const { account, reason } = getAttestorAccount();
-  if (!account) {
-    return { ok: false, skipped: true, reason: reason || 'Attestor account unavailable' };
+  let attestor;
+  try {
+    attestor = getValidatedAttestorAccount();
+  } catch (error) {
+    return { ok: false, skipped: true, reason: String(error?.message || 'Attestor account unavailable') };
   }
+
+  const { account } = attestor;
 
   const client = createClient();
 
@@ -118,7 +98,7 @@ export const attestBadgeAllowlistOnChain = async ({ ownerAddress, onChainBadgeId
       ok: true,
       alreadyAllowlisted: true,
       txHash: null,
-      attestor: String(account.accountAddress).toLowerCase(),
+      attestor: attestor.attestorAddress,
     };
   }
 
@@ -143,7 +123,7 @@ export const attestBadgeAllowlistOnChain = async ({ ownerAddress, onChainBadgeId
       ok: true,
       alreadyAllowlisted: false,
       txHash: pending.hash,
-      attestor: String(account.accountAddress).toLowerCase(),
+      attestor: attestor.attestorAddress,
     };
   } catch (error) {
     return {

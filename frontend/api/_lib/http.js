@@ -1,4 +1,5 @@
 const DEFAULT_ALLOWED_METHODS = ['GET', 'POST', 'DELETE', 'OPTIONS'];
+const SENSITIVE_RESPONSE_KEYS = new Set(['privatekey', 'private_key', 'signingkey', 'secretkey']);
 
 const splitCsv = (value) =>
   String(value || '')
@@ -60,7 +61,27 @@ export const handleOptions = (req, res, methods = DEFAULT_ALLOWED_METHODS) => {
   return false;
 };
 
-export const sendJson = (res, status, payload) => res.status(status).json(payload);
+const stripSensitiveFields = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(stripSensitiveFields);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const sanitized = {};
+  for (const [key, entryValue] of Object.entries(value)) {
+    if (SENSITIVE_RESPONSE_KEYS.has(String(key).toLowerCase())) {
+      continue;
+    }
+    sanitized[key] = stripSensitiveFields(entryValue);
+  }
+
+  return sanitized;
+};
+
+export const sendJson = (res, status, payload) => res.status(status).json(stripSensitiveFields(payload));
 
 export const methodNotAllowed = (res, method, methods = DEFAULT_ALLOWED_METHODS) =>
   sendJson(res, 405, {

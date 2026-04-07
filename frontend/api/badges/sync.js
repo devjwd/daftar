@@ -4,6 +4,7 @@ import { handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_li
 
 const METHODS = ['POST', 'OPTIONS'];
 const ADDRESS_RE = /^0x[a-f0-9]{1,128}$/i;
+const WALLET_REGEX = /^0x[a-fA-F0-9]{1,64}$/;
 
 const normalizeAddress = (value) => {
   const raw = String(value || '').trim().toLowerCase();
@@ -108,6 +109,11 @@ const getBadgeDefinitionName = (badgeDefinition, fallbackValue = '') => {
   return typeof value === 'string' && value.trim() ? value.trim() : fallbackValue;
 };
 
+const getRequestString = (value, fallbackValue = '') => {
+  const normalized = String(value || '').trim();
+  return normalized || fallbackValue;
+};
+
 const hasBadgeOnChain = async ({ ownerAddress, badgeId }) => {
   const moduleAddress = getBadgeModuleAddress();
   if (!moduleAddress || !ADDRESS_RE.test(moduleAddress)) {
@@ -190,8 +196,8 @@ export default async function handler(req, res) {
     const onChainBadgeId = Number(req.body?.onChainBadgeId);
     const txHash = String(req.body?.txHash || '').trim() || null;
 
-    if (!ADDRESS_RE.test(walletAddress)) {
-      return sendJson(res, 400, { error: 'Invalid walletAddress' });
+    if (!WALLET_REGEX.test(walletAddress)) {
+      return sendJson(res, 400, { error: 'Invalid wallet address' });
     }
 
     if (!badgeId) {
@@ -224,11 +230,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const badgeDefinition = badgeDefinitionResult.data;
-    if (!badgeDefinition) {
-      console.error(`[badges/sync] badge definition not found for badgeId: ${badgeId}`);
-      return sendJson(res, 404, { error: 'Badge definition not found' });
-    }
+    const badgeDefinition = badgeDefinitionResult.data || null;
 
     const expectedOnChainBadgeId = getBadgeDefinitionOnChainBadgeId(badgeDefinition);
     if (expectedOnChainBadgeId != null && expectedOnChainBadgeId !== onChainBadgeId) {
@@ -255,9 +257,15 @@ export default async function handler(req, res) {
     const onChainBadge = badgeDetails.badge;
     const badge = {
       badge_id: badgeId,
-      badge_name: getBadgeDefinitionName(badgeDefinition, onChainBadge.badge_name || `Badge ${badgeId}`),
-      rarity: getBadgeDefinitionRarity(badgeDefinition, onChainBadge.rarity),
-      xp_value: getBadgeDefinitionXpValue(badgeDefinition, onChainBadge.xp_value),
+      badge_name: getBadgeDefinitionName(
+        badgeDefinition,
+        getRequestString(req.body?.badgeName, onChainBadge.badge_name || `Badge ${badgeId}`)
+      ),
+      rarity: getBadgeDefinitionRarity(
+        badgeDefinition,
+        getRequestString(req.body?.rarity, onChainBadge.rarity || 'COMMON')
+      ),
+      xp_value: getBadgeDefinitionXpValue(badgeDefinition, Number(req.body?.xpValue ?? onChainBadge.xp_value ?? 0) || 0),
       on_chain_badge_id: onChainBadge.badge_id,
     };
 
@@ -276,30 +284,63 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: profileUpsert.error.message || 'Failed to ensure profile' });
     }
 
-    const existingBadge = await supabase.from('badges').select('id')
+    const existingAttestation = await supabase.from('badge_attestations').select('wallet_address')
       .eq('wallet_address', walletAddress)
       .eq('badge_id', badge.badge_id)
       .maybeSingle();
 
-    if (existingBadge.error) {
-      return sendJson(res, 500, { error: existingBadge.error.message || 'Failed to query existing badge record' });
-    }
-
     const upsertBadge = await supabase
-      .from('badges')
+      .from('badge_definitions')
       .upsert({
-        wallet_address: walletAddress,
         badge_id: badge.badge_id,
-        badge_name: badge.badge_name || `Badge ${badge.badge_id}`,
+        name: badge.badge_name || `Badge ${badge.badge_id}`,
+        description: onChainBadge.description || '',
+        image_url: badgeDefinition?.image_url ?? badgeDefinition?.imageUrl ?? '',
         rarity: badge.rarity,
         xp_value: badge.xp_value,
-        claimed_at: new Date().toISOString(),
+        on_chain_badge_id: badge.on_chain_badge_id,
       }, {
-        onConflict: 'wallet_address,badge_id',
+        onConflict: 'badge_id',
       });
 
     if (upsertBadge.error) {
-      return sendJson(res, 500, { error: upsertBadge.error.message || 'Failed to upsert badge record' });
+      return sendJson(res, 500, { error: upsertBadge.error.message || 'Failed to upsert badge definition' });
+    }
+
+    if (existingAttestation.error) {
+      return sendJson(res, 500, { error: existingAttestation.error.message || 'Failed to query existing badge attestation' });
+    }
+
+    const verifiedAt = new Date().toISOString();
+    const upsertAttestation = await supabase
+      .from('badge_attestations')
+      .upsert(
+        {
+          wallet_address: walletAddress,
+          badge_id: badge.badge_id,
+          eligible: true,
+          verified_at: verifiedAt,
+          proof_hash: txHash,
+        },
+        { onConflict: 'wallet_address,badge_id' }
+      );
+
+    if (upsertAttestation.error) {
+      return sendJson(res, 500, { error: upsertAttestation.error.message || 'Failed to persist badge attestation' });
+    }
+
+    const upsertTrackedAddress = await supabase
+      .from('badge_tracked_addresses')
+      .upsert(
+        {
+          wallet_address: walletAddress,
+          added_at: verifiedAt,
+        },
+        { onConflict: 'wallet_address' }
+      );
+
+    if (upsertTrackedAddress.error) {
+      return sendJson(res, 500, { error: upsertTrackedAddress.error.message || 'Failed to persist tracked address' });
     }
 
     const currentProfile = await supabase
@@ -312,7 +353,7 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: currentProfile.error.message || 'Failed to read profile XP' });
     }
 
-    const alreadyHadBadge = Boolean(existingBadge.data);
+    const alreadyHadBadge = Boolean(existingAttestation.data);
     const xpToAdd = alreadyHadBadge ? 0 : Math.max(0, Number(badge.xp_value) || 0);
     const nextXp = Number(currentProfile.data?.xp || 0) + xpToAdd;
     const updateXp = await supabase.from('profiles').update({ xp: nextXp }).eq('wallet_address', walletAddress);
@@ -323,6 +364,7 @@ export default async function handler(req, res) {
 
     return sendJson(res, 200, {
       success: true,
+      alreadySynced: alreadyHadBadge,
       newXp: nextXp,
       badge: {
         id: badge.badge_id,

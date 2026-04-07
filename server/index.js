@@ -1,3 +1,8 @@
+// LEGACY BACKEND — NOT USED BY ACTIVE FRONTEND
+// All active badge routes are in frontend/api/badges/
+// This file is kept for reference only
+// DO NOT DEPLOY THIS SERVER ALONGSIDE THE VERCEL DEPLOYMENT
+
 import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
@@ -20,6 +25,10 @@ const BADGE_STATE_FILE = process.env.BADGE_STATE_FILE || path.resolve(__dirname,
 const BADGE_CORS_ORIGIN = process.env.BADGE_CORS_ORIGIN || '*';
 const LEADERBOARD_CACHE_KEY = 'leaderboard:top100';
 const LEADERBOARD_CACHE_TTL_SECONDS = 300;
+const LEADERBOARD_CACHE_ENABLED = Boolean(
+  String(process.env.KV_REST_API_URL || '').trim() &&
+  String(process.env.KV_REST_API_TOKEN || '').trim()
+);
 
 const userAwards = new Map(); // address => [{ badgeId, payload, awardedAt }]
 const trackedAddresses = new Set();
@@ -127,6 +136,10 @@ const awardBadge = (address, badgeId, payload = {}) => {
 };
 
 const readLeaderboardCache = async () => {
+  if (!LEADERBOARD_CACHE_ENABLED) {
+    return null;
+  }
+
   try {
     const cached = await kv.get(LEADERBOARD_CACHE_KEY);
     return Array.isArray(cached) ? cached : null;
@@ -137,6 +150,10 @@ const readLeaderboardCache = async () => {
 };
 
 const writeLeaderboardCache = async (leaderboard) => {
+  if (!LEADERBOARD_CACHE_ENABLED) {
+    return;
+  }
+
   try {
     await kv.set(LEADERBOARD_CACHE_KEY, leaderboard, { ex: LEADERBOARD_CACHE_TTL_SECONDS });
   } catch (error) {
@@ -145,6 +162,10 @@ const writeLeaderboardCache = async (leaderboard) => {
 };
 
 const invalidateLeaderboardCache = async () => {
+  if (!LEADERBOARD_CACHE_ENABLED) {
+    return;
+  }
+
   try {
     await kv.del(LEADERBOARD_CACHE_KEY);
   } catch (error) {
@@ -174,6 +195,10 @@ const loadBadgeConfigs = () => {
 };
 loadBadgeConfigs();
 loadPersistedState();
+
+if (!LEADERBOARD_CACHE_ENABLED) {
+  console.warn('[leaderboard] KV cache disabled; KV_REST_API_URL or KV_REST_API_TOKEN is missing');
+}
 
 app.get('/api/leaderboard', async (req, res) => {
   const cached = await readLeaderboardCache();
@@ -223,7 +248,9 @@ app.post('/api/badges/award', requireAdmin, adminWriteRateLimit, async (req, res
   const record = awardBadge(address, badgeId, payload);
   await invalidateLeaderboardCache();
   trackedAddresses.add(normalizeAddress(address));
-  await queuePersistState();
+  if (process.env.LEGACY_BADGE_SERVER_ENABLED === 'true') {
+    await queuePersistState();
+  }
   res.json(record);
 });
 
@@ -235,7 +262,9 @@ app.post('/api/badges/claim', requireAdmin, adminWriteRateLimit, async (req, res
   const record = awardBadge(address, badgeId, payload);
   await invalidateLeaderboardCache();
   trackedAddresses.add(normalizeAddress(address));
-  await queuePersistState();
+  if (process.env.LEGACY_BADGE_SERVER_ENABLED === 'true') {
+    await queuePersistState();
+  }
   return res.json(record);
 });
 
@@ -243,7 +272,9 @@ app.post('/api/badges/track', requireAdmin, adminWriteRateLimit, async (req, res
   const { address } = req.body || {};
   if (!address || !isLikelyAddress(address)) return res.status(400).json({ error: 'valid address required' });
   trackedAddresses.add(normalizeAddress(address));
-  await queuePersistState();
+  if (process.env.LEGACY_BADGE_SERVER_ENABLED === 'true') {
+    await queuePersistState();
+  }
   res.json({ tracked: Array.from(trackedAddresses) });
 });
 
@@ -361,7 +392,9 @@ const performScan = async () => {
     }
   }
   if (changed) {
-    await queuePersistState();
+    if (process.env.LEGACY_BADGE_SERVER_ENABLED === 'true') {
+      await queuePersistState();
+    }
   }
 };
 

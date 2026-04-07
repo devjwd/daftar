@@ -1,0 +1,25 @@
+{
+  "userAwards": {
+    "0x1": [
+      {
+        "badgeId": "first-step",
+        "payload": {},
+        "awardedAt": "2026-04-04T19:33:31.313Z"
+      },
+      {
+        "badgeId": "first-step",
+        "payload": {},
+        "awardedAt": "2026-04-04T19:35:55.881Z"
+      },
+      {
+        "badgeId": "first-step",
+        "payload": {},
+        "awardedAt": "2026-04-04T19:38:27.919Z"
+      }
+    ]
+  },
+  "trackedAddresses": [
+    "0x1"
+  ],
+  "updatedAt": "2026-04-04T19:38:27.919Z"
+}

@@ -1,46 +1,14 @@
 import { createHash } from 'node:crypto';
-import { Account, Ed25519PrivateKey } from '@aptos-labs/ts-sdk';
+import { getValidatedAttestorAccount } from '../badges/attestorConfig.js';
 
 const textEncoder = new TextEncoder();
 
-const normalizeAddress = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw.startsWith('0x') ? raw : `0x${raw}`;
-};
-
-const normalizePrivateKey = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  return raw.startsWith('0x') ? raw : `0x${raw}`;
-};
-
-const getAttestorAccount = () => {
-  const privateKeyHex = normalizePrivateKey(process.env.BADGE_ATTESTOR_PRIVATE_KEY || '');
-  if (!privateKeyHex) {
-    return { ok: false, error: 'BADGE_ATTESTOR_PRIVATE_KEY is missing' };
-  }
-
-  try {
-    const privateKey = new Ed25519PrivateKey(privateKeyHex);
-    const account = Account.fromPrivateKey({ privateKey });
-    const expectedAddress = normalizeAddress(process.env.BADGE_ATTESTOR_ADDRESS || '');
-    const actualAddress = String(account.accountAddress).toLowerCase();
-
-    if (expectedAddress && expectedAddress !== actualAddress) {
-      return { ok: false, error: 'BADGE_ATTESTOR_ADDRESS does not match BADGE_ATTESTOR_PRIVATE_KEY' };
-    }
-
-    return { ok: true, account, attestorAddress: actualAddress };
-  } catch {
-    return { ok: false, error: 'Invalid BADGE_ATTESTOR_PRIVATE_KEY format' };
-  }
-};
-
 export const createAttestation = ({ walletAddress, badgeId, ttlMinutes = 24 * 60 }) => {
-  const attestor = getAttestorAccount();
-  if (!attestor.ok) {
-    return { ok: false, error: attestor.error };
+  let attestor;
+  try {
+    attestor = getValidatedAttestorAccount();
+  } catch (error) {
+    return { ok: false, error: String(error?.message || 'Attestor account unavailable') };
   }
 
   const issuedAt = new Date().toISOString();

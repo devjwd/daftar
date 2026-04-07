@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
 import { handleOptions, methodNotAllowed, sendJson, setApiHeaders } from './_lib/http.js';
-import { CACHE_TTL_MS, getOrFetchTransactions, TRANSACTION_HISTORY_LIMIT } from '../src/services/transactionService.js';
+import { loadState } from './_lib/state.js';
+import {
+  CACHE_TTL_MS,
+  filterTransactionsByType,
+  getOrFetchTransactions,
+  TRANSACTION_HISTORY_LIMIT,
+} from '../src/services/transactionService.js';
 
 const METHODS = ['GET', 'OPTIONS'];
 const PAGE_SIZE = 50;
@@ -85,9 +91,40 @@ const buildLatestFetchQuery = ({ supabase, wallet }) => supabase
   .limit(1)
   .maybeSingle();
 
+const buildProfileQuery = ({ supabase, wallet }) => supabase
+  .from('profiles')
+  .select('wallet_address')
+  .eq('wallet_address', wallet)
+  .limit(1)
+  .maybeSingle();
+
 const isCacheFresh = (fetchedAt) => {
   const fetchedTime = new Date(fetchedAt || 0).getTime();
   return Number.isFinite(fetchedTime) && fetchedTime > 0 && (Date.now() - fetchedTime) < CACHE_TTL_MS;
+};
+
+const hasBadgeAwards = async (wallet) => {
+  const { userAwards } = await loadState();
+  const awards = userAwards?.[wallet];
+  return Array.isArray(awards) && awards.length > 0;
+};
+
+const isCacheEligibleWallet = async ({ supabase, wallet }) => {
+  const profileResult = await buildProfileQuery({ supabase, wallet });
+  if (profileResult.error) {
+    return { ok: false, error: profileResult.error };
+  }
+
+  if (profileResult.data?.wallet_address) {
+    return { ok: true, eligible: true, reason: 'profile' };
+  }
+
+  try {
+    const eligible = await hasBadgeAwards(wallet);
+    return { ok: true, eligible, reason: eligible ? 'badge' : 'search-only' };
+  } catch (error) {
+    return { ok: false, error };
+  }
 };
 
 const formatTransactionsResponse = ({ rows, total, page }) => ({
@@ -113,6 +150,19 @@ const formatTransactionsResponse = ({ rows, total, page }) => ({
 const clampPageToStoredHistory = (page) => {
   const maxPage = Math.max(1, Math.ceil(TRANSACTION_HISTORY_LIMIT / PAGE_SIZE));
   return Math.min(page, maxPage);
+};
+
+const formatLiveTransactionsResponse = ({ rows, type, page }) => {
+  const filteredRows = filterTransactionsByType(rows, type);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE;
+  const pageRows = filteredRows.slice(from, to);
+
+  return formatTransactionsResponse({
+    rows: pageRows,
+    total: filteredRows.length,
+    page,
+  });
 };
 
 export default async function handler(req, res) {
@@ -152,6 +202,26 @@ export default async function handler(req, res) {
     const supabase = supabaseResult.supabase;
     let page = requestedPage;
 
+    const eligibilityResult = await isCacheEligibleWallet({ supabase, wallet });
+    if (!eligibilityResult.ok) {
+      console.error('[transactions] failed to determine cache eligibility', eligibilityResult.error);
+      return sendJson(res, 500, { error: 'Failed to fetch transactions' });
+    }
+
+    if (!eligibilityResult.eligible) {
+      const liveTransactions = await getOrFetchTransactions(wallet, {
+        persist: false,
+        allowCachedRead: false,
+        limit: TRANSACTION_HISTORY_LIMIT,
+      });
+
+      return sendJson(res, 200, formatLiveTransactionsResponse({
+        rows: liveTransactions,
+        type,
+        page,
+      }));
+    }
+
     const { data: latestFetchRow, error: latestFetchError } = await buildLatestFetchQuery({
       supabase,
       wallet,
@@ -163,7 +233,11 @@ export default async function handler(req, res) {
     }
 
     if (!isCacheFresh(latestFetchRow?.fetched_at)) {
-      await getOrFetchTransactions(wallet);
+      await getOrFetchTransactions(wallet, {
+        persist: true,
+        allowCachedRead: true,
+        limit: TRANSACTION_HISTORY_LIMIT,
+      });
       if (!latestFetchRow?.fetched_at) {
         page = 1;
       }

@@ -5,6 +5,8 @@ const PRICE_CACHE_KEY = "movement_price_cache_v1";
 const PRICE_API_ENDPOINT = "/api/prices";
 const SERVER_PRICE_TIMEOUT_MS = 3500;
 const DIRECT_PRICE_TIMEOUT_MS = Math.min(API_CONFIG.PRICE_FETCH_TIMEOUT, 5000);
+const GMOVE_ADDRESS = "0xba070099efd401e69ae924e31464541bb9c815b9a1866367f07499d9b3698b2c";
+const MOVE_PRICE_KEYS = ["0xa", "0x1"];
 
 // Map Movement Network token addresses to CoinGecko IDs
 // CoinGecko provides real-time price data
@@ -12,6 +14,7 @@ const COINGECKO_IDS = {
   // Movement Native Token (MOVE) - on Movement Network Mainnet
   "0xa": "movement",
   "0x1": "movement",
+  [GMOVE_ADDRESS]: "movement",
   
   // Stablecoins (real addresses on Movement Network)
   // USDT - long address on Movement
@@ -53,6 +56,24 @@ const FALLBACK_PRICES = {
   // Meme tokens (small/no value unless they get listed)
   "0x967d9125a338c5b1e22b6aacaa8d14b2b8b785ca44b614803ecbcdb4898229f3": 0, // CAPY
   "0xf02c83698b28a544197858c4808b96ff740aa1c01b2f04ba33e80a485b4bf67a": 0, // MOVECAT
+  [GMOVE_ADDRESS]: 0, // gMOVE
+};
+
+const applyPriceAliases = (prices = {}, priceChanges = {}) => {
+  const nextPrices = { ...prices };
+  const nextChanges = { ...priceChanges };
+
+  const movePriceKey = MOVE_PRICE_KEYS.find((key) => Number.isFinite(Number(nextPrices[key])));
+  if (movePriceKey) {
+    nextPrices[GMOVE_ADDRESS] = Number(nextPrices[movePriceKey]) || 0;
+  }
+
+  const moveChangeKey = MOVE_PRICE_KEYS.find((key) => Number.isFinite(Number(nextChanges[key])));
+  if (moveChangeKey) {
+    nextChanges[GMOVE_ADDRESS] = Number(nextChanges[moveChangeKey]) || 0;
+  }
+
+  return { prices: nextPrices, priceChanges: nextChanges };
 };
 
 const loadCachedPrices = () => {
@@ -70,10 +91,7 @@ const loadCachedPrices = () => {
     const cachedPrices = parsed.prices && typeof parsed.prices === "object" ? parsed.prices : {};
     const cachedChanges = parsed.priceChanges && typeof parsed.priceChanges === "object" ? parsed.priceChanges : {};
 
-    return {
-      prices: { ...FALLBACK_PRICES, ...cachedPrices },
-      priceChanges: cachedChanges,
-    };
+    return applyPriceAliases({ ...FALLBACK_PRICES, ...cachedPrices }, cachedChanges);
   } catch {
     return null;
   }
@@ -163,13 +181,13 @@ export const useTokenPrices = () => {
       }
     });
 
-    return {
-      prices: {
+    return applyPriceAliases(
+      {
         ...FALLBACK_PRICES,
         ...fetchedPrices,
       },
-      priceChanges: newChanges,
-    };
+      newChanges,
+    );
   }, []);
 
   const fetchFromServerPricesApi = useCallback(async () => {
@@ -180,13 +198,13 @@ export const useTokenPrices = () => {
     }
 
     const data = await response.json();
-    return {
-      prices: {
+    return applyPriceAliases(
+      {
         ...FALLBACK_PRICES,
         ...(data?.prices || {}),
       },
-      priceChanges: data?.priceChanges || {},
-    };
+      data?.priceChanges || {},
+    );
   }, []);
 
   const fetchPrices = useCallback(async () => {
@@ -209,18 +227,23 @@ export const useTokenPrices = () => {
         }
 
         let mergedPrices = null;
+        let mergedChanges = null;
         setPrices((prev) => {
-          mergedPrices = {
-            ...FALLBACK_PRICES,
-            ...prev,
-            ...(nextSnapshot?.prices || {}),
-          };
+          const aliasedSnapshot = applyPriceAliases(
+            {
+              ...FALLBACK_PRICES,
+              ...prev,
+              ...(nextSnapshot?.prices || {}),
+            },
+            nextSnapshot?.priceChanges || {},
+          );
+          mergedPrices = aliasedSnapshot.prices;
+          mergedChanges = aliasedSnapshot.priceChanges;
           return mergedPrices;
         });
-        const nextChanges = nextSnapshot?.priceChanges || {};
-        setPriceChanges(nextChanges);
+        setPriceChanges(mergedChanges || {});
         if (mergedPrices) {
-          persistCachedPrices(mergedPrices, nextChanges);
+          persistCachedPrices(mergedPrices, mergedChanges || {});
         }
 
         setLoading(false);
@@ -245,11 +268,11 @@ export const useTokenPrices = () => {
       ? "Price fetch timed out. Using fallback values."
       : "Failed to fetch prices. Using fallback values.";
     setError(errorMsg);
-    setPrices((prev) => ({
-      ...FALLBACK_PRICES,
-      ...prev,
-    }));
-    setPriceChanges({});
+    setPrices((prev) => applyPriceAliases({
+            ...FALLBACK_PRICES,
+            ...prev,
+    }).prices);
+    setPriceChanges((prev) => applyPriceAliases({}, prev).priceChanges);
     setLoading(false);
   }, [fetchFromServerPricesApi, fetchDirectFromCoinGecko]);
 

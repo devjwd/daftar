@@ -446,11 +446,25 @@ export async function awardBadge(address, badgeId, extra = {}) {
     metadata: extra.metadata || {},
   };
 
-  const remoteResult = await awardBadgeToUser(normalized, badgeId, {
-    ...(extra.metadata || {}),
-    txHash: extra.txHash || null,
-    onChainBadgeId: extra.onChainBadgeId ?? resolvedBadge.onChainBadgeId ?? null,
-  });
+  let adminKey = '';
+  try {
+    adminKey = String(sessionStorage.getItem('badge_admin_api_key') || '').trim();
+  } catch {
+    adminKey = '';
+  }
+
+  const remoteResult = adminKey
+    ? await awardBadgeToUser(
+        normalized,
+        badgeId,
+        {
+          ...(extra.metadata || {}),
+          txHash: extra.txHash || null,
+          onChainBadgeId: extra.onChainBadgeId ?? resolvedBadge.onChainBadgeId ?? null,
+        },
+        { adminKey }
+      )
+    : { ok: false };
 
   if (remoteResult.ok && remoteResult.data) {
     const cachedAwards = getUserAwards(normalized);

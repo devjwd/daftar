@@ -1,12 +1,9 @@
 /**
- * Vercel Blob state helpers.
- * Reads and writes badge state (user awards + tracked addresses) as a single
- * JSON blob named "badge-state.json" in the connected Blob store.
- *
- * BLOB_READ_WRITE_TOKEN is automatically injected by Vercel when Blob storage
- * is linked to the project; no manual configuration required.
+ * State management — primary: Supabase, fallback: Vercel Blob.
+ * Set BADGE_BLOB_FALLBACK_ENABLED=true in Vercel to keep Blob writes.
  */
 import { put, list } from '@vercel/blob';
+import { getSupabaseAdmin } from '../badges/supabase.js';
 
 const BLOB_PATHNAME = 'badge-state.json';
 const MAX_SAVE_RETRIES = 3;
@@ -203,11 +200,31 @@ const stateContains = (container, subset) => {
   return true;
 };
 
-/**
- * Returns { userAwards: { [address]: [{badgeId,payload,awardedAt},...] },
- *           trackedAddresses: string[] }
- */
-export async function loadState() {
+const hasSupabaseState = (state) => {
+  const awardsCount = Object.keys(normalizeUserAwards(state?.userAwards)).length;
+  const trackedCount = normalizeTrackedAddresses(state?.trackedAddresses).length;
+  return awardsCount > 0 || trackedCount > 0;
+};
+
+const mergeCurrentState = (supabaseState, blobState) => ({
+  userAwards: mergeStates(blobState || {}, supabaseState || {}).userAwards,
+  trackedAddresses: normalizeTrackedAddresses([
+    ...(blobState?.trackedAddresses || []),
+    ...(supabaseState?.trackedAddresses || []),
+  ]),
+  badgeConfigs: normalizeBadgeConfigs(
+    Array.isArray(supabaseState?.badgeConfigs) && supabaseState.badgeConfigs.length > 0
+      ? supabaseState.badgeConfigs
+      : blobState?.badgeConfigs
+  ),
+  badgeDefinitions: normalizeBadgeDefinitions(
+    Array.isArray(supabaseState?.badgeDefinitions) && supabaseState.badgeDefinitions.length > 0
+      ? supabaseState.badgeDefinitions
+      : blobState?.badgeDefinitions
+  ),
+});
+
+const loadBlobState = async () => {
   try {
     const { blobs } = await list({ prefix: BLOB_PATHNAME, limit: 20 });
     const newest = pickNewestBlob(blobs);
@@ -224,8 +241,68 @@ export async function loadState() {
       badgeDefinitions: normalizeBadgeDefinitions(data.badgeDefinitions),
     };
   } catch (e) {
-    console.warn('[state] loadState failed', e.message);
+    console.warn('[state] loadBlobState failed', e.message);
     return { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
+  }
+};
+
+const loadSupabaseState = async () => {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('badge_attestations')
+    .select('wallet_address, badge_id, verified_at, proof_hash')
+    .eq('eligible', true);
+
+  if (error) {
+    throw error;
+  }
+
+  const userAwards = {};
+  const trackedAddresses = [];
+
+  for (const row of Array.isArray(data) ? data : []) {
+    const walletAddress = normalizeAddress(row?.wallet_address);
+    const badgeId = String(row?.badge_id || '').trim();
+    if (!walletAddress || !badgeId) continue;
+
+    trackedAddresses.push(walletAddress);
+    userAwards[walletAddress] = userAwards[walletAddress] || [];
+    userAwards[walletAddress].push({
+      badgeId,
+      awardedAt: row?.verified_at || null,
+      payload: {
+        eligible: true,
+        proofHash: row?.proof_hash || null,
+      },
+    });
+  }
+
+  return {
+    userAwards: normalizeUserAwards(userAwards),
+    trackedAddresses: normalizeTrackedAddresses(trackedAddresses),
+    badgeConfigs: [],
+    badgeDefinitions: [],
+  };
+};
+
+/**
+ * Returns { userAwards: { [address]: [{badgeId,payload,awardedAt},...] },
+ *           trackedAddresses: string[] }
+ */
+export async function loadState() {
+  try {
+    const supabaseState = await loadSupabaseState();
+    const blobState = await loadBlobState();
+
+    if (hasSupabaseState(supabaseState)) {
+      return mergeCurrentState(supabaseState, blobState);
+    }
+
+    console.warn('[state] falling back to Blob for state load');
+    return blobState;
+  } catch (error) {
+    console.warn('[state] falling back to Blob for state load');
+    return await loadBlobState();
   }
 }
 
@@ -234,6 +311,7 @@ export async function loadState() {
  * @param {string[]}                 trackedAddresses
  */
 export async function saveState(userAwards, trackedAddresses, badgeConfigs, badgeDefinitions) {
+  const blobFallbackEnabled = process.env.BADGE_BLOB_FALLBACK_ENABLED === 'true';
   let intended = mergeStates({}, {
     userAwards,
     trackedAddresses,
@@ -242,25 +320,75 @@ export async function saveState(userAwards, trackedAddresses, badgeConfigs, badg
   });
 
   for (let attempt = 0; attempt < MAX_SAVE_RETRIES; attempt += 1) {
-    const latest = await loadState();
+    let latestSupabase = { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
+    try {
+      latestSupabase = await loadSupabaseState();
+    } catch (error) {
+      console.warn('[state] loadSupabaseState failed during saveState', error?.message || error);
+    }
+
+    const latestBlob = await loadBlobState();
+    const latest = mergeCurrentState(latestSupabase, latestBlob);
     const merged = mergeStates(latest, intended);
 
-    const payload = JSON.stringify({
-      userAwards: merged.userAwards,
-      trackedAddresses: merged.trackedAddresses,
-      badgeConfigs: merged.badgeConfigs,
-      badgeDefinitions: merged.badgeDefinitions,
-      updatedAt: new Date().toISOString(),
-    });
+    try {
+      const supabase = getSupabaseAdmin();
+      const verifiedAt = new Date().toISOString();
+      const attestationRows = Object.entries(merged.userAwards).flatMap(([walletAddress, awards]) =>
+        (Array.isArray(awards) ? awards : [])
+          .map((award) => {
+            const badgeId = String(award?.badgeId || '').trim();
+            if (!walletAddress || !badgeId) return null;
 
-    await put(BLOB_PATHNAME, payload, {
-      access: 'public',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: 'application/json',
-    });
+            return {
+              wallet_address: walletAddress,
+              badge_id: badgeId,
+              eligible: true,
+              verified_at: verifiedAt,
+            };
+          })
+          .filter(Boolean)
+      );
 
-    const confirmed = await loadState();
+      if (attestationRows.length > 0) {
+        const { error } = await supabase
+          .from('badge_attestations')
+          .upsert(attestationRows, { onConflict: 'wallet_address,badge_id' });
+
+        if (error) {
+          console.error('[state] Supabase dual-write failed', error);
+        }
+      }
+    } catch (error) {
+      console.error('[state] Supabase dual-write failed', error);
+    }
+
+    if (blobFallbackEnabled) {
+      const payload = JSON.stringify({
+        userAwards: merged.userAwards,
+        trackedAddresses: merged.trackedAddresses,
+        badgeConfigs: merged.badgeConfigs,
+        badgeDefinitions: merged.badgeDefinitions,
+        updatedAt: new Date().toISOString(),
+      });
+
+      await put(BLOB_PATHNAME, payload, {
+        access: 'public',
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: 'application/json',
+      });
+    }
+
+    let confirmedSupabase = { userAwards: {}, trackedAddresses: [], badgeConfigs: [], badgeDefinitions: [] };
+    try {
+      confirmedSupabase = await loadSupabaseState();
+    } catch (error) {
+      console.warn('[state] loadSupabaseState failed during saveState confirmation', error?.message || error);
+    }
+
+    const confirmedBlob = blobFallbackEnabled ? await loadBlobState() : { badgeConfigs: merged.badgeConfigs, badgeDefinitions: merged.badgeDefinitions };
+    const confirmed = mergeCurrentState(confirmedSupabase, confirmedBlob);
     if (stateContains(confirmed, intended)) {
       return;
     }
