@@ -260,8 +260,6 @@ body {
 
   overflow-x: hidden;
 
-  border-top: 2px solid var(--primary);
-
 }
 
 body[data-theme="light"] {
@@ -3179,21 +3177,28 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 }
 
 .token-symbol {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  letter-spacing: -0.3px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  font-family: var(--font-primary);
+  letter-spacing: 0.1px;
   line-height: 1.2;
+  opacity: 0.72;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .token-network {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  opacity: 0.6;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  letter-spacing: -0.2px;
+  opacity: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Right side - balance */
@@ -3589,12 +3594,6 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
 }
 
-/* Accent */
-.defi-v2-accent {
-  height: 3px;
-  width: 100%;
-}
-
 /* Header */
 .defi-v2-header {
   display: flex;
@@ -3642,6 +3641,18 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   opacity: 0.6;
 }
 
+.defi-card-v2.is-compact .defi-v2-title h3 {
+  font-size: 17px;
+}
+
+.defi-v2-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.defi-v2-toggle,
 .defi-v2-link {
   width: 32px;
   height: 32px;
@@ -3655,9 +3666,50 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   transition: all 0.2s ease;
 }
 
+.defi-v2-toggle {
+  cursor: pointer;
+  padding: 0;
+}
+
+.defi-v2-toggle:hover,
 .defi-v2-link:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
+}
+
+.defi-v2-toggle:focus-visible,
+.defi-v2-link:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.22);
+  outline-offset: 2px;
+}
+
+.defi-card-v2.is-compact {
+  grid-column: span 1;
+}
+
+.defi-card-v2.is-compact .defi-v2-header {
+  padding-bottom: 14px;
+}
+
+.defi-v2-compact-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 96px;
+  padding: 0 24px 22px;
+}
+
+.defi-card-v2.is-compact .defi-v2-net-label {
+  font-size: 10px;
+}
+
+.defi-card-v2.is-compact .defi-v2-net-value {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.defi-card-v2.is-expanded {
+  grid-column: span 2;
 }
 
 /* Two Column Layout */
@@ -3698,6 +3750,7 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   .defi-v2-column.supply {
     border-right: none;
   }
+
   .defi-v2-column {
     height: auto;
     min-height: 120px;
@@ -3916,6 +3969,30 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   height: 100%;
   border-radius: 2px;
   transition: width 0.5s ease;
+}
+
+@media (max-width: 600px) {
+  .defi-v2-header {
+    padding: 18px 20px 14px;
+  }
+
+  .defi-v2-actions {
+    gap: 6px;
+  }
+
+  .defi-v2-compact-body {
+    min-height: 88px;
+    padding: 0 20px 20px;
+  }
+
+  .defi-v2-footer {
+    gap: 12px;
+    padding: 14px 20px;
+  }
+
+  .defi-card-v2.is-compact .defi-v2-net-value {
+    font-size: 24px;
+  }
 }
 
 
@@ -5084,13 +5161,6 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
   transform: translateY(-2px);
-}
-
-/* Accent Line */
-.lp-card-accent {
-  height: 2px;
-  width: 100%;
-  opacity: 0.9;
 }
 
 /* Header */

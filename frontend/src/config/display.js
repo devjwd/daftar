@@ -3,6 +3,8 @@ export const DEFAULT_TOKEN_COLOR = { primary: "#cda169", secondary: "#deb884" };
 export const TOKEN_VISUALS = {
   MOVE: { logo: "/movement-logo.svg", color: { primary: "#cda169", secondary: "#deb884" } },
   USDC: { logo: "/usdc.png", color: { primary: "#2775ca", secondary: "#5a9fd4" } },
+  USDCX: { logo: "/usdc.png", color: { primary: "#2775ca", secondary: "#5a9fd4" } },
+  USDCx: { logo: "/usdc.png", color: { primary: "#2775ca", secondary: "#5a9fd4" } },
   USDT: { logo: "/usdt.png", color: { primary: "#26a17b", secondary: "#4ecda0" } },
   ETH: { logo: "/ETH.png", color: { primary: "#627eea", secondary: "#8fa3ef" } },
   WETH: { logo: "/ETH.png", color: { primary: "#627eea", secondary: "#8fa3ef" } },

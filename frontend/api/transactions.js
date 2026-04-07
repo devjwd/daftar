@@ -10,11 +10,16 @@ import {
 } from '../src/services/transactionService.js';
 
 const METHODS = ['GET', 'OPTIONS'];
-const PAGE_SIZE = 50;
-const ALLOWED_TYPES = new Set(['all', 'swap', 'deposit', 'withdraw']);
+const PAGE_SIZE = 20;
+const ALLOWED_TYPES = new Set(['all', 'swap', 'deposit', 'withdraw', 'lending', 'staking', 'transfers', 'lend', 'borrow', 'repay', 'stake', 'unstake', 'claim', 'transfer', 'received']);
 const TRANSACTION_FIELDS = [
   'tx_hash',
   'tx_type',
+  'dapp_key',
+  'dapp_name',
+  'dapp_logo',
+  'dapp_website',
+  'dapp_contract',
   'token_in',
   'token_out',
   'amount_in',
@@ -65,6 +70,13 @@ const normalizeType = (type) => {
   return ALLOWED_TYPES.has(value) ? value : 'all';
 };
 
+const TYPE_FILTER_GROUPS = {
+  lending: ['lend', 'borrow', 'repay'],
+  staking: ['stake', 'unstake', 'claim'],
+  transfers: ['transfer', 'received'],
+  defi: ['deposit', 'withdraw', 'lend', 'borrow', 'repay'],
+};
+
 const buildTransactionsQuery = ({ supabase, wallet, type, page }) => {
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
@@ -77,7 +89,12 @@ const buildTransactionsQuery = ({ supabase, wallet, type, page }) => {
     .range(from, to);
 
   if (type !== 'all') {
-    query = query.eq('tx_type', type);
+    const group = TYPE_FILTER_GROUPS[type];
+    if (group) {
+      query = query.in('tx_type', group);
+    } else {
+      query = query.eq('tx_type', type);
+    }
   }
 
   return query;
@@ -131,6 +148,11 @@ const formatTransactionsResponse = ({ rows, total, page }) => ({
   transactions: Array.isArray(rows) ? rows.map((row) => ({
     tx_hash: row.tx_hash,
     tx_type: row.tx_type,
+    dapp_key: row.dapp_key || null,
+    dapp_name: row.dapp_name || null,
+    dapp_logo: row.dapp_logo || null,
+    dapp_website: row.dapp_website || null,
+    dapp_contract: row.dapp_contract || null,
     token_in: row.token_in,
     token_out: row.token_out,
     amount_in: row.amount_in,
@@ -200,7 +222,7 @@ export default async function handler(req, res) {
     }
 
     const supabase = supabaseResult.supabase;
-    let page = requestedPage;
+    const page = requestedPage;
 
     const eligibilityResult = await isCacheEligibleWallet({ supabase, wallet });
     if (!eligibilityResult.ok) {
@@ -208,56 +230,15 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: 'Failed to fetch transactions' });
     }
 
-    if (!eligibilityResult.eligible) {
-      const liveTransactions = await getOrFetchTransactions(wallet, {
-        persist: false,
-        allowCachedRead: false,
-        limit: TRANSACTION_HISTORY_LIMIT,
-      });
-
-      return sendJson(res, 200, formatLiveTransactionsResponse({
-        rows: liveTransactions,
-        type,
-        page,
-      }));
-    }
-
-    const { data: latestFetchRow, error: latestFetchError } = await buildLatestFetchQuery({
-      supabase,
-      wallet,
+    const liveTransactions = await getOrFetchTransactions(wallet, {
+      persist: eligibilityResult.eligible,
+      allowCachedRead: false,
+      limit: TRANSACTION_HISTORY_LIMIT,
     });
 
-    if (latestFetchError) {
-      console.error('[transactions] failed to check cached transactions', latestFetchError);
-      return sendJson(res, 500, { error: 'Failed to fetch transactions' });
-    }
-
-    if (!isCacheFresh(latestFetchRow?.fetched_at)) {
-      await getOrFetchTransactions(wallet, {
-        persist: true,
-        allowCachedRead: true,
-        limit: TRANSACTION_HISTORY_LIMIT,
-      });
-      if (!latestFetchRow?.fetched_at) {
-        page = 1;
-      }
-    }
-
-    const { data, count, error } = await buildTransactionsQuery({
-      supabase,
-      wallet,
+    return sendJson(res, 200, formatLiveTransactionsResponse({
+      rows: liveTransactions,
       type,
-      page,
-    });
-
-    if (error) {
-      console.error('[transactions] failed to query transactions', error);
-      return sendJson(res, 500, { error: 'Failed to fetch transactions' });
-    }
-
-    return sendJson(res, 200, formatTransactionsResponse({
-      rows: data,
-      total: Number(count || 0),
       page,
     }));
   } catch (error) {

@@ -7,6 +7,7 @@ const SERVER_PRICE_TIMEOUT_MS = 3500;
 const DIRECT_PRICE_TIMEOUT_MS = Math.min(API_CONFIG.PRICE_FETCH_TIMEOUT, 5000);
 const GMOVE_ADDRESS = "0xba070099efd401e69ae924e31464541bb9c815b9a1866367f07499d9b3698b2c";
 const MOVE_PRICE_KEYS = ["0xa", "0x1"];
+const USDCX_ADDRESS = "0xba11833544a2f99eec743f41a228ca6ffa7f13c3b6b04681d5a79a8b75ff225e";
 
 // Map Movement Network token addresses to CoinGecko IDs
 // CoinGecko provides real-time price data
@@ -21,7 +22,9 @@ const COINGECKO_IDS = {
   "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d": "tether",
   // USDC - long address on Movement
   "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39": "usd-coin",
-  // USDa - Angle USD
+  // USDCx - use USDC pricing
+  [USDCX_ADDRESS]: "usd-coin",
+  // USDa - Avalon USD
   "0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650": "usd-coin", // Use USDC as proxy for stablecoin
   // USDe - Ethena USD
   "0x9d146a4c9472a7e7b0dbc72da0eafb02b54173a956ef22a9fba29756f8661c6c": "ethena-usde",
@@ -50,6 +53,7 @@ const FALLBACK_PRICES = {
   // Stablecoins should always be ~1.00
   "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d": 1.00, // USDT
   "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39": 1.00, // USDC
+  [USDCX_ADDRESS]: 1.00, // USDCx
   "0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650": 1.00, // USDa
   "0x9d146a4c9472a7e7b0dbc72da0eafb02b54173a956ef22a9fba29756f8661c6c": 1.00, // USDe
 

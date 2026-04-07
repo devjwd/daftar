@@ -44,7 +44,7 @@ const getTokenPriceFromMap = (symbol, priceMap) => {
     return Number(priceMap[address]) || 0;
   }
 
-  if (upperSymbol === 'USDC' || upperSymbol === 'USDT' || upperSymbol === 'USDA' || upperSymbol === 'USDE' || upperSymbol === 'SUSDE') {
+  if (upperSymbol === 'USDC' || upperSymbol === 'USDCX' || upperSymbol === 'USDT' || upperSymbol === 'USDA' || upperSymbol === 'USDE' || upperSymbol === 'SUSDE') {
     return 1;
   }
 
@@ -136,11 +136,14 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
   const tokenInfo = getTokenInfo(token.address);
   const isKnownToken = !!tokenInfo;
 
-  const symbol = (token.symbol || '').toUpperCase();
+  const rawSymbol = String(tokenInfo?.symbol || token.symbol || '').trim();
+  const symbol = rawSymbol.toUpperCase();
   const baseSymbol = symbol.replace(/\.E$/i, '');
   const visual = TOKEN_VISUALS[baseSymbol] || TOKEN_VISUALS[symbol] || null;
   const tokenLogo = visual?.logo || null;
   const tokenColor = visual?.color || DEFAULT_TOKEN_COLOR;
+  const displayName = tokenInfo?.name || rawSymbol || 'Token';
+  const displayMeta = rawSymbol || 'Movement';
 
   const usdValueNum = parseFloat(token.formattedValue?.replace('$', '').replace(',', '') || '0');
   const hasValue = usdValueNum > 0;
@@ -171,7 +174,7 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
             {tokenLogo ? (
               <img 
                 src={tokenLogo} 
-                alt={symbol}
+                alt={displayName}
                 className="token-logo"
                 onError={(e) => {
                   e.target.style.display = 'none';
@@ -191,8 +194,8 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
           </div>
           
           <div className="token-info">
-            <span className="token-symbol">{symbol || 'TOKEN'}</span>
-            <span className="token-network">Movement</span>
+            <span className="token-network">{displayMeta}</span>
+            <span className="token-symbol">{displayName}</span>
           </div>
         </div>
 
@@ -264,6 +267,7 @@ const StakingCard = ({ name, value, type, delay }) => (
 );
 
 const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const firstPos = protocolPositions[0];
   const getProtocolKey = () => {
     const searchText = `${firstPos.name} ${firstPos.protocolName || ''} ${firstPos.resourceType || ''}`.toLowerCase();
@@ -335,11 +339,15 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
   const totalSupplyUsd = supplyPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0);
   const totalDebtUsd = debtPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0);
   const netUsd = totalSupplyUsd - totalDebtUsd;
+  const positionTypeLabel = supplyPositions.length > 0 && debtPositions.length > 0
+    ? 'Lending & Borrowing'
+    : supplyPositions.length > 0 ? 'Lending' : 'Borrowing';
 
   return (
-    <div className="defi-card-v2" style={{ animationDelay: `${delay}ms`, '--protocol-color': protocol.color }}>
-      <div className="defi-v2-accent" style={{ background: protocol.gradient }} />
-      
+    <div
+      className={`defi-card-v2 ${isExpanded ? 'is-expanded' : 'is-compact'}`}
+      style={{ animationDelay: `${delay}ms`, '--protocol-color': protocol.color }}
+    >
       <div className="defi-v2-header">
         <div className="defi-v2-logo">
           <img 
@@ -350,92 +358,129 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
         </div>
         <div className="defi-v2-title">
           <h3>{protocol.name}</h3>
-          <span className="defi-v2-type">
-            {supplyPositions.length > 0 && debtPositions.length > 0 
-              ? 'Lending & Borrowing' 
-              : supplyPositions.length > 0 ? 'Lending' : 'Borrowing'}
-          </span>
+          {isExpanded && (
+            <span className="defi-v2-type">{positionTypeLabel}</span>
+          )}
         </div>
-        {firstPos.protocolWebsite && (
-          <a href={firstPos.protocolWebsite} target="_blank" rel="noopener noreferrer" className="defi-v2-link">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-              <polyline points="15 3 21 3 21 9"/>
-              <line x1="10" y1="14" x2="21" y2="3"/>
-            </svg>
-          </a>
-        )}
-      </div>
-
-      <div className="defi-v2-columns">
-        <div className="defi-v2-column supply">
-          <div className="defi-v2-column-header">
-            <span className="defi-v2-column-label">Supplied</span>
-            <span className="defi-v2-column-total">{formatUsdValue(totalSupplyUsd)}</span>
-          </div>
-          <div className="defi-v2-column-items">
-            {supplyPositions.length > 0 ? supplyPositions.map((pos, idx) => (
-              <div key={idx} className="defi-v2-item">
-                <div className="defi-v2-item-token-wrap">
-                  <span className="defi-v2-item-token">{pos.tokenSymbol || 'Token'}</span>
-                  {formatNativeStakingMeta(pos) && (
-                    <span className="defi-v2-item-meta">{formatNativeStakingMeta(pos)}</span>
-                  )}
-                </div>
-                <div className="defi-v2-item-values">
-                  <span className="defi-v2-item-amount supply">{formatValue(pos.value)}</span>
-                  <span className="defi-v2-item-usd">{formatUsdValue(getPositionUsdValue(pos))}</span>
-                </div>
-              </div>
-            )) : (
-              <div className="defi-v2-empty">No supply positions</div>
+        <div className="defi-v2-actions">
+          <button
+            type="button"
+            className="defi-v2-toggle"
+            onClick={() => setIsExpanded((current) => !current)}
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? `Collapse ${protocol.name} details` : `Open full view for ${protocol.name}`}
+            title={isExpanded ? 'Minimize' : 'Full view'}
+          >
+            {isExpanded ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 15 3 21"/>
+                <path d="M15 9 21 3"/>
+                <path d="M3 16v5h5"/>
+                <path d="M16 3h5v5"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 3h6v6"/>
+                <path d="M9 21H3v-6"/>
+                <path d="M21 3 14 10"/>
+                <path d="M3 21 10 14"/>
+              </svg>
             )}
-          </div>
-        </div>
-
-        <div className="defi-v2-column borrow">
-          <div className="defi-v2-column-header">
-            <span className="defi-v2-column-label">Borrowed</span>
-            <span className="defi-v2-column-total debt">{formatUsdValue(totalDebtUsd)}</span>
-          </div>
-          <div className="defi-v2-column-items">
-            {debtPositions.length > 0 ? debtPositions.map((pos, idx) => (
-              <div key={idx} className="defi-v2-item">
-                <span className="defi-v2-item-token">{pos.tokenSymbol || 'Token'}</span>
-                <div className="defi-v2-item-values">
-                  <span className="defi-v2-item-amount debt">-{formatValue(pos.value)}</span>
-                  <span className="defi-v2-item-usd debt">-{formatUsdValue(getPositionUsdValue(pos))}</span>
-                </div>
-              </div>
-            )) : (
-              <div className="defi-v2-empty">No debt positions</div>
-            )}
-          </div>
+          </button>
+          {firstPos.protocolWebsite && (
+            <a href={firstPos.protocolWebsite} target="_blank" rel="noopener noreferrer" className="defi-v2-link" aria-label={`Open ${protocol.name} website`} title="Open protocol website">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          )}
         </div>
       </div>
 
-      <div className="defi-v2-footer">
-        <div className="defi-v2-net">
-          <span className="defi-v2-net-label">NET POSITION</span>
-          <span className={`defi-v2-net-value ${netUsd >= 0 ? 'positive' : 'negative'}`}>
-            {netUsd >= 0 ? '+' : ''}{formatUsdValue(netUsd)}
-          </span>
+      {!isExpanded ? (
+        <div className="defi-v2-compact-body">
+          <div className="defi-v2-net">
+            <span className="defi-v2-net-label">Net Position</span>
+            <span className={`defi-v2-net-value ${netUsd >= 0 ? 'positive' : 'negative'}`}>
+              {netUsd >= 0 ? '+' : ''}{formatUsdValue(netUsd)}
+            </span>
+          </div>
         </div>
-        {debtPositions.length > 0 && totalSupplyUsd > 0 && (
-          <div className="defi-v2-health">
-            <span className="defi-v2-health-label">Health</span>
-            <div className="defi-v2-health-bar">
-              <div 
-                className="defi-v2-health-fill" 
-                style={{ 
-                  width: `${Math.min(100, Math.max(10, 100 - (totalDebtUsd / totalSupplyUsd) * 100))}%`,
-                  background: protocol.gradient 
-                }} 
-              />
+      ) : (
+        <>
+          <div className="defi-v2-columns">
+            <div className="defi-v2-column supply">
+              <div className="defi-v2-column-header">
+                <span className="defi-v2-column-label">Supplied</span>
+                <span className="defi-v2-column-total">{formatUsdValue(totalSupplyUsd)}</span>
+              </div>
+              <div className="defi-v2-column-items">
+                {supplyPositions.length > 0 ? supplyPositions.map((pos, idx) => (
+                  <div key={idx} className="defi-v2-item">
+                    <div className="defi-v2-item-token-wrap">
+                      <span className="defi-v2-item-token">{pos.tokenSymbol || 'Token'}</span>
+                      {formatNativeStakingMeta(pos) && (
+                        <span className="defi-v2-item-meta">{formatNativeStakingMeta(pos)}</span>
+                      )}
+                    </div>
+                    <div className="defi-v2-item-values">
+                      <span className="defi-v2-item-amount supply">{formatValue(pos.value)}</span>
+                      <span className="defi-v2-item-usd">{formatUsdValue(getPositionUsdValue(pos))}</span>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="defi-v2-empty">No supply positions</div>
+                )}
+              </div>
+            </div>
+
+            <div className="defi-v2-column borrow">
+              <div className="defi-v2-column-header">
+                <span className="defi-v2-column-label">Borrowed</span>
+                <span className="defi-v2-column-total debt">{formatUsdValue(totalDebtUsd)}</span>
+              </div>
+              <div className="defi-v2-column-items">
+                {debtPositions.length > 0 ? debtPositions.map((pos, idx) => (
+                  <div key={idx} className="defi-v2-item">
+                    <span className="defi-v2-item-token">{pos.tokenSymbol || 'Token'}</span>
+                    <div className="defi-v2-item-values">
+                      <span className="defi-v2-item-amount debt">-{formatValue(pos.value)}</span>
+                      <span className="defi-v2-item-usd debt">-{formatUsdValue(getPositionUsdValue(pos))}</span>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="defi-v2-empty">No debt positions</div>
+                )}
+              </div>
             </div>
           </div>
-        )}
-      </div>
+
+          <div className="defi-v2-footer">
+            <div className="defi-v2-net">
+              <span className="defi-v2-net-label">NET POSITION</span>
+              <span className={`defi-v2-net-value ${netUsd >= 0 ? 'positive' : 'negative'}`}>
+                {netUsd >= 0 ? '+' : ''}{formatUsdValue(netUsd)}
+              </span>
+            </div>
+            {debtPositions.length > 0 && totalSupplyUsd > 0 && (
+              <div className="defi-v2-health">
+                <span className="defi-v2-health-label">Health</span>
+                <div className="defi-v2-health-bar">
+                  <div 
+                    className="defi-v2-health-fill" 
+                    style={{ 
+                      width: `${Math.min(100, Math.max(10, 100 - (totalDebtUsd / totalSupplyUsd) * 100))}%`,
+                      background: protocol.gradient 
+                    }} 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -684,8 +729,6 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
         '--lp-color': protocol.color 
       }}
     >
-      <div className="lp-card-accent" style={{ background: protocol.gradient }} />
-      
       <div className="lp-card-header">
         <div className="lp-card-logo">
           <img 
@@ -1843,7 +1886,7 @@ const Dashboard = () => {
                       }
 
                       if (priceMap) {
-                        const stableSymbols = ['USDT', 'USDT.E', 'USDC', 'USDC.E', 'USDA', 'USDE'];
+                        const stableSymbols = ['USDT', 'USDT.E', 'USDC', 'USDC.E', 'USDCX', 'USDA', 'USDE'];
                         const meridianUsdValue = poolTokens.reduce((sum, token) => {
                           const tokenAddress = String(token.assetType || '').toLowerCase();
                           const tokenSymbol = String(token.symbol || '').toUpperCase();
@@ -1969,7 +2012,7 @@ const Dashboard = () => {
                     if (Array.isArray(result) && result.length >= 2) {
                       const tokens = poolPair.split('/').map(t => t.trim().replace(/\.e$/, '').toUpperCase());
                       const getTokenDecimals = (symbol) => {
-                        if (['USDC', 'USDT', 'USDA', 'USDE', 'DAI'].includes(symbol)) {
+                        if (['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(symbol)) {
                           return 6;
                         }
                         return 8;
@@ -1984,8 +2027,8 @@ const Dashboard = () => {
                       token1Amount = Number(result[1]) / Math.pow(10, decimals1);
                       const token0Symbol = tokens[0] || '';
                       const token1Symbol = tokens[1] || '';
-                      const isStable0 = ['USDC', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token0Symbol);
-                      const isStable1 = ['USDC', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token1Symbol);
+                      const isStable0 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token0Symbol);
+                      const isStable1 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token1Symbol);
                       const MEME_TOKENS = ['CAPY', 'MOVECAT', 'GMOVE', 'TUBI', 'GCAT'];
                       const isMeme0 = MEME_TOKENS.includes(token0Symbol);
                       const isMeme1 = MEME_TOKENS.includes(token1Symbol);

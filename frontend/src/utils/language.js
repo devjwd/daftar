@@ -180,7 +180,7 @@ const TRANSLATIONS = {
     portfolioTabWalletBalance: "Wallet Balance",
     portfolioTabDefiPositions: "DeFi Positions",
     portfolioTabLp: "LP",
-    portfolioTabTrxHistory: "TRX History",
+    portfolioTabTrxHistory: "Transactions",
     portfolioTransactionHistory: "Transaction History",
   },
   zh: {

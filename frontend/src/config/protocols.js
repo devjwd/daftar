@@ -26,7 +26,11 @@ export const DEFI_PROTOCOLS = {
   MERIDIAN: {
     name: "Meridian",
     address: "0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82",
-    addresses: ["0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82"],
+    addresses: [
+      "0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82",
+      "0x2712eba673b52416fa5f11504ff70d3f9e48edff9c32f2201f1468c27ed3fe04",
+      "0xfbdb3da73efcfa742d542f152d65fc6da7b55dee864cd66475213e4be18c9d54",
+    ],
     type: "CDP",
     website: "https://app.meridian.money/",
     keywords: ["meridian"],
@@ -58,7 +62,10 @@ export const DEFI_PROTOCOLS = {
   MOSAIC: {
     name: "Mosaic",
     address: "0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c",
-    addresses: ["0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c"],
+    addresses: [
+      "0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c",
+      "0x3f7399a0d3d646ce94ee0badf16c4c3f3c656fe3a5e142e83b5ebc011aa8b3d",
+    ],
     type: "DEX",
     website: "https://mosaic.ag",
     keywords: ["mosaic"],

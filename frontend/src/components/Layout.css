@@ -11,7 +11,6 @@
   top: 0;
   z-index: 1000;
   background: #14110f;
-  border-bottom: 1px solid rgba(205, 161, 105, 0.15);
   overflow: visible;
 }
 
@@ -489,7 +488,6 @@ body[data-theme='light'] .app-container {
 
 body[data-theme='light'] .navbar {
   background: #ffffff;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
 }
 
 body[data-theme='light'] .nav-links li,

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
+import { findTrackedDappMatch } from "../config/dapps.js";
 import { DEFAULT_NETWORK } from "../config/network.js";
 import { getTokenInfo } from "../config/tokens.js";
 import { parseCoinType, getTokenDecimals, isValidAddress } from "../utils/tokenUtils.js";
@@ -9,6 +10,8 @@ export const CACHE_TTL_MS = 10 * 60 * 1000;
 export const TRANSACTION_HISTORY_LIMIT = 100;
 const DEFAULT_LIMIT = TRANSACTION_HISTORY_LIMIT;
 const MAX_LIMIT = TRANSACTION_HISTORY_LIMIT;
+const ACTIVITY_FETCH_MULTIPLIER = 12;
+const MAX_ACTIVITY_ROWS = 1200;
 const PRUNE_BATCH_SIZE = 250;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
@@ -21,6 +24,8 @@ const COINGECKO_TOKEN_IDS = {
   WETH: "ethereum",
   WBTC: "wrapped-bitcoin",
 };
+
+const ADDRESS_PATTERN = /0x[a-f0-9]{1,128}/ig;
 
 let supabaseClient = null;
 const pricePromiseCache = new Map();
@@ -106,6 +111,21 @@ const parseJsonSafe = async (response) => {
   }
 };
 
+const parseTimestampDate = (value) => {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)
+      ? `${value}Z`
+      : value;
+    return new Date(normalized);
+  }
+
+  return new Date(value);
+};
+
 const fetchWithTimeout = async (url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -170,12 +190,12 @@ const toNumber = (value) => {
 };
 
 const getTimestampMs = (value) => {
-  const timestamp = new Date(value || 0).getTime();
+  const timestamp = parseTimestampDate(value || 0).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
 };
 
 const toIsoDate = (value) => {
-  const date = value instanceof Date ? value : new Date(value);
+  const date = parseTimestampDate(value);
   if (Number.isNaN(date.getTime())) {
     return null;
   }
@@ -188,7 +208,7 @@ const toSqlDate = (value) => {
 };
 
 const toCoinGeckoDate = (value) => {
-  const date = value instanceof Date ? value : new Date(value);
+  const date = parseTimestampDate(value);
   if (Number.isNaN(date.getTime())) {
     return null;
   }
@@ -199,12 +219,79 @@ const toCoinGeckoDate = (value) => {
   return `${day}-${month}-${year}`;
 };
 
-const classifyTransactionType = (functionName = "") => {
+const includesAny = (value, needles = []) => needles.some((needle) => value.includes(needle));
+
+const extractAddressCandidates = (rawTx, activities = []) => {
+  const candidates = new Set();
+
+  const appendAddresses = (value) => {
+    const matches = String(value || "").match(ADDRESS_PATTERN) || [];
+    for (const match of matches) {
+      const normalized = normalizeAddress(match);
+      if (normalized) {
+        candidates.add(normalized);
+      }
+    }
+  };
+
+  appendAddresses(getFunctionName(rawTx));
+  appendAddresses(rawTx?.payload?.function);
+
+  const functionArguments = Array.isArray(rawTx?.payload?.functionArguments)
+    ? rawTx.payload.functionArguments
+    : Array.isArray(rawTx?.payload?.arguments)
+      ? rawTx.payload.arguments
+      : [];
+
+  for (const argument of functionArguments) {
+    appendAddresses(argument);
+  }
+
+  for (const activity of activities) {
+    appendAddresses(activity?.assetType);
+    appendAddresses(activity?.type);
+  }
+
+  return Array.from(candidates);
+};
+
+const detectTransactionDapp = (rawTx, activities = []) => {
+  const functionName = getFunctionName(rawTx);
+  return findTrackedDappMatch({
+    textParts: [
+      functionName,
+      rawTx?.payload?.function,
+      ...activities.flatMap((activity) => [activity?.type, activity?.assetType, activity?.symbol]),
+    ],
+    addresses: extractAddressCandidates(rawTx, activities),
+  });
+};
+
+const classifyTransactionType = (functionName = "", activities = [], dapp = null) => {
   const lower = String(functionName || "").toLowerCase();
-  if (lower.includes("swap") || lower.includes("collect_fee")) return "swap";
-  if (lower.includes("deposit")) return "deposit";
-  if (lower.includes("withdraw")) return "withdraw";
-  if (lower.includes("transfer")) return "transfer";
+  const incoming = activities.filter((activity) => activity.direction === "in" && activity.amount > 0);
+  const outgoing = activities.filter((activity) => activity.direction === "out" && activity.amount > 0);
+  const lendingDapp = String(dapp?.protocolType || "").toLowerCase().includes("lending");
+
+  if (includesAny(lower, ["swap", "collect_fee", "exact_input", "exact_output"])) return "swap";
+  if (includesAny(lower, ["borrow", "flash_loan"])) return "borrow";
+  if (includesAny(lower, ["repay"])) return "repay";
+  if (includesAny(lower, ["lend", "supply"])) return "lend";
+  if (includesAny(lower, ["stake", "delegate", "add_stake", "reactivate_stake"]) && !includesAny(lower, ["unstake", "unlock", "withdraw_stake", "request_withdraw"])) return "stake";
+  if (includesAny(lower, ["unstake", "unlock", "undelegate", "withdraw_stake", "request_withdraw", "withdraw_pending"])) return "unstake";
+  if (includesAny(lower, ["claim", "harvest", "collect_reward"])) return "claim";
+  if (includesAny(lower, ["deposit", "add_liquidity", "join_pool", "mint_liquidity"])) {
+    return lendingDapp ? "lend" : "deposit";
+  }
+  if (includesAny(lower, ["withdraw", "redeem", "remove_liquidity", "burn_liquidity"])) {
+    return dapp?.key === "movement" ? "unstake" : "withdraw";
+  }
+  if (includesAny(lower, ["transfer", "coin::transfer"])) {
+    if (incoming.length > 0 && outgoing.length === 0) return "received";
+    return "transfer";
+  }
+  if (incoming.length > 0 && outgoing.length === 0) return "received";
+  if (outgoing.length > 0 && incoming.length === 0) return "transfer";
   return "other";
 };
 
@@ -236,7 +323,11 @@ const normalizeActivity = (activity) => {
 
   const type = String(activity.type || activity.event_type || "").toLowerCase();
   const assetType = String(activity.asset_type || activity.coin_type || activity.coinType || "").trim();
-  const { symbol, decimals } = getTokenMeta(assetType);
+  const indexerSymbol = activity.metadata?.symbol || null;
+  const indexerDecimals = activity.metadata?.decimals ?? null;
+  const { symbol: resolvedSymbol, decimals: resolvedDecimals } = getTokenMeta(assetType);
+  const symbol = indexerSymbol || resolvedSymbol;
+  const decimals = indexerDecimals ?? resolvedDecimals;
   const amount = rawAmountToDisplay(
     activity.amount ?? activity.data?.amount ?? activity.data?.value,
     decimals
@@ -261,6 +352,7 @@ const normalizeActivity = (activity) => {
     assetType,
     symbol,
     amount,
+    owner: String(activity.owner_address || activity.ownerAddress || "").toLowerCase().trim(),
   };
 };
 
@@ -323,11 +415,57 @@ const calculateGasFeeInMove = (gasUsed, gasUnitPrice) => {
   return units / Math.pow(10, 8);
 };
 
-const buildStructuredTransaction = (rawTx, activities) => {
+const isGasActivity = (activity) => String(activity?.type || "").toLowerCase().includes("gasfee");
+
+const getPrimaryActivity = (activities = []) => {
+  const candidates = activities.filter((activity) => activity?.amount > 0 && !isGasActivity(activity));
+  const source = candidates.length > 0 ? candidates : activities.filter((activity) => activity?.amount > 0);
+
+  if (source.length === 0) {
+    return null;
+  }
+
+  return [...source].sort((left, right) => toNumber(right?.amount) - toNumber(left?.amount))[0] || null;
+};
+
+const isDistinctAssetPair = (leftActivity, rightActivity) => {
+  if (!leftActivity || !rightActivity) {
+    return false;
+  }
+
+  const leftSymbol = String(leftActivity.symbol || "").trim().toUpperCase();
+  const rightSymbol = String(rightActivity.symbol || "").trim().toUpperCase();
+  const leftAssetType = String(leftActivity.assetType || "").trim().toLowerCase();
+  const rightAssetType = String(rightActivity.assetType || "").trim().toLowerCase();
+
+  if (leftAssetType && rightAssetType && leftAssetType !== rightAssetType) {
+    return true;
+  }
+
+  return Boolean(leftSymbol && rightSymbol && leftSymbol !== rightSymbol);
+};
+
+const buildStructuredTransaction = (rawTx, activities, walletAddress = "") => {
   const functionName = getFunctionName(rawTx);
-  const txType = classifyTransactionType(functionName);
+  const dapp = detectTransactionDapp(rawTx, activities);
+  const txType = classifyTransactionType(functionName, activities, dapp);
+  let finalTxType = txType;
   const incoming = activities.filter((activity) => activity.direction === "in" && activity.amount > 0);
   const outgoing = activities.filter((activity) => activity.direction === "out" && activity.amount > 0);
+
+  const senderAddress = normalizeAddress(rawTx?.sender || "");
+  const userAddress = normalizeAddress(walletAddress) || senderAddress;
+
+  const ownerMatches = (activity) =>
+    !activity.owner || !userAddress || activity.owner === userAddress;
+
+  const userIncoming = incoming.filter(ownerMatches);
+  const userOutgoing = outgoing.filter(ownerMatches);
+
+  const primaryIncoming = getPrimaryActivity(incoming);
+  const primaryOutgoing = getPrimaryActivity(outgoing);
+  const primaryUserIncoming = getPrimaryActivity(userIncoming);
+  const primaryUserOutgoing = getPrimaryActivity(userOutgoing);
 
   let tokenIn = null;
   let tokenOut = null;
@@ -335,35 +473,93 @@ const buildStructuredTransaction = (rawTx, activities) => {
   let amountOut = null;
 
   if (txType === "swap") {
-    tokenIn = outgoing[0]?.symbol || null;
-    tokenOut = incoming[0]?.symbol || null;
-    amountIn = outgoing[0]?.amount ?? null;
-    amountOut = incoming[0]?.amount ?? null;
-  } else if (txType === "deposit") {
-    tokenOut = incoming[0]?.symbol || null;
-    amountOut = incoming[0]?.amount ?? null;
-    tokenIn = outgoing[0]?.symbol || null;
-    amountIn = outgoing[0]?.amount ?? null;
-  } else if (txType === "withdraw") {
-    tokenIn = outgoing[0]?.symbol || null;
-    amountIn = outgoing[0]?.amount ?? null;
-    tokenOut = incoming[0]?.symbol || null;
-    amountOut = incoming[0]?.amount ?? null;
+    const swapOut = primaryUserOutgoing || primaryOutgoing;
+    const swapInCandidates = (userIncoming.length > 0 ? userIncoming : incoming)
+      .filter((a) => !isGasActivity(a) && a.symbol !== swapOut?.symbol);
+    const swapIn = getPrimaryActivity(swapInCandidates) || primaryUserIncoming || primaryIncoming;
+
+    tokenIn = swapOut?.symbol || null;
+    tokenOut = swapIn?.symbol || null;
+    amountIn = swapOut?.amount ?? null;
+    amountOut = swapIn?.amount ?? null;
+  } else if (txType === "lend" || txType === "deposit" || txType === "repay") {
+    const supplied = primaryUserOutgoing || primaryOutgoing;
+    tokenIn = supplied?.symbol || null;
+    amountIn = supplied?.amount ?? null;
+  } else if (txType === "stake") {
+    const supplied = primaryUserOutgoing || primaryOutgoing;
+    const receivedCandidates = (userIncoming.length > 0 ? userIncoming : incoming)
+      .filter((activity) => !isGasActivity(activity) && isDistinctAssetPair(supplied, activity));
+    const received = getPrimaryActivity(receivedCandidates) || primaryUserIncoming || primaryIncoming;
+
+    tokenIn = supplied?.symbol || null;
+    amountIn = supplied?.amount ?? null;
+
+    if (isDistinctAssetPair(supplied, received)) {
+      tokenOut = received?.symbol || null;
+      amountOut = received?.amount ?? null;
+    }
+  } else if (txType === "withdraw" || txType === "unstake" || txType === "claim" || txType === "borrow") {
+    const received = primaryUserIncoming || primaryIncoming;
+    tokenOut = received?.symbol || null;
+    amountOut = received?.amount ?? null;
+  } else if (txType === "received") {
+    tokenOut = primaryIncoming?.symbol || null;
+    amountOut = primaryIncoming?.amount ?? null;
   } else if (txType === "transfer") {
-    tokenIn = outgoing[0]?.symbol || null;
-    tokenOut = incoming[0]?.symbol || null;
-    amountIn = outgoing[0]?.amount ?? null;
-    amountOut = incoming[0]?.amount ?? null;
+    const transferOut = primaryUserOutgoing || null;
+    const transferIn = primaryUserIncoming || null;
+
+    if (transferOut && !transferIn) {
+      finalTxType = "withdraw";
+      tokenIn = transferOut?.symbol || null;
+      amountIn = transferOut?.amount ?? null;
+    } else if (transferIn && !transferOut) {
+      finalTxType = "received";
+      tokenOut = transferIn?.symbol || null;
+      amountOut = transferIn?.amount ?? null;
+    } else {
+      const fallbackOut = transferOut || primaryOutgoing;
+      const fallbackIn = transferIn || primaryIncoming;
+
+      if (
+        fallbackOut &&
+        fallbackIn &&
+        fallbackOut.symbol &&
+        fallbackOut.symbol === fallbackIn.symbol &&
+        Math.abs(toNumber(fallbackOut.amount) - toNumber(fallbackIn.amount)) < 1e-12
+      ) {
+        if (senderAddress && userAddress && senderAddress === userAddress) {
+          finalTxType = "withdraw";
+          tokenIn = fallbackOut.symbol || null;
+          amountIn = fallbackOut.amount ?? null;
+        } else {
+          finalTxType = "received";
+          tokenOut = fallbackIn.symbol || null;
+          amountOut = fallbackIn.amount ?? null;
+        }
+      } else {
+        tokenIn = fallbackOut?.symbol || null;
+        tokenOut = fallbackIn?.symbol || null;
+        amountIn = fallbackOut?.amount ?? null;
+        amountOut = fallbackIn?.amount ?? null;
+      }
+    }
   } else {
-    tokenIn = outgoing[0]?.symbol || null;
-    tokenOut = incoming[0]?.symbol || null;
-    amountIn = outgoing[0]?.amount ?? null;
-    amountOut = incoming[0]?.amount ?? null;
+    tokenIn = primaryOutgoing?.symbol || null;
+    tokenOut = primaryIncoming?.symbol || null;
+    amountIn = primaryOutgoing?.amount ?? null;
+    amountOut = primaryIncoming?.amount ?? null;
   }
 
   return {
     tx_hash: String(rawTx?.tx_hash || rawTx?.hash || rawTx?.transaction_version || ""),
-    tx_type: txType,
+    tx_type: finalTxType,
+    dapp_key: dapp?.key || null,
+    dapp_name: dapp?.name || null,
+    dapp_logo: dapp?.logo || null,
+    dapp_website: dapp?.website || null,
+    dapp_contract: dapp?.contracts?.[0] || null,
     token_in: tokenIn,
     token_out: tokenOut,
     amount_in: amountIn,
@@ -380,11 +576,11 @@ const normalizePrimaryTransactionRow = (row) => {
   return {
     tx_hash: userTransaction?.hash || String(row?.transaction_version || userTransaction?.version || ""),
     sender: userTransaction?.sender || null,
-    timestamp: userTransaction?.timestamp || row?.transaction_timestamp || null,
-    tx_timestamp: userTransaction?.timestamp || row?.transaction_timestamp || null,
+    timestamp: userTransaction?.timestamp || row?.timestamp || row?.transaction_timestamp || null,
+    tx_timestamp: userTransaction?.timestamp || row?.timestamp || row?.transaction_timestamp || null,
     gas_used: userTransaction?.gas_used ?? null,
     gas_unit_price: userTransaction?.gas_unit_price ?? null,
-    success: userTransaction?.success ?? true,
+    success: userTransaction?.success ?? row?.is_transaction_success ?? true,
     functionName:
       userTransaction?.entry_function_id_str ||
       userTransaction?.entry_function_function_name ||
@@ -432,7 +628,7 @@ const normalizeActivityRows = (rows = []) => {
         gas_used: null,
         gas_unit_price: null,
         success: row?.is_transaction_success ?? true,
-        functionName: null,
+        functionName: row?.entry_function_id_str || null,
         transaction_version: row?.transaction_version || row?.version || null,
         fungibleActivities: [],
         events: [],
@@ -445,6 +641,82 @@ const normalizeActivityRows = (rows = []) => {
   return Array.from(grouped.values());
 };
 
+const groupActivitiesByVersion = (rows = []) => {
+  const grouped = new Map();
+
+  for (const row of rows) {
+    const version = String(row?.transaction_version || row?.version || "");
+    if (!version) continue;
+
+    if (!grouped.has(version)) {
+      grouped.set(version, []);
+    }
+
+    grouped.get(version).push(row);
+  }
+
+  return grouped;
+};
+
+const mergeTransactionsWithActivities = (transactions = [], activityRows = []) => {
+  const activitiesByVersion = groupActivitiesByVersion(activityRows);
+
+  return transactions.map((transaction) => {
+    const version = String(transaction?.transaction_version || transaction?.tx_hash || "");
+    if (!version || !activitiesByVersion.has(version)) {
+      return transaction;
+    }
+
+    const existingActivities = Array.isArray(transaction?.fungibleActivities)
+      ? transaction.fungibleActivities
+      : [];
+
+    return {
+      ...transaction,
+      fungibleActivities: [...existingActivities, ...activitiesByVersion.get(version)],
+    };
+  });
+};
+
+const fetchRecentActivityRows = async (address, transactionLimit) => {
+  const limit = Math.max(
+    transactionLimit,
+    Math.min(MAX_ACTIVITY_ROWS, transactionLimit * ACTIVITY_FETCH_MULTIPLIER)
+  );
+
+  const query = `
+    query WalletActivities($address: String!, $limit: Int!) {
+      fungible_asset_activities(
+        where: { owner_address: { _eq: $address } }
+        order_by: { transaction_timestamp: desc }
+        limit: $limit
+      ) {
+        transaction_version
+        transaction_timestamp
+        owner_address
+        amount
+        asset_type
+        type
+        is_transaction_success
+        entry_function_id_str
+        metadata {
+          symbol
+          decimals
+        }
+      }
+    }
+  `;
+
+  const { data, error } = await postGraphQL(query, { address, limit });
+  if (error) {
+    return [];
+  }
+
+  return Array.isArray(data?.fungible_asset_activities)
+    ? data.fungible_asset_activities
+    : [];
+};
+
 const fetchPrimaryTransactions = async (address, limit) => {
   const query = `
     query WalletTransactions($address: String!, $limit: Int!) {
@@ -454,29 +726,23 @@ const fetchPrimaryTransactions = async (address, limit) => {
         limit: $limit
       ) {
         transaction_version
-        transaction_timestamp
+        user_transaction {
+          sender
+          timestamp
+          entry_function_id_str
+        }
         fungible_asset_activities {
+          transaction_version
+          transaction_timestamp
+          owner_address
           amount
           asset_type
           type
-          owner_address
           is_transaction_success
-        }
-        user_transaction {
-          version
-          hash
-          sender
-          timestamp
-          success
-          gas_used
-          gas_unit_price
           entry_function_id_str
-          entry_function_function_name
-          payload
-          events {
-            type
-            data
-            account_address
+          metadata {
+            symbol
+            decimals
           }
         }
       }
@@ -502,20 +768,9 @@ const fetchUserTransactionsFallback = async (address, limit) => {
         limit: $limit
       ) {
         version
-        hash
         sender
         timestamp
-        success
-        gas_used
-        gas_unit_price
         entry_function_id_str
-        entry_function_function_name
-        payload
-        events {
-          type
-          data
-          account_address
-        }
       }
     }
   `;
@@ -531,31 +786,10 @@ const fetchUserTransactionsFallback = async (address, limit) => {
 };
 
 const fetchActivityFallback = async (address, limit) => {
-  const query = `
-    query WalletActivities($address: String!, $limit: Int!) {
-      fungible_asset_activities(
-        where: { owner_address: { _eq: $address } }
-        order_by: { transaction_timestamp: desc }
-        limit: $limit
-      ) {
-        transaction_version
-        transaction_timestamp
-        owner_address
-        amount
-        asset_type
-        type
-        is_transaction_success
-      }
-    }
-  `;
+  const activityRows = await fetchRecentActivityRows(address, limit);
 
-  const { data, error } = await postGraphQL(query, { address, limit });
-  if (error) {
-    return [];
-  }
-
-  return Array.isArray(data?.fungible_asset_activities)
-    ? normalizeActivityRows(data.fungible_asset_activities)
+  return activityRows.length > 0
+    ? normalizeActivityRows(activityRows)
     : [];
 };
 
@@ -581,12 +815,24 @@ const trimTransactions = (rows = [], limit = DEFAULT_LIMIT) => {
   return sortTransactionsByTimestampDesc(rows).slice(0, normalizeLimit(limit));
 };
 
+const TYPE_FILTER_GROUPS = {
+  lending: new Set(["lend", "borrow", "repay"]),
+  staking: new Set(["stake", "unstake", "claim"]),
+  transfers: new Set(["transfer", "received"]),
+  defi: new Set(["deposit", "withdraw", "lend", "borrow", "repay"]),
+};
+
 export const filterTransactionsByType = (rows = [], type = "all") => {
   const normalizedType = String(type || "all").trim().toLowerCase();
   const normalizedRows = Array.isArray(rows) ? rows : [];
 
   if (normalizedType === "all") {
     return normalizedRows;
+  }
+
+  const group = TYPE_FILTER_GROUPS[normalizedType];
+  if (group) {
+    return normalizedRows.filter((row) => group.has(String(row?.tx_type || "other").toLowerCase()));
   }
 
   return normalizedRows.filter((row) => String(row?.tx_type || "other").toLowerCase() === normalizedType);
@@ -679,6 +925,11 @@ const enrichTransactionsWithUsd = async (walletAddress, transactions) => {
         wallet_address: normalizedAddress,
         tx_hash: tx.tx_hash,
         tx_type: tx.tx_type,
+        dapp_key: tx.dapp_key,
+        dapp_name: tx.dapp_name,
+        dapp_logo: tx.dapp_logo,
+        dapp_website: tx.dapp_website,
+        dapp_contract: tx.dapp_contract,
         token_in: tx.token_in,
         token_out: tx.token_out,
         amount_in: tx.amount_in,
@@ -697,6 +948,11 @@ const enrichTransactionsWithUsd = async (walletAddress, transactions) => {
         wallet_address: normalizedAddress,
         tx_hash: tx.tx_hash,
         tx_type: tx.tx_type,
+        dapp_key: tx.dapp_key,
+        dapp_name: tx.dapp_name,
+        dapp_logo: tx.dapp_logo,
+        dapp_website: tx.dapp_website,
+        dapp_contract: tx.dapp_contract,
         token_in: tx.token_in,
         token_out: tx.token_out,
         amount_in: tx.amount_in,
@@ -715,6 +971,23 @@ const enrichTransactionsWithUsd = async (walletAddress, transactions) => {
   return enriched;
 };
 
+const toPersistedTransactionRow = (row) => ({
+  wallet_address: row.wallet_address,
+  tx_hash: row.tx_hash,
+  tx_type: row.tx_type,
+  token_in: row.token_in,
+  token_out: row.token_out,
+  amount_in: row.amount_in,
+  amount_out: row.amount_out,
+  amount_in_usd: row.amount_in_usd,
+  amount_out_usd: row.amount_out_usd,
+  pnl_usd: row.pnl_usd,
+  gas_fee: row.gas_fee,
+  status: row.status,
+  tx_timestamp: row.tx_timestamp,
+  fetched_at: row.fetched_at,
+});
+
 export const fetchTransactions = async (walletAddress, limit = DEFAULT_LIMIT) => {
   const normalizedAddress = normalizeAddress(walletAddress);
   if (!isValidAddress(normalizedAddress)) {
@@ -732,7 +1005,8 @@ export const fetchTransactions = async (walletAddress, limit = DEFAULT_LIMIT) =>
 
     const fallbackRows = await fetchUserTransactionsFallback(normalizedAddress, normalizedLimit);
     if (fallbackRows.length > 0) {
-      return trimTransactions(uniqueTransactions(fallbackRows), normalizedLimit);
+      const activityRows = await fetchRecentActivityRows(normalizedAddress, normalizedLimit);
+      return trimTransactions(uniqueTransactions(mergeTransactionsWithActivities(fallbackRows, activityRows)), normalizedLimit);
     }
 
     const activityRows = await fetchActivityFallback(normalizedAddress, normalizedLimit);
@@ -743,7 +1017,7 @@ export const fetchTransactions = async (walletAddress, limit = DEFAULT_LIMIT) =>
   }
 };
 
-export const parseTransaction = (rawTx) => {
+export const parseTransaction = (rawTx, walletAddress = "") => {
   try {
     if (!rawTx || typeof rawTx !== "object") {
       return {
@@ -760,7 +1034,7 @@ export const parseTransaction = (rawTx) => {
     }
 
     const activities = extractNormalizedActivities(rawTx);
-    return buildStructuredTransaction(rawTx, activities);
+    return buildStructuredTransaction(rawTx, activities, walletAddress);
   } catch (error) {
     console.error("parseTransaction failed:", error);
     return {
@@ -870,7 +1144,7 @@ export const calculatePNL = (transactions) => {
         continue;
       }
 
-      const txTime = new Date(tx?.tx_timestamp || tx?.timestamp || 0).getTime();
+      const txTime = getTimestampMs(tx?.tx_timestamp || tx?.timestamp || 0);
       const amountInUsd = toNumber(tx?.amount_in_usd);
       const amountOutUsd = toNumber(tx?.amount_out_usd);
       const pnl = Number.isFinite(Number(tx?.pnl_usd)) ? Number(tx.pnl_usd) : amountOutUsd - amountInUsd;
@@ -974,7 +1248,7 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
 
     const rawTransactions = await fetchTransactions(normalizedAddress, limit);
     const parsedTransactions = rawTransactions
-      .map((row) => parseTransaction(row))
+      .map((row) => parseTransaction(row, normalizedAddress))
       .filter((row) => row.tx_hash);
 
     const enrichedTransactions = trimTransactions(
@@ -986,7 +1260,7 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
       try {
         const { error } = await supabase
           .from("transaction_history")
-          .upsert(enrichedTransactions, { onConflict: "tx_hash" });
+          .upsert(enrichedTransactions.map(toPersistedTransactionRow), { onConflict: "tx_hash" });
 
         if (error) {
           console.error("Failed to upsert transaction history:", error);

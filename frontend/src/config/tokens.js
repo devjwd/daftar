@@ -37,6 +37,15 @@ export const MOVEMENT_TOKENS = {
     isNative: false,
     verified: true,
   },
+  // USDCx on Movement Mainnet
+  "0xba11833544a2f99eec743f41a228ca6ffa7f13c3b6b04681d5a79a8b75ff225e": {
+    symbol: "USDCx",
+    name: "USDCx",
+    decimals: 6,
+    address: "0xba11833544a2f99eec743f41a228ca6ffa7f13c3b6b04681d5a79a8b75ff225e",
+    isNative: false,
+    verified: true,
+  },
   // WETH on Movement Mainnet
   "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376": {
     symbol: "WETH",
@@ -73,10 +82,10 @@ export const MOVEMENT_TOKENS = {
     isNative: false,
     verified: true,
   },
-  // gMOVE - Movement Liquid Staking Token on Movement Mainnet
+  // gMOVE - Movement LST on Movement Mainnet
   "0xba070099efd401e69ae924e31464541bb9c815b9a1866367f07499d9b3698b2c": {
     symbol: "gMOVE",
-    name: "Movement Liquid Staking Token",
+    name: "Movement LST",
     decimals: 8,
     address: "0xba070099efd401e69ae924e31464541bb9c815b9a1866367f07499d9b3698b2c",
     isNative: false,
@@ -127,10 +136,10 @@ export const MOVEMENT_TOKENS = {
     isNative: false,
     verified: true,
   },
-  // USDa - Angle USD
+  // USDa - Avalon USD
   "0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650": {
     symbol: "USDa",
-    name: "Angle USD",
+    name: "Avalon USD",
     decimals: 6,
     address: "0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650",
     isNative: false,

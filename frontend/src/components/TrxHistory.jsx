@@ -1,17 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DEFAULT_TOKEN_COLOR, TOKEN_VISUALS } from '../config/display.js';
+import { checkAccountExists } from '../services/indexer.js';
 
 import styles from './TrxHistory.module.css';
 
 const FILTERS = [
   { label: 'ALL', value: 'all' },
   { label: 'SWAPS', value: 'swap' },
-  { label: 'DEPOSITS', value: 'deposit' },
-  { label: 'WITHDRAWALS', value: 'withdraw' },
+  { label: 'LENDING', value: 'lending' },
+  { label: 'STAKING', value: 'staking' },
+  { label: 'TRANSFERS', value: 'transfers' },
 ];
 
 const EXPLORER_TX_BASE = 'https://explorer.movementlabs.xyz/txn';
+const TRANSACTIONS_PAGE_SIZE = 20;
 
 const EMPTY_RESPONSE = {
   transactions: [],
@@ -22,22 +25,61 @@ const EMPTY_RESPONSE = {
 
 const TYPE_LABELS = {
   swap: 'SWAP',
+  lend: 'LEND',
+  borrow: 'BORROW',
+  repay: 'REPAY',
+  stake: 'STAKE',
+  unstake: 'UNSTAKE',
   deposit: 'DEPOSIT',
   withdraw: 'WITHDRAW',
   transfer: 'TRANSFER',
+  received: 'RECEIVED',
+  claim: 'CLAIM',
   other: 'OTHER',
 };
 
 const cn = (...parts) => parts.filter(Boolean).join(' ');
 
-const formatCurrency = (value) => {
-  const amount = Number(value || 0);
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: Math.abs(amount) >= 1000 ? 0 : 2,
-    maximumFractionDigits: Math.abs(amount) >= 1000 ? 0 : 2,
-  }).format(amount);
+const parseTimestampDate = (value) => {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)
+      ? `${value}Z`
+      : value;
+    return new Date(normalized);
+  }
+
+  return new Date(value);
+};
+
+const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal }) => {
+  const params = new URLSearchParams({
+    wallet: walletAddress,
+    page: String(page),
+    type: activeFilter,
+  });
+
+  try {
+    const response = await fetch(`/api/transactions?${params.toString()}`, {
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Transactions request failed (${response.status})`);
+    }
+
+    const json = await response.json();
+    return { ...EMPTY_RESPONSE, ...json };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw error;
+    }
+
+    throw error;
+  }
 };
 
 const formatAmount = (value) => {
@@ -52,16 +94,113 @@ const formatAmount = (value) => {
   }).format(amount);
 };
 
-const formatSignedCurrency = (value) => {
-  const amount = Number(value || 0);
-  const sign = amount > 0 ? '+' : '';
-  return `${sign}${formatCurrency(amount)}`;
+const hasDisplayNumber = (value) => Number.isFinite(Number(value));
+const hasPositiveDisplayNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
+
+const getAmountTone = (tx) => {
+  const hasAmountIn = hasPositiveDisplayNumber(tx?.amount_in);
+  const hasAmountOut = hasPositiveDisplayNumber(tx?.amount_out);
+
+  if (hasAmountIn && !hasAmountOut) {
+    return 'negative';
+  }
+
+  if (hasAmountOut && !hasAmountIn) {
+    return 'positive';
+  }
+
+  return 'neutral';
+};
+
+const getDisplayAmounts = (tx) => {
+  const txType = String(tx?.tx_type || 'other').toLowerCase();
+  const amountIn = tx?.amount_in;
+  const amountOut = tx?.amount_out;
+  const hasAmountIn = hasPositiveDisplayNumber(amountIn);
+  const hasAmountOut = hasPositiveDisplayNumber(amountOut);
+
+  if (['lend', 'deposit', 'repay'].includes(txType)) {
+    return hasAmountIn ? [amountIn] : hasAmountOut ? [amountOut] : [];
+  }
+
+  if (txType === 'stake') {
+    if (hasAmountIn && hasAmountOut) {
+      return [amountIn, amountOut];
+    }
+
+    return hasAmountIn ? [amountIn] : hasAmountOut ? [amountOut] : [];
+  }
+
+  if (['withdraw', 'unstake', 'claim', 'borrow', 'received'].includes(txType)) {
+    return hasAmountOut ? [amountOut] : hasAmountIn ? [amountIn] : [];
+  }
+
+  if (txType === 'swap') {
+    const output = [];
+    if (hasAmountIn) output.push(amountIn);
+    if (hasAmountOut) output.push(amountOut);
+    return output;
+  }
+
+  const output = [];
+  if (hasAmountIn) output.push(amountIn);
+  if (hasAmountOut) output.push(amountOut);
+  return output;
+};
+
+const shortenTokenLabel = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (/^0x[a-f0-9]{12,}$/i.test(normalized)) {
+    return `${normalized.slice(0, 6)}...${normalized.slice(-4)}`.toUpperCase();
+  }
+
+  if (normalized.length > 18) {
+    return `${normalized.slice(0, 8)}...${normalized.slice(-4)}`.toUpperCase();
+  }
+
+  return normalized.toUpperCase();
+};
+
+const normalizeDisplayToken = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized
+    ? {
+        label: shortenTokenLabel(normalized),
+        full: normalized.toUpperCase(),
+      }
+    : null;
 };
 
 const formatDateTime = (value) => {
-  const date = new Date(value);
+  const date = parseTimestampDate(value);
   if (Number.isNaN(date.getTime())) {
     return '—';
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000) {
+    const totalMinutes = Math.floor(diffMs / (60 * 1000));
+
+    if (totalMinutes <= 0) {
+      return 'just now';
+    }
+
+    if (totalMinutes < 60) {
+      return `${totalMinutes} min ago`;
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (minutes === 0) {
+      return `${hours} hr ago`;
+    }
+
+    return `${hours} hr ${minutes} min ago`;
   }
 
   const datePart = date.toLocaleDateString('en-US', {
@@ -98,10 +237,28 @@ const getTokenVisual = (symbol) => {
 const getBadgeClass = (type) => {
   const normalized = String(type || 'other').toLowerCase();
   if (normalized === 'swap') return styles.badgeSwap;
+  if (normalized === 'lend') return styles.badgeLend;
+  if (normalized === 'borrow') return styles.badgeBorrow;
+  if (normalized === 'repay') return styles.badgeRepay;
+  if (normalized === 'stake') return styles.badgeStake;
+  if (normalized === 'unstake') return styles.badgeUnstake;
   if (normalized === 'deposit') return styles.badgeDeposit;
   if (normalized === 'withdraw') return styles.badgeWithdraw;
   if (normalized === 'transfer') return styles.badgeTransfer;
+  if (normalized === 'received') return styles.badgeReceived;
+  if (normalized === 'claim') return styles.badgeClaim;
   return styles.badgeOther;
+};
+
+const DappIcon = ({ tx }) => {
+  const dappName = String(tx?.dapp_name || 'Wallet');
+  const dappLogo = String(tx?.dapp_logo || '').trim();
+
+  return (
+    <span className={styles.dappIcon} aria-hidden="true">
+      {dappLogo ? <img src={dappLogo} alt="" className={styles.dappIconImage} /> : dappName.charAt(0) || '?'}
+    </span>
+  );
 };
 
 const TokenIcon = ({ symbol }) => {
@@ -146,6 +303,7 @@ export default function TrxHistory({ walletAddress }) {
   const [transactions, setTransactions] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [totalTransactionCount, setTotalTransactionCount] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -167,6 +325,7 @@ export default function TrxHistory({ walletAddress }) {
       setTransactions([]);
       setPage(1);
       setTotal(0);
+      setTotalTransactionCount(null);
       setHasMore(false);
       setLoading(false);
       setLoadingMore(false);
@@ -185,20 +344,13 @@ export default function TrxHistory({ walletAddress }) {
       setLoadMoreError('');
 
       try {
-        const params = new URLSearchParams({
-          wallet: walletAddress,
-          page: '1',
-          type: activeFilter,
-        });
-        const response = await fetch(`/api/transactions?${params.toString()}`, {
+        const json = await fetchTransactionsPage({
+          walletAddress,
+          activeFilter,
+          page: 1,
           signal: controller.signal,
         });
 
-        if (!response.ok) {
-          throw new Error(`Transactions request failed (${response.status})`);
-        }
-
-        const json = await response.json();
         if (!disposed) {
           const payload = { ...EMPTY_RESPONSE, ...json };
           setTransactions(Array.isArray(payload.transactions) ? payload.transactions : []);
@@ -237,6 +389,36 @@ export default function TrxHistory({ walletAddress }) {
     };
   }, [activeFilter, walletAddress]);
 
+  useEffect(() => {
+    if (!walletAddress) {
+      setTotalTransactionCount(null);
+      return undefined;
+    }
+
+    let disposed = false;
+
+    const fetchTotalTransactionCount = async () => {
+      try {
+        const result = await checkAccountExists(walletAddress);
+        if (!disposed) {
+          const nextCount = Number(result?.txCount);
+          setTotalTransactionCount(Number.isFinite(nextCount) ? nextCount : 0);
+        }
+      } catch (countError) {
+        console.error('Failed to fetch total transaction count:', countError);
+        if (!disposed) {
+          setTotalTransactionCount(null);
+        }
+      }
+    };
+
+    void fetchTotalTransactionCount();
+
+    return () => {
+      disposed = true;
+    };
+  }, [walletAddress]);
+
   const handleLoadMore = async () => {
     if (!walletAddress || loadingMore || !hasMore || !mountedRef.current) {
       return;
@@ -252,20 +434,13 @@ export default function TrxHistory({ walletAddress }) {
 
     try {
       const nextPage = page + 1;
-      const params = new URLSearchParams({
-        wallet: walletAddress,
-        page: String(nextPage),
-        type: activeFilter,
-      });
-      const response = await fetch(`/api/transactions?${params.toString()}`, {
+      const json = await fetchTransactionsPage({
+        walletAddress,
+        activeFilter,
+        page: nextPage,
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        throw new Error(`Transactions request failed (${response.status})`);
-      }
-
-      const json = await response.json();
       const payload = { ...EMPTY_RESPONSE, ...json };
       if (!mountedRef.current) return;
       setTransactions((prev) => [...prev, ...(Array.isArray(payload.transactions) ? payload.transactions : [])]);
@@ -294,9 +469,13 @@ export default function TrxHistory({ walletAddress }) {
   };
 
   const txCountLabel = useMemo(() => {
+    if (Number.isFinite(totalTransactionCount)) {
+      return `${totalTransactionCount} ${totalTransactionCount === 1 ? 'total transaction' : 'total transactions'}`;
+    }
+
     const totalTransactions = Math.max(Number(total || 0), transactions.length);
     return `${totalTransactions} ${totalTransactions === 1 ? 'transaction' : 'transactions'}`;
-  }, [total, transactions.length]);
+  }, [total, totalTransactionCount, transactions.length]);
 
   if (!walletAddress) {
     return <section className={styles.emptyState}>Connect wallet to view transactions</section>;
@@ -337,8 +516,6 @@ export default function TrxHistory({ walletAddress }) {
                   <th>Type</th>
                   <th>Tokens</th>
                   <th>Amount</th>
-                  <th className={styles.columnUsd}>USD Value</th>
-                  <th className={styles.columnPnl}>PNL</th>
                   <th>Date</th>
                   <th>TX</th>
                 </tr>
@@ -346,44 +523,61 @@ export default function TrxHistory({ walletAddress }) {
               <tbody>
                 {transactions.map((tx) => {
                   const txUrl = `${EXPLORER_TX_BASE}/${encodeURIComponent(tx.tx_hash)}?network=mainnet`;
-                  const tokenIn = String(tx.token_in || '—').toUpperCase();
-                  const tokenOut = String(tx.token_out || '—').toUpperCase();
-                  const isSwap = String(tx.tx_type || '').toLowerCase() === 'swap';
+                  const tokenIn = normalizeDisplayToken(tx.token_in);
+                  const tokenOut = normalizeDisplayToken(tx.token_out);
+                  const hasTokenIn = Boolean(tokenIn?.label);
+                  const hasTokenOut = Boolean(tokenOut?.label);
+                  const displayAmounts = getDisplayAmounts(tx);
+                  const hasAmountIn = displayAmounts.length > 0;
+                  const hasAmountOut = displayAmounts.length > 1;
+                  const amountTone = getAmountTone(tx);
+                  const dappName = String(tx.dapp_name || 'Wallet');
+                  const typeLabel = TYPE_LABELS[String(tx.tx_type || 'other').toLowerCase()] || 'OTHER';
+                  const typeTitle = tx.dapp_contract
+                    ? `${dappName} · ${typeLabel} · ${tx.dapp_contract}`
+                    : `${dappName} · ${typeLabel}`;
 
                   return (
                     <tr
                       key={tx.tx_hash}
                       className={styles.row}
-                      onClick={() => window.open(txUrl, '_blank', 'noopener,noreferrer')}
                     >
                       <td>
-                        <span className={cn(styles.typeBadge, getBadgeClass(tx.tx_type))}>
-                          {TYPE_LABELS[String(tx.tx_type || 'other').toLowerCase()] || 'OTHER'}
-                        </span>
+                        <div className={styles.typeCell} title={typeTitle}>
+                          <DappIcon tx={tx} />
+                          <div className={styles.typeMeta}>
+                            <span className={cn(styles.typeBadge, getBadgeClass(tx.tx_type))}>
+                              {typeLabel}
+                            </span>
+                            <span className={styles.typeDappName}>{dappName}</span>
+                          </div>
+                        </div>
                       </td>
                       <td>
                         <div className={styles.tokenPair}>
-                          <div className={styles.tokenSide}>
-                            <TokenIcon symbol={tx.token_in} />
-                            <span>{tokenIn}</span>
-                          </div>
-                          <span className={styles.tokenArrow}>→</span>
-                          <div className={styles.tokenSide}>
-                            <TokenIcon symbol={tx.token_out} />
-                            <span>{tokenOut}</span>
-                          </div>
+                          {hasTokenIn ? (
+                            <div className={styles.tokenSide} title={tokenIn.full}>
+                              <TokenIcon symbol={tokenIn.full} />
+                              <span>{tokenIn.label}</span>
+                            </div>
+                          ) : null}
+                          {hasTokenIn && hasTokenOut ? <span className={styles.tokenArrow}>→</span> : null}
+                          {hasTokenOut ? (
+                            <div className={styles.tokenSide} title={tokenOut.full}>
+                              <TokenIcon symbol={tokenOut.full} />
+                              <span>{tokenOut.label}</span>
+                            </div>
+                          ) : null}
+                          {!hasTokenIn && !hasTokenOut ? <span className={styles.neutral}>—</span> : null}
                         </div>
                       </td>
                       <td>
                         <div className={styles.amountPair}>
-                          <span>{formatAmount(tx.amount_in)}</span>
-                          <span className={styles.amountArrow}>→</span>
-                          <span>{formatAmount(tx.amount_out)}</span>
+                          {hasAmountIn ? <span className={styles[amountTone]}>{formatAmount(displayAmounts[0])}</span> : null}
+                          {hasAmountIn && hasAmountOut ? <span className={styles.amountArrow}>→</span> : null}
+                          {hasAmountOut ? <span className={styles[amountTone]}>{formatAmount(displayAmounts[1])}</span> : null}
+                          {!hasAmountIn && !hasAmountOut ? <span className={styles.neutral}>—</span> : null}
                         </div>
-                      </td>
-                      <td className={styles.columnUsd}>{formatCurrency(tx.amount_in_usd || 0)}</td>
-                      <td className={cn(styles.columnPnl, isSwap ? (Number(tx.pnl_usd || 0) >= 0 ? styles.positive : styles.negative) : styles.neutral)}>
-                        {isSwap ? formatSignedCurrency(tx.pnl_usd || 0) : '—'}
                       </td>
                       <td>{formatDateTime(tx.tx_timestamp)}</td>
                       <td>
@@ -392,7 +586,6 @@ export default function TrxHistory({ walletAddress }) {
                           target="_blank"
                           rel="noopener noreferrer"
                           className={styles.hashLink}
-                          onClick={(event) => event.stopPropagation()}
                         >
                           {truncateHash(tx.tx_hash)}
                         </a>
