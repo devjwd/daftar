@@ -1,9 +1,29 @@
 import React from "react";
 
+const CHUNK_RELOAD_KEY = "daftar_chunk_reload_attempted";
+
+const isChunkLoadError = (error) => {
+  const message = String(error?.message || error || "");
+  return (
+    message.includes("Failed to fetch dynamically imported module") ||
+    message.includes("Importing a module script failed") ||
+    message.includes("Failed to load module script") ||
+    message.includes("ChunkLoadError")
+  );
+};
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
+  }
+
+  componentDidMount() {
+    try {
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+    } catch {
+      // Ignore sessionStorage access failures.
+    }
   }
 
   static getDerivedStateFromError(error) {
@@ -12,6 +32,20 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("Error caught by boundary:", error, errorInfo);
+
+    if (!isChunkLoadError(error)) {
+      return;
+    }
+
+    try {
+      const alreadyRetried = sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
+      if (!alreadyRetried) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+        window.location.reload();
+      }
+    } catch {
+      window.location.reload();
+    }
   }
 
   render() {
@@ -32,6 +66,11 @@ class ErrorBoundary extends React.Component {
           </p>
           <button
             onClick={() => {
+              try {
+                sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+              } catch {
+                // Ignore sessionStorage access failures.
+              }
               this.setState({ hasError: false, error: null });
               window.location.reload();
             }}
