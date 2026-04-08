@@ -13,7 +13,24 @@ const getWalletAddress = (account) => {
   return normalizeAddress(value);
 };
 
-export default function useBadgeEligibility(badgeId) {
+export const resolveEligibilityBadgeId = (badgeOrId) => {
+  if (badgeOrId && typeof badgeOrId === 'object') {
+    const onChainBadgeId = Number(badgeOrId.onChainBadgeId);
+    if (Number.isInteger(onChainBadgeId) && onChainBadgeId >= 0) {
+      return onChainBadgeId;
+    }
+
+    const numericBadgeId = Number(badgeOrId.badgeId);
+    if (Number.isInteger(numericBadgeId) && numericBadgeId >= 0) {
+      return numericBadgeId;
+    }
+  }
+
+  const numericBadgeId = Number(badgeOrId);
+  return Number.isInteger(numericBadgeId) && numericBadgeId >= 0 ? numericBadgeId : null;
+};
+
+export default function useBadgeEligibility(badgeOrId) {
   const { account } = useWallet();
   const walletAddress = getWalletAddress(account);
 
@@ -38,7 +55,7 @@ export default function useBadgeEligibility(badgeId) {
 
   const checkEligibility = useCallback(async (options = {}) => {
     const force = Boolean(options?.force);
-    const numericBadgeId = Number(badgeId);
+    const numericBadgeId = resolveEligibilityBadgeId(badgeOrId);
 
     if (!walletAddress) {
       const result = {
@@ -56,7 +73,7 @@ export default function useBadgeEligibility(badgeId) {
         status: 'error',
         progress: null,
         proof: null,
-        reason: 'Invalid badgeId',
+        reason: 'Badge is not published on-chain yet',
       };
       applyResult(result);
       return result;
@@ -122,7 +139,7 @@ export default function useBadgeEligibility(badgeId) {
     } finally {
       setIsLoading(false);
     }
-  }, [applyResult, badgeId, walletAddress]);
+  }, [applyResult, badgeOrId, walletAddress]);
 
   return {
     status,

@@ -8,6 +8,8 @@ import {
   getTokenBalance,
 } from '../services/movementIndexer.js';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
+import { loadResolvedBadgeConfigs } from '../_lib/badgeConfigsState.js';
+import { loadResolvedBadgeDefinitions } from '../_lib/badgeDefinitionsState.js';
 import { handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
 import { attestBadgeAllowlistOnChain } from '../_lib/onchainAttestation.js';
 import { createAttestation } from '../services/attestationSigner.js';
@@ -17,6 +19,28 @@ const ADDRESS_RE = /^0x[a-f0-9]{1,128}$/i;
 const WALLET_REGEX = /^0x[a-fA-F0-9]{1,64}$/;
 const NEGATIVE_CACHE_MINUTES = 30;
 const POSITIVE_CACHE_MINUTES = 24 * 60;
+const RULE_TYPE_BY_NUMBER = {
+  1: 'ALLOWLIST',
+  2: 'MIN_BALANCE',
+  3: 'ATTESTATION',
+  4: 'TRANSACTION_COUNT',
+  5: 'DAYS_ONCHAIN',
+  6: 'PROTOCOL_COUNT',
+  7: 'DAPP_USAGE',
+  8: 'HOLDING_PERIOD',
+  9: 'NFT_HOLDER',
+  10: 'COMPOSITE',
+};
+const RULE_TYPE_BY_CRITERION = {
+  transaction_count: 'TRANSACTION_COUNT',
+  days_onchain: 'DAYS_ONCHAIN',
+  min_balance: 'MIN_BALANCE',
+  protocol_count: 'PROTOCOL_COUNT',
+  protocol_usage: 'DAPP_USAGE',
+  dapp_usage: 'DAPP_USAGE',
+  dex_volume: 'DEX_VOLUME',
+  allowlist: 'ALLOWLIST',
+};
 
 const normalizeAddress = (value) => {
   const raw = String(value || '').trim().toLowerCase();
@@ -72,6 +96,100 @@ const parseBadgeId = (value) => {
   const badgeId = Number(value);
   if (!Number.isInteger(badgeId) || badgeId < 0) return null;
   return badgeId;
+};
+
+const getOnChainBadgeId = (value) => {
+  const badgeId = Number(value);
+  return Number.isInteger(badgeId) && badgeId >= 0 ? badgeId : null;
+};
+
+const normalizeRuleType = (value) => {
+  if (typeof value === 'number') {
+    return RULE_TYPE_BY_NUMBER[value] || '';
+  }
+
+  const numeric = Number(value);
+  if (Number.isInteger(numeric) && numeric > 0) {
+    return RULE_TYPE_BY_NUMBER[numeric] || '';
+  }
+
+  return String(value || '').trim().toUpperCase();
+};
+
+const normalizeFrontendDefinition = (badgeDefinition) => {
+  const onChainBadgeId = getOnChainBadgeId(badgeDefinition?.onChainBadgeId ?? badgeDefinition?.on_chain_badge_id);
+  if (onChainBadgeId == null) return null;
+
+  const firstCriterion = Array.isArray(badgeDefinition?.criteria) ? badgeDefinition.criteria[0] : null;
+  const ruleType = normalizeRuleType(RULE_TYPE_BY_CRITERION[String(firstCriterion?.type || '').trim().toLowerCase()]);
+
+  return {
+    badge_id: onChainBadgeId,
+    name: String(badgeDefinition?.name || '').trim(),
+    rule_type: ruleType,
+    rule_params:
+      firstCriterion?.params && typeof firstCriterion.params === 'object' && !Array.isArray(firstCriterion.params)
+        ? firstCriterion.params
+        : {},
+    is_active: badgeDefinition?.enabled !== false,
+  };
+};
+
+const normalizeBadgeConfig = (badgeConfig) => {
+  const onChainBadgeId = getOnChainBadgeId(badgeConfig?.onChainBadgeId ?? badgeConfig?.badgeId);
+  if (onChainBadgeId == null) return null;
+
+  return {
+    badge_id: onChainBadgeId,
+    name: String(badgeConfig?.badgeId || '').trim(),
+    rule_type: normalizeRuleType(badgeConfig?.rule),
+    rule_params:
+      badgeConfig?.params && typeof badgeConfig.params === 'object' && !Array.isArray(badgeConfig.params)
+        ? badgeConfig.params
+        : {},
+    is_active: true,
+  };
+};
+
+const resolveBadgeDefinition = async ({ supabase, badgeId }) => {
+  const [resolvedConfigs, resolvedDefinitions] = await Promise.all([
+    loadResolvedBadgeConfigs().catch(() => ({ configs: [] })),
+    loadResolvedBadgeDefinitions().catch(() => ({ badges: [] })),
+  ]);
+
+  const configMatch = Array.isArray(resolvedConfigs.configs)
+    ? resolvedConfigs.configs
+        .map(normalizeBadgeConfig)
+        .find((entry) => entry && entry.badge_id === badgeId)
+    : null;
+  if (configMatch) {
+    return { badgeDefinition: configMatch, source: 'config' };
+  }
+
+  const definitionMatch = Array.isArray(resolvedDefinitions.badges)
+    ? resolvedDefinitions.badges
+        .map(normalizeFrontendDefinition)
+        .find((entry) => entry && entry.badge_id === badgeId)
+    : null;
+  if (definitionMatch) {
+    return { badgeDefinition: definitionMatch, source: 'definitions' };
+  }
+
+  if (!supabase) {
+    return { badgeDefinition: null, source: 'none' };
+  }
+
+  const { data, error } = await supabase
+    .from('badge_definitions')
+    .select('badge_id, name, rule_type, rule_params, is_active')
+    .eq('badge_id', badgeId)
+    .maybeSingle();
+
+  if (error) {
+    return { badgeDefinition: null, source: 'supabase', error: error.message || 'Failed to fetch badge definition' };
+  }
+
+  return { badgeDefinition: data || null, source: 'supabase', error: null };
 };
 
 const isStillValidAttestation = (record) => {
@@ -394,48 +512,51 @@ export default async function handler(req, res) {
       });
     }
 
-    const supabase = createSupabaseAdmin();
-
-    const cachedResult = await getCachedAttestation(supabase, walletAddress, badgeId);
-    if (cachedResult === null) {
-      return sendJson(res, 500, { status: 'error', error: 'Failed to read attestation cache' });
+    let supabase = null;
+    try {
+      supabase = createSupabaseAdmin();
+    } catch (error) {
+      console.warn('[eligibility] Supabase unavailable, continuing without cache:', error.message);
     }
 
-    if (cachedResult.error) {
-      return sendJson(res, 500, { status: 'error', error: cachedResult.error });
+    if (supabase) {
+      const cachedResult = await getCachedAttestation(supabase, walletAddress, badgeId);
+      if (cachedResult === null) {
+        return sendJson(res, 500, { status: 'error', error: 'Failed to read attestation cache' });
+      }
+
+      if (cachedResult.error) {
+        return sendJson(res, 500, { status: 'error', error: cachedResult.error });
+      }
+
+      if (isStillValidAttestation(cachedResult.record)) {
+        return sendJson(res, 200, {
+          status: 'eligible',
+          cached: true,
+          proofHash: cachedResult.record.proof_hash || null,
+          expiresAt: cachedResult.record.expires_at || null,
+        });
+      }
+
+      if (hasFreshNegativeResult(cachedResult.record)) {
+        return sendJson(res, 200, {
+          status: 'not_eligible',
+          cached: true,
+          reason: 'Recent eligibility check indicates requirements are not met yet',
+          progress: {},
+        });
+      }
     }
 
-    if (isStillValidAttestation(cachedResult.record)) {
-      return sendJson(res, 200, {
-        status: 'eligible',
-        cached: true,
-        proofHash: cachedResult.record.proof_hash || null,
-        expiresAt: cachedResult.record.expires_at || null,
-      });
-    }
-
-    if (hasFreshNegativeResult(cachedResult.record)) {
-      return sendJson(res, 200, {
-        status: 'not_eligible',
-        cached: true,
-        reason: 'Recent eligibility check indicates requirements are not met yet',
-        progress: {},
-      });
-    }
-
-    const { data: badgeDefinition, error: badgeDefinitionError } = await supabase
-      .from('badge_definitions')
-      .select('badge_id, name, rule_type, rule_params, is_active')
-      .eq('badge_id', badgeId)
-      .maybeSingle();
-
-    if (badgeDefinitionError) {
+    const resolvedBadge = await resolveBadgeDefinition({ supabase, badgeId });
+    if (resolvedBadge.error) {
       return sendJson(res, 500, {
         status: 'error',
-        error: badgeDefinitionError.message || 'Failed to fetch badge definition',
+        error: resolvedBadge.error,
       });
     }
 
+    const badgeDefinition = resolvedBadge.badgeDefinition;
     if (!badgeDefinition || badgeDefinition.is_active === false) {
       return sendJson(res, 400, {
         status: 'invalid_request',
@@ -459,28 +580,30 @@ export default async function handler(req, res) {
     }
 
     if (!evaluation.eligible) {
-      const negativeExpiresAt = new Date(Date.now() + NEGATIVE_CACHE_MINUTES * 60_000).toISOString();
-      const persistNegative = await saveAttestationToSupabase({
-        supabase,
-        walletAddress,
-        badgeId,
-        eligible: false,
-        expiresAt: negativeExpiresAt,
-        proofHash: null,
-      });
-
-      if (persistNegative === false) {
-        return sendJson(res, 500, {
-          status: 'error',
-          error: 'Failed to persist attestation cache',
+      if (supabase) {
+        const negativeExpiresAt = new Date(Date.now() + NEGATIVE_CACHE_MINUTES * 60_000).toISOString();
+        const persistNegative = await saveAttestationToSupabase({
+          supabase,
+          walletAddress,
+          badgeId,
+          eligible: false,
+          expiresAt: negativeExpiresAt,
+          proofHash: null,
         });
-      }
 
-      if (!persistNegative.ok) {
-        return sendJson(res, 500, {
-          status: 'error',
-          error: persistNegative.error,
-        });
+        if (persistNegative === false) {
+          return sendJson(res, 500, {
+            status: 'error',
+            error: 'Failed to persist attestation cache',
+          });
+        }
+
+        if (!persistNegative.ok) {
+          return sendJson(res, 500, {
+            status: 'error',
+            error: persistNegative.error,
+          });
+        }
       }
 
       return sendJson(res, 200, {
@@ -499,20 +622,22 @@ export default async function handler(req, res) {
     }
 
     const proof = attestationResult.attestation;
-    const persistPositive = await saveAttestationToSupabase({
-      supabase,
-      walletAddress,
-      badgeId,
-      eligible: true,
-      expiresAt: proof.expiresAt,
-      proofHash: proof.proofHash,
-    });
-
-    if (!persistPositive.ok) {
-      return sendJson(res, 500, {
-        status: 'error',
-        error: persistPositive.error,
+    if (supabase) {
+      const persistPositive = await saveAttestationToSupabase({
+        supabase,
+        walletAddress,
+        badgeId,
+        eligible: true,
+        expiresAt: proof.expiresAt,
+        proofHash: proof.proofHash,
       });
+
+      if (!persistPositive.ok) {
+        return sendJson(res, 500, {
+          status: 'error',
+          error: persistPositive.error,
+        });
+      }
     }
 
     const allowlistTx = await attestBadgeAllowlistOnChain({

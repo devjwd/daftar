@@ -1,6 +1,7 @@
 .swap-details-page {
   min-height: calc(100vh - 120px);
   display: flex;
+  align-items: flex-start;
   justify-content: center;
   padding: 1.4rem 1rem 2rem;
 }
@@ -32,19 +33,31 @@
 }
 
 .swap-details-back {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  background: var(--glass);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--text-primary);
-  font-size: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
+.swap-details-back svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
 .swap-details-spacer {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
 }
 
 .swap-details-meta {

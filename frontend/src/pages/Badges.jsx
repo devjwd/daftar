@@ -41,7 +41,7 @@ const isMinBalanceRule = (badge) => {
 };
 
 function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
-  const { status, progress, reason, checkEligibility, isLoading } = useBadgeEligibility(badge.id);
+  const { status, progress, reason, checkEligibility, isLoading } = useBadgeEligibility(badge);
   const effectiveStatus = badge.earned ? 'already_owned' : status;
 
   if (effectiveStatus === 'loading' || isLoading) {

@@ -386,23 +386,21 @@ export default function Layout({ children }) {
                 </li>
               )}
 
-              <li className="nav-item-disabled">
-                <span className="nav-coming-soon nav-coming-soon--pill">Soon</span>
+              <li className={location.pathname.startsWith("/badges") ? "active" : ""}>
                 <button
                   type="button"
-                  className="nav-link-btn nav-link-btn--disabled"
-                  aria-disabled="true"
+                  className="nav-link-btn"
+                  onClick={() => navigate("/badges")}
                 >
                   {t(language, 'navBadges')}
                 </button>
               </li>
 
-              <li className="nav-item-disabled">
-                <span className="nav-coming-soon nav-coming-soon--pill">Soon</span>
+              <li className={location.pathname.startsWith("/leaderboard") ? "active" : ""}>
                 <button
                   type="button"
-                  className="nav-link-btn nav-link-btn--disabled"
-                  aria-disabled="true"
+                  className="nav-link-btn"
+                  onClick={() => navigate("/leaderboard")}
                 >
                   {t(language, 'navLeaderboard')}
                 </button>

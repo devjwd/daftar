@@ -7,6 +7,7 @@ import { checkAdmin } from '../_lib/auth.js';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
 import {
+  loadResolvedBadgeDefinitions,
   loadStaticBadgeDefinitions,
   saveBadgeDefinitions,
   validateBadgeDefinitionsPayload,
@@ -93,14 +94,27 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
     let badgeResponse;
     try {
-      badgeResponse = await loadBadgeDefinitionsFromSupabase();
-      if (!Array.isArray(badgeResponse.badges) || badgeResponse.badges.length === 0) {
-        console.warn('[definitions] Supabase empty, using static fallback');
-        badgeResponse = { badges: loadStaticBadgeDefinitions(), source: 'static' };
+      badgeResponse = await loadResolvedBadgeDefinitions();
+
+      if (badgeResponse.source !== 'state' || !Array.isArray(badgeResponse.badges) || badgeResponse.badges.length === 0) {
+        try {
+          const supabaseResponse = await loadBadgeDefinitionsFromSupabase();
+          if (Array.isArray(supabaseResponse.badges) && supabaseResponse.badges.length > 0) {
+            badgeResponse = supabaseResponse;
+          } else if (!Array.isArray(badgeResponse.badges) || badgeResponse.badges.length === 0) {
+            console.warn('[definitions] Supabase empty, using static fallback');
+            badgeResponse = { badges: loadStaticBadgeDefinitions(), source: 'static' };
+          }
+        } catch (supabaseError) {
+          console.error('[definitions] Supabase query failed:', supabaseError);
+          if (!Array.isArray(badgeResponse.badges) || badgeResponse.badges.length === 0) {
+            console.warn('[definitions] State empty, using static fallback');
+            badgeResponse = { badges: loadStaticBadgeDefinitions(), source: 'static' };
+          }
+        }
       }
     } catch (error) {
-      console.error('[definitions] Supabase query failed:', error);
-      console.warn('[definitions] Supabase empty, using static fallback');
+      console.error('[definitions] Failed to resolve badge definitions:', error);
       badgeResponse = { badges: loadStaticBadgeDefinitions(), source: 'static' };
     }
 

@@ -4,6 +4,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { DEFAULT_NETWORK, SWAP_ROUTER_ADDRESS } from "../config/network";
 import { getSwapSettings, updateSwapSettings } from "../services/adminService";
+import { getOrFetchTransactions } from "../services/transactionService";
 import {
   clampSlippagePercent,
   normalizeMosaicSwapSettings,
@@ -103,7 +104,25 @@ const resolveDaftarRouteName = (routeId) => {
   return `Route ${String(routeId || "?")}`;
 };
 
-const buildDaftarHistoryItem = (tx) => {
+const buildParsedSwapHistoryItem = (tx) => {
+  const amountIn = Number(tx?.amount_in);
+  const amountOut = Number(tx?.amount_out);
+  const gasFee = Number(tx?.gas_fee);
+  const inputSymbol = normalizeTokenSymbol(tx?.token_in || "");
+  const outputSymbol = normalizeTokenSymbol(tx?.token_out || "");
+
+  return {
+    txHash: String(tx?.tx_hash || ""),
+    timestamp: tx?.tx_timestamp || tx?.timestamp || 0,
+    routeName: String(tx?.dapp_name || "Swap"),
+    symbol: inputSymbol || outputSymbol || "TOKEN",
+    amountIn: Number.isFinite(amountIn) && amountIn > 0 ? amountIn : (Number.isFinite(amountOut) ? amountOut : 0),
+    feeAmount: Number.isFinite(gasFee) ? gasFee : 0,
+    feeSymbol: "MOVE",
+  };
+};
+
+const buildLegacyDaftarHistoryItem = (tx) => {
   const payload = tx?.payload || {};
   const args = getPayloadFunctionArguments(payload);
   const typeArgs = getPayloadTypeArguments(payload);
@@ -128,10 +147,11 @@ const buildDaftarHistoryItem = (tx) => {
     symbol: String(symbol || "TOKEN").replace(/\.e$/i, "").toUpperCase(),
     amountIn: toHistoryAmount(rawAmountIn, decimals),
     feeAmount: toHistoryAmount(rawFeeAmount, decimals),
+    feeSymbol: String(symbol || "TOKEN").replace(/\.e$/i, "").toUpperCase(),
   };
 };
 
-const fetchDaftarSwapHistory = async (walletAddress) => {
+const fetchLegacyDaftarSwapHistory = async (walletAddress) => {
   const normalizedWallet = String(walletAddress || "").trim();
   const normalizedRouter = String(SWAP_ROUTER_ADDRESS || "").trim().toLowerCase();
 
@@ -157,9 +177,35 @@ const fetchDaftarSwapHistory = async (walletAddress) => {
   return rows
     .filter((tx) => tx?.type === "user_transaction")
     .filter((tx) => String(tx?.payload?.function || "").trim().toLowerCase() === functionId)
-    .map(buildDaftarHistoryItem)
+    .map(buildLegacyDaftarHistoryItem)
     .filter((item) => item.txHash)
     .slice(0, DAFTAR_SWAP_HISTORY_LIMIT);
+};
+
+const fetchDaftarSwapHistory = async (walletAddress) => {
+  const normalizedWallet = String(walletAddress || "").trim();
+  if (!normalizedWallet) {
+    return [];
+  }
+
+  const parsedRows = await getOrFetchTransactions(normalizedWallet, {
+    persist: false,
+    allowCachedRead: false,
+    limit: DAFTAR_SWAP_SCAN_LIMIT,
+  });
+
+  const parsedHistory = parsedRows
+    .filter((tx) => String(tx?.tx_type || "").toLowerCase() === "swap")
+    .filter((tx) => String(tx?.status || "success").toLowerCase() !== "failed")
+    .map(buildParsedSwapHistoryItem)
+    .filter((item) => item.txHash)
+    .slice(0, DAFTAR_SWAP_HISTORY_LIMIT);
+
+  if (parsedHistory.length > 0) {
+    return parsedHistory;
+  }
+
+  return fetchLegacyDaftarSwapHistory(normalizedWallet);
 };
 
 const formatUsd = (amount, price) => {
@@ -1036,7 +1082,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                         <span>{item.routeName}</span>
                       </div>
                       <div className="swap-history-item-bottom">
-                        <span>Fee {formatHistoryAmount(item.feeAmount)} {item.symbol}</span>
+                        <span>Fee {formatHistoryAmount(item.feeAmount)} {item.feeSymbol || item.symbol}</span>
                         <span>{formatHistoryDate(item.timestamp)}</span>
                       </div>
                     </a>

@@ -28,6 +28,13 @@ const safeValue = (value, fallback = "-") => {
   return text || fallback;
 };
 
+const BackIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M15 6l-6 6 6 6" />
+    <path d="M9 12h10" />
+  </svg>
+);
+
 export default function SwapDetails() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -51,7 +58,9 @@ export default function SwapDetails() {
       <div className="swap-details-page">
         <div className="swap-details-shell">
           <div className="swap-details-header">
-            <button type="button" className="swap-details-back" onClick={() => navigate("/swap")}>←</button>
+            <button type="button" className="swap-details-back" onClick={() => navigate("/swap")} aria-label="Back to swap">
+              <BackIcon />
+            </button>
             <h1>Transaction details</h1>
             <span className="swap-details-spacer" />
           </div>
@@ -74,7 +83,7 @@ export default function SwapDetails() {
       <div className="swap-details-shell">
         <div className="swap-details-header">
           <button type="button" className="swap-details-back" onClick={() => navigate("/swap")} aria-label="Back to swap">
-            ←
+            <BackIcon />
           </button>
           <h1>Transaction details</h1>
           <span className="swap-details-spacer" />
