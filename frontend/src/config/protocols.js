@@ -72,8 +72,11 @@ export const DEFI_PROTOCOLS = {
   },
   RAZOR: {
     name: "Razor DEX",
-    address: "0x7730cd28ee1cdc9e999336cbc430f99e7c44397c0aa77516f6f23a78559bb5",
-    addresses: ["0x7730cd28ee1cdc9e999336cbc430f99e7c44397c0aa77516f6f23a78559bb5"],
+    address: "0xc4e68f29fa608d2630d11513c8de731b09a975f2f75ea945160491b9bfd36992",
+    addresses: [
+      "0xc4e68f29fa608d2630d11513c8de731b09a975f2f75ea945160491b9bfd36992",
+      "0x7730cd28ee1cdc9e999336cbc430f99e7c44397c0aa77516f6f23a78559bb5",
+    ],
     type: "DEX",
     website: "https://razor.exchange",
     keywords: ["razor"],

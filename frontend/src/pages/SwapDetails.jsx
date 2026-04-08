@@ -4,6 +4,7 @@ import { DEFAULT_NETWORK } from "../config/network";
 import "./SwapDetails.css";
 
 const SWAP_DETAILS_STORAGE_KEY = "movement_last_swap_details_v1";
+const SUPPORT_DISCORD_URL = "https://discord.gg/fER9kNyPvk";
 
 const formatDate = (iso) => {
   const date = new Date(iso || Date.now());
@@ -103,7 +104,6 @@ export default function SwapDetails() {
 
           <div className="swap-details-status-list">
             <div className="swap-details-status">✓ Swap completed</div>
-            <div className="swap-details-status">✓ Spending approved</div>
           </div>
         </section>
 
@@ -137,7 +137,13 @@ export default function SwapDetails() {
           <code>{txHash || "Unavailable"}</code>
         </section>
 
-        <button type="button" className="swap-details-support" onClick={() => navigate("/more")}>Contact support</button>
+        <button
+          type="button"
+          className="swap-details-support"
+          onClick={() => window.open(SUPPORT_DISCORD_URL, "_blank", "noopener,noreferrer")}
+        >
+          Contact support
+        </button>
       </div>
     </div>
   );

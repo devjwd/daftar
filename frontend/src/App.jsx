@@ -21,7 +21,6 @@ const Settings = lazy(() => import("./pages/Settings"));
 const Badges = lazy(() => import("./pages/Badges"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 const Admin = lazy(() => import("./pages/Admin"));
-const More = lazy(() => import("./pages/More"));
 const Level = lazy(() => import("./pages/Level"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
@@ -147,7 +146,7 @@ export default function App() {
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/admin" element={<Admin />} />
-                    <Route path="/more" element={<More />} />
+                    <Route path="/more" element={<Navigate to="/settings" replace />} />
                     <Route path="/level" element={<Level />} />
                     <Route path="/terms" element={<Terms />} />
                     <Route path="/privacy" element={<Privacy />} />

@@ -63,7 +63,15 @@ export const TRACKED_DAPPS = [
     key: "joule",
     protocol: DEFI_PROTOCOLS.JOULE,
     logo: "/joule-finance.png",
-    keywords: ["lend", "supply", "borrow", "repay"],
+    contracts: [
+      "0x6a164188af7bb6a8268339343a5afe0242292713709af8801dafba3a054dc2f2",
+    ],
+    modulePrefixes: [
+      "0x6a164188af7bb6a8268339343a5afe0242292713709af8801dafba3a054dc2f2::pool::",
+      "0x6a164188af7bb6a8268339343a5afe0242292713709af8801dafba3a054dc2f2::rewards::",
+      "0x6a164188af7bb6a8268339343a5afe0242292713709af8801dafba3a054dc2f2::oracle::",
+    ],
+    keywords: ["joule", "lend", "supply", "borrow", "repay"],
   }),
   createDapp({
     key: "moveposition",
@@ -155,7 +163,25 @@ export const TRACKED_DAPPS = [
     key: "razor",
     protocol: DEFI_PROTOCOLS.RAZOR,
     logo: "/razor.png",
-    keywords: ["swap", "amm", "liquidity", "farm", "staking"],
+    contracts: [
+      "0xc4e68f29fa608d2630d11513c8de731b09a975f2f75ea945160491b9bfd36992",
+    ],
+    modulePrefixes: [
+      "0xc4e68f29fa608d2630d11513c8de731b09a975f2f75ea945160491b9bfd36992::amm_router::",
+      "0xc4e68f29fa608d2630d11513c8de731b09a975f2f75ea945160491b9bfd36992::amm_pair::",
+    ],
+    keywords: [
+      "razor",
+      "razordex",
+      "swap_exact_move_for_tokens",
+      "swap_exact_tokens_for_move",
+      "swap_exact_tokens_for_tokens",
+      "amm_router",
+      "amm_pair",
+      "liquidity",
+      "farm",
+      "staking",
+    ],
   }),
   createDapp({
     key: "yuzu",
