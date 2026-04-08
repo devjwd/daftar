@@ -1,6 +1,12 @@
 import supabase from '../config/supabase.js';
 
-const getBadgeApiBase = () => String(import.meta.env.VITE_BADGE_API_BASE || '').trim().replace(/\/+$/, '');
+const getBadgeApiBase = () =>
+  String(import.meta.env.VITE_BADGE_API_URL || import.meta.env.VITE_BADGE_API_BASE || '')
+    .trim()
+    .replace(/\/+$/, '');
+
+const getBadgeAdminApiKey = (adminKey = '') =>
+  String(adminKey || import.meta.env.VITE_BADGE_ADMIN_API_KEY || '').trim();
 
 const buildBadgeApiUrl = (path) => {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -40,6 +46,14 @@ const callBadgeApi = async ({ path, method = 'GET', body, headers = {} }) => {
       data: { error: String(error?.message || 'Network error') },
     };
   }
+};
+
+const getWriteHeaders = (adminKey = '') => {
+  const apiKey = getBadgeAdminApiKey(adminKey);
+  return {
+    'Content-Type': 'application/json',
+    ...(apiKey ? { 'x-api-key': apiKey } : {}),
+  };
 };
 
 const normalizeAddress = (address) => {
@@ -113,10 +127,11 @@ export const fetchUserBadges = async (address) => {
 
 export const fetchAllBadges = async ({ includePrivate = false, adminKey = '' } = {}) => {
   const query = includePrivate ? '?includePrivate=true' : '';
+  const apiKey = getBadgeAdminApiKey(adminKey);
   const response = await callBadgeApi({
     path: `/api/badges${query}`,
     headers: {
-      ...(adminKey ? { 'x-admin-key': adminKey } : {}),
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
     },
   });
 
@@ -137,9 +152,7 @@ export const saveBadgeDefinitions = async ({ badges, adminKey, clearAwards = fal
   const response = await callBadgeApi({
     path: '/api/badges',
     method: 'POST',
-    headers: {
-      ...(adminKey ? { 'x-admin-key': adminKey } : {}),
-    },
+    headers: getWriteHeaders(adminKey),
     body: {
       badges: Array.isArray(badges) ? badges : [],
       clearAwards: Boolean(clearAwards),
@@ -152,7 +165,7 @@ export const saveBadgeDefinitions = async ({ badges, adminKey, clearAwards = fal
 export const awardBadgeToUser = async (address, badgeId, payload = {}, options = {}) => {
   const walletAddress = normalizeAddress(address);
   const normalizedBadgeId = String(badgeId || '').trim();
-  const adminKey = String(options?.adminKey || '').trim();
+  const adminKey = getBadgeAdminApiKey(options?.adminKey);
   if (!walletAddress || !normalizedBadgeId) {
     return {
       ok: false,
@@ -164,9 +177,7 @@ export const awardBadgeToUser = async (address, badgeId, payload = {}, options =
   const response = await callBadgeApi({
     path: '/api/badges/claim',
     method: 'POST',
-    headers: {
-      ...(adminKey ? { 'x-admin-key': adminKey } : {}),
-    },
+    headers: getWriteHeaders(adminKey),
     body: {
       address: walletAddress,
       badgeId: normalizedBadgeId,
@@ -215,9 +226,7 @@ export const publishScannerConfigs = async ({ badgeConfigs, adminKey }) => {
   const response = await callBadgeApi({
     path: '/api/badges/config',
     method: 'POST',
-    headers: {
-      ...(adminKey ? { 'x-admin-key': adminKey } : {}),
-    },
+    headers: getWriteHeaders(adminKey),
     body: {
       badgeConfigs: Array.isArray(badgeConfigs) ? badgeConfigs : [],
     },

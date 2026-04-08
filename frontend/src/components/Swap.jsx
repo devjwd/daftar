@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import { DEFAULT_NETWORK, SWAP_ROUTER_ADDRESS } from "../config/network";
+import { DEFAULT_NETWORK } from "../config/network";
 import { getSwapSettings, updateSwapSettings } from "../services/adminService";
-import { getOrFetchTransactions } from "../services/transactionService";
 import {
   clampSlippagePercent,
   normalizeMosaicSwapSettings,
@@ -35,8 +34,6 @@ const MAX_QUOTE_PRICE_IMPACT = 50;
 const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
 const TOAST_DISMISS_MS = 6500;
 const SWAP_DETAILS_STORAGE_KEY = "movement_last_swap_details_v1";
-const DAFTAR_SWAP_HISTORY_LIMIT = 12;
-const DAFTAR_SWAP_SCAN_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,155 +54,6 @@ const extractAddressFromType = (value) => {
   const raw = String(value || "").trim().toLowerCase();
   if (!raw) return "";
   return raw.includes("::") ? raw.split("::")[0] : raw;
-};
-
-const getPayloadFunctionArguments = (payload) => {
-  if (Array.isArray(payload?.functionArguments)) return payload.functionArguments;
-  if (Array.isArray(payload?.arguments)) return payload.arguments;
-  return [];
-};
-
-const getPayloadTypeArguments = (payload) => {
-  if (Array.isArray(payload?.typeArguments)) return payload.typeArguments;
-  if (Array.isArray(payload?.type_arguments)) return payload.type_arguments;
-  return [];
-};
-
-const toHistoryAmount = (rawAmount, decimals = DEFAULT_DECIMALS) => {
-  const numeric = Number(rawAmount);
-  if (!Number.isFinite(numeric)) return 0;
-  return numeric / Math.pow(10, Math.max(0, Number(decimals) || 0));
-};
-
-const formatHistoryAmount = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "0";
-
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: numeric !== 0 && Math.abs(numeric) < 1 ? 2 : 0,
-    maximumFractionDigits: 6,
-  }).format(numeric);
-};
-
-const formatHistoryDate = (value) => {
-  const raw = Number(value);
-  const millis = Number.isFinite(raw) && raw > 1e12 ? Math.floor(raw / 1000) : raw;
-  const date = new Date(millis || value || 0);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown time";
-  }
-
-  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
-};
-
-const resolveDaftarRouteName = (routeId) => {
-  if (Number(routeId) === 1) return "Mosaic";
-  return `Route ${String(routeId || "?")}`;
-};
-
-const buildParsedSwapHistoryItem = (tx) => {
-  const amountIn = Number(tx?.amount_in);
-  const amountOut = Number(tx?.amount_out);
-  const gasFee = Number(tx?.gas_fee);
-  const inputSymbol = normalizeTokenSymbol(tx?.token_in || "");
-  const outputSymbol = normalizeTokenSymbol(tx?.token_out || "");
-
-  return {
-    txHash: String(tx?.tx_hash || ""),
-    timestamp: tx?.tx_timestamp || tx?.timestamp || 0,
-    routeName: String(tx?.dapp_name || "Swap"),
-    symbol: inputSymbol || outputSymbol || "TOKEN",
-    amountIn: Number.isFinite(amountIn) && amountIn > 0 ? amountIn : (Number.isFinite(amountOut) ? amountOut : 0),
-    feeAmount: Number.isFinite(gasFee) ? gasFee : 0,
-    feeSymbol: "MOVE",
-  };
-};
-
-const buildLegacyDaftarHistoryItem = (tx) => {
-  const payload = tx?.payload || {};
-  const args = getPayloadFunctionArguments(payload);
-  const typeArgs = getPayloadTypeArguments(payload);
-  const coinInType = String(typeArgs[0] || "").trim();
-  const tokenAddress = extractAddressFromType(coinInType);
-  const tokenInfo = getTokenInfo(tokenAddress) || getTokenInfo(coinInType) || null;
-  const symbol = tokenInfo?.symbol || String(coinInType.split("::").pop() || "TOKEN").replace(/coinstore<|>/gi, "");
-  const decimals = tokenInfo?.decimals || getTokenDecimals(coinInType || tokenAddress) || DEFAULT_DECIMALS;
-  const routerEvent = Array.isArray(tx?.events)
-    ? tx.events.find((event) => String(event?.type || "").toLowerCase().endsWith("::swapexecuted"))
-    : null;
-
-  const rawAmountIn = routerEvent?.data?.amount_in ?? args[0] ?? 0;
-  const rawFeeAmount = routerEvent?.data?.fee_amount ?? 0;
-  const routeId = routerEvent?.data?.router_source ?? args[1] ?? null;
-  const timestamp = routerEvent?.data?.timestamp ?? tx?.timestamp ?? 0;
-
-  return {
-    txHash: String(tx?.hash || ""),
-    timestamp,
-    routeName: resolveDaftarRouteName(routeId),
-    symbol: String(symbol || "TOKEN").replace(/\.e$/i, "").toUpperCase(),
-    amountIn: toHistoryAmount(rawAmountIn, decimals),
-    feeAmount: toHistoryAmount(rawFeeAmount, decimals),
-    feeSymbol: String(symbol || "TOKEN").replace(/\.e$/i, "").toUpperCase(),
-  };
-};
-
-const fetchLegacyDaftarSwapHistory = async (walletAddress) => {
-  const normalizedWallet = String(walletAddress || "").trim();
-  const normalizedRouter = String(SWAP_ROUTER_ADDRESS || "").trim().toLowerCase();
-
-  if (!normalizedWallet || !normalizedRouter) {
-    return [];
-  }
-
-  const response = await fetch(
-    `${DEFAULT_NETWORK.rpc}/accounts/${encodeURIComponent(normalizedWallet)}/transactions?limit=${DAFTAR_SWAP_SCAN_LIMIT}`
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to load swap history (${response.status})`);
-  }
-
-  const rows = await response.json();
-  if (!Array.isArray(rows)) {
-    return [];
-  }
-
-  const functionId = `${normalizedRouter}::router::collect_fee`;
-
-  return rows
-    .filter((tx) => tx?.type === "user_transaction")
-    .filter((tx) => String(tx?.payload?.function || "").trim().toLowerCase() === functionId)
-    .map(buildLegacyDaftarHistoryItem)
-    .filter((item) => item.txHash)
-    .slice(0, DAFTAR_SWAP_HISTORY_LIMIT);
-};
-
-const fetchDaftarSwapHistory = async (walletAddress) => {
-  const normalizedWallet = String(walletAddress || "").trim();
-  if (!normalizedWallet) {
-    return [];
-  }
-
-  const parsedRows = await getOrFetchTransactions(normalizedWallet, {
-    persist: false,
-    allowCachedRead: false,
-    limit: DAFTAR_SWAP_SCAN_LIMIT,
-  });
-
-  const parsedHistory = parsedRows
-    .filter((tx) => String(tx?.tx_type || "").toLowerCase() === "swap")
-    .filter((tx) => String(tx?.status || "success").toLowerCase() !== "failed")
-    .map(buildParsedSwapHistoryItem)
-    .filter((item) => item.txHash)
-    .slice(0, DAFTAR_SWAP_HISTORY_LIMIT);
-
-  if (parsedHistory.length > 0) {
-    return parsedHistory;
-  }
-
-  return fetchLegacyDaftarSwapHistory(normalizedWallet);
 };
 
 const formatUsd = (amount, price) => {
@@ -350,69 +198,21 @@ const Swap = ({ balances, onSwapSuccess }) => {
   const [error, setError] = useState(null);
   const [slippage, setSlippage] = useState(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE);
   const [showSettings, setShowSettings] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [txToast, setTxToast] = useState(null);
   const [swapComplete, setSwapComplete] = useState(null);
   const [priceImpact, setPriceImpact] = useState(0);
   const [isQuoting, setIsQuoting] = useState(false);
   const [routingResult, setRoutingResult] = useState(null);
   const [optimisticBalanceDeltas, setOptimisticBalanceDeltas] = useState({});
-  const [swapHistory, setSwapHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
 
   const abortRef = useRef(null);
 
   const routeSettings = useMemo(() => ({ ...swapSettings }), [swapSettings]);
-  const walletAddress = useMemo(
-    () => (connected && account ? (typeof account.address === "string" ? account.address : account.address?.toString?.()) : ""),
-    [account, connected]
-  );
 
   useEffect(() => {
     // Clear optimistic values once fresh balances arrive from the indexer.
     setOptimisticBalanceDeltas({});
   }, [balances]);
-
-  useEffect(() => {
-    if (!showHistory) return undefined;
-
-    let cancelled = false;
-
-    const loadHistory = async () => {
-      if (!walletAddress) {
-        setSwapHistory([]);
-        setHistoryError("");
-        return;
-      }
-
-      setHistoryLoading(true);
-      setHistoryError("");
-
-      try {
-        const rows = await fetchDaftarSwapHistory(walletAddress);
-        if (!cancelled) {
-          setSwapHistory(rows);
-        }
-      } catch (loadError) {
-        console.error("Failed to load Daftar swap history:", loadError);
-        if (!cancelled) {
-          setHistoryError("Unable to load Daftar swap history");
-          setSwapHistory([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setHistoryLoading(false);
-        }
-      }
-    };
-
-    void loadHistory();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showHistory, walletAddress]);
 
   // ---- Derived ----
 
@@ -1039,63 +839,6 @@ const Swap = ({ balances, onSwapSuccess }) => {
     );
   };
 
-  const renderHistory = () => {
-    if (!showHistory) return null;
-
-    return (
-      <div className="swap-history-overlay" onClick={() => setShowHistory(false)}>
-        <div className="swap-history-panel" onClick={(event) => event.stopPropagation()}>
-          <div className="swap-history-header">
-            <div>
-              <h3>Swap History</h3>
-              <p>Recent swaps recorded on-chain</p>
-            </div>
-            <button className="close-btn" onClick={() => setShowHistory(false)}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="swap-history-body">
-            {historyLoading ? <div className="swap-history-empty">Loading on-chain swap history...</div> : null}
-            {!historyLoading && historyError ? <div className="swap-history-empty">{historyError}</div> : null}
-            {!historyLoading && !historyError && swapHistory.length === 0 ? (
-              <div className="swap-history-empty">No swap history yet.</div>
-            ) : null}
-
-            {!historyLoading && !historyError && swapHistory.length > 0 ? (
-              <div className="swap-history-list">
-                {swapHistory.map((item) => {
-                  const txUrl = `${DEFAULT_NETWORK.explorer}/txn/${encodeURIComponent(item.txHash)}?network=mainnet`;
-                  return (
-                    <a
-                      key={item.txHash}
-                      href={txUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="swap-history-item"
-                    >
-                      <div className="swap-history-item-top">
-                        <strong>{formatHistoryAmount(item.amountIn)} {item.symbol}</strong>
-                        <span>{item.routeName}</span>
-                      </div>
-                      <div className="swap-history-item-bottom">
-                        <span>Fee {formatHistoryAmount(item.feeAmount)} {item.feeSymbol || item.symbol}</span>
-                        <span>{formatHistoryDate(item.timestamp)}</span>
-                      </div>
-                    </a>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // ===========================================================================
   // Render
   // ===========================================================================
@@ -1118,30 +861,6 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                   <path d="M12 3a9 9 0 1 0 8.94 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                   <path d="M21 3v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-              <button className="history-btn" onClick={() => setShowHistory(true)} title="Daftar swap history">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M12 5a7 7 0 1 1-6.6 9.3"
-                    stroke="currentColor"
-                    strokeWidth="1.9"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M8.2 3.8L4.5 7.4L9.1 7.5"
-                    stroke="currentColor"
-                    strokeWidth="1.9"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M12 8.1V12.4L15 14.2"
-                    stroke="currentColor"
-                    strokeWidth="1.9"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
                 </svg>
               </button>
               <button className="settings-btn" onClick={() => setShowSettings(true)} title="Settings">
@@ -1329,9 +1048,6 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
       {/* Settings Modal */}
       {renderSettings()}
-
-      {/* Daftar Swap History */}
-      {renderHistory()}
 
       <TransactionToast
         toast={txToast}

@@ -29,6 +29,20 @@ const ENV_SCHEMA = {
     validate: (val) => !val || /^0x[a-f0-9]{1,64}$/i.test(val),
     error: 'VITE_BADGE_MODULE_ADDRESS must be valid hex address or empty'
   },
+
+  VITE_BADGE_API_URL: {
+    type: 'string',
+    required: false,
+    validate: (val) => !val || /^https?:\/\//.test(val),
+    error: 'VITE_BADGE_API_URL must be a valid HTTP or HTTPS URL'
+  },
+
+  VITE_BADGE_ADMIN_API_KEY: {
+    type: 'string',
+    required: false,
+    validate: (val) => !val || (typeof val === 'string' && val.length > 0),
+    error: 'VITE_BADGE_ADMIN_API_KEY must be a non-empty string or empty'
+  },
   
   VITE_SENTRY_DSN: {
     type: 'string',

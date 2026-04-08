@@ -67,28 +67,9 @@
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-.history-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  border: 1px solid rgba(205, 161, 105, 0.28);
-  background: rgba(20, 16, 14, 0.5);
-  color: #d8ba8e;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: transform 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
-}
-
 .settings-btn:hover {
   transform: translateY(-1px);
   opacity: 0.92;
-}
-
-.history-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(205, 161, 105, 0.55);
-  opacity: 0.95;
 }
 
 .swap-header-actions {
@@ -728,8 +709,7 @@
 
 /* Token Selector */
 .token-selector-overlay,
-.settings-overlay,
-.swap-history-overlay {
+.settings-overlay {
   position: fixed;
   inset: 0;
   background: rgba(1, 3, 6, 0.72);
@@ -741,8 +721,7 @@
 }
 
 .token-selector-panel,
-.settings-panel,
-.swap-history-panel {
+.settings-panel {
   width: min(440px, 92vw);
   border-radius: 18px;
   border: 1px solid var(--swap-border);
@@ -752,8 +731,7 @@
 }
 
 .token-selector-header,
-.settings-header,
-.swap-history-header {
+.settings-header {
   padding: 0.95rem 1rem;
   display: flex;
   justify-content: space-between;
@@ -762,72 +740,10 @@
 }
 
 .token-selector-header h3,
-.settings-header h3,
-.swap-history-header h3 {
+.settings-header h3 {
   margin: 0;
   color: var(--swap-text);
   font-size: 1rem;
-}
-
-.swap-history-header p {
-  margin: 0.2rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.74rem;
-}
-
-.swap-history-body {
-  padding: 0.9rem 1rem 1rem;
-}
-
-.swap-history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.swap-history-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.42rem;
-  border-radius: 12px;
-  border: 1px solid var(--swap-border);
-  background: rgba(24, 19, 16, 0.62);
-  padding: 0.8rem;
-  text-decoration: none;
-}
-
-.swap-history-item:hover {
-  border-color: var(--swap-border-strong);
-  transform: translateY(-1px);
-}
-
-.swap-history-item-top,
-.swap-history-item-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-}
-
-.swap-history-item-top strong {
-  color: var(--swap-text);
-  font: 700 0.92rem/1.1 "Space Grotesk", "Avenir Next", sans-serif;
-}
-
-.swap-history-item-top span,
-.swap-history-item-bottom span {
-  color: var(--text-muted);
-  font-size: 0.76rem;
-}
-
-.swap-history-empty {
-  border-radius: 12px;
-  border: 1px dashed var(--swap-border);
-  background: rgba(24, 19, 16, 0.46);
-  color: var(--text-muted);
-  padding: 1rem;
-  text-align: center;
-  font-size: 0.82rem;
 }
 
 .close-btn {

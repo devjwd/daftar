@@ -60,6 +60,7 @@ const createSupabaseClient = (key) => {
 const getApiBaseUrl = () => {
   const explicit = String(
     process.env.BADGE_API_BASE ||
+      process.env.VITE_BADGE_API_URL ||
       process.env.VITE_BADGE_API_BASE ||
       process.env.APP_URL ||
       ''

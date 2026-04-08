@@ -8,7 +8,7 @@ const PROFILE_PREFIX = 'move_profile_';
 const PROFILES_INDEX = 'move_profiles_index';
 const PROFILE_EDIT_KEY_PREFIX = 'move_profile_edit_key_';
 const API_BASE =
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BADGE_API_BASE) ||
+  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_BADGE_API_URL || import.meta.env.VITE_BADGE_API_BASE)) ||
   '';
 
 /**

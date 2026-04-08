@@ -10,8 +10,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { timingSafeEqual } from 'crypto';
+import { createClient } from '@supabase/supabase-js';
 import { kv } from '@vercel/kv';
-import supabaseAdmin from './supabase.js';
 import { runAdaptersForAddress } from './badgeAdapters/index.js';
 import { getWalletAge, checkAccountExists } from './indexerClient.js';
 import usersApi from './usersApi.js';
@@ -21,7 +21,6 @@ const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT) || 4000;
 const ADMIN_API_KEY = process.env.BADGE_ADMIN_API_KEY || '';
-const BADGE_STATE_FILE = process.env.BADGE_STATE_FILE || path.resolve(__dirname, '../data/badge-state.json');
 const BADGE_CORS_ORIGIN = process.env.BADGE_CORS_ORIGIN || '*';
 const LEADERBOARD_CACHE_KEY = 'leaderboard:top100';
 const LEADERBOARD_CACHE_TTL_SECONDS = 300;
@@ -30,10 +29,16 @@ const LEADERBOARD_CACHE_ENABLED = Boolean(
   String(process.env.KV_REST_API_TOKEN || '').trim()
 );
 
-const userAwards = new Map(); // address => [{ badgeId, payload, awardedAt }]
-const trackedAddresses = new Set();
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+  throw new Error('Missing Supabase environment variables. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.');
+}
 
-let persistQueue = Promise.resolve();
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});
 
 const normalizeAddress = (address) => {
   const normalized = String(address || '').trim().toLowerCase();
@@ -41,51 +46,6 @@ const normalizeAddress = (address) => {
 };
 
 const isLikelyAddress = (address) => /^0x[a-f0-9]{1,128}$/i.test(String(address || '').trim());
-
-const ensureDataDir = () => {
-  fs.mkdirSync(path.dirname(BADGE_STATE_FILE), { recursive: true });
-};
-
-const queuePersistState = () => {
-  persistQueue = persistQueue
-    .then(async () => {
-      ensureDataDir();
-      const tmpPath = `${BADGE_STATE_FILE}.tmp`;
-      const payload = {
-        userAwards: Object.fromEntries(userAwards.entries()),
-        trackedAddresses: Array.from(trackedAddresses),
-        updatedAt: new Date().toISOString(),
-      };
-      await fs.promises.writeFile(tmpPath, JSON.stringify(payload, null, 2), 'utf8');
-      await fs.promises.rename(tmpPath, BADGE_STATE_FILE);
-    })
-    .catch((err) => {
-      console.warn('[state] failed to persist badge state', err);
-    });
-  return persistQueue;
-};
-
-const loadPersistedState = () => {
-  try {
-    if (!fs.existsSync(BADGE_STATE_FILE)) return;
-    const raw = fs.readFileSync(BADGE_STATE_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (parsed && parsed.userAwards && typeof parsed.userAwards === 'object') {
-      Object.entries(parsed.userAwards).forEach(([addr, awards]) => {
-        if (Array.isArray(awards)) {
-          userAwards.set(normalizeAddress(addr), awards);
-        }
-      });
-    }
-    if (parsed && Array.isArray(parsed.trackedAddresses)) {
-      parsed.trackedAddresses.forEach((addr) => {
-        if (isLikelyAddress(addr)) trackedAddresses.add(normalizeAddress(addr));
-      });
-    }
-  } catch (err) {
-    console.warn('[state] failed to load persisted badge state', err);
-  }
-};
 
 const createRateLimiter = ({ windowMs, max }) => {
   const buckets = new Map();
@@ -106,11 +66,11 @@ const createRateLimiter = ({ windowMs, max }) => {
   };
 };
 
-const requireAdmin = (req, res, next) => {
+const requireApiKey = (req, res, next) => {
   if (!ADMIN_API_KEY) {
     return res.status(503).json({ error: 'Server missing BADGE_ADMIN_API_KEY' });
   }
-  const key = String(req.get('x-admin-key') || '');
+  const key = String(req.headers['x-api-key'] || '');
   const expected = String(ADMIN_API_KEY || '');
 
   const keyBuffer = Buffer.from(key, 'utf8');
@@ -126,13 +86,91 @@ const requireAdmin = (req, res, next) => {
   return next();
 };
 
-const awardBadge = (address, badgeId, payload = {}) => {
+const mapAttestationToAward = (row) => ({
+  badgeId: String(row?.badge_id || ''),
+  payload: {
+    eligible: row?.eligible === true,
+    proofHash: row?.proof_hash || null,
+  },
+  awardedAt: row?.verified_at || null,
+});
+
+const getUserAwardRows = async (address) => {
   const normalized = normalizeAddress(address);
-  const list = userAwards.get(normalized) || [];
-  const record = { badgeId, payload, awardedAt: new Date().toISOString() };
-  list.push(record);
-  userAwards.set(normalized, list);
-  return record;
+  const { data, error } = await supabase.from('badge_attestations').select('*').eq('wallet_address', normalized);
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data : [];
+};
+
+const getUserAwards = async (address) => {
+  const rows = await getUserAwardRows(address);
+  return rows.map(mapAttestationToAward);
+};
+
+const listTrackedAddresses = async () => {
+  const { data, error } = await supabase.from('badge_tracked_addresses').select('*');
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.from(
+    new Set(
+      (Array.isArray(data) ? data : [])
+        .map((row) => normalizeAddress(row?.wallet_address))
+        .filter((address) => isLikelyAddress(address))
+    )
+  );
+};
+
+const trackAddress = async (address, addedAt = new Date().toISOString()) => {
+  const normalized = normalizeAddress(address);
+  const { error } = await supabase.from('badge_tracked_addresses').upsert(
+    {
+      wallet_address: normalized,
+      added_at: addedAt,
+    },
+    { onConflict: 'wallet_address' }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return normalized;
+};
+
+const awardBadge = async (address, badgeId, payload = {}) => {
+  const normalized = normalizeAddress(address);
+  const verifiedAt = new Date().toISOString();
+  const proofHash = payload?.proof_hash ?? payload?.proofHash ?? null;
+
+  const { error } = await supabase.from('badge_attestations').upsert(
+    {
+      wallet_address: normalized,
+      badge_id: String(badgeId),
+      eligible: true,
+      verified_at: verifiedAt,
+      proof_hash: proofHash,
+    },
+    { onConflict: 'wallet_address,badge_id' }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  await trackAddress(normalized, verifiedAt);
+
+  return {
+    badgeId: String(badgeId),
+    payload,
+    awardedAt: verifiedAt,
+  };
 };
 
 const readLeaderboardCache = async () => {
@@ -174,8 +212,10 @@ const invalidateLeaderboardCache = async () => {
 };
 
 const app = express();
-app.use(cors(BADGE_CORS_ORIGIN === '*' ? undefined : { origin: BADGE_CORS_ORIGIN.split(',').map((v) => v.trim()) }));
+app.use(cors({ origin: BADGE_CORS_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '32kb' }));
+
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use('/api/users', usersApi);
 
@@ -194,7 +234,6 @@ const loadBadgeConfigs = () => {
   }
 };
 loadBadgeConfigs();
-loadPersistedState();
 
 if (!LEADERBOARD_CACHE_ENABLED) {
   console.warn('[leaderboard] KV cache disabled; KV_REST_API_URL or KV_REST_API_TOKEN is missing');
@@ -206,7 +245,7 @@ app.get('/api/leaderboard', async (req, res) => {
     return res.json(cached);
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from('profiles')
     .select('wallet_address, username, avatar_url, xp')
     .order('xp', { ascending: false })
@@ -235,47 +274,58 @@ app.get('/api/badges', (req, res) => {
   res.json(badgeConfigs);
 });
 
-app.get('/api/badges/user/:address', (req, res) => {
+app.get('/api/badges/user/:address', async (req, res) => {
   const addr = normalizeAddress(req.params.address);
-  res.json(userAwards.get(addr) || []);
+  try {
+    const awards = await getUserAwards(addr);
+    return res.json(awards);
+  } catch (error) {
+    console.error('[badges/user] failed to fetch attestations', error);
+    return res.status(500).json({ error: 'Failed to fetch badge awards' });
+  }
 });
 
-app.post('/api/badges/award', requireAdmin, adminWriteRateLimit, async (req, res) => {
+app.post('/api/badges/award', requireApiKey, adminWriteRateLimit, async (req, res) => {
   const { address, badgeId, payload } = req.body || {};
   if (!address || !badgeId || !isLikelyAddress(address)) {
     return res.status(400).json({ error: 'address and badgeId required' });
   }
-  const record = awardBadge(address, badgeId, payload);
-  await invalidateLeaderboardCache();
-  trackedAddresses.add(normalizeAddress(address));
-  if (process.env.LEGACY_BADGE_SERVER_ENABLED === 'true') {
-    await queuePersistState();
+  try {
+    const record = await awardBadge(address, badgeId, payload);
+    await invalidateLeaderboardCache();
+    return res.json(record);
+  } catch (error) {
+    console.error('[badges/award] failed to persist badge attestation', error);
+    return res.status(500).json({ error: 'Failed to award badge' });
   }
-  res.json(record);
 });
 
-app.post('/api/badges/claim', requireAdmin, adminWriteRateLimit, async (req, res) => {
+app.post('/api/badges/claim', requireApiKey, adminWriteRateLimit, async (req, res) => {
   const { address, badgeId, payload } = req.body || {};
   if (!address || !badgeId || !isLikelyAddress(address)) {
     return res.status(400).json({ error: 'address and badgeId required' });
   }
-  const record = awardBadge(address, badgeId, payload);
-  await invalidateLeaderboardCache();
-  trackedAddresses.add(normalizeAddress(address));
-  if (process.env.LEGACY_BADGE_SERVER_ENABLED === 'true') {
-    await queuePersistState();
+  try {
+    const record = await awardBadge(address, badgeId, payload);
+    await invalidateLeaderboardCache();
+    return res.json(record);
+  } catch (error) {
+    console.error('[badges/claim] failed to persist badge attestation', error);
+    return res.status(500).json({ error: 'Failed to claim badge' });
   }
-  return res.json(record);
 });
 
-app.post('/api/badges/track', requireAdmin, adminWriteRateLimit, async (req, res) => {
+app.post('/api/badges/track', requireApiKey, adminWriteRateLimit, async (req, res) => {
   const { address } = req.body || {};
   if (!address || !isLikelyAddress(address)) return res.status(400).json({ error: 'valid address required' });
-  trackedAddresses.add(normalizeAddress(address));
-  if (process.env.LEGACY_BADGE_SERVER_ENABLED === 'true') {
-    await queuePersistState();
+  try {
+    await trackAddress(address);
+    const tracked = await listTrackedAddresses();
+    return res.json({ tracked });
+  } catch (error) {
+    console.error('[badges/track] failed to persist tracked address', error);
+    return res.status(500).json({ error: 'Failed to track address' });
   }
-  res.json({ tracked: Array.from(trackedAddresses) });
 });
 
 // ─── Per-wallet rate limiter for verify-eligibility (10 req/wallet/min) ───────
@@ -374,27 +424,28 @@ app.post('/api/badges/verify-eligibility', verifyEligibilityRateLimit, async (re
 });
 
 const performScan = async () => {
-  console.log('[worker] scanning', trackedAddresses.size, 'addresses');
+  const trackedAddresses = await listTrackedAddresses();
+  console.log('[worker] scanning', trackedAddresses.length, 'addresses');
   let changed = false;
   for (const addr of trackedAddresses) {
     try {
       const awards = await runAdaptersForAddress(addr, badgeConfigs);
-      awards.forEach((a) => {
-        const existing = userAwards.get(addr) || [];
-        if (!existing.some((r) => r.badgeId === a.badgeId)) {
-          awardBadge(addr, a.badgeId, a.extra || {});
+      const existing = await getUserAwardRows(addr);
+      const existingBadgeIds = new Set(existing.map((row) => String(row?.badge_id || '')));
+      for (const award of awards) {
+        if (!existingBadgeIds.has(String(award?.badgeId || ''))) {
+          await awardBadge(addr, award.badgeId, award.extra || {});
+          existingBadgeIds.add(String(award.badgeId));
           changed = true;
-          console.log(`[worker] awarded ${a.badgeId} to ${addr}`);
+          console.log(`[worker] awarded ${award.badgeId} to ${addr}`);
         }
-      });
+      }
     } catch (e) {
       console.warn('[worker] error scanning', addr, e);
     }
   }
   if (changed) {
-    if (process.env.LEGACY_BADGE_SERVER_ENABLED === 'true') {
-      await queuePersistState();
-    }
+    await invalidateLeaderboardCache();
   }
 };
 
@@ -402,9 +453,15 @@ cron.schedule('0 * * * *', () => {
   performScan();
 });
 
-app.post('/api/badges/scan', requireAdmin, adminScanRateLimit, async (req, res) => {
-  await performScan();
-  res.json({ status: 'scanned', tracked: Array.from(trackedAddresses) });
+app.post('/api/badges/scan', requireApiKey, adminScanRateLimit, async (req, res) => {
+  try {
+    await performScan();
+    const tracked = await listTrackedAddresses();
+    return res.json({ status: 'scanned', tracked });
+  } catch (error) {
+    console.error('[badges/scan] scan failed', error);
+    return res.status(500).json({ error: 'Failed to scan tracked addresses' });
+  }
 });
 
 app.listen(PORT, () => {

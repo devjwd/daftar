@@ -218,10 +218,11 @@ export default async function handler(req, res) {
     }
 
     const supabase = supabaseResult.supabase;
+    const normalizedBadgeId = String(badgeId || '').trim();
     const badgeDefinitionResult = await supabase
       .from('badge_definitions')
       .select('*')
-      .eq('badge_id', badgeId)
+      .eq('badge_id', normalizedBadgeId)
       .maybeSingle();
 
     if (badgeDefinitionResult.error) {
@@ -235,7 +236,7 @@ export default async function handler(req, res) {
     const expectedOnChainBadgeId = getBadgeDefinitionOnChainBadgeId(badgeDefinition);
     if (expectedOnChainBadgeId != null && expectedOnChainBadgeId !== onChainBadgeId) {
       console.error(
-        `[badges/sync] on-chain badge mismatch for badgeId ${badgeId}: expected ${expectedOnChainBadgeId}, received ${onChainBadgeId}`
+        `[badges/sync] on-chain badge mismatch for badgeId ${normalizedBadgeId}: expected ${expectedOnChainBadgeId}, received ${onChainBadgeId}`
       );
       return sendJson(res, 400, { error: 'Badge definition does not match the provided on-chain badge ID' });
     }
@@ -256,10 +257,10 @@ export default async function handler(req, res) {
 
     const onChainBadge = badgeDetails.badge;
     const badge = {
-      badge_id: badgeId,
+      badge_id: normalizedBadgeId,
       badge_name: getBadgeDefinitionName(
         badgeDefinition,
-        getRequestString(req.body?.badgeName, onChainBadge.badge_name || `Badge ${badgeId}`)
+        getRequestString(req.body?.badgeName, onChainBadge.badge_name || `Badge ${normalizedBadgeId}`)
       ),
       rarity: getBadgeDefinitionRarity(
         badgeDefinition,
@@ -286,7 +287,7 @@ export default async function handler(req, res) {
 
     const existingAttestation = await supabase.from('badge_attestations').select('wallet_address')
       .eq('wallet_address', walletAddress)
-      .eq('badge_id', badge.badge_id)
+      .eq('badge_id', String(badge.badge_id || '').trim())
       .maybeSingle();
 
     const upsertBadge = await supabase

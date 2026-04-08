@@ -157,10 +157,12 @@ const resolveBadgeDefinition = async ({ supabase, badgeId }) => {
     loadResolvedBadgeDefinitions().catch(() => ({ badges: [] })),
   ]);
 
+  const normalizedBadgeId = String(badgeId || '').trim();
+
   const configMatch = Array.isArray(resolvedConfigs.configs)
     ? resolvedConfigs.configs
         .map(normalizeBadgeConfig)
-        .find((entry) => entry && entry.badge_id === badgeId)
+        .find((entry) => entry && String(entry.badge_id || '').trim() === normalizedBadgeId)
     : null;
   if (configMatch) {
     return { badgeDefinition: configMatch, source: 'config' };
@@ -169,7 +171,7 @@ const resolveBadgeDefinition = async ({ supabase, badgeId }) => {
   const definitionMatch = Array.isArray(resolvedDefinitions.badges)
     ? resolvedDefinitions.badges
         .map(normalizeFrontendDefinition)
-        .find((entry) => entry && entry.badge_id === badgeId)
+        .find((entry) => entry && String(entry.badge_id || '').trim() === normalizedBadgeId)
     : null;
   if (definitionMatch) {
     return { badgeDefinition: definitionMatch, source: 'definitions' };
@@ -182,7 +184,7 @@ const resolveBadgeDefinition = async ({ supabase, badgeId }) => {
   const { data, error } = await supabase
     .from('badge_definitions')
     .select('badge_id, name, rule_type, rule_params, is_active')
-    .eq('badge_id', badgeId)
+    .eq('badge_id', normalizedBadgeId)
     .maybeSingle();
 
   if (error) {
@@ -212,11 +214,12 @@ const hasFreshNegativeResult = (record) => {
 
 const getCachedAttestation = async (supabase, walletAddress, badgeId) => {
   try {
+    const normalizedBadgeId = String(badgeId || '').trim();
     const { data, error } = await supabase
       .from('badge_attestations')
       .select('wallet_address, badge_id, eligible, verified_at, expires_at, proof_hash')
       .eq('wallet_address', walletAddress)
-      .eq('badge_id', badgeId)
+      .eq('badge_id', normalizedBadgeId)
       .maybeSingle();
 
     if (error) {
@@ -234,7 +237,7 @@ const saveAttestationToSupabase = async ({ supabase, walletAddress, badgeId, eli
   try {
     const payload = {
       wallet_address: walletAddress,
-      badge_id: badgeId,
+      badge_id: String(badgeId || '').trim(),
       eligible: Boolean(eligible),
       verified_at: new Date().toISOString(),
       expires_at: expiresAt || null,
