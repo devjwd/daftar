@@ -305,7 +305,7 @@ const DEFI_PATTERNS = [
 const RECEIPT_TOKEN_PATTERNS = [
   { regex: /ecUSD|ecMOVE|ecWETH|ecWBTC|ecUSDT|ecUSDC/i, protocol: "ECHELON", category: "Lending" },
   { regex: /jUSD|jMOVE|jWETH|jWBTC/i, protocol: "JOULE", category: "Lending" },
-  { regex: /stMOVE|sMOVE/i, protocol: "CANOPY", category: "Staking" },
+  { regex: /stMOVE|sMOVE|cvMOVE|cvUSDC|cvUSDT|cvWBTC|cvWETH/i, protocol: "CANOPY", category: "Staking" },
   { regex: /mLP|mToken/i, protocol: "MOSAIC", category: "Liquidity" },
   { regex: /yLP|yToken/i, protocol: "YUZU", category: "Liquidity" },
 ];

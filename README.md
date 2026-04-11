@@ -186,14 +186,7 @@ The frontend reads `badge_definitions` and `badge_attestations` directly with th
 
 ## 🎨 Screenshots
 
-### Portfolio View
-![Portfolio](docs/images/portfolio.png)
-
-### Swap Interface
-![Swap](docs/images/swap.png)
-
-### DeFi Positions
-![DeFi](docs/images/defi.png)
+_Screenshots coming soon._
 
 ## 🧪 Testing
 

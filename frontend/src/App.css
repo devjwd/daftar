@@ -2020,9 +2020,124 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   gap: 16px;
 }
 
+.hero-networth-skeleton-value {
+  width: clamp(180px, 22vw, 260px);
+  height: 60px;
+  border-radius: 18px;
+  flex-shrink: 0;
+}
+
+.hero-networth-skeleton-pill {
+  width: 86px;
+  height: 28px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.hero-networth-skeleton-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(100%, 520px);
+}
+
+.hero-networth-skeleton-address-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.hero-networth-skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+}
+
+.hero-networth-skeleton-line.address {
+  width: min(100%, 440px);
+}
+
+.hero-networth-skeleton-copy {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.hero-networth-skeleton-line.bio {
+  width: min(100%, 180px);
+}
+
+.hero-networth-skeleton-stats {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.hero-networth-skeleton-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 120px;
+}
+
+.hero-networth-skeleton-stat-value {
+  width: 72px;
+  height: 24px;
+  border-radius: 12px;
+}
+
+.hero-networth-skeleton-stat-value.small {
+  width: 56px;
+}
+
+.hero-networth-skeleton-stat-label {
+  width: 94px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.hero-networth-skeleton-stat.compact .hero-networth-skeleton-stat-label {
+  width: 108px;
+}
+
 @media (max-width: 768px) {
   .hero-v3-value {
     font-size: 42px;
+  }
+
+  .hero-networth-skeleton-value {
+    width: min(100%, 210px);
+    height: 48px;
+  }
+
+  .hero-networth-skeleton-pill {
+    width: 74px;
+    height: 24px;
+  }
+
+  .hero-networth-skeleton-meta {
+    width: 100%;
+  }
+
+  .hero-networth-skeleton-line.address {
+    width: min(100%, 260px);
+  }
+
+  .hero-networth-skeleton-line.bio {
+    width: min(100%, 140px);
+  }
+
+  .hero-networth-skeleton-stats {
+    flex-wrap: wrap;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .hero-networth-skeleton-stat {
+    min-width: 100px;
   }
 }
 

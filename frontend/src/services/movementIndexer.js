@@ -288,6 +288,7 @@ export const getDexVolume = async (walletAddress) => {
     return { volumeUsd: 0, error: "Invalid wallet address" };
   }
 
+  // Intentional: frontend only calls public Mosaic volume endpoint without any API key.
   const { mosaicApiUrl } = resolveEnv();
   const endpoint = `${mosaicApiUrl.replace(/\/+$/, "")}/accounts/${encodeURIComponent(address)}/volume`;
 

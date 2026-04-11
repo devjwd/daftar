@@ -1,4 +1,5 @@
 import React from "react";
+import AppErrorView from "./AppErrorView";
 
 const CHUNK_RELOAD_KEY = "daftar_chunk_reload_attempted";
 
@@ -51,41 +52,20 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100vh",
-          padding: "20px",
-          textAlign: "center",
-        }}>
-          <h2 style={{ marginBottom: "20px", color: "#000" }}>Something went wrong</h2>
-          <p style={{ marginBottom: "20px", opacity: 0.7 }}>
-            {this.state.error?.message || "An unexpected error occurred"}
-          </p>
-          <button
-            onClick={() => {
-              try {
-                sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-              } catch {
-                // Ignore sessionStorage access failures.
-              }
-              this.setState({ hasError: false, error: null });
-              window.location.reload();
-            }}
-            style={{
-              padding: "12px 24px",
-              backgroundColor: "#F5B718",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            Reload Page
-          </button>
-        </div>
+        <AppErrorView
+          code="500"
+          title="Page Temporarily Unavailable"
+          message="Something broke while loading this view. Refresh the page and try again in a moment."
+          onRetry={() => {
+            try {
+              sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+            } catch {
+              // Ignore sessionStorage access failures.
+            }
+            this.setState({ hasError: false, error: null });
+            window.location.reload();
+          }}
+        />
       );
     }
 

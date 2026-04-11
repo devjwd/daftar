@@ -5,6 +5,7 @@ import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapte
 import "./App.css";
 
 import ErrorBoundary from "./components/ErrorBoundary";
+import AppErrorView from "./components/AppErrorView";
 import LoadingScreen from "./components/LoadingScreen";
 import { getEnv } from "./config/envValidator";
 import { useIndexerBalances } from "./hooks/useIndexerBalances";
@@ -28,6 +29,15 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const SWAP_ENABLED = getEnv("VITE_ENABLE_SWAP", true);
 
 const RouteFallback = () => <LoadingScreen />;
+
+const NotFoundPage = () => (
+  <AppErrorView
+    code="404"
+    title="Page Not Found"
+    message="The page you requested does not exist or may have moved. Use the button below to get back to DAFTAR."
+    onRetry={() => window.location.assign("/")}
+  />
+);
 
 const WalletRedirect = () => {
   const { address } = useParams();
@@ -151,6 +161,7 @@ export default function App() {
                     <Route path="/terms" element={<Terms />} />
                     <Route path="/privacy" element={<Privacy />} />
                     <Route path="/profile/:address" element={<ProfileView />} />
+                    <Route path="*" element={<NotFoundPage />} />
                   </Routes>
                 </Layout>
               </Suspense>

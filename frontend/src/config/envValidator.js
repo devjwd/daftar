@@ -74,6 +74,34 @@ const ENV_SCHEMA = {
     validate: (val) => !val || (typeof val === 'string' && val.length > 0),
     error: 'VITE_MOSAIC_API_KEY must be non-empty string or empty'
   },
+
+  VITE_CANOPY_CORE_ROUTER_ADDRESS: {
+    type: 'string',
+    required: false,
+    validate: (val) => !val || /^0x[a-f0-9]{1,64}$/i.test(val),
+    error: 'VITE_CANOPY_CORE_ROUTER_ADDRESS must be valid hex address or empty'
+  },
+
+  VITE_CANOPY_CORE_VAULTS_ADDRESS: {
+    type: 'string',
+    required: false,
+    validate: (val) => !val || /^0x[a-f0-9]{1,64}$/i.test(val),
+    error: 'VITE_CANOPY_CORE_VAULTS_ADDRESS must be valid hex address or empty'
+  },
+
+  VITE_CANOPY_LIQUIDSWAP_VAULTS_ADDRESS: {
+    type: 'string',
+    required: false,
+    validate: (val) => !val || /^0x[a-f0-9]{1,64}$/i.test(val),
+    error: 'VITE_CANOPY_LIQUIDSWAP_VAULTS_ADDRESS must be valid hex address or empty'
+  },
+
+  VITE_CANOPY_REWARDS_ADDRESS: {
+    type: 'string',
+    required: false,
+    validate: (val) => !val || /^0x[a-f0-9]{1,64}$/i.test(val),
+    error: 'VITE_CANOPY_REWARDS_ADDRESS must be valid hex address or empty'
+  },
   
   VITE_COINGECKO_API_KEY: {
     type: 'string',
@@ -97,7 +125,7 @@ const ENV_SCHEMA = {
     validate: (val) => val === '' || ['true', 'false'].includes(String(val).toLowerCase()),
     error: 'VITE_ENABLE_BADGES must be "true" or "false"'
   },
-  
+
   VITE_DEBUG_MODE: {
     type: 'boolean',
     required: false,

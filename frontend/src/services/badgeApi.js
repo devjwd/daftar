@@ -337,9 +337,15 @@ export const verifyBadge = async (wallet_address, badge_id) => {
   return { data, error };
 };
 
-export const awardBadge = async (wallet_address, badge_id, adminAuth = null) => {
+export const awardBadge = async (wallet_address, badge_id, adminAuth = null, signatureProof = null) => {
   const { data, error } = await supabase.functions.invoke('award-badge', {
-    body: { wallet_address, badge_id },
+    body: {
+      wallet_address,
+      walletAddress: normalizeAddress(wallet_address),
+      badge_id,
+      signedMessage: String(signatureProof?.signedMessage || ''),
+      signature: signatureProof?.signature || null,
+    },
     headers: adminAuth && typeof adminAuth === 'object' ? adminAuth : {},
   });
   return { data, error };
@@ -367,6 +373,8 @@ export const awardBadgeToUser = async (address, badgeId, payload = {}, options =
   const walletAddress = normalizeAddress(address);
   const normalizedBadgeId = String(badgeId || '').trim();
   const adminAuth = options?.adminAuth && typeof options.adminAuth === 'object' ? options.adminAuth : null;
+  const signedMessage = String(options?.signedMessage || payload?.signedMessage || '').trim();
+  const signature = options?.signature || payload?.signature || null;
   if (!walletAddress || !normalizedBadgeId) {
     return {
       ok: false,
@@ -377,7 +385,10 @@ export const awardBadgeToUser = async (address, badgeId, payload = {}, options =
 
   const response = await invokeAdminFunction('award-badge', {
     wallet_address: walletAddress,
+    walletAddress,
     badge_id: normalizedBadgeId,
+    signedMessage,
+    signature,
   }, adminAuth);
 
   if (!response.ok) return response;

@@ -7,6 +7,7 @@ import "../App.css";
 import { DEFAULT_NETWORK } from "../config/network";
 import { ANIMATION_DELAYS, FORMATTING, INTERVALS } from "../config/constants";
 import { DEFAULT_PROTOCOL_VISUAL, DEFAULT_TOKEN_COLOR, DEFI_PROTOCOL_VISUALS, TOKEN_VISUALS } from "../config/display";
+import { getEnv } from "../config/envValidator";
 import { getTokenAddressBySymbol, getTokenInfo } from "../config/tokens";
 import { useCurrency } from "../hooks/useCurrency";
 import { useDeFiPositions } from "../hooks/useDeFiPositions";
@@ -25,7 +26,6 @@ import { devLog } from "../utils/devLogger";
 import { getTokenDecimals, isValidAddress, parseCoinType } from "../utils/tokenUtils";
 import ProfileCard from "../components/ProfileCard";
 
-const PNLChart = lazy(() => import("../components/PNLChart"));
 const TrxHistory = lazy(() => import("../components/TrxHistory"));
 const PORTFOLIO_TABS = {
   OVERVIEW: "overview",
@@ -235,6 +235,68 @@ const SkeletonCard = ({ delay = 0 }) => (
       <div className="skeleton skeleton-line" style={{ width: '80px' }}></div>
 
       <div className="skeleton skeleton-line" style={{ width: '60px', height: '12px' }}></div>
+
+    </div>
+
+  </div>
+
+);
+
+const NetWorthValueSkeleton = () => (
+
+  <>
+
+    <div className="hero-networth-skeleton-value skeleton" aria-hidden="true"></div>
+
+    <div className="hero-networth-skeleton-pill skeleton" aria-hidden="true"></div>
+
+  </>
+
+);
+
+const NetWorthMetaSkeleton = () => (
+
+  <div className="hero-networth-skeleton-meta" aria-hidden="true">
+
+    <div className="hero-networth-skeleton-address-row">
+
+      <div className="hero-networth-skeleton-line address skeleton"></div>
+
+      <div className="hero-networth-skeleton-copy skeleton"></div>
+
+    </div>
+
+    <div className="hero-networth-skeleton-line bio skeleton"></div>
+
+  </div>
+
+);
+
+const NetWorthStatsSkeleton = () => (
+
+  <div className="hero-networth-skeleton-stats" aria-hidden="true">
+
+    <div className="hero-networth-skeleton-stat">
+
+      <div className="hero-networth-skeleton-stat-value skeleton"></div>
+
+      <div className="hero-networth-skeleton-stat-label skeleton"></div>
+
+    </div>
+
+    <div className="hero-networth-skeleton-stat">
+
+      <div className="hero-networth-skeleton-stat-value skeleton"></div>
+
+      <div className="hero-networth-skeleton-stat-label skeleton"></div>
+
+    </div>
+
+    <div className="hero-networth-skeleton-stat compact">
+
+      <div className="hero-networth-skeleton-stat-value small skeleton"></div>
+
+      <div className="hero-networth-skeleton-stat-label skeleton"></div>
 
     </div>
 
@@ -1352,8 +1414,6 @@ const Dashboard = () => {
       devLog("Original address type:", typeof address, address);
       devLog("Using RPC endpoint:", currentNetwork.rpc);
       if (!movementClient) {
-        setError("Movement client is still loading. Please try again in a moment.");
-        setBalances([]);
         return;
       }
       const resources = await movementClient.getAccountResources({ 
@@ -1642,7 +1702,7 @@ const Dashboard = () => {
       return; // Early return - don't process yet
     }
     
-    if (indexerError && viewingAddress) {
+    if (indexerError && viewingAddress && !movementClientLoading && movementClient) {
       console.warn("Warning: Indexer error, trying RPC fallback:", indexerError);
       fetchAssets(viewingAddress);
       return;
@@ -1713,13 +1773,13 @@ const Dashboard = () => {
       setTotalUsdValue(totalUsd);
       setAssetsLoading(false);
       setError(null);
-    } else if (indexerBalances && indexerBalances.length === 0 && !indexerLoading && viewingAddress) {
+    } else if (indexerBalances && indexerBalances.length === 0 && !indexerLoading && viewingAddress && !movementClientLoading && movementClient) {
       console.warn("Warning: Indexer returned no balances, trying RPC fallback...");
       fetchAssets(viewingAddress);
     } else if (!indexerLoading && !viewingAddress) {
       setAssetsLoading(false);
     }
-  }, [indexerBalances, indexerLoading, indexerError, priceMap, viewingAddress, fetchAssets, balances.length]);
+  }, [indexerBalances, indexerLoading, indexerError, priceMap, viewingAddress, fetchAssets, balances.length, movementClientLoading, movementClient]);
   useEffect(() => {
     let cancelled = false;
     const detectLPPositions = async () => {
@@ -2214,7 +2274,7 @@ const Dashboard = () => {
 
                   <div className="hero-v3-value">
 
-                    {assetsLoading ? <span className="pulse">Loading...</span> :
+                    {assetsLoading ? <NetWorthValueSkeleton /> :
 
                      error ? <span style={{fontSize: "24px", opacity: 0.7}}>Error</span> :
 
@@ -2235,7 +2295,9 @@ const Dashboard = () => {
                   </div>
 
                   <div className="hero-v3-meta">
-                    {viewingAddress ? (
+                    {assetsLoading ? (
+                      <NetWorthMetaSkeleton />
+                    ) : viewingAddress ? (
                       <>
                         <div className="hero-v3-address-inline">
                           <span className="address-text">{viewingAddress}</span>
@@ -2265,7 +2327,11 @@ const Dashboard = () => {
 
                   
 
-                  {!assetsLoading && !error && (
+                  {assetsLoading ? (
+
+                    <NetWorthStatsSkeleton />
+
+                  ) : !error && (
 
                     <div className="hero-v3-stats">
 
@@ -2318,15 +2384,6 @@ const Dashboard = () => {
                 </div>
 
               </div>
-
-              <div className="hero-v3-right">
-                <Suspense fallback={<RouteFallback />}>
-                  <PNLChart walletAddress={viewingAddress} />
-                </Suspense>
-              </div>
-
-              
-
               {error && <ErrorMessage message={error} onRetry={handleRefresh} />}
 
             </section>

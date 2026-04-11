@@ -16,19 +16,27 @@ const getWalletAddress = (account) => {
 
 export const resolveEligibilityBadgeId = (badgeOrId) => {
   if (badgeOrId && typeof badgeOrId === 'object') {
+    const definitionId = String(badgeOrId.id || '').trim();
+    if (definitionId) {
+      return definitionId;
+    }
+
     const onChainBadgeId = Number(badgeOrId.onChainBadgeId);
     if (Number.isInteger(onChainBadgeId) && onChainBadgeId >= 0) {
-      return onChainBadgeId;
+      return String(onChainBadgeId);
     }
 
     const numericBadgeId = Number(badgeOrId.badgeId);
     if (Number.isInteger(numericBadgeId) && numericBadgeId >= 0) {
-      return numericBadgeId;
+      return String(numericBadgeId);
     }
+
+    return null;
   }
 
-  const numericBadgeId = Number(badgeOrId);
-  return Number.isInteger(numericBadgeId) && numericBadgeId >= 0 ? numericBadgeId : null;
+  const raw = String(badgeOrId ?? '').trim();
+  if (!raw) return null;
+  return raw;
 };
 
 export default function useBadgeEligibility(badgeOrId) {
@@ -56,7 +64,7 @@ export default function useBadgeEligibility(badgeOrId) {
 
   const checkEligibility = useCallback(async (options = {}) => {
     const force = Boolean(options?.force);
-    const numericBadgeId = resolveEligibilityBadgeId(badgeOrId);
+    const resolvedBadgeId = resolveEligibilityBadgeId(badgeOrId);
 
     if (!walletAddress) {
       const result = {
@@ -69,7 +77,7 @@ export default function useBadgeEligibility(badgeOrId) {
       return result;
     }
 
-    if (!Number.isInteger(numericBadgeId) || numericBadgeId < 0) {
+    if (!resolvedBadgeId) {
       const result = {
         status: 'error',
         progress: null,
@@ -81,7 +89,7 @@ export default function useBadgeEligibility(badgeOrId) {
     }
 
     const cached = cacheRef.current;
-    const canUseCache = !force && cached.result && cached.wallet === walletAddress && cached.badgeId === numericBadgeId;
+    const canUseCache = !force && cached.result && cached.wallet === walletAddress && cached.badgeId === resolvedBadgeId;
     if (canUseCache) {
       applyResult(cached.result);
       return cached.result;
@@ -92,7 +100,7 @@ export default function useBadgeEligibility(badgeOrId) {
     setReason(null);
 
     try {
-      const { data, error } = await verifyBadge(walletAddress, numericBadgeId);
+      const { data, error } = await verifyBadge(walletAddress, resolvedBadgeId);
       const normalizedStatus = error
         ? 'error'
         : data?.eligible
@@ -108,7 +116,7 @@ export default function useBadgeEligibility(badgeOrId) {
 
       cacheRef.current = {
         wallet: walletAddress,
-        badgeId: numericBadgeId,
+        badgeId: resolvedBadgeId,
         result,
       };
 

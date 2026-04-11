@@ -345,6 +345,7 @@ export async function saveState(userAwards, trackedAddresses, badgeConfigs, badg
               badge_id: badgeId,
               eligible: true,
               verified_at: verifiedAt,
+              proof_hash: String(award?.payload?.proofHash || `${walletAddress}:${badgeId}:${verifiedAt}`),
             };
           })
           .filter(Boolean)

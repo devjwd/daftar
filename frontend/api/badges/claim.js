@@ -208,7 +208,7 @@ export default async function handler(req, res) {
     const proofHash =
       badgeDefinitionResult.badgeDefinition?.proof_hash ??
       badgeDefinitionResult.badgeDefinition?.proofHash ??
-      null;
+      `claim:${normalizedAddress}:${String(badgeId)}:${verifiedAt}`;
 
     const { error: attestationError } = await supabase
       .from('badge_attestations')

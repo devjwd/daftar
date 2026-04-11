@@ -1078,6 +1078,7 @@ export const getTokenPrice = async (token, date) => {
           .select("price_usd")
           .eq("token", normalizedToken)
           .eq("date", sqlDate)
+          .gt("cached_at", new Date(Date.now() - 60 * 60 * 1000).toISOString())
           .maybeSingle();
 
         if (error) {
@@ -1300,6 +1301,5 @@ export default {
   fetchTransactions,
   parseTransaction,
   getTokenPrice,
-  calculatePNL,
   getOrFetchTransactions,
 };

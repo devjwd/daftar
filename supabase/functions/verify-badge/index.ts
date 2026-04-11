@@ -26,6 +26,13 @@ const normalizeAddress = (value: unknown) => {
 
 const normalizeBadgeId = (value: unknown) => String(value ?? '').trim()
 
+const isNonNegativeIntegerString = (value: string) => /^\d+$/.test(value)
+
+const sha256Hex = async (value: string) => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
 const isFresh = (timestamp: string | null | undefined) => {
   if (!timestamp) return false
   const parsed = Date.parse(timestamp)
@@ -161,9 +168,9 @@ serve(async (req) => {
   }
 
   const walletAddress = normalizeAddress(body.wallet_address)
-  const badgeId = normalizeBadgeId(body.badge_id)
+  const requestedBadgeId = normalizeBadgeId(body.badge_id)
 
-  if (!walletAddress || !badgeId) {
+  if (!walletAddress || !requestedBadgeId) {
     return jsonResponse({ error: 'wallet_address and badge_id are required' }, 400)
   }
 
@@ -172,23 +179,57 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
 
+  let badge: Record<string, unknown> | null = null
+  let badgeQueryError: { message?: string } | null = null
+
+  const badgeById = await supabase
+    .from('badge_definitions')
+    .select('*')
+    .eq('badge_id', requestedBadgeId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (badgeById.error) {
+    badgeQueryError = badgeById.error
+  } else if (badgeById.data) {
+    badge = badgeById.data as Record<string, unknown>
+  }
+
+  if (!badge && isNonNegativeIntegerString(requestedBadgeId)) {
+    const onChainBadgeId = Number(requestedBadgeId)
+    const badgeByOnChain = await supabase
+      .from('badge_definitions')
+      .select('*')
+      .eq('on_chain_badge_id', onChainBadgeId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (badgeByOnChain.error) {
+      badgeQueryError = badgeByOnChain.error
+    } else if (badgeByOnChain.data) {
+      badge = badgeByOnChain.data as Record<string, unknown>
+    }
+  }
+
+  if (!badge && badgeQueryError?.message) {
+    return jsonResponse({ error: GENERIC_VERIFY_ERROR }, 500)
+  }
+
+  if (!badge) {
+    return jsonResponse({ error: 'Badge not found' }, 404)
+  }
+
+  const badgeId = String(badge.badge_id ?? '').trim()
+  if (!badgeId) {
+    return jsonResponse({ error: GENERIC_VERIFY_ERROR }, 500)
+  }
+
   const { data: cachedAttestation } = await supabase
     .from('badge_attestations')
     .select('wallet_address, badge_id, eligible, verified_at')
     .eq('wallet_address', walletAddress)
     .eq('badge_id', badgeId)
     .maybeSingle()
-
-  const { data: badge } = await supabase
-    .from('badge_definitions')
-    .select('*')
-    .eq('badge_id', badgeId)
-    .eq('is_active', true)
-    .single()
-
-  if (!badge) {
-    return jsonResponse({ error: 'Badge not found' }, 404)
-  }
 
   let evaluation
   try {
@@ -198,12 +239,17 @@ serve(async (req) => {
     return jsonResponse({ error: GENERIC_VERIFY_ERROR }, 500)
   }
 
+  const proofHash = evaluation.eligible
+    ? await sha256Hex(`${walletAddress}:${badgeId}:${evaluation.reason}:${Date.now()}`)
+    : null
+
   await supabase.from('badge_attestations').upsert(
     {
       wallet_address: walletAddress,
       badge_id: badgeId,
       eligible: evaluation.eligible,
       verified_at: new Date().toISOString(),
+      proof_hash: proofHash,
     },
     { onConflict: 'wallet_address,badge_id' }
   )

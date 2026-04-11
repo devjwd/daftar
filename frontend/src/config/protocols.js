@@ -1,3 +1,5 @@
+import { CANOPY_CONFIG } from './network.js';
+
 export const DEFI_PROTOCOLS = {
   ECHELON: {
     name: "Echelon",
@@ -37,11 +39,16 @@ export const DEFI_PROTOCOLS = {
   },
   CANOPY: {
     name: "Canopy",
-    address: null,
-    addresses: [],
+    address: CANOPY_CONFIG.coreRouterAddress,
+    addresses: [
+      CANOPY_CONFIG.coreRouterAddress,
+      CANOPY_CONFIG.coreVaultsAddress,
+      CANOPY_CONFIG.liquidswapVaultsAddress,
+      CANOPY_CONFIG.rewardsAddress,
+    ].filter(Boolean),
     type: "Liquid Staking",
     website: "https://app.canopyhub.xyz/",
-    keywords: ["canopy", "stmove", "staked_move", "smove"],
+    keywords: ["canopy", "stmove", "staked_move", "smove", "cvmove", "deposit_coin", "withdraw_coin", "vault"],
   },
   MOVEMENT: {
     name: "Movement Native Staking",

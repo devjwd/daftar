@@ -259,6 +259,13 @@ function TokenCard({ address, balance, decimals, symbol }) {
 
 ### 13. Deployment & Releases
 
+## Branch Protection Policy
+
+- Never commit directly to `main`.
+- All changes must go through a feature branch, then a pull request, then review, then merge.
+- Use `develop` as the integration branch for ongoing work.
+- Vercel mapping: `main` deploys to production and `develop` deploys to preview.
+
 #### Versioning
 We follow Semantic Versioning (MAJOR.MINOR.PATCH)
 
