@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import { DEFAULT_NETWORK } from "../config/network";
+import { useMovementClient } from "./useMovementClient";
 import { ALL_ADAPTERS } from "../config/adapters/index";
 import { DEFI_PROTOCOLS as PROTOCOL_REGISTRY } from "../config/protocols";
 
@@ -563,14 +562,7 @@ export const useDeFiPositions = (searchAddress = null) => {
   const fetchInProgress = useRef(false);
   const lastFetchedAddress = useRef(null);
   const fetchGeneration = useRef(0);
-
-  // Aptos client (memoized to prevent re-initialization)
-  const client = useMemo(() => 
-    new Aptos(new AptosConfig({ 
-      network: Network.CUSTOM, 
-      fullnode: DEFAULT_NETWORK.rpc 
-    })), 
-  []);
+  const { client, loading: clientLoading, error: clientError } = useMovementClient();
 
   /**
    * Normalize address from various wallet adapter formats
@@ -627,6 +619,14 @@ export const useDeFiPositions = (searchAddress = null) => {
       setPositions([]);
       setError(null);
       setLoading(false);
+      return;
+    }
+
+    if (!client) {
+      setLoading(false);
+      if (clientError) {
+        setError(clientError.message || "Failed to load Movement client");
+      }
       return;
     }
 
@@ -1617,18 +1617,20 @@ export const useDeFiPositions = (searchAddress = null) => {
       setLoading(false);
       fetchInProgress.current = false;
     }
-  }, [targetAddress, client]);
+  }, [targetAddress, client, clientError]);
 
   // Auto-fetch when address changes
   useEffect(() => {
     if (targetAddress && targetAddress !== lastFetchedAddress.current) {
       fetchPositions();
+    } else if (targetAddress && !client) {
+      setLoading(clientLoading);
     } else if (!targetAddress) {
       setPositions([]);
       setLoading(false);
       lastFetchedAddress.current = null;
     }
-  }, [fetchPositions, targetAddress]);
+  }, [fetchPositions, targetAddress, client, clientLoading]);
 
   // Expose a refetch that always forces a fresh scan
   const forceRefetch = useCallback(() => {
@@ -1638,7 +1640,7 @@ export const useDeFiPositions = (searchAddress = null) => {
 
   return {
     positions,
-    loading,
+    loading: loading || clientLoading,
     error,
     refetch: forceRefetch,
     targetAddress,

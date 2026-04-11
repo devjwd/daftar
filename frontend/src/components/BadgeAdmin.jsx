@@ -12,8 +12,8 @@
  */
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import useBadgeStore from '../hooks/useBadgeStore.js';
+import { useMovementClient } from '../hooks/useMovementClient.js';
 import { getCriteriaMetadata } from '../services/badges/criteria/index.js';
 import {
   BADGE_CATEGORIES,
@@ -28,7 +28,6 @@ import {
   BADGE_RULES,
   criteriaToRuleType,
 } from '../config/badges.js';
-import { DEFAULT_NETWORK } from '../config/network.js';
 import {
   addAllowlistEntries,
   buildMetadataDataUri,
@@ -44,7 +43,8 @@ import {
   getBadgeTimeRemaining,
   getBadgeSupplyInfo,
 } from '../services/badgeService.js';
-import { publishScannerConfigs, saveBadgeDefinitions } from '../services/badgeApi.js';
+import { saveBadgeDefinitions } from '../services/badgeApi.js';
+import { createAdminProofHeaders } from '../services/adminProof.js';
 import { DEFI_PROTOCOLS } from '../config/protocols.js';
 import './BadgeAdmin.css';
 
@@ -136,7 +136,7 @@ const ONCHAIN_SUPPORTED_CRITERIA = new Set([
 ]);
 
 export default function BadgeAdmin() {
-  const { account, connected, signAndSubmitTransaction } = useWallet();
+  const { account, connected, signAndSubmitTransaction, signMessage } = useWallet();
   const {
     badges,
     createBadge,
@@ -164,8 +164,6 @@ export default function BadgeAdmin() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [submitting, setSubmitting] = useState(false);
-    // Tracks whether an auto-publish is in flight (avoids duplicate pushes on fast saves)
-    const [publishingConfig, setPublishingConfig] = useState(false);
 
   
   // On-chain badge management state
@@ -173,19 +171,23 @@ export default function BadgeAdmin() {
   const [onChainLoading, setOnChainLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null); // badgeId currently being acted on
 
-  const requireAdminKey = useCallback(() => {
-    const cachedKey = sessionStorage.getItem('badge_admin_api_key') || '';
-    const entered = window.prompt('Enter BADGE_ADMIN_API_KEY to save badge definitions to production:', cachedKey);
-    const adminKey = String(entered || '').trim();
-    if (!adminKey) return '';
-    sessionStorage.setItem('badge_admin_api_key', adminKey);
-    return adminKey;
-  }, []);
+  const createAdminAuth = useCallback(
+    async (action, payload) => {
+      if (!connected || !account || typeof signMessage !== 'function') {
+        throw new Error('Connect the admin wallet and approve the signature request');
+      }
 
-  const movementClient = useMemo(
-    () => new Aptos(new AptosConfig({ network: Network.CUSTOM, fullnode: DEFAULT_NETWORK.rpc })),
-    []
+      return createAdminProofHeaders({
+        account,
+        signMessage,
+        action,
+        body: payload,
+      });
+    },
+    [account, connected, signMessage]
   );
+
+  const { client: movementClient } = useMovementClient();
 
   const criteriaOptions = useMemo(() => getCriteriaMetadata(), []);
 
@@ -212,6 +214,7 @@ export default function BadgeAdmin() {
   
   // ─── On-Chain Badge Loading ─────────────────────────────────────────
   const loadOnChainBadges = useCallback(async () => {
+      if (!movementClient) return;
     setOnChainLoading(true);
     try {
       const badges = await fetchOnChainBadges(movementClient);
@@ -237,6 +240,10 @@ export default function BadgeAdmin() {
       showMessage('error', 'Connect admin wallet to pause badges');
       return;
     }
+    if (!movementClient) {
+      showMessage('error', 'Movement client is still loading');
+      return;
+    }
     
     setActionLoading(badgeId);
     try {
@@ -249,11 +256,15 @@ export default function BadgeAdmin() {
     } finally {
       setActionLoading(null);
     }
-  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges]);
+  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges, movementClient]);
 
   const handleResumeBadge = useCallback(async (badgeId) => {
     if (!connected || !account || !signAndSubmitTransaction) {
       showMessage('error', 'Connect admin wallet to resume badges');
+      return;
+    }
+    if (!movementClient) {
+      showMessage('error', 'Movement client is still loading');
       return;
     }
     
@@ -268,11 +279,15 @@ export default function BadgeAdmin() {
     } finally {
       setActionLoading(null);
     }
-  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges]);
+  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges, movementClient]);
 
   const handleDiscontinueBadge = useCallback(async (badgeId) => {
     if (!connected || !account || !signAndSubmitTransaction) {
       showMessage('error', 'Connect admin wallet to discontinue badges');
+      return;
+    }
+    if (!movementClient) {
+      showMessage('error', 'Movement client is still loading');
       return;
     }
     
@@ -291,7 +306,7 @@ export default function BadgeAdmin() {
     } finally {
       setActionLoading(null);
     }
-  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges]);
+  }, [connected, account, signAndSubmitTransaction, showMessage, loadOnChainBadges, movementClient]);
 
   // ─── Form Handlers ──────────────────────────────────────────────────
   const updateForm = (field, value) => {
@@ -542,13 +557,12 @@ export default function BadgeAdmin() {
     } else {
       try {
         const onChainBadgeId = await createMintableSBTBadge(badgeData);
-        const adminKey = requireAdminKey();
-        if (!adminKey) {
-          showMessage('error', 'BADGE admin API key is required to publish badge definitions');
-          setSubmitting(false);
-          return;
-        }
-        result = await createBadge({ ...badgeData, onChainBadgeId }, { adminKey });
+        const badgePayload = { ...badgeData, onChainBadgeId };
+        const adminAuth = await createAdminAuth('badge-definition:create', {
+          action: 'create',
+          badge: badgePayload,
+        });
+        result = await createBadge(badgePayload, { adminAuth });
       } catch (error) {
         showMessage('error', error?.message || 'Failed to create on-chain SBT badge');
         setSubmitting(false);
@@ -557,7 +571,6 @@ export default function BadgeAdmin() {
     }
 
     if (result.success) {
-      // Auto-push scanner config to server so connected-wallet auto-allowlist activates immediately.
       autoPublishScannerConfig({ silent: false });
       resetForm();
       setSubTab('manage');
@@ -567,69 +580,11 @@ export default function BadgeAdmin() {
     setSubmitting(false);
   };
 
-  /**
-   * Push the current badge scanner config to the server so the auto-attestation
-  * endpoint (/api/badges/eligibility) can verify eligibility for each badge.
-   * Uses the admin API key cached in sessionStorage from a prior manual publish or key entry.
-   * If no key is cached, prompts the admin once and saves it for subsequent calls.
-   *
-   * @param {object} [opts]
-   * @param {boolean} [opts.silent=true]  When true, only shows a message on failure.
-   */
   const autoPublishScannerConfig = useCallback(async ({ silent = true } = {}) => {
-    if (publishingConfig) return;
-
-    let adminKey = sessionStorage.getItem('badge_admin_api_key') || '';
-
-    if (!adminKey) {
-      const entered = window.prompt(
-        'Enter your BADGE_ADMIN_API_KEY to enable automatic allowlisting for users.\n' +
-        'This key is stored only in this browser session and never sent anywhere except your own server.',
-        ''
-      );
-      adminKey = String(entered || '').trim();
-      if (!adminKey) {
-        showMessage(
-          'success',
-          'Badge created! ⚠️ Auto-allowlist is inactive — use "Export → Scanner Config" and enter your API key to enable it.'
-        );
-        return;
-      }
-      sessionStorage.setItem('badge_admin_api_key', adminKey);
-    }
-
-    setPublishingConfig(true);
-    try {
-      const parsed = JSON.parse(exportScannerConfigs());
-      const res = await publishScannerConfigs({ badgeConfigs: parsed, adminKey });
-      if (res?.status === 'ok') {
-        showMessage(
-          'success',
-          `Badge created! Auto-allowlist active — server config updated (${res.count} badge${res.count !== 1 ? 's' : ''}).`
-        );
-      } else if (res?.error === 'Unauthorized') {
-        // Key was wrong — clear cached key so next call will prompt again
-        sessionStorage.removeItem('badge_admin_api_key');
-        showMessage(
-          'success',
-          'Badge created! ⚠️ Auto-allowlist inactive — API key was rejected. Re-run "Export → Scanner Config" with the correct key.'
-        );
-      } else {
-        if (!silent) {
-          showMessage(
-            'success',
-            'Badge created! ⚠️ Scanner config publish failed — run "Export → Scanner Config" to enable auto-allowlist.'
-          );
-        } else {
-          showMessage('success', 'Badge created successfully');
-        }
-      }
-    } catch {
+    if (!silent) {
       showMessage('success', 'Badge created successfully');
-    } finally {
-      setPublishingConfig(false);
     }
-  }, [publishingConfig, exportScannerConfigs, showMessage]);
+  }, [showMessage]);
 
   const handleEdit = (badge) => {
     const mintFee = Number(badge.mintFee) || 0;
@@ -657,13 +612,18 @@ export default function BadgeAdmin() {
   };
 
   const handleDelete = async (id) => {
-    const adminKey = requireAdminKey();
-    if (!adminKey) {
-      showMessage('error', 'BADGE admin API key is required to delete badge definitions');
+    let adminAuth;
+    try {
+      adminAuth = await createAdminAuth('badge-definition:delete', {
+        action: 'delete',
+        badge: { badge_id: id },
+      });
+    } catch (error) {
+      showMessage('error', error?.message || 'Admin wallet approval is required to delete badge definitions');
       return;
     }
 
-    const result = await deleteBadge(id, { adminKey });
+    const result = await deleteBadge(id, { adminAuth });
     if (result.success) {
       showMessage('success', 'Badge deleted');
       setDeleteConfirm(null);
@@ -673,13 +633,18 @@ export default function BadgeAdmin() {
   };
 
   const handleToggle = async (id) => {
-    const adminKey = requireAdminKey();
-    if (!adminKey) {
-      showMessage('error', 'BADGE admin API key is required to update badge definitions');
+    let adminAuth;
+    try {
+      adminAuth = await createAdminAuth('badge-definition:update', {
+        action: 'update',
+        badge: { badge_id: id },
+      });
+    } catch (error) {
+      showMessage('error', error?.message || 'Admin wallet approval is required to update badge definitions');
       return;
     }
 
-    const result = await toggleBadge(id, { adminKey });
+    const result = await toggleBadge(id, { adminAuth });
     if (!result.success) {
       showMessage('error', result.errors?.join(', ') || 'Failed to update badge');
     }
@@ -689,13 +654,18 @@ export default function BadgeAdmin() {
     const badge = badges.find((item) => item.id === id);
     if (!badge) return;
 
-    const adminKey = requireAdminKey();
-    if (!adminKey) {
-      showMessage('error', 'BADGE admin API key is required to update badge visibility');
+    let adminAuth;
+    try {
+      adminAuth = await createAdminAuth('badge-definition:update', {
+        action: 'update',
+        badge: { ...badge, isPublic: badge.isPublic === false },
+      });
+    } catch (error) {
+      showMessage('error', error?.message || 'Admin wallet approval is required to update badge visibility');
       return;
     }
 
-    const result = await updateBadge(id, { isPublic: badge.isPublic === false }, { adminKey });
+    const result = await updateBadge(id, { isPublic: badge.isPublic === false }, { adminAuth });
     if (!result.success) {
       showMessage('error', result.errors?.join(', ') || 'Failed to update badge visibility');
     }
@@ -718,20 +688,19 @@ export default function BadgeAdmin() {
   const handleImport = async () => {
     try {
       const data = JSON.parse(importText);
-      const adminKey = requireAdminKey();
-      if (!adminKey) {
-        showMessage('error', 'BADGE admin API key is required to import badge definitions');
-        return;
-      }
+      const adminAuth = await createAdminAuth('badge-definition:bulk-import', {
+        action: 'bulk-import',
+        badges: Array.isArray(data) ? data : [],
+      });
 
-      const result = await importBadges(data, { adminKey });
+      const result = await importBadges(data, { adminAuth });
       showMessage(
         result.imported > 0 ? 'success' : 'error',
         `Imported ${result.imported}, skipped ${result.skipped}. ${result.errors.length > 0 ? result.errors[0] : ''}`
       );
       setImportText('');
-    } catch {
-      showMessage('error', 'Invalid JSON format');
+    } catch (error) {
+      showMessage('error', error?.message || 'Invalid JSON format');
     }
   };
 
@@ -754,20 +723,6 @@ export default function BadgeAdmin() {
 
   const handleExportScannerConfig = () => {
     const json = exportScannerConfigs();
-    const parsed = (() => {
-      try {
-        return JSON.parse(json);
-      } catch {
-        return [];
-      }
-    })();
-
-    const cachedKey = sessionStorage.getItem('badge_admin_api_key') || '';
-    const enteredKey = window.prompt(
-      'Publish scanner config now? Enter BADGE admin API key (leave empty to only copy):',
-      cachedKey
-    );
-    const adminKey = String(enteredKey || '').trim();
 
     const fallbackCopy = () => {
       navigator.clipboard.writeText(json).then(() => {
@@ -784,26 +739,7 @@ export default function BadgeAdmin() {
       });
     };
 
-    if (!adminKey) {
-      fallbackCopy();
-      return;
-    }
-
-    sessionStorage.setItem('badge_admin_api_key', adminKey);
-
-    publishScannerConfigs({ badgeConfigs: parsed, adminKey })
-      .then((result) => {
-        if (result && result.status === 'ok') {
-          showMessage('success', `Published scanner config (${result.count} badges)`);
-          return;
-        }
-        showMessage('error', 'Publish failed. Scanner config copied instead.');
-        fallbackCopy();
-      })
-      .catch(() => {
-        showMessage('error', 'Publish failed. Scanner config copied instead.');
-        fallbackCopy();
-      });
+    fallbackCopy();
   };
 
   /**
@@ -811,31 +747,30 @@ export default function BadgeAdmin() {
    * clears the cached key first so the admin is prompted fresh.
    */
   const handlePublishScannerConfig = () => {
-    // Clear cached key to force a fresh prompt, then auto-publish
-    sessionStorage.removeItem('badge_admin_api_key');
-    autoPublishScannerConfig({ silent: false });
+    handleExportScannerConfig();
   };
 
-  /** Test that the API key the admin enters actually works against the server. */
-  const handleTestApiKey = useCallback(async () => {
-    const cachedKey = sessionStorage.getItem('badge_admin_api_key') || '';
-    const entered = window.prompt('Enter your BADGE_ADMIN_API_KEY to test:', cachedKey);
-    const adminKey = String(entered || '').trim();
-    if (!adminKey) return;
-    sessionStorage.setItem('badge_admin_api_key', adminKey);
-
-    // POST current badge list unchanged — just to exercise auth
-    const res = await saveBadgeDefinitions({ badges, adminKey });
-    if (res.ok) {
-      showMessage('success', '✅ API key is correct — server accepted the request.');
-    } else if (res.status === 503) {
-      showMessage('error', '🔴 Server missing BADGE_ADMIN_API_KEY — add it to Vercel Environment Variables and redeploy.');
-    } else if (res.status === 401) {
-      showMessage('error', '🔴 Wrong API key — it must exactly match BADGE_ADMIN_API_KEY in Vercel (no spaces, correct case).');
-    } else {
-      showMessage('error', `Server error ${res.status}: ${res.data?.error || 'unknown'}`);
+  const handleTestAdminConnection = useCallback(async () => {
+    let adminAuth;
+    try {
+      adminAuth = await createAdminAuth('badge-definition:test', {
+        action: 'test',
+        badgeCount: badges.length,
+      });
+    } catch (error) {
+      showMessage('error', error?.message || 'Admin wallet approval is required');
+      return;
     }
-  }, [badges, showMessage]);
+
+    const res = await saveBadgeDefinitions({ badges, adminAuth });
+    if (res.ok) {
+      showMessage('success', 'Admin wallet signature verified by Supabase.');
+    } else if (res.status === 401) {
+      showMessage('error', 'Admin wallet signature was rejected by Supabase.');
+    } else {
+      showMessage('error', `Supabase error ${res.status}: ${res.data?.error || 'unknown'}`);
+    }
+  }, [badges, createAdminAuth, showMessage]);
 
   // ─── Render Criteria Form ───────────────────────────────────────────
   const renderCriterionForm = (criterion, index) => {
@@ -1534,10 +1469,10 @@ export default function BadgeAdmin() {
       {subTab === 'import' && (
         <div className="ba-import-export">
           <div className="ba-ie-section">
-            <h3>API Key</h3>
-            <p className="ba-hint">Test whether your <code>BADGE_ADMIN_API_KEY</code> is correctly set in Vercel and matches what you enter here.</p>
-            <button className="ba-btn ba-btn-secondary" onClick={handleTestApiKey}>
-              🔑 Test API Key Connection
+            <h3>Admin Signature</h3>
+            <p className="ba-hint">Test whether the connected admin wallet can sign requests that Supabase accepts.</p>
+            <button className="ba-btn ba-btn-secondary" onClick={handleTestAdminConnection}>
+              Verify Admin Wallet Connection
             </button>
           </div>
 
@@ -1557,14 +1492,13 @@ export default function BadgeAdmin() {
             <button
               className="ba-btn ba-btn-primary"
               onClick={handlePublishScannerConfig}
-              disabled={publishingConfig}
               style={{ marginTop: '0.5rem' }}
-              title="Publish eligibility rules to your server so eligible wallets are automatically added to the allowlist when they visit the Badges page"
+              title="Copy the scanner configuration for external tooling"
             >
-              {publishingConfig ? 'Publishing…' : '⚡ Publish Auto-Allowlist Config'}
+              Copy Scanner Config
             </button>
             <p className="ba-hint" style={{ marginTop: '0.5rem' }}>
-              Publishing sends badge eligibility rules to the server. Once published, any wallet that meets the criteria and visits the Badges page is automatically added to the on-chain allowlist — no manual admin action needed.
+              Scanner config export is copy-only here. The admin write path now uses wallet signatures instead of browser-stored shared keys.
             </p>
           </div>
 
@@ -1594,13 +1528,18 @@ export default function BadgeAdmin() {
               className="ba-btn ba-btn-danger"
               onClick={async () => {
                 if (window.confirm('Delete ALL badge definitions and awards? This cannot be undone.')) {
-                  const adminKey = requireAdminKey();
-                  if (!adminKey) {
-                    showMessage('error', 'BADGE admin API key is required to clear badge definitions');
+                  let adminAuth;
+                  try {
+                    adminAuth = await createAdminAuth('badge-definition:clear-all', {
+                      action: 'clear-all',
+                      clearAwards: true,
+                    });
+                  } catch (error) {
+                    showMessage('error', error?.message || 'Admin wallet approval is required to clear badge definitions');
                     return;
                   }
 
-                  const result = await clearAll({ adminKey });
+                  const result = await clearAll({ adminAuth });
                   if (result?.success) {
                     showMessage('success', 'All badge data cleared');
                   } else {

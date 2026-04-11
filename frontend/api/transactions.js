@@ -77,7 +77,7 @@ const TYPE_FILTER_GROUPS = {
   defi: ['deposit', 'withdraw', 'lend', 'borrow', 'repay'],
 };
 
-const buildTransactionsQuery = ({ supabase, wallet, type, page }) => {
+const _buildTransactionsQuery = ({ supabase, wallet, type, page }) => {
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
@@ -100,7 +100,7 @@ const buildTransactionsQuery = ({ supabase, wallet, type, page }) => {
   return query;
 };
 
-const buildLatestFetchQuery = ({ supabase, wallet }) => supabase
+const _buildLatestFetchQuery = ({ supabase, wallet }) => supabase
   .from('transaction_history')
   .select('fetched_at')
   .eq('wallet_address', wallet)
@@ -115,7 +115,7 @@ const buildProfileQuery = ({ supabase, wallet }) => supabase
   .limit(1)
   .maybeSingle();
 
-const isCacheFresh = (fetchedAt) => {
+const _isCacheFresh = (fetchedAt) => {
   const fetchedTime = new Date(fetchedAt || 0).getTime();
   return Number.isFinite(fetchedTime) && fetchedTime > 0 && (Date.now() - fetchedTime) < CACHE_TTL_MS;
 };

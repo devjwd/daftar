@@ -19,16 +19,33 @@ const getAllowedOrigins = () => {
   return list;
 };
 
+const getHeaderValue = (value) => {
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'string' ? value[0].trim() : '';
+  }
+
+  return typeof value === 'string' ? value.trim() : '';
+};
+
+const getForwardedIp = (value) => getHeaderValue(value).split(',')[0]?.trim() || '';
+
+const shouldTrustProxyHeaders = () => {
+  const explicit = String(process.env.TRUST_PROXY_HEADERS || '').trim().toLowerCase();
+  if (explicit === 'true') return true;
+  if (explicit === 'false') return false;
+  return Boolean(process.env.VERCEL);
+};
+
 export const getClientIp = (req) => {
-  const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.trim()) {
-    return xff.split(',')[0].trim();
+  const socketIp = getHeaderValue(req.socket?.remoteAddress || req.connection?.remoteAddress);
+  if (!shouldTrustProxyHeaders()) {
+    return socketIp || 'unknown';
   }
 
   return (
-    req.headers['x-real-ip'] ||
-    req.socket?.remoteAddress ||
-    req.connection?.remoteAddress ||
+    getForwardedIp(req.headers['x-forwarded-for']) ||
+    getHeaderValue(req.headers['x-real-ip']) ||
+    socketIp ||
     'unknown'
   );
 };
@@ -46,7 +63,10 @@ export const setApiHeaders = (req, res, methods = DEFAULT_ALLOWED_METHODS) => {
 
   res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', methods.join(', '));
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-profile-edit-key, x-admin-key, Authorization');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, x-profile-edit-key, x-profile-address, x-profile-public-key, x-profile-signature, x-profile-message-b64, x-profile-full-message-b64, Authorization'
+  );
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');

@@ -12,7 +12,7 @@ import {
 /**
  * Hook to manage user profile
  */
-export const useProfile = (address) => {
+export const useProfile = (address, migrationAuth = null) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -68,7 +68,7 @@ export const useProfile = (address) => {
         ...profileData,
         address,
         createdAt: profile?.createdAt,
-      });
+      }, migrationAuth);
       
       setProfile(updatedProfile);
       return updatedProfile;
@@ -78,7 +78,7 @@ export const useProfile = (address) => {
     } finally {
       setSaving(false);
     }
-  }, [address, profile?.createdAt]);
+  }, [address, migrationAuth, profile?.createdAt]);
 
   // Upload profile picture
   const uploadProfilePicture = useCallback(async (file) => {
@@ -107,7 +107,7 @@ export const useProfile = (address) => {
     if (!address) return false;
 
     try {
-      const success = await deleteProfileAsync(address);
+      const success = await deleteProfileAsync(address, migrationAuth);
       if (success) {
         setProfile(null);
       }
@@ -116,7 +116,7 @@ export const useProfile = (address) => {
       setError(err.message);
       return false;
     }
-  }, [address]);
+  }, [address, migrationAuth]);
 
   return {
     profile,

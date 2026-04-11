@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import { DEFAULT_NETWORK } from "../config/network";
+import { useMovementClient } from "../hooks/useMovementClient";
 import { getSwapSettings, updateSwapSettings } from "../services/adminService";
+import { DEFAULT_NETWORK } from "../config/network";
 import {
   clampSlippagePercent,
   normalizeMosaicSwapSettings,
@@ -215,11 +215,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
   }, [balances]);
 
   // ---- Derived ----
-
-  const movementClient = useMemo(
-    () => new Aptos(new AptosConfig({ network: Network.CUSTOM, fullnode: DEFAULT_NETWORK.rpc })),
-    []
-  );
+  const { client: movementClient } = useMovementClient();
 
   const getDecimals = useCallback(
     (token) => token?.decimals || getTokenDecimals(token?.fullType || token?.address) || DEFAULT_DECIMALS,

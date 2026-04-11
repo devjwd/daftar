@@ -4,12 +4,12 @@
  * Uses localStorage for now, can be easily upgraded to backend/IPFS
  */
 
+import { createProfileMigrationProofHeaders } from './profileProof';
+
 const PROFILE_PREFIX = 'move_profile_';
 const PROFILES_INDEX = 'move_profiles_index';
 const PROFILE_EDIT_KEY_PREFIX = 'move_profile_edit_key_';
-const API_BASE =
-  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_BADGE_API_URL || import.meta.env.VITE_BADGE_API_BASE)) ||
-  '';
+const API_BASE = '';
 
 /**
  * Normalize address to consistent format
@@ -407,6 +407,43 @@ const storeEditKey = (address, editKey) => {
 
 const shouldFallbackToLocalProfileStore = (status) => status === 404 || status === 405;
 
+const isLegacyProfileMigrationError = (status, message) => status === 409 && /missing an edit key/i.test(String(message || ''));
+
+const readErrorPayload = async (res, fallbackMessage) => {
+  let message = fallbackMessage;
+
+  try {
+    const err = await res.json();
+    if (err?.error) message = err.error;
+  } catch {
+    try {
+      const text = await res.text();
+      if (text) {
+        const trimmed = text.trim();
+        message = trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
+      }
+    } catch {
+      // no-op
+    }
+  }
+
+  return message;
+};
+
+const createMigrationHeaders = async ({ migrationAuth, action, body, address }) => {
+  if (!migrationAuth?.account || typeof migrationAuth?.signMessage !== 'function') {
+    throw new Error('Connect the matching wallet and approve the migration signature request');
+  }
+
+  return createProfileMigrationProofHeaders({
+    account: migrationAuth.account,
+    signMessage: migrationAuth.signMessage,
+    action,
+    body,
+    address,
+  });
+};
+
 export const getProfileAsync = async (address) => {
   const normalizedAddress = normalizeAddress(address);
   if (!normalizedAddress) return null;
@@ -428,7 +465,7 @@ export const getProfileAsync = async (address) => {
   return getProfile(normalizedAddress);
 };
 
-export const saveProfileAsync = async (profileData) => {
+export const saveProfileAsync = async (profileData, migrationAuth = null) => {
   const normalizedAddress = normalizeAddress(profileData?.address);
   if (!normalizedAddress) {
     throw new Error('Invalid address');
@@ -472,21 +509,43 @@ export const saveProfileAsync = async (profileData) => {
   }
 
   if (!res.ok) {
-    let message = `Profile save failed (HTTP ${res.status})`;
-    try {
-      const err = await res.json();
-      if (err?.error) message = err.error;
-    } catch {
-      try {
-        const text = await res.text();
-        if (text) {
-          const trimmed = text.trim();
-          message = trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
-        }
-      } catch {
-        // no-op
+    const message = await readErrorPayload(res, `Profile save failed (HTTP ${res.status})`);
+
+    if (isLegacyProfileMigrationError(res.status, message)) {
+      const migrationHeaders = await createMigrationHeaders({
+        migrationAuth,
+        action: 'profile-migrate-save',
+        body: profile,
+        address: normalizedAddress,
+      });
+
+      const retry = await fetch(`${API_BASE}/api/profiles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...migrationHeaders,
+        },
+        body: JSON.stringify(profile),
+      });
+
+      if (!retry.ok) {
+        throw new Error(await readErrorPayload(retry, `Profile save failed (HTTP ${retry.status})`));
       }
+
+      const remote = await retry.json();
+      if (!remote || !remote.address) {
+        throw new Error('Profile save failed: invalid server response');
+      }
+
+      if (remote.editKey) {
+        storeEditKey(normalizedAddress, remote.editKey);
+      }
+
+      const { editKey: _editKey, ...publicProfile } = remote;
+      cacheProfile(publicProfile);
+      return publicProfile;
     }
+
     throw new Error(message);
   }
 
@@ -505,7 +564,7 @@ export const saveProfileAsync = async (profileData) => {
   return publicProfile;
 };
 
-export const deleteProfileAsync = async (address) => {
+export const deleteProfileAsync = async (address, migrationAuth = null) => {
   const normalizedAddress = normalizeAddress(address);
   if (!normalizedAddress) return false;
   const editKey = getStoredEditKey(normalizedAddress);
@@ -530,21 +589,37 @@ export const deleteProfileAsync = async (address) => {
   }
 
   if (!res.ok) {
-    let message = `Profile delete failed (HTTP ${res.status})`;
-    try {
-      const err = await res.json();
-      if (err?.error) message = err.error;
-    } catch {
-      try {
-        const text = await res.text();
-        if (text) {
-          const trimmed = text.trim();
-          message = trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
-        }
-      } catch {
-        // no-op
+    const message = await readErrorPayload(res, `Profile delete failed (HTTP ${res.status})`);
+
+    if (isLegacyProfileMigrationError(res.status, message)) {
+      const migrationHeaders = await createMigrationHeaders({
+        migrationAuth,
+        action: 'profile-migrate-delete',
+        body: {},
+        address: normalizedAddress,
+      });
+
+      const retry = await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(normalizedAddress)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...migrationHeaders,
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!retry.ok) {
+        throw new Error(await readErrorPayload(retry, `Profile delete failed (HTTP ${retry.status})`));
       }
+
+      const payload = await retry.json().catch(() => ({ deleted: true }));
+      if (payload?.deleted === false) {
+        return false;
+      }
+
+      return deleteProfile(normalizedAddress);
     }
+
     throw new Error(message);
   }
 

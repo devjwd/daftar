@@ -49,8 +49,8 @@ Create a `.env` file in the `frontend` directory (optional):
 
 ```env
 VITE_NETWORK=mainnet  # or "testnet"
-VITE_BADGE_API_URL=https://your-railway-badge-server.example.com
-VITE_BADGE_ADMIN_API_KEY=your-badge-admin-key
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
 ## Project Structure

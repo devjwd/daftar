@@ -15,6 +15,7 @@ export default defineConfig(({ command, mode }) => {
       outDir: 'dist',
       sourcemap: false,
       minify: 'esbuild',
+      chunkSizeWarningLimit: 6000,
       cssMinify: 'esbuild', // Use esbuild instead of lightningcss for CSS minification
       rollupOptions: {
         output: {

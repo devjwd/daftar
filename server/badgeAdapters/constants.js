@@ -1,5 +1,0 @@
-export const BADGE_RULES = {
-  TRANSACTION_COUNT: 4,
-  DAYS_ONCHAIN: 5,
-  MIN_BALANCE: 2,
-};

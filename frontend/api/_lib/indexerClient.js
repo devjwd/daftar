@@ -1,6 +1,6 @@
 /**
  * Movement Network Indexer GraphQL client for serverless API routes.
- * Ported from server/indexerClient.js and server/networks.js.
+ * Shared by the serverless API routes.
  */
 
 const NETWORKS = {

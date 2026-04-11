@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
+import { verifyBadge } from '../services/badgeApi.js';
 
 const normalizeAddress = (value) => {
   const raw = String(value || '').trim().toLowerCase();
@@ -91,32 +92,18 @@ export default function useBadgeEligibility(badgeOrId) {
     setReason(null);
 
     try {
-      const query = new URLSearchParams({
-        wallet: walletAddress,
-        badgeId: String(numericBadgeId),
-      });
-
-      const response = await fetch(`/api/badges/eligibility?${query.toString()}`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-
-      const data = await response.json().catch(() => ({}));
-      const normalizedStatus =
-        data?.status === 'eligible' ||
-        data?.status === 'not_eligible' ||
-        data?.status === 'already_owned' ||
-        data?.status === 'requires_admin'
-          ? data.status
-          : response.ok
-            ? 'error'
-            : data?.status || 'error';
+      const { data, error } = await verifyBadge(walletAddress, numericBadgeId);
+      const normalizedStatus = error
+        ? 'error'
+        : data?.eligible
+          ? 'eligible'
+          : 'not_eligible';
 
       const result = {
         status: normalizedStatus,
-        progress: data?.progress || null,
-        proof: data?.proof || null,
-        reason: data?.reason || data?.error || null,
+        progress: null,
+        proof: null,
+        reason: error?.message || data?.error || null,
       };
 
       cacheRef.current = {

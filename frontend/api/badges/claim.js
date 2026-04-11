@@ -1,7 +1,7 @@
 /**
  * POST /api/badges/claim
- * Persists a minted badge after verifying current on-chain ownership.
- * Admin endpoint: requires BADGE_ADMIN_API_KEY and verifies current on-chain ownership.
+ * Legacy admin route kept only for compatibility.
+ * Shared-key auth is disabled; use the Supabase wallet-signed admin flow instead.
  */
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { checkAdmin } from '../_lib/auth.js';

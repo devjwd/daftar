@@ -1,7 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 
 import "../App.css";
 
@@ -12,6 +11,7 @@ import { getTokenAddressBySymbol, getTokenInfo } from "../config/tokens";
 import { useCurrency } from "../hooks/useCurrency";
 import { useDeFiPositions } from "../hooks/useDeFiPositions";
 import { useIndexerBalances } from "../hooks/useIndexerBalances";
+import { useMovementClient } from "../hooks/useMovementClient";
 import { useProfile } from "../hooks/useProfile";
 import { useTokenPrices } from "../hooks/useTokenPrices";
 import { useUserLevel } from "../hooks/useUserLevel";
@@ -945,16 +945,14 @@ const Dashboard = () => {
   }, [location.search, navigate]);
 
   const currentNetwork = DEFAULT_NETWORK;
-  const movementClient = useMemo(() => new Aptos(new AptosConfig({
-
-      network: Network.CUSTOM,
-
-      fullnode: currentNetwork.rpc
-
-  })), [currentNetwork]);
+  const { client: movementClient, loading: movementClientLoading } = useMovementClient(currentNetwork.rpc);
 
   const modalBadgeAddress = modalProfileAddress;
-  const { badges: onchainBadges, loading: onchainBadgesLoading } = useBadges(modalBadgeAddress, { client: movementClient, enablePolling: false });
+  const { badges: onchainBadges, loading: onchainBadgesLoading } = useBadges(modalBadgeAddress, {
+    client: movementClient,
+    clientLoading: movementClientLoading,
+    enablePolling: false,
+  });
   const { earnedBadges: persistedBadges } = useUserBadges(modalBadgeAddress);
   const defiNetValue = useMemo(() => {
     if (!visibleDeFiPositions || visibleDeFiPositions.length === 0 || !priceMap) return 0;
@@ -1148,6 +1146,7 @@ const Dashboard = () => {
       };
 
       const normalizedPool = poolAddress.trim().toLowerCase();
+      if (!movementClient) return null;
       const resources = await movementClient.getAccountResources({ accountAddress: normalizedPool });
 
       const poolResource = resources.find((resource) => resource.type.includes('::pool::Pool'));
@@ -1352,6 +1351,11 @@ const Dashboard = () => {
       devLog("Fetching assets for address:", normalizedAddress);
       devLog("Original address type:", typeof address, address);
       devLog("Using RPC endpoint:", currentNetwork.rpc);
+      if (!movementClient) {
+        setError("Movement client is still loading. Please try again in a moment.");
+        setBalances([]);
+        return;
+      }
       const resources = await movementClient.getAccountResources({ 
         accountAddress: normalizedAddress 
       });

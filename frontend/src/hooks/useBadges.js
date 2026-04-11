@@ -21,6 +21,7 @@ export const shouldEvaluateBadgeEligibility = (badge, earnedIds, onChainEarnedBy
  */
 export default function useBadges(address, options = {}) {
   const { client = null } = options;
+  const clientLoading = options.clientLoading === true;
 
   const { enabledBadges, loading: badgeStoreLoading } = useBadgeStore();
 
@@ -216,7 +217,7 @@ export default function useBadges(address, options = {}) {
     completionPercent,
 
     // Loading state
-    loading: badgeStoreLoading || onChainSyncLoading,
+    loading: badgeStoreLoading || onChainSyncLoading || (Boolean(address) && clientLoading),
     error: storeError || error,
 
     // Methods

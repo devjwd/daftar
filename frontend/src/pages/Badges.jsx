@@ -11,8 +11,7 @@
 import './Badges.css';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
-import { DEFAULT_NETWORK } from '../config/network.js';
+import { useMovementClient } from '../hooks/useMovementClient.js';
 import { awardBadge } from '../services/badges/badgeStore.js';
 import { mintBadge, mintBadgeWithBalance } from '../services/badgeService.js';
 import { confirmMintAndOwnership } from '../services/badges/mintVerification.js';
@@ -151,10 +150,7 @@ export default function Badges() {
   const [selectedBadge, setSelectedBadge] = useState(null);
   const [claimedAnimIds, setClaimedAnimIds] = useState(new Set());
 
-  const movementClient = useMemo(
-    () => new Aptos(new AptosConfig({ network: Network.CUSTOM, fullnode: DEFAULT_NETWORK.rpc })),
-    []
-  );
+  const { client: movementClient, loading: movementClientLoading } = useMovementClient();
 
   const address = connected && account?.address
     ? (typeof account.address === 'string' ? account.address : account.address.toString())
@@ -169,6 +165,7 @@ export default function Badges() {
     refresh,
   } = useBadges(address, {
     client: movementClient,
+      clientLoading: movementClientLoading,
     enablePolling: false,
   });
 
@@ -350,6 +347,10 @@ export default function Badges() {
   const handleMint = useCallback(async (badge) => {
     if (!connected || !account || !signAndSubmitTransaction) {
       setError('Please connect your wallet to claim badges');
+      return;
+    }
+    if (!movementClient) {
+      setError('Movement client is still loading. Please try again in a moment.');
       return;
     }
 

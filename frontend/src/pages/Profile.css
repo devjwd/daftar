@@ -412,6 +412,18 @@ body[data-theme='light'] .level-avatar-option.selected {
   margin-top: 24px;
 }
 
+.profile-migration-note {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9f8b72;
+}
+
+body[data-theme='light'] .profile-migration-note {
+  color: #64748b;
+}
+
 .form-section {
   margin-bottom: 32px;
   padding-bottom: 32px;

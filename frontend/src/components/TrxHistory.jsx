@@ -94,7 +94,6 @@ const formatAmount = (value) => {
   }).format(amount);
 };
 
-const hasDisplayNumber = (value) => Number.isFinite(Number(value));
 const hasPositiveDisplayNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 
 const getAmountTone = (tx) => {

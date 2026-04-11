@@ -194,14 +194,12 @@ function replaceAwardsForAddress(address, nextAwards) {
   return normalizedAwards;
 }
 
-async function persistBadgeList(badges, adminKey) {
-  const response = await saveBadgeDefinitions({ badges, adminKey });
+async function persistBadgeList(badges, adminAuth) {
+  const response = await saveBadgeDefinitions({ badges, adminAuth });
   if (!response.ok) {
     let message = response?.data?.error || 'Failed to save badge definitions';
-    if (response.status === 503) {
-      message = 'Server is not configured — set BADGE_ADMIN_API_KEY in Vercel environment variables and redeploy.';
-    } else if (response.status === 401) {
-      message = 'Wrong API key — the value you entered must exactly match BADGE_ADMIN_API_KEY in your Vercel settings (no extra spaces).';
+    if (response.status === 401) {
+      message = 'Admin wallet approval was rejected or is missing.';
     }
     return { success: false, errors: [message] };
   }
@@ -213,16 +211,8 @@ async function persistBadgeList(badges, adminKey) {
 
 export async function syncBadgesFromBackend() {
   const cachedBadges = getAllBadges();
-  let adminKey = '';
-  try {
-    adminKey = String(sessionStorage.getItem('badge_admin_api_key') || '').trim();
-  } catch {
-    adminKey = '';
-  }
-
   const response = await fetchAllBadges({
-    includePrivate: Boolean(adminKey),
-    adminKey,
+    includePrivate: false,
   });
   if (!response.ok) {
     return { ok: false, badges: cachedBadges };
@@ -306,7 +296,7 @@ export async function createBadge(badgeData, options = {}) {
   }
 
   badges.push(badge);
-  const result = await persistBadgeList(badges, options.adminKey);
+  const result = await persistBadgeList(badges, options.adminAuth);
   if (!result.success) return result;
 
   emit('badge:created', badge);
@@ -346,7 +336,7 @@ export async function updateBadge(id, updates, options = {}) {
   }
 
   badges[index] = updated;
-  const result = await persistBadgeList(badges, options.adminKey);
+  const result = await persistBadgeList(badges, options.adminAuth);
   if (!result.success) return result;
 
   emit('badge:updated', updated);
@@ -366,7 +356,7 @@ export async function deleteBadge(id, options = {}) {
     return { success: false, errors: ['Badge not found'] };
   }
 
-  const persistResult = await persistBadgeList(filtered, options.adminKey);
+  const persistResult = await persistBadgeList(filtered, options.adminAuth);
   if (!persistResult.success) return persistResult;
 
   // Also clean up awards for this badge
@@ -446,14 +436,7 @@ export async function awardBadge(address, badgeId, extra = {}) {
     metadata: extra.metadata || {},
   };
 
-  let adminKey = '';
-  try {
-    adminKey = String(sessionStorage.getItem('badge_admin_api_key') || '').trim();
-  } catch {
-    adminKey = '';
-  }
-
-  const remoteResult = adminKey
+  const remoteResult = extra?.adminAuth
     ? await awardBadgeToUser(
         normalized,
         badgeId,
@@ -462,7 +445,7 @@ export async function awardBadge(address, badgeId, extra = {}) {
           txHash: extra.txHash || null,
           onChainBadgeId: extra.onChainBadgeId ?? resolvedBadge.onChainBadgeId ?? null,
         },
-        { adminKey }
+        { adminAuth: extra.adminAuth }
       )
     : { ok: false };
 
@@ -562,7 +545,7 @@ export async function importBadges(badgeArray, options = {}) {
     }
   }
 
-  const result = await persistBadgeList(existing, options.adminKey);
+  const result = await persistBadgeList(existing, options.adminAuth);
   if (!result.success) {
     return { imported: 0, skipped: badgeArray.length, errors: result.errors || ['Failed to save imported badges'] };
   }
@@ -612,7 +595,7 @@ export function exportScannerConfigs() {
 export async function clearAllBadgeData(options = {}) {
   const response = await saveBadgeDefinitions({
     badges: [],
-    adminKey: options.adminKey,
+    adminAuth: options.adminAuth,
     clearAwards: true,
   });
   if (!response.ok) {

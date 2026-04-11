@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from 'crypto';
 import { enforceRateLimit } from '../_lib/rateLimit.js';
 import { getClientIp, handleOptions, methodNotAllowed, sendJson, setApiHeaders } from '../_lib/http.js';
 import { normalizeAddress } from '../_lib/profileValidation.js';
+import { verifyProfileMigrationProof } from '../_lib/profileProof.js';
 
 const METHODS = ['GET', 'DELETE', 'OPTIONS'];
 
@@ -68,10 +69,22 @@ const safeHashEqual = (left, right) => {
   return timingSafeEqual(a, b);
 };
 
+const hasStoredEditKey = (profile) => Boolean(profile?.editKeyHash || profile?.editKey);
+
+const requiresEditKeyMigration = (profile) => Boolean(profile?.address) && !hasStoredEditKey(profile);
+
+const verifyMigrationForDelete = async ({ req, address }) => verifyProfileMigrationProof({
+  req,
+  payload: {},
+  expectedAction: 'profile-migrate-delete',
+  expectedAddress: address,
+});
+
 const isEditKeyValid = (profile, providedEditKey) => {
+  if (!profile?.address) return false;
+
   const provided = String(providedEditKey || '').trim();
-  const hasStoredKey = Boolean(profile?.editKeyHash || profile?.editKey);
-  if (!hasStoredKey) return true;
+  if (!hasStoredEditKey(profile)) return false;
   if (!provided) return false;
 
   if (profile.editKeyHash) {
@@ -154,8 +167,18 @@ export default async function handler(req, res) {
         return sendJson(res, 200, { deleted: false });
       }
 
+      const canUseMigrationProof = requiresEditKeyMigration(target);
+      if (canUseMigrationProof) {
+        const migration = await verifyMigrationForDelete({ req, address });
+        if (!migration.ok) {
+          return sendJson(res, 409, {
+            error: 'Profile is missing an edit key and must be migrated with a wallet signature before it can be deleted',
+          });
+        }
+      }
+
       const providedEditKey = pickEditKey(req);
-      if (!isEditKeyValid(target, providedEditKey)) {
+      if (!canUseMigrationProof && !isEditKeyValid(target, providedEditKey)) {
         return sendJson(res, 403, { error: 'Invalid profile edit key for this address' });
       }
 

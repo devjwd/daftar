@@ -9,11 +9,15 @@ import { getStoredLanguagePreference, t } from '../utils/language';
 import './Profile.css';
 
 export default function Profile() {
-  const { account, connected } = useWallet();
+  const { account, connected, signMessage } = useWallet();
   const navigate = useNavigate();
   
   const address = normalizeAddress(account?.address);
-  const { profile, loading, saving, updateProfile, error } = useProfile(address);
+  const { profile, loading, saving, updateProfile, error } = useProfile(address, {
+    account,
+    connected,
+    signMessage,
+  });
   const { level } = useUserLevel(address);
   
   const [username, setUsername] = useState('');
@@ -276,6 +280,10 @@ export default function Profile() {
               {saving ? t(language, 'profileSaving') : t(language, 'profileSave')}
             </button>
           </div>
+
+          <p className="profile-migration-note">
+            Older profiles may trigger one wallet signature during save or delete to recover legacy edit permissions. No transaction is sent.
+          </p>
           
           {error && (
             <div className="error-message">{error}</div>
