@@ -208,6 +208,8 @@ const checkMovementActivity = async (address, minTransactions = 5) => {
     return { ok: true }; // Fail open on RPC error to avoid blocking valid users
   }
 };
+
+const TOKEN_COINGECKO_IDS = {
   '0xa': 'movement',
   '0x1': 'movement',
   '0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d': 'tether',
@@ -287,7 +289,7 @@ app.get('/api/leaderboard', async (req, res) => {
 
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('wallet_address, username, pfp, xp')
+    .select('wallet_address, username, avatar_url, xp')
     .order('xp', { ascending: false })
     .limit(limit);
 
@@ -489,7 +491,7 @@ app.get('/api/profiles/:address', async (req, res) => {
       address: data.wallet_address,
       username: data.username,
       bio: data.bio,
-      pfp: data.pfp,
+      avatar_url: data.avatar_url,
       xp: data.xp,
       twitter: data.twitter,
       telegram: data.telegram,
@@ -504,7 +506,10 @@ app.get('/api/profiles/:address', async (req, res) => {
 
 // POST /api/profiles - Save/Update
 app.post('/api/profiles', async (req, res) => {
-  const { address, username, bio, pfp, twitter, telegram, signature, signedMessage, nonce } = req.body;
+  const { address, username, bio, avatar_url, twitter, telegram, signature, signedMessage, nonce } = req.body;
+  
+  // Legacy support for pfp key in request body
+  const finalAvatarUrl = avatar_url || req.body.pfp;
   const normalizedAddr = normalizeAddress(address);
 
   if (!normalizedAddr) return res.status(400).json({ error: 'Invalid address' });
@@ -552,7 +557,7 @@ app.post('/api/profiles', async (req, res) => {
         wallet_address: normalizedAddr,
         username: username || '',
         bio: bio || '',
-        pfp: pfp || null,
+        avatar_url: finalAvatarUrl || null,
         twitter: twitter || '',
         telegram: telegram || '',
         updated_at: new Date().toISOString()

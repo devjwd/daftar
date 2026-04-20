@@ -996,12 +996,12 @@ const Dashboard = () => {
   const userAvatarSrc = getLevelBasedPfp({
     level: viewingLevel,
     address: viewingAddress,
-    preferredPfp: userProfile?.pfp,
+    preferredPfp: userProfile?.avatar_url || userProfile?.pfp,
   });
   const modalAvatarSrc = getLevelBasedPfp({
     level,
     address: viewingAddress,
-    preferredPfp: userProfile?.pfp,
+    preferredPfp: userProfile?.avatar_url || userProfile?.pfp,
   });
 
   useEffect(() => {

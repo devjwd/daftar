@@ -60,7 +60,7 @@ export default function Level() {
   const profileImageSrc = getLevelBasedPfp({
     level: currentLevel,
     address,
-    preferredPfp: profile?.pfp,
+    preferredPfp: (profile?.avatar_url || profile?.pfp),
   });
 
   return (

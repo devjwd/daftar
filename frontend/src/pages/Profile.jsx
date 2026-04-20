@@ -24,7 +24,7 @@ export default function Profile() {
   const [bio, setBio] = useState('');
   const [twitter, setTwitter] = useState('');
   const [telegram, setTelegram] = useState('');
-  const [pfp, setPfp] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState(null);
   const [showPfpPicker, setShowPfpPicker] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [notice, setNotice] = useState({ type: '', message: '' });
@@ -33,8 +33,8 @@ export default function Profile() {
 
   const allPfps = useMemo(() => getAllLevelPfps(), []);
   const activeAvatarSrc = useMemo(
-    () => getLevelBasedPfp({ level, address, preferredPfp: pfp }),
-    [level, address, pfp]
+    () => getLevelBasedPfp({ level, address, preferredPfp: avatarUrl }),
+    [level, address, avatarUrl]
   );
 
   useEffect(() => {
@@ -63,11 +63,11 @@ export default function Profile() {
       setBio(profile.bio || '');
       setTwitter(profile.twitter || '');
       setTelegram(profile.telegram || '');
-      setPfp(
+      setAvatarUrl(
         getLevelBasedPfp({
           level,
           address,
-          preferredPfp: typeof profile.pfp === 'string' ? profile.pfp : null,
+          preferredPfp: typeof (profile.avatar_url || profile.pfp) === 'string' ? (profile.avatar_url || profile.pfp) : null,
         })
       );
     }
@@ -109,7 +109,7 @@ export default function Profile() {
         bio,
         twitter,
         telegram,
-        pfp: activeAvatarSrc,
+        avatar_url: activeAvatarSrc,
       });
 
       setShowSuccess(true);
@@ -183,7 +183,7 @@ export default function Profile() {
                         className={`level-avatar-option ${selected ? 'selected' : ''} ${unlocked ? '' : 'locked'}`}
                         onClick={() => {
                           if (!unlocked) return;
-                          setPfp(option.src);
+                          setAvatarUrl(option.src);
                           setShowPfpPicker(false);
                         }}
                         aria-label={
