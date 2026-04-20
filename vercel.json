@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/swap/tokens",
+      "destination": "/api/swap/quote?endpoint=tokens"
+    },
+    {
+      "source": "/api/badges/attest",
+      "destination": "/api/badges/attest"
+    },
+    {
+      "source": "/api/badges/(.*)",
+      "destination": "/api/badges?route=$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
+  "framework": "vite",
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "npm install"
+}

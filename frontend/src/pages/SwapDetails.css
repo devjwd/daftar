@@ -1,0 +1,208 @@
+.swap-details-page {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.4rem 1rem 2rem;
+}
+
+.swap-details-shell {
+  width: min(470px, 100%);
+  border-radius: 24px;
+  border: 1px solid var(--border-subtle);
+  background:
+    radial-gradient(circle at 12% -12%, rgba(205, 161, 105, 0.14), transparent 52%),
+    radial-gradient(circle at 100% 100%, rgba(222, 184, 132, 0.1), transparent 42%),
+    linear-gradient(165deg, rgba(31, 26, 23, 0.96), rgba(20, 17, 15, 0.96));
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  padding: 1rem;
+}
+
+.swap-details-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.swap-details-header h1 {
+  margin: 0;
+  text-align: center;
+  font: 700 1.35rem/1.1 "Space Grotesk", "Avenir Next", sans-serif;
+  color: var(--text-primary);
+}
+
+.swap-details-back {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.swap-details-back svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.swap-details-spacer {
+  width: 28px;
+  height: 28px;
+}
+
+.swap-details-meta {
+  margin-top: 0.95rem;
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.swap-details-card {
+  margin-top: 0.78rem;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(150deg, rgba(205, 161, 105, 0.1), rgba(29, 25, 22, 0.88));
+  padding: 0.9rem;
+}
+
+.swap-details-card.compact {
+  padding: 0.84rem;
+}
+
+.swap-details-card-title {
+  color: var(--text-primary);
+  font: 700 1rem/1.2 "Space Grotesk", "Avenir Next", sans-serif;
+}
+
+.swap-details-token-row {
+  margin-top: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.swap-details-token-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.36rem;
+}
+
+.swap-details-token-amount {
+  color: var(--text-primary);
+  font: 700 1.5rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+}
+
+.swap-details-token-symbol {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.swap-details-arrow {
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+.swap-details-provider {
+  margin-top: 0.7rem;
+  color: var(--primary-light);
+  font-weight: 600;
+}
+
+.swap-details-status-list {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.36rem;
+}
+
+.swap-details-status {
+  color: var(--success);
+  font-size: 0.88rem;
+}
+
+.swap-details-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.swap-details-kv + .swap-details-kv {
+  margin-top: 0.36rem;
+}
+
+.swap-details-kv strong {
+  color: var(--text-primary);
+}
+
+.swap-details-transfer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.swap-details-open {
+  color: var(--primary-light);
+  text-decoration: none;
+  font-size: 0.84rem;
+}
+
+.swap-details-open:hover {
+  text-decoration: underline;
+}
+
+.swap-details-card code {
+  margin-top: 0.6rem;
+  display: block;
+  color: var(--text-primary);
+  word-break: break-all;
+  font-size: 0.8rem;
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.swap-details-support {
+  width: 100%;
+  margin-top: 0.84rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--gradient-primary);
+  color: var(--bg-primary);
+  font: 700 0.95rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+}
+
+.swap-details-empty {
+  margin-top: 1rem;
+  border-radius: 14px;
+  border: 1px dashed var(--border-subtle);
+  padding: 1.2rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.swap-details-empty button {
+  margin-top: 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 0.66rem 0.9rem;
+  background: var(--glass-hover);
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+}

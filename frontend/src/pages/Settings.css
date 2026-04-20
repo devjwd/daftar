@@ -1,0 +1,321 @@
+.settings-page {
+  min-height: calc(100vh - 80px);
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #14110f;
+}
+
+
+.settings-container {
+  max-width: 900px;
+  width: 100%;
+  background: rgba(37, 34, 32, 0.8);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  border: 1px solid rgba(205, 161, 105, 0.35);
+  padding: 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(205, 161, 105, 0.15);
+}
+
+.settings-header {
+  margin-bottom: 40px;
+}
+
+.settings-header h1 {
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #cda169, #deb884);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.settings-header p {
+  font-size: 15px;
+  color: #8a7d6f;
+}
+
+.settings-sections {
+  margin-bottom: 32px;
+}
+
+.settings-section {
+  margin-bottom: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid rgba(205, 161, 105, 0.2);
+}
+
+.settings-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #cda169;
+  margin-bottom: 20px;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  gap: 20px;
+}
+
+.setting-info {
+  flex: 1;
+}
+
+.setting-info label {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.setting-description {
+  display: block;
+  font-size: 13px;
+  color: #8a7d6f;
+}
+
+.setting-select {
+  background: rgba(26, 22, 20, 0.6);
+  border: 1px solid rgba(205, 161, 105, 0.35);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #cda169;
+  cursor: pointer;
+  min-width: 150px;
+  transition: all 0.3s ease;
+}
+
+.setting-select:focus {
+  outline: none;
+  border-color: #cda169;
+  background: rgba(26, 22, 20, 0.8);
+  box-shadow: 0 0 0 3px rgba(205, 161, 105, 0.15);
+}
+
+.setting-select option {
+  background: #1d1916;
+  color: #cda169;
+}
+
+body[data-theme='light'] .settings-page {
+  background: #f4f5f7;
+}
+
+
+body[data-theme='light'] .settings-container {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.4);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
+}
+
+body[data-theme='light'] .settings-header h1 {
+  background: linear-gradient(135deg, #0f172a, #334155);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body[data-theme='light'] .settings-header p,
+body[data-theme='light'] .setting-description {
+  color: #64748b;
+}
+
+body[data-theme='light'] .settings-section,
+body[data-theme='light'] .settings-actions {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+body[data-theme='light'] .section-title,
+body[data-theme='light'] .setting-info label {
+  color: #0f172a;
+}
+
+body[data-theme='light'] .setting-select {
+  background: #ffffff;
+  border-color: rgba(148, 163, 184, 0.5);
+  color: #0f172a;
+}
+
+body[data-theme='light'] .setting-select:focus {
+  border-color: #334155;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.22);
+}
+
+body[data-theme='light'] .setting-select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+body[data-theme='light'] .toggle-slider {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: rgba(100, 116, 139, 0.35);
+}
+
+body[data-theme='light'] .toggle-slider:before {
+  background: #64748b;
+}
+
+body[data-theme='light'] .toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #0f172a, #334155);
+}
+
+body[data-theme='light'] .toggle-switch input:checked + .toggle-slider:before {
+  background: #ffffff;
+}
+
+body[data-theme='light'] .save-btn {
+  background: linear-gradient(135deg, #0f172a, #334155);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+}
+
+body[data-theme='light'] .save-btn:hover {
+  background: linear-gradient(135deg, #1e293b, #475569);
+}
+
+body[data-theme='light'] .reset-btn {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #b91c1c;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(26, 22, 20, 0.8);
+  border: 1px solid rgba(205, 161, 105, 0.35);
+  border-radius: 28px;
+  transition: all 0.3s ease;
+}
+
+.toggle-slider:before {
+  content: '';
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background: #8a7d6f;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #cda169, #a77b43);
+  border-color: transparent;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+  background: #14110f;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  padding-top: 24px;
+  border-top: 1px solid rgba(205, 161, 105, 0.2);
+}
+
+.reset-btn,
+.save-btn {
+  padding: 12px 28px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+}
+
+.reset-btn {
+  background: rgba(212, 116, 116, 0.15);
+  color: #e06a6a;
+  border: 1px solid rgba(212, 116, 116, 0.35);
+}
+
+.reset-btn:hover {
+  background: rgba(212, 116, 116, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(212, 116, 116, 0.2);
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #cda169, #a77b43);
+  color: #14110f;
+  box-shadow: 0 4px 15px rgba(205, 161, 105, 0.4);
+}
+
+.save-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(205, 161, 105, 0.5);
+  background: linear-gradient(135deg, #deb884, #cda169);
+}
+
+.reset-btn:active,
+.save-btn:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .settings-container {
+    padding: 24px;
+  }
+
+  .settings-header h1 {
+    font-size: 24px;
+  }
+
+  .setting-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .setting-select,
+  .toggle-switch {
+    align-self: flex-end;
+  }
+
+  .settings-actions {
+    flex-direction: column-reverse;
+  }
+
+  .reset-btn,
+  .save-btn {
+    width: 100%;
+  }
+}

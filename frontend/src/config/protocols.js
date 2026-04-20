@@ -1,0 +1,100 @@
+import { CANOPY_CONFIG } from './network.js';
+
+export const DEFI_PROTOCOLS = {
+  ECHELON: {
+    name: "Echelon",
+    address: "0x6a01d5761d43a5b5a0ccbfc42edf2d02c0611464aae99a2ea0e0d4819f0550b5",
+    addresses: ["0x6a01d5761d43a5b5a0ccbfc42edf2d02c0611464aae99a2ea0e0d4819f0550b5"],
+    type: "Lending",
+    website: "https://app.echelon.market",
+    keywords: ["echelon", "ec_"],
+  },
+  JOULE: {
+    name: "Joule Finance",
+    address: "0x6a164188af7bb6a8268339343a5afe0242292713709af8801dafba3a054dc2f2",
+    addresses: ["0x6a164188af7bb6a8268339343a5afe0242292713709af8801dafba3a054dc2f2"],
+    type: "Lending",
+    website: "https://app.joule.finance",
+    keywords: ["joule"],
+  },
+  MOVEPOSITION: {
+    name: "MovePosition",
+    address: "0xccd2621d2897d407e06d18e6ebe3be0e6d9b61f1e809dd49360522b9105812cf",
+    addresses: ["0xccd2621d2897d407e06d18e6ebe3be0e6d9b61f1e809dd49360522b9105812cf"],
+    type: "Lending",
+    website: "https://moveposition.xyz",
+    keywords: ["moveposition"],
+  },
+  MERIDIAN: {
+    name: "Meridian",
+    address: "0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82",
+    addresses: [
+      "0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82",
+      "0x2712eba673b52416fa5f11504ff70d3f9e48edff9c32f2201f1468c27ed3fe04",
+      "0xfbdb3da73efcfa742d542f152d65fc6da7b55dee864cd66475213e4be18c9d54",
+    ],
+    type: "CDP",
+    website: "https://app.meridian.money/",
+    keywords: ["meridian"],
+  },
+  CANOPY: {
+    name: "Canopy",
+    address: CANOPY_CONFIG.coreRouterAddress,
+    addresses: [
+      CANOPY_CONFIG.coreRouterAddress,
+      CANOPY_CONFIG.coreVaultsAddress,
+      CANOPY_CONFIG.liquidswapVaultsAddress,
+      CANOPY_CONFIG.rewardsAddress,
+    ].filter(Boolean),
+    type: "Liquid Staking",
+    website: "https://app.canopyhub.xyz/",
+    keywords: ["canopy", "stmove", "staked_move", "smove", "cvmove", "deposit_coin", "withdraw_coin", "vault"],
+  },
+  MOVEMENT: {
+    name: "Movement Native Staking",
+    address: null,
+    addresses: [],
+    type: "Staking",
+    website: "https://explorer.movementnetwork.xyz",
+    keywords: ["delegation_pool", "staking_contract", "add_stake"],
+  },
+  LAYERBANK: {
+    name: "LayerBank",
+    address: "0xf257d40859456809be19dfee7f4c55c4d033680096aeeb4228b7a15749ab68ea",
+    addresses: ["0xf257d40859456809be19dfee7f4c55c4d033680096aeeb4228b7a15749ab68ea"],
+    type: "Lending",
+    website: "https://app.layerbank.finance",
+    keywords: ["layerbank", "layer_bank"],
+  },
+  MOSAIC: {
+    name: "Mosaic",
+    address: "0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c",
+    addresses: [
+      "0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c",
+      "0x3f7399a0d3d646ce94ee0badf16c4c3f3c656fe3a5e142e83b5ebc011aa8b3d",
+    ],
+    type: "DEX",
+    website: "https://mosaic.ag",
+    keywords: ["mosaic"],
+  },
+  RAZOR: {
+    name: "Razor DEX",
+    address: "0xc4e68f29fa608d2630d11513c8de731b09a975f2f75ea945160491b9bfd36992",
+    addresses: [
+      "0xc4e68f29fa608d2630d11513c8de731b09a975f2f75ea945160491b9bfd36992",
+      "0x7730cd28ee1cdc9e999336cbc430f99e7c44397c0aa77516f6f23a78559bb5",
+    ],
+    type: "DEX",
+    website: "https://razor.exchange",
+    keywords: ["razor"],
+  },
+  YUZU: {
+    name: "Yuzu Swap",
+    address: "0x4bf51972879e3b95c4781a5cdcb9e1ee24ef483e7d22f2d903626f126df62bd1",
+    addresses: ["0x4bf51972879e3b95c4781a5cdcb9e1ee24ef483e7d22f2d903626f126df62bd1"],
+    type: "DEX",
+    website: "https://yuzu.swap",
+    keywords: ["yuzu", "yuzlp", "yuz-lp", "liquidity position"],
+  },
+};
+

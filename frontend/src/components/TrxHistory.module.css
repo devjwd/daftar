@@ -1,0 +1,480 @@
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(205, 161, 105, 0.12), transparent 35%),
+    linear-gradient(165deg, rgba(25, 22, 18, 0.95), rgba(14, 12, 10, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 20px 50px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(24px);
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.04), transparent 35%, transparent 72%, rgba(205, 161, 105, 0.04));
+}
+
+.toolbar,
+.tableWrap,
+.loadMoreWrap,
+.emptyState,
+.skeletonList {
+  position: relative;
+  z-index: 1;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filterTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filterTab {
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.filterTab:hover {
+  transform: translateY(-1px);
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.filterTabActive {
+  color: #111111;
+  background: linear-gradient(135deg, #f2d8b0, #cda169);
+  border-color: rgba(242, 216, 176, 0.55);
+  box-shadow: 0 8px 18px rgba(205, 161, 105, 0.22);
+}
+
+.toolbarMeta {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.44);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.row {
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.typeBadge {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.68);
+  background: transparent;
+  border: none;
+  line-height: 1;
+}
+
+.badgeSwap {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeLend {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeBorrow {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeRepay {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeStake {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeUnstake {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeDeposit {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeWithdraw {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeTransfer {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeReceived {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeClaim {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.badgeOther {
+  color: inherit;
+  background: transparent;
+  border-color: transparent;
+}
+
+.typeCell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.typeMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.typeDappName {
+  color: #d7b15a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dappIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #f3fff6;
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.dappIconImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: saturate(1.02) contrast(1.02);
+}
+
+.tokenPair,
+.tokenSide,
+.amountPair {
+  display: flex;
+  align-items: center;
+}
+
+.tokenPair,
+.amountPair {
+  gap: 9px;
+}
+
+.tokenSide {
+  gap: 8px;
+  min-width: 0;
+}
+
+.tokenSide span {
+  white-space: nowrap;
+}
+
+.tokenArrow,
+.amountArrow {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 14px;
+}
+
+.tokenIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex: 0 0 24px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  overflow: hidden;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tokenIconImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.positive {
+  color: #16c784;
+}
+
+.negative {
+  color: #ff6b6b;
+}
+
+.neutral {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.hashLink {
+  color: #cda169;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.hashLink:hover {
+  color: #f2d8b0;
+}
+
+.loadMoreWrap {
+  display: flex;
+  justify-content: center;
+}
+
+.inlineError {
+  color: #ff9a9a;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.loadMoreButton {
+  min-width: 144px;
+  padding: 12px 18px;
+  border: 1px solid rgba(205, 161, 105, 0.24);
+  border-radius: 999px;
+  background: rgba(205, 161, 105, 0.08);
+  color: #f3dfbe;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+.loadMoreButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(205, 161, 105, 0.14);
+  border-color: rgba(205, 161, 105, 0.4);
+}
+
+.loadMoreButton:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(255, 255, 255, 0.58);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeletonRow {
+  display: grid;
+  grid-template-columns: 88px 1.7fr 1.2fr 1.2fr 0.9fr;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.skeletonBlock::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+
+.skeletonBadge {
+  height: 28px;
+}
+
+.skeletonTokens {
+  width: 82%;
+}
+
+.skeletonAmount {
+  width: 76%;
+}
+
+.skeletonDate,
+.skeletonHash {
+  width: 70%;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 900px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .table {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 640px) {
+  .table {
+    min-width: 620px;
+  }
+
+  .skeletonRow {
+    grid-template-columns: 88px 1.8fr 1.2fr 1.1fr 0.9fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .card {
+    padding: 16px;
+  }
+
+  .filterTabs {
+    gap: 6px;
+  }
+
+  .filterTab {
+    padding: 7px 11px;
+  }
+}
