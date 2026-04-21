@@ -217,6 +217,7 @@ BEGIN
     DROP POLICY IF EXISTS "Service role full access nonces" ON public.used_nonces;
     DROP POLICY IF EXISTS "Service role full access rates" ON public.api_rate_limits;
     DROP POLICY IF EXISTS "Service role full access entities" ON public.tracked_entities;
+    DROP POLICY IF EXISTS "Authenticated manage entities" ON public.tracked_entities;
 END $$;
 
 -- Public Access (Read Only)
