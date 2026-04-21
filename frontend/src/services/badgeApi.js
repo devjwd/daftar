@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { BADGE_RULES, CRITERIA_TYPES, criteriaToRuleType } from '../config/badges.js';
+import { devLog } from '../utils/devLogger.js';
 
 const parseJsonSafe = async (response) => {
   try {
@@ -223,7 +224,7 @@ export const fetchUserBadges = async (address) => {
   });
 
   if (!response.ok) {
-    console.warn('fetchUserBadges failed', response.data?.error);
+    devLog('fetchUserBadges failed', response.data?.error);
     return { ok: false, awards: [] };
   }
 
@@ -255,7 +256,7 @@ export const fetchAllBadges = async ({ includePrivate = false } = {}) => {
   });
 
   if (!response.ok) {
-    console.error('[badges] fetchAllBadges failed:', response.data?.error);
+    devLog('[badges] fetchAllBadges failed:', response.data?.error);
     return { ok: false, badges: [] };
   }
 
@@ -281,58 +282,25 @@ export const saveBadgeDefinitions = async ({ badges, adminAuth, clearAwards = fa
   }
 
   const normalizedBadges = Array.isArray(badges) ? badges.map(mapBadgeDefinitionToRow).filter((badge) => badge.badge_id) : [];
-  const current = await fetchAllBadges({ includePrivate: true });
-  if (!current.ok) {
+  
+  if (normalizedBadges.length === 0 && !clearAwards) {
+    return { ok: true, status: 200, data: { count: 0 } };
+  }
+
+  const body = { action: 'batch_sync', badges: normalizedBadges };
+  let headers;
+  try {
+    headers = await resolveAdminHeaders(adminAuth, body);
+  } catch (error) {
     return {
       ok: false,
-      status: current.status || 500,
-      data: { error: current.data?.error || 'Failed to load badge definitions before saving' },
+      status: 401,
+      data: { error: String(error?.message || 'Admin wallet approval is required') },
     };
   }
 
-  const existingRows = Array.isArray(current.badges) ? current.badges.map(mapBadgeDefinitionToRow) : [];
-  const nextBadgeIds = new Set(normalizedBadges.map((badge) => badge.badge_id));
-
-  for (const badge of existingRows) {
-    if (nextBadgeIds.has(badge.badge_id)) continue;
-    const body = {
-      action: 'delete',
-      badge: { badge_id: badge.badge_id },
-    };
-    let headers;
-    try {
-      headers = await resolveAdminHeaders(adminAuth, body);
-    } catch (error) {
-      return {
-        ok: false,
-        status: 401,
-        data: { error: String(error?.message || 'Admin wallet approval is required') },
-      };
-    }
-    const result = await invokeAdminFunction('manage-badge-definition', {
-      action: 'delete',
-      badge: { badge_id: badge.badge_id },
-    }, headers);
-    if (!result.ok) return result;
-  }
-
-  const existingBadgeIds = new Set(existingRows.map((badge) => badge.badge_id));
-  for (const badge of normalizedBadges) {
-    const action = existingBadgeIds.has(badge.badge_id) ? 'update' : 'create';
-    const body = { action, badge };
-    let headers;
-    try {
-      headers = await resolveAdminHeaders(adminAuth, body);
-    } catch (error) {
-      return {
-        ok: false,
-        status: 401,
-        data: { error: String(error?.message || 'Admin wallet approval is required') },
-      };
-    }
-    const result = await invokeAdminFunction('manage-badge-definition', body, headers);
-    if (!result.ok) return result;
-  }
+  const result = await invokeAdminFunction('manage-badge-definition', body, headers);
+  if (!result.ok) return result;
 
   return {
     ok: true,
@@ -612,7 +580,7 @@ export const fetchUserProfile = async (address) => {
     .maybeSingle();
 
   if (error) {
-    console.warn('fetchUserProfile failed', error);
+    devLog('fetchUserProfile failed', error);
     return { ok: false, profile: null, error: error.message || 'Failed to fetch profile' };
   }
 
@@ -648,7 +616,7 @@ export const updateUserProfile = async (address, { username, avatarUrl, bio, twi
   });
 
   if (!response.ok) {
-    console.warn('updateUserProfile failed', response.data?.error);
+    devLog('updateUserProfile failed', response.data?.error);
     return { ok: false, profile: null, error: response.data?.error || 'Failed to update profile' };
   }
 
@@ -682,15 +650,15 @@ export const searchProfiles = async (query, maxResults = 10) => {
   ]);
 
   if (walletResult.error && usernameResult.error) {
-    console.warn('searchProfiles failed', walletResult.error, usernameResult.error);
+    devLog('searchProfiles failed', walletResult.error, usernameResult.error);
     return { ok: false, profiles: [] };
   }
 
   if (walletResult.error) {
-    console.warn('searchProfiles wallet query failed', walletResult.error);
+    devLog('searchProfiles wallet query failed', walletResult.error);
   }
   if (usernameResult.error) {
-    console.warn('searchProfiles username query failed', usernameResult.error);
+    devLog('searchProfiles username query failed', usernameResult.error);
   }
 
   const deduped = new Map();

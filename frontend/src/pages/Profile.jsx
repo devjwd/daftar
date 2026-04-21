@@ -113,6 +113,12 @@ export default function Profile() {
       });
 
       setShowSuccess(true);
+      
+      // Trigger auto-award check in background (check for Profile Complete etc)
+      import('../services/badges/AutoAwardService.js').then(module => {
+        module.checkAndAwardBadges(address, { triggeredBy: 'profile_update' });
+      }).catch(err => console.warn('AutoAward trigger failed:', err));
+
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       console.error('Error saving profile:', err);
@@ -127,7 +133,7 @@ export default function Profile() {
     return (
       <div className="profile-page">
         <div className="profile-container">
-          <div className="loading-state">Loading profile...</div>
+          <div className="loading-state">{t(language, 'profileLoading')}</div>
         </div>
       </div>
     );
@@ -156,12 +162,12 @@ export default function Profile() {
                 className="avatar-image" 
               />
             </button>
-            <p className="level-avatar-hint">Click your avatar to choose PFP. Level {level} can select only unlocked cards.</p>
+            <p className="level-avatar-hint">{t(language, 'profilePfpHint', { level })}</p>
 
             {showPfpPicker && (
               <div className="pfp-picker-popover">
                 <div className="pfp-picker-header">
-                  <h3>Select Profile Picture</h3>
+                  <h3>{t(language, 'profileSelectPfp')}</h3>
                   <button
                     type="button"
                     className="pfp-picker-close"
@@ -282,7 +288,7 @@ export default function Profile() {
           </div>
 
           <p className="profile-migration-note">
-            Older profiles may trigger one wallet signature during save or delete to recover legacy edit permissions. No transaction is sent.
+            {t(language, 'profileMigrationNote')}
           </p>
           
           {error && (
@@ -300,7 +306,7 @@ export default function Profile() {
             <span className="stat-value">
               {profile?.createdAt
                 ? new Date(profile.createdAt).toLocaleDateString()
-                : 'Today'}
+                : t(language, 'profileToday')}
             </span>
           </div>
           <div className="stat-card">

@@ -60,20 +60,52 @@ export async function fetchCoreEligibilityStats(address) {
     let swapVolume = 0;
     if (supabase) {
       const { data: swapStats } = await supabase
-        .from('swap_records')
-        .select('amount_in_usd')
-        .eq('wallet_address', normalizedAddress);
+        .from('dapp_swap_stats')
+        .select('total_swaps, total_volume_usd')
+        .eq('wallet_address', normalizedAddress)
+        .maybeSingle();
       
       if (swapStats) {
-        swapCount = swapStats.length;
-        swapVolume = swapStats.reduce((acc, curr) => acc + (Number(curr.amount_in_usd) || 0), 0);
+        swapCount = Number(swapStats.total_swaps || 0);
+        swapVolume = Number(swapStats.total_volume_usd || 0);
       }
     }
     
+    // 4. Calculate Wallet Age (Days On-chain)
+    const firstTxVersion = indexerData?.first_tx?.[0]?.transaction_version;
+    let daysOnchain = 0;
+ 
+    if (firstTxVersion !== undefined && firstTxVersion !== null) {
+      try {
+        const tsQuery = `
+          query GetTxTimestamp($version: bigint!) {
+            block_metadata_transactions(
+              where: { version: { _lte: $version } }
+              order_by: { version: desc }
+              limit: 1
+            ) {
+              timestamp
+            }
+          }
+        `;
+        const tsData = await queryIndexer(tsQuery, { version: firstTxVersion });
+        const firstTxTimestamp = tsData?.block_metadata_transactions?.[0]?.timestamp;
+ 
+        if (firstTxTimestamp) {
+          const firstMs = Number(firstTxTimestamp) / 1000; // Indexer gives microseconds
+          const nowMs = Date.now();
+          daysOnchain = Math.floor((nowMs - firstMs) / (1000 * 60 * 60 * 24));
+        }
+      } catch (err) {
+        console.warn('[DataCoordination] Failed to fetch first tx timestamp:', err);
+      }
+    }
+ 
     return {
       address: normalizedAddress,
       txCount: indexerData?.account_transactions_aggregate?.aggregate?.count || 0,
-      firstTxVersion: indexerData?.first_tx?.[0]?.transaction_version || null,
+      firstTxVersion: firstTxVersion || null,
+      daysOnchain: Math.max(0, daysOnchain),
       balances: indexerData?.current_fungible_asset_balances || [],
       nfts: indexerData?.current_token_ownerships_v2 || [],
       // Daftar Specific

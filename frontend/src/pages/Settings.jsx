@@ -61,7 +61,7 @@ export default function Settings() {
     persistSettings();
     saveThemePreference(theme, settingsKey);
     saveLanguagePreference(language, settingsKey);
-    alert('Settings saved successfully!');
+    alert(t(language, 'settingsSaved'));
   };
 
   const handleThemeChange = (nextTheme) => {
@@ -77,7 +77,7 @@ export default function Settings() {
   };
 
   const handleReset = () => {
-    if (confirm('Are you sure you want to reset all settings to default?')) {
+    if (confirm(t(language, 'settingsResetConfirm'))) {
       setCurrency('USD');
       setTheme('dark');
       setLanguage('en');

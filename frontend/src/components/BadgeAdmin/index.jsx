@@ -20,7 +20,8 @@ import {
 import { 
   BADGE_CATEGORIES, 
   CRITERIA_TYPES,
-  getRarityInfo 
+  getRarityInfo,
+  createBadgeDefinition
 } from '../../config/badges.js';
 
 import RegistryController from './RegistryController.jsx';
@@ -66,7 +67,7 @@ const CRITERIA_DISPLAY_LIST = [
 ];
 
 export default function BadgeAdmin() {
-  const { connected, account, signAndSubmitTransaction } = useWallet();
+  const { connected, account, signAndSubmitTransaction, signMessage } = useWallet();
   const { client: movementClient } = useMovementClient();
   const { pendingTx, trackTransaction } = useTransactionTracker();
 
@@ -123,10 +124,10 @@ export default function BadgeAdmin() {
   };
 
   const createManageBadgeAuth = async (body) => {
-    if (!account || !window.aptos?.signMessage) throw new Error('Wallet not ready for signing');
+    if (!account || !signMessage) throw new Error('Wallet not ready for signing');
     return await createAdminProofHeaders({ 
       account, 
-      signMessage: (args) => window.aptos.signMessage(args), 
+      signMessage, 
       action: 'manage-badge-definition', 
       body 
     });

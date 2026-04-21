@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders, getCorsHeaders, jsonResponse, verifyAdminRequest } from '../_shared/admin.ts'
 import { validateBadgeDefinitionPayload } from '../_shared/badgeValidation.ts'
 
-const VALID_ACTIONS = new Set(['create', 'update', 'delete'])
+const VALID_ACTIONS = new Set(['create', 'update', 'delete', 'batch_sync'])
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -35,6 +35,22 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
+
+  if (action === 'batch_sync') {
+    const badges = Array.isArray(body.badges) ? body.badges : []
+    if (badges.length === 0) {
+      return jsonResponse({ success: true, count: 0 }, 200, req)
+    }
+
+    const validatedBadges = badges.map(b => validateBadgeDefinitionPayload(b)).filter(v => v.ok).map(v => v.badge)
+    
+    const { error } = await supabase.from('badge_definitions').upsert(validatedBadges, { onConflict: 'badge_id' })
+    if (error) {
+      return jsonResponse({ error: error.message }, 500, req)
+    }
+
+    return jsonResponse({ success: true, action, count: validatedBadges.length }, 200, req)
+  }
 
   const badge = body.badge && typeof body.badge === 'object' && !Array.isArray(body.badge)
     ? body.badge as Record<string, unknown>

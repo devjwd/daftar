@@ -41,6 +41,21 @@ const createDapp = ({
 
 export const TRACKED_DAPPS = [
   createDapp({
+    key: "daftar",
+    protocol: {
+      name: "Daftar",
+      website: "https://daftar.fi",
+      type: "Portfolio",
+      addresses: [
+        "0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69", // Admin/Treasury
+      ],
+      keywords: ["daftar", "portfolio", "swap"],
+    },
+    logo: "/daftar-logo.svg",
+    contracts: ["0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69"],
+    keywords: ["daftar", "swap", "portfolio"],
+  }),
+  createDapp({
     key: "capygo",
     protocol: {
       name: "Capygo",
@@ -220,18 +235,35 @@ export const TRACKED_DAPPS = [
   }),
 ];
 
-export const findTrackedDappMatch = ({ textParts = [], addresses = [] } = {}) => {
+/**
+ * Format a database entity into the Dapp structure for matching logic
+ */
+export const formatDynamicEntity = (entity) => ({
+  key: `dynamic_${entity.id}`,
+  name: entity.name,
+  website: entity.website_url || null,
+  protocolType: entity.category || 'Protocol',
+  logo: entity.logo_url || '/movement-logo.svg',
+  contracts: [normalizeAddress(entity.address)].filter(Boolean),
+  keywords: [entity.name.toLowerCase()],
+  modulePrefixes: [],
+  isDynamic: true
+});
+
+export const findTrackedDappMatch = ({ textParts = [], addresses = [], dynamicEntities = [] } = {}) => {
   const text = textParts
     .filter(Boolean)
     .map((value) => String(value).toLowerCase())
     .join(" ");
-
+ 
   const normalizedAddresses = uniqueAddresses(addresses);
-
+ 
   let bestMatch = null;
   let bestScore = 0;
-
-  for (const dapp of TRACKED_DAPPS) {
+ 
+  const allDapps = [...TRACKED_DAPPS, ...(dynamicEntities || []).map(formatDynamicEntity)];
+ 
+  for (const dapp of allDapps) {
     let score = 0;
 
     if (dapp.modulePrefixes.some((prefix) => text.includes(prefix))) {

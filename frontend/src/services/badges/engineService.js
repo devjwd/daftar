@@ -27,7 +27,7 @@ export const evaluateBadge = checkBadgeEligibility;
 
 /**
  * Check eligibility for a single badge against a wallet.
- * Uses lightweight aggregate data.
+ * Uses lightweight aggregate data and evaluates ALL criteria.
  */
 export async function checkBadgeEligibility(address, badge) {
   try {
@@ -35,25 +35,33 @@ export async function checkBadgeEligibility(address, badge) {
     const criteria = Array.isArray(badge.criteria) ? badge.criteria : [];
 
     if (criteria.length === 0) {
-      return { eligible: true, results: [], reason: 'Manual/Attestation badge' };
+      return { eligible: true, results: [], reason: 'Manual/Attestation badge', progress: 100 };
     }
 
-    // Currently support exactly one on-chain criterion as per contract v1
-    const mainCriterion = criteria[0];
-    const result = evaluateCriterion(mainCriterion.type, stats, mainCriterion.params);
+    const results = criteria.map(c => {
+      const res = evaluateCriterion(c.type, stats, c.params);
+      return { ...res, type: c.type };
+    });
+
+    const eligible = results.every(r => r.eligible);
+    const progress = results.length > 0
+      ? Math.round(results.reduce((acc, r) => acc + (r.progress || 0), 0) / results.length)
+      : 0;
+
+    const failed = results.find(r => !r.eligible);
 
     return {
-      eligible: result.eligible,
-      current: result.current,
-      required: result.required,
-      progress: result.progress,
-      label: result.label,
-      reason: result.eligible ? 'Criteria met' : (result.error || 'Criteria not met'),
+      eligible,
+      current: eligible ? 1 : 0,
+      required: 1,
+      progress,
+      results,
+      reason: eligible ? 'All criteria met' : (failed?.label || failed?.error || 'Criteria not met'),
       stats
     };
   } catch (error) {
     console.error('[EngineService] Check failed:', error);
-    return { eligible: false, reason: 'Evaluation error', error: error.message };
+    return { eligible: false, reason: 'Evaluation error', error: error.message, progress: 0 };
   }
 }
 
@@ -66,21 +74,26 @@ export async function bulkCheckEligibility(address, badges) {
     const stats = await getAggregatedStats(address);
     return badges.map(badge => {
       const criteria = Array.isArray(badge.criteria) ? badge.criteria : [];
-      if (criteria.length === 0) return { id: badge.id, eligible: true, reason: 'Manual' };
+      if (criteria.length === 0) return { id: badge.id, eligible: true, reason: 'Manual', progress: 100 };
 
-      const result = evaluateCriterion(criteria[0].type, stats, criteria[0].params);
+      const results = criteria.map(c => evaluateCriterion(c.type, stats, c.params));
+      const eligible = results.every(r => r.eligible);
+      const progress = results.length > 0
+        ? Math.round(results.reduce((acc, r) => acc + (r.progress || 0), 0) / results.length)
+        : 0;
+      
+      const failed = results.find(r => !r.eligible);
+
       return {
         id: badge.id,
-        eligible: result.eligible,
-        current: result.current,
-        required: result.required,
-        progress: result.progress,
-        label: result.label,
-        reason: result.eligible ? 'Criteria met' : (result.error || 'Criteria not met')
+        eligible,
+        progress,
+        results,
+        reason: eligible ? 'Criteria met' : (failed?.label || failed?.error || 'Criteria not met')
       };
     });
   } catch (error) {
     console.error('[EngineService] Bulk check failed:', error);
-    return badges.map(b => ({ id: b.id, eligible: false, reason: 'Fetch error' }));
+    return badges.map(b => ({ id: b.id, eligible: false, reason: 'Fetch error', progress: 0 }));
   }
 }

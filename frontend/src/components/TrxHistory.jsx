@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DEFAULT_TOKEN_COLOR, TOKEN_VISUALS } from '../config/display.js';
 import { checkAccountExists } from '../services/indexer.js';
+import { getOrFetchTransactions } from '../services/transactionService.js';
 
 import styles from './TrxHistory.module.css';
 
@@ -13,7 +14,7 @@ const FILTERS = [
   { label: 'TRANSFERS', value: 'transfers' },
 ];
 
-const EXPLORER_TX_BASE = 'https://explorer.movementlabs.xyz/txn';
+const EXPLORER_TX_BASE = 'https://explorer.movementnetwork.xyz/txn';
 const TRANSACTIONS_PAGE_SIZE = 20;
 
 const EMPTY_RESPONSE = {
@@ -67,17 +68,18 @@ const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal
       signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`Transactions request failed (${response.status})`);
+    if (response.ok) {
+      const json = await response.json();
+      return { ...EMPTY_RESPONSE, ...json };
     }
 
-    const json = await response.json();
-    return { ...EMPTY_RESPONSE, ...json };
+    throw new Error(`Transactions request failed (${response.status})`);
   } catch (error) {
     if (error?.name === 'AbortError') {
       throw error;
     }
-
+    
+    console.error('[TrxHistory] fetchTransactionsPage failed:', error);
     throw error;
   }
 };

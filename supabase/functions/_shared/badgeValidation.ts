@@ -9,6 +9,9 @@ export const BADGE_RULES = {
   HOLDING_PERIOD: 8,
   NFT_HOLDER: 9,
   COMPOSITE: 10,
+  DAFTAR_PROFILE_COMPLETE: 11,
+  DAFTAR_SWAP_COUNT: 12,
+  DAFTAR_VOLUME_USD: 13,
 } as const
 
 const VALID_RULE_TYPES = new Set<number>(Object.values(BADGE_RULES))
@@ -74,6 +77,9 @@ export const normalizeRuleType = (value: unknown): number | null => {
     holding_period: BADGE_RULES.HOLDING_PERIOD,
     nft_holder: BADGE_RULES.NFT_HOLDER,
     composite: BADGE_RULES.COMPOSITE,
+    daftar_profile_complete: BADGE_RULES.DAFTAR_PROFILE_COMPLETE,
+    daftar_swap_count: BADGE_RULES.DAFTAR_SWAP_COUNT,
+    daftar_volume_usd: BADGE_RULES.DAFTAR_VOLUME_USD,
   }
 
   return mapping[raw] ?? null
@@ -244,6 +250,34 @@ export const validateRuleParams = (
         ruleParams: {
           operator,
           criteria,
+        },
+      }
+    }
+
+    if (ruleType === BADGE_RULES.DAFTAR_PROFILE_COMPLETE) {
+      return {
+        ok: true,
+        ruleParams: {
+          require_pfp: ensureBoolean(params.require_pfp ?? params.requirePfp, true),
+          require_bio: ensureBoolean(params.require_bio ?? params.requireBio, true),
+        },
+      }
+    }
+
+    if (ruleType === BADGE_RULES.DAFTAR_SWAP_COUNT) {
+      return {
+        ok: true,
+        ruleParams: {
+          min: ensureIntegerInRange(params.min ?? params.count ?? 1, 1, 100_000, 1),
+        },
+      }
+    }
+
+    if (ruleType === BADGE_RULES.DAFTAR_VOLUME_USD) {
+      return {
+        ok: true,
+        ruleParams: {
+          min: ensureNumberInRange(params.min ?? params.amount ?? 10, 0, 100_000_000, 10),
         },
       }
     }

@@ -470,95 +470,8 @@ export const discontinueBadge = async ({
   });
 };
 
-export const updateBadgeTimeLimits = async ({
-  signAndSubmitTransaction,
-  sender,
-  badgeId,
-  startsAt,
-  endsAt,
-}) => {
-  void signAndSubmitTransaction;
-  void sender;
-  void badgeId;
-  void startsAt;
-  void endsAt;
-  throw new Error('update_badge_time_limits was removed. Create a new badge definition for updated timing windows.');
-};
-
-export const updateBadgeMetadata = async ({
-  signAndSubmitTransaction,
-  sender,
-  badgeId,
-  name,
-  description,
-  imageUri,
-  metadataUri,
-  metadataHash,
-  category,
-  rarity,
-  xpValue,
-  ruleNote,
-}) => {
-  void signAndSubmitTransaction;
-  void sender;
-  void badgeId;
-  void name;
-  void description;
-  void imageUri;
-  void metadataUri;
-  void metadataHash;
-  void category;
-  void rarity;
-  void xpValue;
-  void ruleNote;
-  throw new Error('update_badge_metadata was removed from the contract. Create a replacement badge if metadata must change.');
-};
-
-export const updateBadgeRule = async ({
-  signAndSubmitTransaction,
-  sender,
-  badgeId,
-  minValue,
-  dappAddress,
-  extraData,
-}) => {
-  void signAndSubmitTransaction;
-  void sender;
-  void badgeId;
-  void minValue;
-  void dappAddress;
-  void extraData;
-  throw new Error('update_badge_rule was removed. Rule enforcement now happens off-chain before mint signature issuance.');
-};
-
-export const updateBadgeMaxSupply = async ({
-  signAndSubmitTransaction,
-  sender,
-  badgeId,
-  maxSupply,
-}) => {
-  void signAndSubmitTransaction;
-  void sender;
-  void badgeId;
-  void maxSupply;
-  throw new Error('update_badge_max_supply was removed from the contract.');
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════════════════
-// ADMIN FUNCTIONS - Allowlist Management
-
-export const updateBadgeFee = async ({
-  signAndSubmitTransaction,
-  sender,
-  badgeId,
-  newFee,
-}) => {
-  void signAndSubmitTransaction;
-  void sender;
-  void badgeId;
-  void newFee;
-  throw new Error('update_badge_fee was removed from the contract.');
-};
+// Note: updateBadgeTimeLimits, updateBadgeMetadata, updateBadgeRule, updateBadgeMaxSupply, updateBadgeFee, addAllowlistEntries and removeAllowlistEntries 
+// were removed as they are no longer supported by the soulbound-signature-based contract architecture.
 
 export const setFeeTreasury = async ({
   signAndSubmitTransaction,
@@ -578,26 +491,7 @@ export const setFeeTreasury = async ({
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
-// ADMIN FUNCTIONS - Allowlist Management
-// ═══════════════════════════════════════════════════════════════════════════════════════════
-
-export const addAllowlistEntries = async ({
-  signAndSubmitTransaction,
-  sender,
-}) => {
-  void signAndSubmitTransaction;
-  void sender;
-  throw new Error('add_allowlist_entries was removed from the contract. Enforce allowlists in backend signature policy.');
-};
-
-export const removeAllowlistEntries = async ({
-  signAndSubmitTransaction,
-  sender,
-}) => {
-  void signAndSubmitTransaction;
-  void sender;
-  throw new Error('remove_allowlist_entries was removed from the contract. Enforce allowlists in backend signature policy.');
-};
+// USER FUNCTIONS - Badge Minting
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // USER FUNCTIONS - Badge Minting
@@ -637,16 +531,7 @@ export const mintBadge = async ({
   return result;
 };
 
-// mintBadgeWithBalance is intentionally removed.
-// The new contract exposes only one mint entry function: mint(user, badge_id, signature_bytes).
-// MIN_BALANCE eligibility is now verified server-side; the caller receives a signature and
-// calls mintBadge exactly like every other badge type.
-export const mintBadgeWithBalance = async () => {
-  throw new Error(
-    'mintBadgeWithBalance is no longer supported. ' +
-    'Use mintBadge with a signatureBytes obtained from /api/badges/sign instead.',
-  );
-};
+// mintBadgeWithBalance removed. Use mintBadge with signature.
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // ADMIN FUNCTIONS - Registry Management

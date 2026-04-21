@@ -56,12 +56,12 @@ export default function Home() {
     const query = searchQuery.trim();
     
     if (!query) {
-      setSearchError('Please enter a wallet address');
+      setSearchError(t(language, 'searchErrorEmpty'));
       return;
     }
     
     if (!isValidAddress(query)) {
-      setSearchError('Invalid wallet address format');
+      setSearchError(t(language, 'searchErrorInvalid'));
       return;
     }
     

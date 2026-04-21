@@ -235,7 +235,28 @@ export const BADGE_STATUS_COLORS = {
 };
 
 // ─── XP & Level System ───────────────────────────────────────────────
-const XP_PER_LEVEL = 100;
+const LEVEL_XP_REQUIREMENTS = [
+  0,      // Level 1
+  100,    // Level 2
+  200,    // Level 3
+  400,    // Level 4
+  600,    // Level 5
+  900,    // Level 6
+  1200,   // Level 7
+  1600,   // Level 8
+  2000,   // Level 9
+  2500,   // Level 10
+  3200,   // Level 11
+  4000,   // Level 12
+  5000,   // Level 13
+  6200,   // Level 14
+  7500,   // Level 15
+  9000,   // Level 16
+  11000,  // Level 17
+  13500,  // Level 18
+  16500,  // Level 19
+  20000,  // Level 20
+];
 
 export const getRarityInfo = (rarity) => BADGE_RARITY[rarity] || BADGE_RARITY.COMMON;
 
@@ -247,9 +268,29 @@ export const calculateTotalXP = (badges) => {
   }, 0);
 };
 
-export const getLevelFromXP = (xp) => Math.floor(xp / XP_PER_LEVEL) + 1;
-export const getXPForLevel = (level) => (level - 1) * XP_PER_LEVEL;
-export const getNextLevelXP = (xp) => getXPForLevel(getLevelFromXP(xp) + 1);
+export const getLevelFromXP = (xp) => {
+  const numericXP = Number(xp) || 0;
+  for (let i = LEVEL_XP_REQUIREMENTS.length - 1; i >= 0; i--) {
+    if (numericXP >= LEVEL_XP_REQUIREMENTS[i]) {
+      return i + 1;
+    }
+  }
+  return 1;
+};
+
+export const getXPForLevel = (level) => {
+  const lvl = Math.max(1, Math.min(level, LEVEL_XP_REQUIREMENTS.length));
+  return LEVEL_XP_REQUIREMENTS[lvl - 1];
+};
+
+export const getNextLevelXP = (xp) => {
+  const currentLvl = getLevelFromXP(xp);
+  if (currentLvl >= LEVEL_XP_REQUIREMENTS.length) {
+    // If max level reached, we could return a theoretical next level with +5000 XP increments
+    return LEVEL_XP_REQUIREMENTS[LEVEL_XP_REQUIREMENTS.length - 1] + 5000;
+  }
+  return LEVEL_XP_REQUIREMENTS[currentLvl];
+};
 
 export const getLevelProgress = (xp) => {
   const currentLevel = getLevelFromXP(xp);
@@ -265,34 +306,6 @@ export const getLevelProgress = (xp) => {
     percentage: requiredXP > 0 ? Math.min(100, (progressXP / requiredXP) * 100) : 100,
   };
 };
-
-// ─── Predefined Badge Templates ──────────────────────────────────────
-export const ACTIVITY_BADGE_TIERS = [
-  { count: 1, name: 'First Step', emoji: '👣', description: 'Made first transaction', rarity: 'COMMON', xp: 10, percentileThreshold: 95 },
-  { count: 10, name: 'Active Trader', emoji: '📈', description: '10+ transactions', rarity: 'UNCOMMON', xp: 25, percentileThreshold: 70 },
-  { count: 25, name: 'Committed User', emoji: '💪', description: '25+ transactions', rarity: 'RARE', xp: 40, percentileThreshold: 40 },
-  { count: 50, name: 'Power User', emoji: '⚡', description: '50+ transactions', rarity: 'EPIC', xp: 60, percentileThreshold: 15 },
-  { count: 100, name: 'Trade Master', emoji: '🎯', description: '100+ transactions', rarity: 'EPIC', xp: 75, percentileThreshold: 5 },
-  { count: 250, name: 'Legendary Trader', emoji: '👑', description: '250+ transactions', rarity: 'LEGENDARY', xp: 100, percentileThreshold: 1 },
-];
-
-export const LONGEVITY_BADGE_TIERS = [
-  { days: 7, name: '7-Day Pioneer', emoji: '🌟', description: '7 days on-chain', rarity: 'COMMON', xp: 10, percentileThreshold: 90 },
-  { days: 30, name: 'Monthly Member', emoji: '📅', description: '30 days on-chain', rarity: 'UNCOMMON', xp: 25, percentileThreshold: 60 },
-  { days: 100, name: 'Century Veteran', emoji: '💯', description: '100 days on-chain', rarity: 'RARE', xp: 50, percentileThreshold: 30 },
-  { days: 200, name: '200-Day Champion', emoji: '🏆', description: '200 days on-chain', rarity: 'EPIC', xp: 70, percentileThreshold: 10 },
-  { days: 365, name: 'Annual Legend', emoji: '🎖️', description: '365 days on-chain', rarity: 'EPIC', xp: 85, percentileThreshold: 3 },
-  { days: 730, name: 'Two-Year Titan', emoji: '🚀', description: '730 days on-chain', rarity: 'LEGENDARY', xp: 120, percentileThreshold: 0.5 },
-];
-
-export const DAFTAR_BADGE_TIERS = [
-  { type: 'daftar_profile_complete', name: 'Profile Pioneer', emoji: '👤', description: 'Completed your Daftar profile', rarity: 'COMMON', xp: 15, params: { requirePfp: true, requireBio: true } },
-  { type: 'daftar_swap_count', count: 1, name: 'First Trade', emoji: '🚀', description: 'Made your first swap on Daftar', rarity: 'COMMON', xp: 10, params: { min: 1 } },
-  { type: 'daftar_swap_count', count: 100, name: 'Daftar Master', emoji: '🉐', description: 'Completed 100 swaps on Daftar', rarity: 'EPIC', xp: 100, params: { min: 100 } },
-  { type: 'daftar_volume_usd', amount: 10, name: 'Liquidity Explorer', emoji: '🌊', description: 'Traded over $10 volume', rarity: 'COMMON', xp: 10, params: { min: 10 } },
-  { type: 'daftar_volume_usd', amount: 100, name: 'Trading Pro', emoji: '📊', description: 'Traded over $100 volume', rarity: 'RARE', xp: 50, params: { min: 100 } },
-  { type: 'daftar_volume_usd', amount: 1000, name: 'Volume Whale', emoji: '🐋', description: 'Traded over $1000 volume', rarity: 'LEGENDARY', xp: 250, params: { min: 1000 } },
-];
 
 // ─── Badge Definition Factory ────────────────────────────────────────
 export const createBadgeDefinition = ({

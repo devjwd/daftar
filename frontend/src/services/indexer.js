@@ -5,6 +5,7 @@
  */
 
 import { DEFAULT_NETWORK } from "../config/network.js";
+import { devLog } from "../utils/devLogger.js";
 
 /**
  * Get the appropriate indexer endpoint based on network
@@ -103,7 +104,7 @@ export const checkAccountExists = async (address) => {
     const txCount = data?.account_transactions_aggregate?.aggregate?.count || 0;
     return { exists: txCount > 0, txCount };
   } catch (error) {
-    console.warn("checkAccountExists error:", error);
+    devLog("checkAccountExists error:", error);
     return { exists: false, txCount: 0 };
   }
 };
@@ -264,7 +265,7 @@ export const getWalletAge = async (address) => {
     
     return { firstTxTimestamp: null, txCount };
   } catch (error) {
-    console.warn("Failed to fetch wallet age:", error);
+    devLog("Failed to fetch wallet age:", error);
     return { firstTxTimestamp: null, txCount: 0 };
   }
 };
@@ -306,7 +307,7 @@ export const getRecentTransactions = async (address, limit = 30) => {
     const data = await queryIndexer(query, { address: normalizedAddress, limit });
     return data?.fungible_asset_activities || [];
   } catch (error) {
-    console.warn("Failed to fetch recent transactions:", error);
+    devLog("Failed to fetch recent transactions:", error);
     return [];
   }
 };
@@ -352,12 +353,10 @@ export const getUserNFTHoldings = async (address) => {
   try {
     const data = await queryIndexer(query, { address: normalizedAddress });
     const holdings = data?.current_token_ownerships_v2 || [];
-    if (import.meta.env?.DEV) {
-      console.log(`🎨 Indexer returned ${holdings.length} NFT holdings`);
-    }
+    devLog(`🎨 Indexer returned ${holdings.length} NFT holdings`);
     return holdings;
   } catch (error) {
-    console.warn("Failed to fetch NFT holdings:", error);
+    devLog("Failed to fetch NFT holdings:", error);
     return [];
   }
 };
@@ -396,10 +395,10 @@ export const getYuzuLiquidityPositions = async (address) => {
   try {
     const data = await queryIndexer(query, { address: normalizedAddress });
     const events = data?.events || [];
-    console.log(`🍋 Found ${events.length} Yuzu liquidity events for ${normalizedAddress}`);
+    devLog(`🍋 Found ${events.length} Yuzu liquidity events for ${normalizedAddress}`);
     return events;
   } catch (error) {
-    console.warn("Failed to fetch Yuzu positions:", error);
+    devLog("Failed to fetch Yuzu positions:", error);
     return [];
   }
 };

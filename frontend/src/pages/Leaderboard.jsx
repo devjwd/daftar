@@ -5,6 +5,10 @@ import './Leaderboard.css';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
+const devLog = (...args) => {
+  if (import.meta.env.DEV) console.log(...args);
+};
+
 const truncateAddress = (value) => {
   const address = String(value || '').trim();
   if (address.length <= 12) return address || 'Unknown';
@@ -35,11 +39,11 @@ function LeaderboardSkeleton() {
   return (
     <div className="leaderboard-table leaderboard-table--loading" aria-hidden="true">
       <div className="leaderboard-header-row">
-        <span>Rank</span>
-        <span>User</span>
-        <span>Address</span>
-        <span>XP</span>
-        <span>Level</span>
+        <span>{t(getStoredLanguagePreference(), 'leaderRank')}</span>
+        <span>{t(getStoredLanguagePreference(), 'leaderUser')}</span>
+        <span>{t(getStoredLanguagePreference(), 'leaderAddress')}</span>
+        <span>{t(getStoredLanguagePreference(), 'leaderXP')}</span>
+        <span>{t(getStoredLanguagePreference(), 'leaderLevel')}</span>
       </div>
 
       {Array.from({ length: 8 }).map((_, index) => (
@@ -111,11 +115,11 @@ export default function Leaderboard() {
           return;
         }
 
-        console.error('[leaderboard] failed to load leaderboard', fetchError);
+        devLog('[leaderboard] failed to load leaderboard', fetchError);
         if (!active) return;
 
         setEntries([]);
-        setError('Unable to load leaderboard right now.');
+        setError(t(language, 'leaderError'));
       } finally {
         if (active) {
           setLoading(false);
@@ -160,11 +164,11 @@ export default function Leaderboard() {
         {!loading && !error && entries.length > 0 ? (
           <div className="leaderboard-table">
             <div className="leaderboard-header-row">
-              <span>Rank</span>
-              <span>User</span>
-              <span>Address</span>
-              <span>XP</span>
-              <span>Level</span>
+              <span>{t(language, 'leaderRank')}</span>
+              <span>{t(language, 'leaderUser')}</span>
+              <span>{t(language, 'leaderAddress')}</span>
+              <span>{t(language, 'leaderXP')}</span>
+              <span>{t(language, 'leaderLevel')}</span>
             </div>
 
             {entries.map((entry, index) => {
@@ -180,8 +184,8 @@ export default function Leaderboard() {
                   <div className="col-user">
                     <span className={`user-badge ${rank <= 3 ? `user-badge--${rank}` : ''}`.trim()} aria-hidden="true" />
                     <div className="leaderboard-user-meta">
-                      <span className="username">{entry.username || 'Anonymous'}</span>
-                      <span className="leaderboard-user-subtitle">{entry.username ? 'Profile set' : 'No username set'}</span>
+                      <span className="username">{entry.username || t(language, 'leaderAnonymous')}</span>
+                      <span className="leaderboard-user-subtitle">{entry.username ? t(language, 'leaderProfileSet') : t(language, 'leaderNoUsername')}</span>
                     </div>
                   </div>
 
@@ -194,7 +198,7 @@ export default function Leaderboard() {
                   </div>
 
                   <div className="col-level">
-                    <span className="leaderboard-level">Level {entry.level}</span>
+                    <span className="leaderboard-level">{t(language, 'leaderLevel')} {entry.level}</span>
                   </div>
                 </div>
               );

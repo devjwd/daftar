@@ -6,6 +6,8 @@
  * remain permanent even if the centralized server goes offline.
  */
 
+import { devLog } from '../utils/devLogger.js';
+
 const IPFS_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';
 
 /**
@@ -34,7 +36,7 @@ export const pinMetadataToIPFS = async (metadata) => {
       gatewayUrl: `${IPFS_GATEWAY}${ipfsHash}`
     };
   } catch (error) {
-    console.error('[storageService] Failed to pin to IPFS:', error);
+    devLog('[storageService] Failed to pin to IPFS:', error);
     return { success: false, error: error.message };
   }
 };

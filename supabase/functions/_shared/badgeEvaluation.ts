@@ -93,6 +93,26 @@ export const evaluateRule = async (
     return { eligible: true, reason: 'cached', fromCache: true }
   }
 
+  // Support for modern "criteria" array
+  const criteria = Array.isArray(badge.criteria) ? badge.criteria : []
+  if (criteria.length > 0) {
+    const results = await Promise.all(criteria.map(async (c: any) => {
+      // Small recursion or direct call to rule evaluator
+      if (!c.type) return { eligible: false, reason: 'missing type in criterion' }
+      const mockBadge = { ...badge, rule_type: c.type, rule_params: c.params || {} }
+      return await evaluateRule(supabase, walletAddress, mockBadge, null)
+    }))
+
+    const allEligible = results.every(r => r.eligible)
+    const firstFailure = results.find(r => !r.eligible)
+
+    return {
+      eligible: allEligible,
+      reason: allEligible ? 'all-criteria-met' : (firstFailure?.reason || 'criteria-not-met'),
+      fromCache: false
+    }
+  }
+
   const ruleType = normalizeRuleType(badge.rule_type) ?? BADGE_RULES.ATTESTATION
   const paramsResult = validateRuleParams(ruleType, badge.rule_params)
   if (!paramsResult.ok) {
@@ -165,7 +185,41 @@ export const evaluateRule = async (
       .maybeSingle()
 
     if (error) throw new Error(error.message)
-    const firstTimestamp = firstTx?.tx_timestamp ? Date.parse(String(firstTx.tx_timestamp)) : Number.NaN
+    let firstTimestamp = firstTx?.tx_timestamp ? Date.parse(String(firstTx.tx_timestamp)) : Number.NaN
+
+    // Indexer Fallback: If local tx history doesn't have the first tx, query the indexer
+    if (!Number.isFinite(firstTimestamp)) {
+      try {
+        const fullnodeUrl = getFullnodeUrl()
+        const indexerUrl = fullnodeUrl.replace('/v1', '/v1/graphql').replace('fullnode.', 'indexer.') // Simple heuristic
+        // Real logic: use the indexer check I know from frontend
+        const query = `query GetWalletAge($address: String!) { account_transactions(where: { account_address: { _eq: $address } }, order_by: { transaction_version: asc }, limit: 1) { transaction_version } }`
+        const idxResp = await fetch(indexerUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, variables: { address: walletAddress } })
+        })
+        const idxData = await idxResp.json()
+        const firstVer = idxData?.data?.account_transactions?.[0]?.transaction_version
+
+        if (firstVer) {
+          const tsQuery = `query GetTxTimestamp($version: bigint!) { block_metadata_transactions(where: { version: { _lte: $version } }, order_by: { version: desc }, limit: 1) { timestamp } }`
+          const tsResp = await fetch(indexerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: tsQuery, variables: { version: firstVer } })
+          })
+          const tsData = await tsResp.json()
+          const ts = tsData?.data?.block_metadata_transactions?.[0]?.timestamp
+          if (ts) {
+            firstTimestamp = Number(ts) / 1000
+          }
+        }
+      } catch (err) {
+        console.warn('Indexer fallback failed:', err)
+      }
+    }
+
     const activeDays = Number.isFinite(firstTimestamp)
       ? Math.floor((Date.now() - firstTimestamp) / 86_400_000)
       : 0
@@ -211,8 +265,8 @@ export const evaluateRule = async (
       const rowContract = String(row?.dapp_contract ?? '').trim().toLowerCase()
       return Boolean(
         (dappKey && rowKey === dappKey)
-          || (dappName && rowName === dappName)
-          || (dappContract && rowContract === dappContract),
+        || (dappName && rowName === dappName)
+        || (dappContract && rowContract === dappContract),
       )
     })
     return {
@@ -222,9 +276,86 @@ export const evaluateRule = async (
     }
   }
 
+  if (ruleType === BADGE_RULES.DAFTAR_PROFILE_COMPLETE) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username, bio, avatar_url')
+      .eq('wallet_address', walletAddress)
+      .maybeSingle()
+
+    if (!profile) return { eligible: false, reason: 'profile-not-found', fromCache: false }
+
+    const requirePfp = ruleParams.require_pfp !== false
+    const requireBio = ruleParams.require_bio !== false
+
+    let eligible = !!profile.username
+    if (requirePfp && !profile.avatar_url) eligible = false
+    if (requireBio && !profile.bio) eligible = false
+
+    return {
+      eligible,
+      reason: eligible ? 'profile-complete' : 'profile-incomplete',
+      fromCache: false
+    }
+  }
+
+  if (ruleType === BADGE_RULES.DAFTAR_SWAP_COUNT) {
+    const min = Number(ruleParams.min || 1)
+    const { data: stats } = await supabase
+      .from('dapp_swap_stats')
+      .select('total_swaps')
+      .eq('wallet_address', walletAddress)
+      .maybeSingle()
+
+    const current = Number(stats?.total_swaps || 0)
+    return {
+      eligible: current >= min,
+      reason: current >= min ? 'swap-threshold-met' : 'swap-threshold-not-met',
+      fromCache: false
+    }
+  }
+
+  if (ruleType === BADGE_RULES.DAFTAR_VOLUME_USD) {
+    const min = Number(ruleParams.min || 10)
+    const { data: stats } = await supabase
+      .from('dapp_swap_stats')
+      .select('total_volume_usd')
+      .eq('wallet_address', walletAddress)
+      .maybeSingle()
+
+    const current = Number(stats?.total_volume_usd || 0)
+    return {
+      eligible: current >= min,
+      reason: current >= min ? 'volume-threshold-met' : 'volume-threshold-not-met',
+      fromCache: false
+    }
+  }
+
+  if (ruleType === BADGE_RULES.NFT_HOLDER) {
+    const collectionAddress = normalizeAddress(ruleParams.collection_address || ruleParams.collectionAddress)
+    const minCount = Math.max(1, Number(ruleParams.min_count ?? ruleParams.minCount ?? 1))
+    
+    // Logic: In a full implementation, we would query the indexer for NFT ownership.
+    // For now, we stub this as "manual attestation required" until the indexer integration is finalized.
+    return {
+      eligible: cachedAttestation?.eligible === true,
+      reason: cachedAttestation?.eligible === true ? 'nft-ownership-verified' : 'nft-ownership-not-detected-or-requires-manual-verification',
+      fromCache: !!cachedAttestation?.eligible,
+    }
+  }
+
+  if (ruleType === BADGE_RULES.HOLDING_PERIOD) {
+    // Logic: Requires historical balance snapshots.
+    return {
+      eligible: cachedAttestation?.eligible === true,
+      reason: cachedAttestation?.eligible === true ? 'holding-period-met' : 'holding-period-verification-requires-manual-attestation',
+      fromCache: !!cachedAttestation?.eligible,
+    }
+  }
+
   return {
     eligible: cachedAttestation?.eligible === true,
-    reason: cachedAttestation?.eligible === true ? 'cached-unsupported-rule' : 'unsupported-rule',
+    reason: cachedAttestation?.eligible === true ? 'cached-verified' : `automated-verification-not-yet-implemented-for-rule-${ruleType}`,
     fromCache: cachedAttestation?.eligible === true,
   }
 }

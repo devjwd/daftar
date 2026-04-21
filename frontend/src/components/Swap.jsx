@@ -16,6 +16,8 @@ import { getTokenDecimals } from "../utils/tokenUtils";
 import { getTokenInfo, getSwapAssetTypeBySymbol, MOVEMENT_TOKENS } from "../config/tokens";
 import { TOKEN_VISUALS } from "../config/display";
 import { useTokenPrices } from "../hooks/useTokenPrices";
+import { emit } from "../services/badges/badgeStore";
+import { getStoredLanguagePreference, t } from "../utils/language";
 import TransactionToast from "./TransactionToast";
 import "./Swap.css";
 
@@ -184,6 +186,17 @@ const formatDisplayAmount = (symbol, quantity) => {
 
 const Swap = ({ balances, onSwapSuccess }) => {
   const navigate = useNavigate();
+  const [swapComplete, setSwapComplete] = useState(null);
+  const [lang, setLang] = useState(getStoredLanguagePreference());
+
+  useEffect(() => {
+    const handleLanguageChange = (e) => {
+      setLang(e.detail.language);
+    };
+    window.addEventListener("languagechange", handleLanguageChange);
+    return () => window.removeEventListener("languagechange", handleLanguageChange);
+  }, []);
+
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const { prices: priceMap } = useTokenPrices();
   const [swapSettings, setSwapSettings] = useState(() => normalizeMosaicSwapSettings(getSwapSettings()));
@@ -200,7 +213,6 @@ const Swap = ({ balances, onSwapSuccess }) => {
   const [slippage, setSlippage] = useState(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE);
   const [showSettings, setShowSettings] = useState(false);
   const [txToast, setTxToast] = useState(null);
-  const [swapComplete, setSwapComplete] = useState(null);
   const [priceImpact, setPriceImpact] = useState(0);
   const [isQuoting, setIsQuoting] = useState(false);
   const [routingResult, setRoutingResult] = useState(null);
@@ -696,7 +708,16 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 amountInUsd: fromNumeric * fromPrice,
                 amountOutUsd: toNumeric * toPrice,
               }),
-            }).catch((recordErr) => devLog("Swap record failed (non-blocking):", recordErr));
+            })
+              .then(() => {
+                devLog("Swap record saved. Refreshing level...");
+                emit("awards:changed");
+                // Trigger auto-award check in background
+                import("../services/badges/AutoAwardService.js").then(module => {
+                  module.checkAndAwardBadges(account.address, { triggeredBy: 'swap' });
+                }).catch(err => console.warn("AutoAward trigger failed:", err));
+              })
+              .catch((recordErr) => devLog("Swap record failed (non-blocking):", recordErr));
           } catch (recordErr) {
             devLog("Swap record setup failed:", recordErr);
           }
@@ -800,13 +821,13 @@ const Swap = ({ balances, onSwapSuccess }) => {
       <div className="settings-overlay" onClick={() => setShowSettings(false)}>
         <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
           <div className="settings-header">
-            <div className="settings-header-content">
+            <div className="settings-h">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="settings-icon">
                 <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor"/>
               </svg>
               <div className="settings-title-group">
-                <h3>Swap Settings</h3>
-                <p className="settings-subtitle">Mosaic execution controls</p>
+                <h3>{t(lang, 'swapSettings')}</h3>
+                <p className="settings-subtitle">{t(lang, 'swapMosaicExec')}</p>
               </div>
             </div>
             <button className="close-btn" onClick={() => setShowSettings(false)}>
@@ -819,8 +840,8 @@ const Swap = ({ balances, onSwapSuccess }) => {
           <div className="settings-body">
             <div className="settings-section">
               <div className="settings-section-head">
-                <label>Slippage Tolerance</label>
-                <span className="settings-hint">Current: {slippage}%</span>
+                <label>{t(lang, 'swapSlippageTolerance')}</label>
+                <span className="settings-hint">{t(lang, 'swapCurrentSlippage', { slippage })}</span>
               </div>
               <div className="slippage-options">
                 {presetSlippages.map((v) => (
@@ -854,26 +875,26 @@ const Swap = ({ balances, onSwapSuccess }) => {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z" />
                   </svg>
-                  High slippage may result in unfavorable execution.
+                  {t(lang, 'swapHighSlippageWarning')}
                 </div>
               )}
             </div>
 
             <div className="settings-section aggregator-section">
               <div className="settings-section-head">
-                <label>Aggregator</label>
-                <span className="settings-hint">Provider: 1/1</span>
+                <label>{t(lang, 'swapAggregator')}</label>
+                <span className="settings-hint">{t(lang, 'swapProviderCount')}</span>
               </div>
 
               <div className="aggregator-panel">
                 <div className="aggregator-panel-head">
-                  <span>Mosaic is the fixed aggregator for all swaps.</span>
+                  <span>{t(lang, 'swapMosaicAggregatorNote')}</span>
                 </div>
 
                 <div className="aggregator-list" role="list">
                   <div className="aggregator-row">
                     <span className="aggregator-label">Mosaic</span>
-                    <span className="aggregator-badge">Active</span>
+                    <span className="aggregator-badge">{t(lang, 'swapActive')}</span>
                   </div>
                 </div>
               </div>
@@ -881,7 +902,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
             <div className="settings-footer">
               <button className="settings-reset-btn" onClick={() => setSlippage(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE)}>
-                Reset
+                {t(lang, 'swapReset')}
               </button>
               <button
                 className="settings-save-btn"
@@ -893,7 +914,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                   setShowSettings(false);
                 }}
               >
-                Done
+                {t(lang, 'swapDone')}
               </button>
             </div>
           </div>
@@ -912,7 +933,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
           {/* Header */}
           <div className="swap-header">
             <div className="swap-header-left">
-              <h2>Swap</h2>
+              <h2>{t(lang, 'swapTitle')}</h2>
             </div>
             <div className="swap-header-actions">
               <button
@@ -941,7 +962,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 <path d="M12 13v6M6 15l-3-2M18 15l3-2M8 17H4v2c0 1.1.9 2 2 2h2M20 17h4v2c0 1.1-.9 2-2 2h-2" />
                 <line x1="12" y1="13" x2="12" y2="18" />
               </svg>
-              <p>Connect your wallet to start swapping</p>
+              <p>{t(lang, 'swapConnectPrompt')}</p>
             </div>
           )}
 
@@ -953,8 +974,8 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 <circle cx="6" cy="18" r="3" fill="none" />
                 <circle cx="18" cy="18" r="3" fill="none" />
               </svg>
-              <p>No tokens available to swap</p>
-              <span className="empty-hint">Deposit tokens to your wallet first</span>
+              <p>{t(lang, 'swapEmptyTokens')}</p>
+              <span className="empty-hint">{t(lang, 'swapEmptyTokensHint')}</span>
             </div>
           )}
 
@@ -1006,8 +1027,8 @@ const Swap = ({ balances, onSwapSuccess }) => {
               {/* To Token Input */}
               <div className="swap-input-group">
                 <div className="swap-input-label">
-                  <span>To</span>
-                  {toToken && <span className="swap-balance">Balance: {toToken.amount}</span>}
+                  <span>{t(lang, 'swapTo')}</span>
+                  {toToken && <span className="swap-balance">{t(lang, 'swapBalance', { amount: toToken.amount })}</span>}
                 </div>
                 <div className="swap-input-container">
                   <input
@@ -1054,29 +1075,29 @@ const Swap = ({ balances, onSwapSuccess }) => {
               {fromToken && toToken && fromAmount && toAmount && !error && (
                 <div className="swap-info">
                   <div className="swap-info-row">
-                    <span>Rate</span>
+                    <span>{t(lang, 'swapRate')}</span>
                     <span>
                       1 {fromToken.symbol} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(6)} {toToken.symbol}
                     </span>
                   </div>
                   <div className="swap-info-row">
-                    <span>Price Impact</span>
+                    <span>{t(lang, 'swapPriceImpact')}</span>
                     <span className={priceImpact > 3 ? "warning" : ""}>~{priceImpact.toFixed(2)}%</span>
                   </div>
                   <div className="swap-info-row">
-                    <span>Min. Received</span>
+                    <span>{t(lang, 'swapMinReceived')}</span>
                     <span>{minReceived} {toToken.symbol}</span>
                   </div>
                   <div className="swap-info-row">
-                    <span>Slippage</span>
+                    <span>{t(lang, 'swapSlippage')}</span>
                     <span>{slippage}%</span>
                   </div>
                   <div className="swap-info-row">
-                    <span>Network Fee</span>
+                    <span>{t(lang, 'swapNetworkFee')}</span>
                     <span>~0.001 MOVE</span>
                   </div>
                   <div className="swap-info-row highlight">
-                    <span>Route</span>
+                    <span>{t(lang, 'swapRoute')}</span>
                     <span className="mosaic-router">
                       {bestProvider}
                     </span>
@@ -1096,6 +1117,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
           excludeToken={toToken}
           tokens={availableTokens}
           getTokenLogo={getTokenLogo}
+          lang={lang}
         />
       )}
       {showToSelector && (
@@ -1106,6 +1128,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
           excludeToken={fromToken}
           tokens={availableTokens}
           getTokenLogo={getTokenLogo}
+          lang={lang}
         />
       )}
 
@@ -1122,10 +1145,10 @@ const Swap = ({ balances, onSwapSuccess }) => {
         <div className="swap-complete-overlay" role="dialog" aria-modal="true" aria-label="Swap complete">
           <div className="swap-complete-modal">
             <div className="swap-complete-check">✓</div>
-            <h3>Swap successful</h3>
+            <h3>{t(lang, 'swapSuccess')}</h3>
 
             <div className="swap-complete-received">
-              <span className="swap-complete-label">Received</span>
+              <span className="swap-complete-label">{t(lang, 'swapReceived')}</span>
               <div className="swap-complete-amount-row">
                 {swapComplete.toLogo ? (
                   <img src={swapComplete.toLogo} alt={`${swapComplete.toSymbol} logo`} className="swap-complete-token-logo" />
@@ -1134,7 +1157,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 )}
                 <div>
                   <div className="swap-complete-amount">{swapComplete.toAmount} {swapComplete.toSymbol}</div>
-                  <div className="swap-complete-sub">via {swapComplete.provider}</div>
+                  <div className="swap-complete-sub">{t(lang, 'swapVia', { provider: swapComplete.provider })}</div>
                 </div>
               </div>
             </div>
@@ -1148,14 +1171,14 @@ const Swap = ({ balances, onSwapSuccess }) => {
                   setSwapComplete(null);
                 }}
               >
-                See details
+                {t(lang, 'swapSeeDetails')}
               </button>
               <button
                 type="button"
                 className="swap-complete-btn swap-complete-btn-primary"
                 onClick={() => setSwapComplete(null)}
               >
-                Done
+                {t(lang, 'swapDone')}
               </button>
             </div>
           </div>
@@ -1189,7 +1212,7 @@ function TokenBadge({ token, getTokenLogo }) {
 // TokenSelectorPanel — modal for picking a token
 // ===========================================================================
 
-function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, tokens, getTokenLogo }) {
+function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, tokens, getTokenLogo, lang }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredTokens = useMemo(() => {
@@ -1204,7 +1227,7 @@ function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, to
     <div className="token-selector-overlay" onClick={onClose}>
       <div className="token-selector-panel" onClick={(e) => e.stopPropagation()}>
         <div className="token-selector-header">
-          <h3>Select Token</h3>
+          <h3>{t(lang, 'swapSelectToken')}</h3>
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
@@ -1220,7 +1243,7 @@ function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, to
 
         <div className="token-list">
           {filteredTokens.length === 0 ? (
-            <div className="empty-tokens">{searchQuery ? "No tokens match" : "No tokens available"}</div>
+            <div className="empty-tokens">{searchQuery ? t(lang, 'swapNoTokensMatch') : t(lang, 'swapNoTokensMatch')}</div>
           ) : (
             filteredTokens.map((token) => {
               const isSelected = selectedToken?.id === token.id;

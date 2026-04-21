@@ -5,19 +5,17 @@
  * Emits events so UI can react to changes in real-time.
  */
 import {
-  BADGE_STORE_KEY,
-  BADGE_AWARDS_KEY,
   BADGE_RULES,
-  ACTIVITY_BADGE_TIERS,
-  LONGEVITY_BADGE_TIERS,
   CRITERIA_TYPES,
   createBadgeDefinition,
   validateBadgeDefinition,
 } from '../../config/badges.js';
 import { awardBadgeToUser, fetchAllBadges, fetchUserBadges, saveBadgeDefinitions } from '../badgeApi.js';
 
-const BADGE_STORE_META_KEY = 'movement_badges_meta_v1';
-const STORE_SCHEMA_VERSION = 2;
+const BADGE_STORE_KEY = 'movement_badges_v3';
+const BADGE_AWARDS_KEY = 'movement_badge_awards_v3';
+const BADGE_STORE_META_KEY = 'movement_badges_meta_v3';
+const STORE_SCHEMA_VERSION = 3;
 
 function normalizeBadgeId(value) {
   const normalized = String(value || '')
@@ -28,16 +26,11 @@ function normalizeBadgeId(value) {
   return normalized || `badge-${Date.now()}`;
 }
 
-function buildSystemBadges() {
-  return [];
-}
-
 function normalizeLoadedBadge(rawBadge) {
   if (!rawBadge || typeof rawBadge !== 'object') return null;
-
-  const id = rawBadge.id && !String(rawBadge.id).startsWith('badge_')
-    ? normalizeBadgeId(rawBadge.id)
-    : normalizeBadgeId(rawBadge.name || rawBadge.id);
+ 
+  // CRITICAL: Prefer Database UUID (badge_id or id)
+  const id = rawBadge.badge_id || rawBadge.id || `badge-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
   return {
     ...rawBadge,
@@ -57,7 +50,6 @@ function migrateAndSeedBadges() {
     return [];
   }
 
-  const systemBadges = buildSystemBadges();
   const merged = [];
   const seen = new Set();
 
@@ -70,21 +62,9 @@ function migrateAndSeedBadges() {
       merged.push(badge);
     });
 
-  for (const systemBadge of systemBadges) {
-    if (!seen.has(systemBadge.id)) {
-      merged.push(systemBadge);
-      seen.add(systemBadge.id);
-    }
-  }
-
-  const shouldPersist =
-    merged.length !== rawBadges.length ||
-    Number(storedMeta?.schemaVersion || 0) < STORE_SCHEMA_VERSION;
-
-  if (shouldPersist) {
-    writeStore(BADGE_STORE_KEY, merged);
-    writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
-  }
+  // Always persist on migration to clean up internal state
+  writeStore(BADGE_STORE_KEY, merged);
+  writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
 
   return merged;
 }
@@ -102,7 +82,7 @@ function mapCriterionToRule(criterionType) {
 // ─── Event Emitter ───────────────────────────────────────────────────
 const listeners = new Map();
 
-function emit(event, data) {
+export function emit(event, data) {
   const handlers = listeners.get(event) || [];
   handlers.forEach(fn => {
     try { fn(data); } catch (e) { console.warn('[badgeStore] listener error:', e); }

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import './Admin.css';
 import BadgeAdmin from '../components/BadgeAdmin';
+import EntityAdmin from '../components/EntityAdmin';
 import { useMovementClient } from '../hooks/useMovementClient';
 import { useTransactionTracker } from '../hooks/useTransactionTracker';
 import {
@@ -328,6 +329,19 @@ export default function Admin() {
             <button
               type="button"
               role="tab"
+              aria-selected={activeTab === 'entities'}
+              className={`admin-tab ${activeTab === 'entities' ? 'active' : ''}`}
+              onClick={() => setActiveTab('entities')}
+            >
+              <span className="admin-tab-icon" aria-hidden="true">🏢</span>
+              <span className="admin-tab-text">
+                <span className="admin-tab-title">Entities</span>
+                <span className="admin-tab-meta">Track and name protocol wallets</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={activeTab === 'settings'}
               className={`admin-tab ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => setActiveTab('settings')}
@@ -342,6 +356,7 @@ export default function Admin() {
         </div>
 
         {activeTab === 'badges' && <BadgeAdmin />}
+        {activeTab === 'entities' && <EntityAdmin />}
 
         {activeTab === 'settings' && (
           <div className="admin-content">

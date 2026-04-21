@@ -1,315 +1,106 @@
-# Movement Network Portfolio Manager
+# Daftar: Movement Network Portfolio Manager
 
-A comprehensive DeFi portfolio manager and swap interface for the Movement Network ecosystem.
+[![Deployed on Vercel](https://img.shields.io/badge/deployed-vercel-black.svg)](https://daftar.movementnetwork.xyz)
+[![Built on Movement](https://img.shields.io/badge/built%20on-Movement-blue.svg)](https://movementnetwork.xyz)
+[![Hardened: Production](https://img.shields.io/badge/security-hardened-success.svg)](#security-hardening)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 🌟 Features
-
-### 📊 Portfolio Management
-- **Real-time Balance Tracking**: View all your token balances across Movement Network
-- **DeFi Position Detection**: Automatically detect lending, staking, and LP positions
-- **USD Valuation**: Live pricing from CoinGecko
-- **Multi-Protocol Support**: Echelon, LayerBank, Meridian, Yuzu, Canopy, and more
-- **NFT Detection**: Track your Yuzu liquidity position NFTs
-
-### 💱 Token Swapping
-- **Multi-Router Support**: Choose between Mosaic (aggregator) and Yuzu (CLMM)
-- **Best Price Execution**: Mosaic finds optimal routes across all DEXs
-- **Real-time Quotes**: Live pricing with 500ms updates
-- **Slippage Protection**: Configurable tolerance (0.1% - 50%)
-- **Fee Collection**: Smart contract-based fee management
-- **Route Visualization**: See the path your trade takes
-
-### 🎨 Professional UI
-- **Glassmorphism Design**: Modern, premium interface
-- **Responsive Layout**: Works on desktop and mobile
-- **Dark Mode**: Easy on the eyes
-- **Smooth Animations**: Polished user experience
-- **Wallet Integration**: Petra and OKX wallet support
-
-## 🚀 Quick Start
-
-**5-Minute Setup:**
-```bash
-# 1. Deploy contract
-cd contracts/swap_router
-./deploy.sh testnet
-
-# 2. Initialize contract
-movement move run --function-id '<address>::router::initialize' \
-  --args u64:30 --args address:'<treasury>'
-
-# 3. Run frontend
-cd ../../frontend
-npm install
-npm run dev
-```
-
-See [QUICKSTART.md](QUICKSTART.md) for detailed steps.
-
-## 📁 Project Structure
-
-```
-Movement Portfolio Manager/
-├── contracts/               # Move smart contracts
-│   └── swap_router/        # Swap fee collection contract
-│       ├── sources/
-│       │   └── router.move # Main contract
-│       ├── Move.toml       # Package manifest
-│       ├── deploy.sh       # Deployment script
-│       └── README.md       # Contract docs
-│
-├── frontend/               # React frontend
-│   ├── src/
-│   │   ├── components/    # UI components
-│   │   │   ├── Swap.jsx   # Swap interface
-│   │   │   ├── Layout.jsx # App layout
-│   │   │   └── ...
-│   │   ├── config/        # Configuration
-│   │   │   ├── network.js # Network settings
-│   │   │   ├── tokens.js  # Token registry
-│   │   │   └── adapters/  # DeFi protocols
-│   │   ├── hooks/         # React hooks
-│   │   ├── services/      # API services
-│   │   └── pages/         # Route pages
-│   ├── package.json
-│   └── vite.config.js
-│
-└── docs/                   # Documentation
-    ├── QUICKSTART.md      # 5-minute setup
-    ├── SWAP_INTEGRATION.md # Complete guide
-    ├── SWAP_SUMMARY.md    # Implementation summary
-    └── README.md          # This file
-```
-
-## 🪙 Badge & Achievement System
-
-A new subsystem to reward on‑chain activity, longevity, and balances using customizable badges. The frontend and toolchain include:
-
-- `frontend/src/config/badges.js` – badge definitions, rarity, XP values, and rule identifiers.
-- `frontend/src/services/badgeService.js` – helpers for on‑chain badge metadata and transaction builders.
-- `frontend/src/services/badgeApi.js` – optional client for a backend that persists awarded badges.
-- `frontend/src/services/badgeAdapters/` – pluggable eligibility rules (transaction count, longevity, min balance).
-- Hooks: `useBadges`, `useUserBadges` load on‑chain and backend badges for the UI.
-- UI changes: updated profile modal, global footer, badges grid.
-
-### Running Badge Utilities
-
-You can periodically evaluate addresses against your badge configuration and call the badge award flow. A simple Node script lives in `scripts/badgeEligibilityRunner.js`:
-
-```bash
-# check a single address (prints candidates)
-node scripts/badgeEligibilityRunner.js 0xabc123
-
-# use a config file and actually POST awards to your server
-node scripts/badgeEligibilityRunner.js 0xabc123 --config=scripts/badgeConfigs.json --award
-```
-
-The script loads adapter rules from `badgeAdapters` and can be expanded to read your badge config from a database or be scheduled separately.
-
-### Supabase Badge Backend
-
-Badge verification and admin writes now run through Supabase Edge Functions under `supabase/functions/`.
-
-Deploy these functions in Supabase and configure the following secrets:
-
-```bash
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
-ADMIN_WALLET_ADDRESS=0x...
-```
-
-The frontend reads `badge_definitions` and `badge_attestations` directly with the anon key, and calls the `verify-badge`, `award-badge`, and `manage-badge-definition` Edge Functions for privileged badge actions.
-
-## 🛠️ Technology Stack
-
-### Smart Contracts
-- **Language**: Move
-- **Framework**: Aptos Framework
-- **Network**: Movement Network (Aptos-compatible)
-
-### Frontend
-- **Framework**: React 18
-- **Build Tool**: Vite
-- **Wallet**: Aptos Wallet Adapter
-- **SDK**: Aptos TypeScript SDK
-- **Styling**: CSS Modules (Glassmorphism)
-
-### APIs & Services
-- **Mosaic**: DEX aggregator API
-- **Movement Indexer**: GraphQL balance queries
-- **CoinGecko**: Token pricing
-- **Supabase**: PostgreSQL database for profiles, badges and leaderboard
-
-## 📖 Documentation
-
-| Document | Description |
-|----------|-------------|
-| [QUICKSTART.md](QUICKSTART.md) | Get started in 5 minutes |
-| [SWAP_INTEGRATION.md](SWAP_INTEGRATION.md) | Complete integration guide |
-| [SWAP_SUMMARY.md](SWAP_SUMMARY.md) | Implementation overview |
-| [contracts/README.md](contracts/README.md) | Contract documentation |
-| [frontend/README.md](frontend/README.md) | Frontend documentation |
-
-## 🎯 Supported Protocols
-
-### DEXs
-- ✅ **Mosaic** - DEX aggregator
-- ✅ **Yuzu** - Concentrated liquidity (CLMM)
-- 🟡 **Razor** - AMM (coming soon)
-- 🟡 **Meridian** - AMM (coming soon)
-
-### Lending
-- ✅ **Echelon Market** - Money market
-- ✅ **LayerBank** - Lending protocol
-
-### Staking
-- ✅ **Canopy Finance** - Liquid staking
-- ✅ **MovePosition** - Position management
-
-### Others
-- ✅ **Joule** - DeFi aggregator
-- 🟡 More protocols coming...
-
-## 🔐 Security
-
-### Smart Contract
-- Fee limit: 10% maximum
-- Admin-only controls
-- Event tracking for audits
-- Comprehensive tests
-
-### Frontend
-- Input validation
-- Slippage protection
-- Transaction confirmation
-- Error handling
-
-## 🎨 Screenshots
-
-_Screenshots coming soon._
-
-## 🧪 Testing
-
-### Contract Tests
-```bash
-cd contracts/swap_router
-movement move test
-```
-
-### Frontend Tests
-```bash
-cd frontend
-npm test
-```
-
-## 🚀 Deployment
-
-### Testnet
-```bash
-# Deploy contract
-cd contracts/swap_router
-./deploy.sh testnet
-
-# Configure frontend
-cd ../../frontend
-# Edit src/config/network.js
-npm run build
-npm run preview
-```
-
-### Mainnet
-```bash
-# Deploy contract
-cd contracts/swap_router
-./deploy.sh mainnet
-
-# Configure frontend
-cd ../../frontend
-# Edit src/config/network.js
-npm run build
-# Deploy to hosting (Vercel, Netlify, etc.)
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Copy `.env.example` to `.env` and fill in your values.
-
-Create `frontend/.env`:
-```env
-VITE_NETWORK=mainnet              # or testnet
-VITE_SWAP_ROUTER_ADDRESS=0x...    # Your deployed contract
-```
-
-### Network Settings
-
-Edit `frontend/src/config/network.js`:
-```javascript
-export const DEFAULT_NETWORK = NETWORKS.MAINNET;
-export const SWAP_ROUTER_ADDRESS = "0x...";
-```
-
-## 📊 Features Roadmap
-
-### Phase 1: MVP ✅
-- [x] Portfolio tracking
-- [x] Basic swap
-- [x] Mosaic integration
-- [x] Fee collection
-
-### Phase 2: Enhancement (Current)
-- [ ] Full Yuzu integration
-- [ ] Multi-hop visualization
-- [ ] Advanced analytics
-- [ ] Historical data
-
-### Phase 3: Advanced
-- [ ] Limit orders
-- [ ] Price alerts
-- [ ] Portfolio automation
-- [ ] Advanced order types
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## 🆘 Support
-
-- **Documentation**: See [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/devjwd/daftar/issues)
-- **Movement Discord**: [discord.gg/movementnetwork](https://discord.gg/movementnetwork)
-- **Mosaic Discord**: [discord.gg/mosaicagg](https://discord.gg/mosaicagg)
-
-## 🔗 Resources
-
-### Movement Network
-- [Website](https://movementnetwork.xyz/)
-- [Docs](https://docs.movementnetwork.xyz/)
-- [Explorer](https://explorer.movementnetwork.xyz/)
-- [Faucet](https://faucet.movementnetwork.xyz/)
-
-### Protocols
-- [Mosaic](https://mosaic.ag/) - DEX aggregator
-- [Yuzu](https://yuzu.finance/) - CLMM DEX
-- [Echelon](https://echelon.market/) - Lending
-- [LayerBank](https://layerbank.finance/) - Lending
-- [Canopy](https://canopyfinance.xyz/) - Liquid staking
-
-## 🎉 Acknowledgments
-
-Built with ❤️ for the Movement Network ecosystem.
-
-Special thanks to:
-- Movement Labs team
-- Mosaic team for API access
-- Yuzu team for CLMM innovation
-- All DeFi protocol teams
+**Daftar** is a high-fidelity DeFi portfolio manager and achievement ecosystem optimized for the Movement Network. It provides real-time position discovery, hardened transaction history, and a secure, cryptographically-signed SBT badge system for on-chain status.
 
 ---
 
-**Happy Trading! 🚀**
+## 🌟 Production Features
+
+### 📊 Hardened Portfolio Engine
+- **Cross-Protocol Detection**: Intelligent discovery of lending, staking, and LP positions across Echelon, LayerBank, Meridian, Yuzu, and more.
+- **Consolidated Transaction History**: A server-side history engine with multi-route enrichment and intelligent caching for sub-second performance.
+- **Dynamic Entity Mapping**: Real-time resolution of protocol branding and metadata via a hardened entity registry.
+
+### 🛡️ Secure Achievement System (v2)
+- **Soulbound Badges (SBT)**: Earn permanent, non-transferable achievements for trade volume, protocol loyalty, and community milestones.
+- **Auto-Awarding Engine**: A robust background evaluation service that triggers eligibility in real-time as users interact with the network.
+- **Cryptographic Trust**: All badges are evaluated server-side and cryptographically signed using a secure attestor key to ensure data integrity.
+
+### 💱 State-of-the-Art UX
+- **Smart Routing**: Integrated Mosaic DEX aggregator and Yuzu CLMM for optimal swap rates and minimal slippage.
+- **Premium Aesthetics**: A state-of-the-art glassmorphism UI with smooth micro-animations and intuitive navigation.
+
+---
+
+## 📁 System Architecture
+
+```bash
+Daftar/
+├── frontend/               # React 18 + Vite (Production-Hardened PWA)
+│   ├── src/config/         # Consolidated network, token, and badge registries
+│   ├── src/services/       # API orchestration & position discovery engines
+│   └── src/hooks/          # Real-time state management & polling
+├── supabase/               # Backend-as-a-Service layer
+│   ├── functions/          # Hardened Edge Functions (Badge evaluation & signing)
+│   ├── migrations/         # Secure DB migrations with RLS enabled
+│   └── schema.sql          # Master production schema with optimized indexing
+└── contracts/              # Move Smart Contracts (Fee Router & SBT Modules)
+```
+
+---
+
+## 🚀 Deployment & Configuration
+
+### 1. Smart Contract Deployment
+Deploy the Move contracts to Movement Mainnet:
+```bash
+cd contracts/swap_router
+./deploy.sh mainnet
+```
+
+### 2. Backend Infrastructure
+Ensure the Supabase environment is hardened and Edge Functions are deployed:
+```bash
+# Deploy hardened evaluation functions
+supabase functions deploy award-badge
+supabase functions deploy manage-badge-definition
+supabase functions deploy import-allowlist
+```
+
+### 3. Production Secrets
+Configure the following secrets in the Supabase Dashboard:
+- `BADGE_SIGNER_PRIVATE_KEY`: Private key for the badge attestor (required for SBT signing).
+- `ADMIN_WALLET_ADDRESS`: Authorized move address for administrative actions.
+- `VERIFY_BADGE_API_KEY`: Internal authentication key for service-to-service calls.
+
+---
+
+## 🔧 Infrastructure Tuning
+
+### Network Configuration
+Production settings are tuned in `frontend/src/config/network.js`:
+```javascript
+export const DEFAULT_NETWORK = {
+  chainId: 126,
+  name: "Movement Mainnet",
+  explorer: "https://explorer.movementnetwork.xyz",
+  indexer: "https://indexer.mainnet.movementnetwork.xyz/v1/graphql"
+};
+```
+
+---
+
+## 🎯 Roadmap & Milestone Tracking
+
+- [x] **Phase 1: Foundation**: Core portfolio tracking and Mosaic aggregation.
+- [x] **Phase 2: Hardening**: Consolidated DB schema, RLS implementation, and hardened transaction engine.
+- [x] **Phase 3: Achievements**: Secure SBT badge system with background auto-award service.
+- [/] **Phase 4: Expansion**: Advanced DeFi yield optimizer and limit order functionality (Development).
+
+---
+
+## 🤝 Contributing & Security
+Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md). For security vulnerabilities, please contact the maintainers directly.
+
+## 📄 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+Built with ❤️ by the **Daftar Team** for the **Movement Network** ecosystem. 🚀
+

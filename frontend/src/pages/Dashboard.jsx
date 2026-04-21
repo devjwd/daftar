@@ -133,7 +133,7 @@ const shouldDisplayPosition = (usdValue, threshold) => {
   return usdValue >= threshold;
 };
 
-const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
+const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue, language }) => {
   const tokenInfo = getTokenInfo(token.address);
   const isKnownToken = !!tokenInfo;
 
@@ -143,7 +143,7 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue }) => {
   const visual = TOKEN_VISUALS[baseSymbol] || TOKEN_VISUALS[symbol] || null;
   const tokenLogo = visual?.logo || null;
   const tokenColor = visual?.color || DEFAULT_TOKEN_COLOR;
-  const displayName = tokenInfo?.name || rawSymbol || 'Token';
+  const displayName = tokenInfo?.name || rawSymbol || t(language, 'dashToken');
   const displayMeta = rawSymbol || 'Movement';
 
   const usdValueNum = parseFloat(token.formattedValue?.replace('$', '').replace(',', '') || '0');
@@ -329,7 +329,7 @@ const StakingCard = ({ name, value, type, delay }) => (
 
 );
 
-const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol }) => {
+const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const firstPos = protocolPositions[0];
   const getProtocolKey = () => {
@@ -403,8 +403,8 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
   const totalDebtUsd = debtPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0);
   const netUsd = totalSupplyUsd - totalDebtUsd;
   const positionTypeLabel = supplyPositions.length > 0 && debtPositions.length > 0
-    ? 'Lending & Borrowing'
-    : supplyPositions.length > 0 ? 'Lending' : 'Borrowing';
+    ? `${t(language, 'dashSupplied')} & ${t(language, 'dashBorrowed')}`
+    : supplyPositions.length > 0 ? t(language, 'dashSupplied') : t(language, 'dashBorrowed');
 
   return (
     <div
@@ -465,7 +465,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
       {!isExpanded ? (
         <div className="defi-v2-compact-body">
           <div className="defi-v2-net">
-            <span className="defi-v2-net-label">Net Position</span>
+            <span className="defi-v2-net-label">{t(language, 'dashNetPosition')}</span>
             <span className={`defi-v2-net-value ${netUsd >= 0 ? 'positive' : 'negative'}`}>
               {netUsd >= 0 ? '+' : ''}{formatUsdValue(netUsd)}
             </span>
@@ -476,7 +476,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
           <div className="defi-v2-columns">
             <div className="defi-v2-column supply">
               <div className="defi-v2-column-header">
-                <span className="defi-v2-column-label">Supplied</span>
+                <span className="defi-v2-column-label">{t(language, 'dashSupplied')}</span>
                 <span className="defi-v2-column-total">{formatUsdValue(totalSupplyUsd)}</span>
               </div>
               <div className="defi-v2-column-items">
@@ -494,14 +494,14 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
                     </div>
                   </div>
                 )) : (
-                  <div className="defi-v2-empty">No supply positions</div>
+                  <div className="defi-v2-empty">{t(language, 'dashNoSupply')}</div>
                 )}
               </div>
             </div>
 
             <div className="defi-v2-column borrow">
               <div className="defi-v2-column-header">
-                <span className="defi-v2-column-label">Borrowed</span>
+                <span className="defi-v2-column-label">{t(language, 'dashBorrowed')}</span>
                 <span className="defi-v2-column-total debt">{formatUsdValue(totalDebtUsd)}</span>
               </div>
               <div className="defi-v2-column-items">
@@ -514,7 +514,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
                     </div>
                   </div>
                 )) : (
-                  <div className="defi-v2-empty">No debt positions</div>
+                  <div className="defi-v2-empty">{t(language, 'dashNoDebt')}</div>
                 )}
               </div>
             </div>
@@ -522,14 +522,14 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
 
           <div className="defi-v2-footer">
             <div className="defi-v2-net">
-              <span className="defi-v2-net-label">NET POSITION</span>
+              <span className="defi-v2-net-label">{t(language, 'dashNetPosition')}</span>
               <span className={`defi-v2-net-value ${netUsd >= 0 ? 'positive' : 'negative'}`}>
                 {netUsd >= 0 ? '+' : ''}{formatUsdValue(netUsd)}
               </span>
             </div>
             {debtPositions.length > 0 && totalSupplyUsd > 0 && (
               <div className="defi-v2-health">
-                <span className="defi-v2-health-label">Health</span>
+                <span className="defi-v2-health-label">{t(language, 'dashHealth')}</span>
                 <div className="defi-v2-health-bar">
                   <div
                     className="defi-v2-health-fill"
@@ -577,7 +577,7 @@ const humanizeAssetName = (raw) => {
   return raw;
 };
 
-const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol }) => {
+const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language }) => {
   const LP_PROTOCOLS = {
     canopy: {
       logo: '/canopy.png',
@@ -779,7 +779,7 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     : '';
 
   const isPoolStylePrimary = position.isNFT || position.protocol === 'meridian';
-  const primaryLabel = isPoolStylePrimary ? 'Pool' : 'Balance';
+  const primaryLabel = isPoolStylePrimary ? 'Pool' : t(language, 'dashBalance');
   const primaryValue = position.isNFT
     ? (position.name || 'LP Position')
     : (position.protocol === 'meridian' ? meridianPoolLabel : formatValue(position.amount));
@@ -788,14 +788,14 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     ? `#${position.positionId || position.tokenDataId?.slice(-8) || 'NFT'}`
     : humanizeAssetName(position.underlying || position.symbol?.replace('cv', '').replace('l', '') || 'MOVE');
 
-  let detailLabel = 'Underlying';
-  let detailValue = humanizeAssetName(position.underlying || position.symbol?.replace('cv', '').replace('l', '') || 'Not available');
+  let detailLabel = t(language, 'dashUnderlying');
+  let detailValue = humanizeAssetName(position.underlying || position.symbol?.replace('cv', '').replace('l', '') || t(language, 'dashNotAvailable'));
 
   if (position.isNFT && position.protocol === 'yuzu' && (position.token0Amount > 0 || position.token1Amount > 0)) {
-    detailLabel = 'Token Amounts';
+    detailLabel = t(language, 'swapTokenAmounts');
     detailValue = `${position.token0Amount > 0 ? `${formatValue(position.token0Amount)} ${position.name?.split(' / ')[0] || 'Token0'}` : ''}${position.token0Amount > 0 && position.token1Amount > 0 ? ' + ' : ''}${position.token1Amount > 0 ? `${formatValue(position.token1Amount)} ${position.name?.split(' / ')[1] || 'Token1'}` : ''}`;
   } else if (position.protocol === 'meridian' && Array.isArray(position.poolTokens) && position.poolTokens.length > 0) {
-    detailLabel = 'Token Composition';
+    detailLabel = t(language, 'dashTokenComposition');
     detailValue = position.poolTokens
       .map((token) => `${formatValue(token.amount)} ${token.symbol || 'Token'}`)
       .join(' + ');
@@ -962,9 +962,9 @@ const Dashboard = () => {
     error: indexerError,
   } = useIndexerBalances(viewingAddress);
 
-  const { 
-    positions, 
-    loading: defiLoading 
+  const {
+    positions,
+    loading: defiLoading
   } = useDeFiPositions(viewingAddress);
   const { prices: priceMap, priceChanges } = useTokenPrices();
 
@@ -983,8 +983,8 @@ const Dashboard = () => {
 
   const visibleLiquidityPositions = useMemo(() => {
     if (!Array.isArray(liquidityPositions)) return [];
-    return liquidityPositions.filter(pos => 
-       shouldDisplayPosition(getLiquidityPositionUsdValue(pos, priceMap), hidePositionThreshold)
+    return liquidityPositions.filter(pos =>
+      shouldDisplayPosition(getLiquidityPositionUsdValue(pos, priceMap), hidePositionThreshold)
     );
   }, [liquidityPositions, priceMap, hidePositionThreshold]);
 
@@ -1063,9 +1063,9 @@ const Dashboard = () => {
       const usdVal = getDeFiPositionUsdValue(pos, priceMap) ?? 0;
       // If it's a debt/borrow type, subtract it
       if (pos.type === 'Debt') {
-          totalDebt += usdVal;
+        totalDebt += usdVal;
       } else {
-          totalSupply += usdVal;
+        totalSupply += usdVal;
       }
     });
     return totalSupply - totalDebt;
@@ -1741,348 +1741,348 @@ const Dashboard = () => {
       try {
         const lpPositions = [];
         if (indexerBalances && indexerBalances.length > 0) {
-        const LP_PATTERNS = [
-          { pattern: /cvMOVE|cvUSDC|cvUSDT|cvWBTC|cvWETH/i, protocol: 'canopy', underlying: 'MOVE' },
-          { pattern: /stMOVE|StakedMove/i, protocol: 'canopy', underlying: 'MOVE' },
-          { pattern: /MER-LP|Meridian LP/i, protocol: 'meridian', underlying: 'MERIDIAN_LP' },
-          { pattern: /YuzuLP|Yuzu-LP/i, protocol: 'yuzu', underlying: 'LP' },
-        ];
-        let meridianCompositions = [];
-        if (positions && positions.length > 0) {
-          devLog('Meridian positions from hook:', positions.map(p => ({ id: p.id, protocolName: p.protocolName, type: p.type, liquidityX: p.liquidityX })));
-          meridianCompositions = positions.filter(pos => 
-            pos.protocolName === 'Meridian' && 
-            (pos.liquidityX !== undefined || pos.liquidityY !== undefined || pos.liquidityTokens !== undefined || pos.stakedAmount !== undefined)
+          const LP_PATTERNS = [
+            { pattern: /cvMOVE|cvUSDC|cvUSDT|cvWBTC|cvWETH/i, protocol: 'canopy', underlying: 'MOVE' },
+            { pattern: /stMOVE|StakedMove/i, protocol: 'canopy', underlying: 'MOVE' },
+            { pattern: /MER-LP|Meridian LP/i, protocol: 'meridian', underlying: 'MERIDIAN_LP' },
+            { pattern: /YuzuLP|Yuzu-LP/i, protocol: 'yuzu', underlying: 'LP' },
+          ];
+          let meridianCompositions = [];
+          if (positions && positions.length > 0) {
+            devLog('Meridian positions from hook:', positions.map(p => ({ id: p.id, protocolName: p.protocolName, type: p.type, liquidityX: p.liquidityX })));
+            meridianCompositions = positions.filter(pos =>
+              pos.protocolName === 'Meridian' &&
+              (pos.liquidityX !== undefined || pos.liquidityY !== undefined || pos.liquidityTokens !== undefined || pos.stakedAmount !== undefined)
+            );
+            devLog('Meridian positions with composition:', meridianCompositions.length,
+              meridianCompositions.map(p => ({ liquidityX: p.liquidityX, liquidityY: p.liquidityY, liquidityTokens: p.liquidityTokens, tokenX: p.tokenX, tokenY: p.tokenY })));
+          }
+          let meridianLPIndex = 0;
+
+          const normalizeMeridianSymbol = (value) => {
+            const symbol = String(value || '').trim().toUpperCase();
+            if (!symbol) return '';
+            if (symbol.includes('USDC')) return 'USDC';
+            if (symbol.includes('USDT')) return 'USDT';
+            if (symbol.includes('WBTC') || symbol === 'BTC') return 'WBTC';
+            if (symbol.includes('WETH') || symbol === 'ETH') return 'WETH';
+            if (symbol.includes('MOVE') && symbol.includes('DROP')) return 'MOVE_DROPS';
+            if (symbol.includes('MOVE')) return 'MOVE';
+            return symbol.replace(/[^A-Z0-9]/g, '');
+          };
+
+          const isMeridianPoolMatch = (tokenX, tokenY, poolTokens) => {
+            if (!Array.isArray(poolTokens) || poolTokens.length === 0) return false;
+
+            const expectedTokens = [tokenX, tokenY]
+              .map((token) => normalizeMeridianSymbol(token))
+              .filter(Boolean);
+
+            if (expectedTokens.length === 0) return true;
+
+            const poolTokenSet = new Set(
+              poolTokens
+                .map((token) => normalizeMeridianSymbol(token?.symbol))
+                .filter(Boolean)
+            );
+
+            if (!poolTokenSet.size) return false;
+
+            const matched = expectedTokens.filter((token) => poolTokenSet.has(token)).length;
+            return matched >= Math.min(2, expectedTokens.length);
+          };
+          const meridianPoolInfoByAddress = {};
+          const meridianPoolAddresses = Array.from(
+            new Set(
+              indexerBalances
+                .filter((balance) => {
+                  const symbol = balance.symbol || '';
+                  const name = balance.name || '';
+                  return /MER-LP|Meridian LP/i.test(symbol) || /MER-LP|Meridian LP/i.test(name);
+                })
+                .map((balance) => String(balance.address || balance.type || '').toLowerCase())
+                .filter(Boolean)
+            )
           );
-          devLog('Meridian positions with composition:', meridianCompositions.length, 
-            meridianCompositions.map(p => ({ liquidityX: p.liquidityX, liquidityY: p.liquidityY, liquidityTokens: p.liquidityTokens, tokenX: p.tokenX, tokenY: p.tokenY })));
-        }
-        let meridianLPIndex = 0;
 
-        const normalizeMeridianSymbol = (value) => {
-          const symbol = String(value || '').trim().toUpperCase();
-          if (!symbol) return '';
-          if (symbol.includes('USDC')) return 'USDC';
-          if (symbol.includes('USDT')) return 'USDT';
-          if (symbol.includes('WBTC') || symbol === 'BTC') return 'WBTC';
-          if (symbol.includes('WETH') || symbol === 'ETH') return 'WETH';
-          if (symbol.includes('MOVE') && symbol.includes('DROP')) return 'MOVE_DROPS';
-          if (symbol.includes('MOVE')) return 'MOVE';
-          return symbol.replace(/[^A-Z0-9]/g, '');
-        };
-
-        const isMeridianPoolMatch = (tokenX, tokenY, poolTokens) => {
-          if (!Array.isArray(poolTokens) || poolTokens.length === 0) return false;
-
-          const expectedTokens = [tokenX, tokenY]
-            .map((token) => normalizeMeridianSymbol(token))
-            .filter(Boolean);
-
-          if (expectedTokens.length === 0) return true;
-
-          const poolTokenSet = new Set(
-            poolTokens
-              .map((token) => normalizeMeridianSymbol(token?.symbol))
-              .filter(Boolean)
+          await Promise.all(
+            meridianPoolAddresses.map(async (poolAddress) => {
+              meridianPoolInfoByAddress[poolAddress] = await getCachedMeridianPoolInfo(poolAddress);
+            })
           );
 
-          if (!poolTokenSet.size) return false;
+          indexerBalances.forEach(balance => {
+            const symbol = balance.symbol || '';
+            const name = balance.name || '';
 
-          const matched = expectedTokens.filter((token) => poolTokenSet.has(token)).length;
-          return matched >= Math.min(2, expectedTokens.length);
-        };
-        const meridianPoolInfoByAddress = {};
-        const meridianPoolAddresses = Array.from(
-          new Set(
-            indexerBalances
-              .filter((balance) => {
-                const symbol = balance.symbol || '';
-                const name = balance.name || '';
-                return /MER-LP|Meridian LP/i.test(symbol) || /MER-LP|Meridian LP/i.test(name);
-              })
-              .map((balance) => String(balance.address || balance.type || '').toLowerCase())
-              .filter(Boolean)
-          )
-        );
+            for (const { pattern, protocol, underlying } of LP_PATTERNS) {
+              if (pattern.test(symbol) || pattern.test(name)) {
+                let underlyingAsset = underlying;
+                if (symbol.includes('USDC')) underlyingAsset = 'USDC.e';
+                else if (symbol.includes('USDT')) underlyingAsset = 'USDT.e';
+                else if (symbol.includes('WBTC') || symbol.includes('BTC')) underlyingAsset = 'WBTC.e';
+                else if (symbol.includes('WETH') || symbol.includes('ETH')) underlyingAsset = 'WETH.e';
+                else if (symbol.includes('MOVE') || symbol === 'lMOVE') underlyingAsset = 'MOVE';
+                let usdValue = 0;
+                const amount = balance.numericAmount || 0;
 
-        await Promise.all(
-          meridianPoolAddresses.map(async (poolAddress) => {
-            meridianPoolInfoByAddress[poolAddress] = await getCachedMeridianPoolInfo(poolAddress);
-          })
-        );
-
-        indexerBalances.forEach(balance => {
-          const symbol = balance.symbol || '';
-          const name = balance.name || '';
-          
-          for (const { pattern, protocol, underlying } of LP_PATTERNS) {
-            if (pattern.test(symbol) || pattern.test(name)) {
-              let underlyingAsset = underlying;
-              if (symbol.includes('USDC')) underlyingAsset = 'USDC.e';
-              else if (symbol.includes('USDT')) underlyingAsset = 'USDT.e';
-              else if (symbol.includes('WBTC') || symbol.includes('BTC')) underlyingAsset = 'WBTC.e';
-              else if (symbol.includes('WETH') || symbol.includes('ETH')) underlyingAsset = 'WETH.e';
-              else if (symbol.includes('MOVE') || symbol === 'lMOVE') underlyingAsset = 'MOVE';
-              let usdValue = 0;
-              const amount = balance.numericAmount || 0;
-              
-              if (priceMap && underlyingAsset !== 'MERIDIAN_LP') {
-                if (underlyingAsset === 'MOVE' || symbol.includes('MOVE') || symbol.includes('stMOVE')) {
-                  const movePrice = priceMap['0xa'] || priceMap['0x1'] || 0;
-                  usdValue = amount * movePrice;
-                } else if (underlyingAsset === 'USDC.e' || underlyingAsset === 'USDT.e') {
-                  usdValue = amount;
-                } else if (underlyingAsset === 'WBTC.e') {
-                  const btcPrice = Object.entries(priceMap).find(([addr]) => 
-                    addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
-                  )?.[1] || 95000;
-                  usdValue = amount * btcPrice;
-                } else if (underlyingAsset === 'WETH.e') {
-                  const ethPrice = Object.entries(priceMap).find(([addr]) => 
-                    addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
-                  )?.[1] || 3500;
-                  usdValue = amount * ethPrice;
-                }
-              }
-              let meridianComposition = {};
-              if (protocol === 'meridian' && meridianCompositions.length > 0) {
-                const compositionIndex = meridianLPIndex < meridianCompositions.length ? meridianLPIndex : 0;
-                meridianComposition = {
-                  liquidityX: meridianCompositions[compositionIndex].liquidityX,
-                  liquidityY: meridianCompositions[compositionIndex].liquidityY,
-                  liquidityTokens: meridianCompositions[compositionIndex].liquidityTokens,
-                  stakedAmount: meridianCompositions[compositionIndex].stakedAmount,
-                  tokenX: meridianCompositions[compositionIndex].tokenX,
-                  tokenY: meridianCompositions[compositionIndex].tokenY,
-                  poolId: meridianCompositions[compositionIndex].poolId
-                };
-
-                if (!meridianComposition.liquidityTokens || meridianComposition.liquidityTokens <= 0) {
-                  meridianComposition.liquidityTokens = Math.round(amount * 1_000_000);
-                }
-                devLog('Adding Meridian LP #' + meridianLPIndex + ' with composition:', meridianComposition);
-                meridianLPIndex++;
-              } else if (protocol === 'meridian') {
-                meridianComposition = {
-                  liquidityTokens: Math.round(amount * 1_000_000),
-                };
-              }
-
-              if (protocol === 'meridian') {
-                const poolAddress = String(balance.address || balance.type || '').toLowerCase();
-                const poolInfo = meridianPoolInfoByAddress[poolAddress];
-                const userLpRaw = Number(balance.rawAmount || 0);
-
-                if (poolInfo && poolInfo.totalSupplyRaw > 0 && userLpRaw > 0) {
-                  const userShare = userLpRaw / poolInfo.totalSupplyRaw;
-                  const poolTokens = poolInfo.tokens
-                    .map((token) => ({
-                      ...token,
-                      userAmount: token.amount * userShare,
-                    }))
-                    .filter((token) => token.userAmount > 0);
-
-                  if (poolTokens.length > 0) {
-                    const poolMatchesPosition = isMeridianPoolMatch(
-                      meridianComposition.tokenX,
-                      meridianComposition.tokenY,
-                      poolTokens
-                    );
-
-                    if (poolMatchesPosition || (!meridianComposition.tokenX && !meridianComposition.tokenY)) {
-                      meridianComposition.poolId = poolInfo.poolId;
-                      meridianComposition.poolTokens = poolTokens.map((token) => ({
-                        symbol: token.symbol,
-                        amount: token.userAmount,
-                        decimals: token.decimals,
-                        address: token.assetType,
-                      }));
-
-                      if (!meridianComposition.tokenX && poolTokens[0]) {
-                        meridianComposition.tokenX = poolTokens[0].symbol;
-                      }
-                      if (!meridianComposition.tokenY && poolTokens[1]) {
-                        meridianComposition.tokenY = poolTokens[1].symbol;
-                      }
-
-                      if (priceMap) {
-                        const stableSymbols = ['USDT', 'USDT.E', 'USDC', 'USDC.E', 'USDCX', 'USDA', 'USDE'];
-                        const meridianUsdValue = poolTokens.reduce((sum, token) => {
-                          const tokenAddress = String(token.assetType || '').toLowerCase();
-                          const tokenSymbol = String(token.symbol || '').toUpperCase();
-
-                          let tokenPrice = 0;
-                          if (tokenAddress && priceMap[tokenAddress] !== undefined) {
-                            tokenPrice = Number(priceMap[tokenAddress]) || 0;
-                          } else if (stableSymbols.includes(tokenSymbol)) {
-                            tokenPrice = 1;
-                          }
-
-                          return sum + (token.userAmount * tokenPrice);
-                        }, 0);
-
-                        if (meridianUsdValue > 0) {
-                          usdValue = meridianUsdValue;
-                        }
-                      }
-                    } else {
-                      console.warn('Warning: Meridian pool token mismatch, skipping pool override', {
-                        expected: [meridianComposition.tokenX, meridianComposition.tokenY],
-                        actual: poolTokens.map((token) => token.symbol),
-                        poolId: poolInfo.poolId,
-                      });
-                    }
+                if (priceMap && underlyingAsset !== 'MERIDIAN_LP') {
+                  if (underlyingAsset === 'MOVE' || symbol.includes('MOVE') || symbol.includes('stMOVE')) {
+                    const movePrice = priceMap['0xa'] || priceMap['0x1'] || 0;
+                    usdValue = amount * movePrice;
+                  } else if (underlyingAsset === 'USDC.e' || underlyingAsset === 'USDT.e') {
+                    usdValue = amount;
+                  } else if (underlyingAsset === 'WBTC.e') {
+                    const btcPrice = Object.entries(priceMap).find(([addr]) =>
+                      addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
+                    )?.[1] || 95000;
+                    usdValue = amount * btcPrice;
+                  } else if (underlyingAsset === 'WETH.e') {
+                    const ethPrice = Object.entries(priceMap).find(([addr]) =>
+                      addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
+                    )?.[1] || 3500;
+                    usdValue = amount * ethPrice;
                   }
                 }
-              }
+                let meridianComposition = {};
+                if (protocol === 'meridian' && meridianCompositions.length > 0) {
+                  const compositionIndex = meridianLPIndex < meridianCompositions.length ? meridianLPIndex : 0;
+                  meridianComposition = {
+                    liquidityX: meridianCompositions[compositionIndex].liquidityX,
+                    liquidityY: meridianCompositions[compositionIndex].liquidityY,
+                    liquidityTokens: meridianCompositions[compositionIndex].liquidityTokens,
+                    stakedAmount: meridianCompositions[compositionIndex].stakedAmount,
+                    tokenX: meridianCompositions[compositionIndex].tokenX,
+                    tokenY: meridianCompositions[compositionIndex].tokenY,
+                    poolId: meridianCompositions[compositionIndex].poolId
+                  };
 
-              lpPositions.push({
-                id: `lp-${balance.type || balance.address}`,
-                protocol,
-                protocolName: protocol.charAt(0).toUpperCase() + protocol.slice(1),
-                symbol: symbol,
-                name: name || symbol,
-                amount,
-                decimals: balance.decimals || 8,
-                address: balance.type || balance.address,
-                underlying: underlyingAsset,
-                usdValue,
-                liquidityValue: usdValue,
-                isMeridianLP: underlyingAsset === 'MERIDIAN_LP',
-                ...meridianComposition
-              });
-              break; 
-            }
-          }
-        });
-      }
-      if (viewingAddress) {
-        try {
-          const { nftHoldings, yuzuEvents } = await getCachedYuzuDiscovery(viewingAddress);
-          const yuzuLiquidityMap = {};
-          for (const event of yuzuEvents) {
-            try {
-              const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-              if (data && data.position_id) {
-                const posId = String(data.position_id);
-                if (!yuzuLiquidityMap[posId] || event.transaction_version > yuzuLiquidityMap[posId].version) {
-                  yuzuLiquidityMap[posId] = {
-                    version: event.transaction_version,
-                    liquidity: data.liquidity_delta || data.liquidity || 0,
-                    amount0: data.amount_0 || data.token_0_amount || 0,
-                    amount1: data.amount_1 || data.token_1_amount || 0,
-                    pool: data.pool_address || data.pool || '',
+                  if (!meridianComposition.liquidityTokens || meridianComposition.liquidityTokens <= 0) {
+                    meridianComposition.liquidityTokens = Math.round(amount * 1_000_000);
+                  }
+                  devLog('Adding Meridian LP #' + meridianLPIndex + ' with composition:', meridianComposition);
+                  meridianLPIndex++;
+                } else if (protocol === 'meridian') {
+                  meridianComposition = {
+                    liquidityTokens: Math.round(amount * 1_000_000),
                   };
                 }
-              }
-            } catch {
-              // Ignore malformed Yuzu event payloads
-            }
-          }
-          const YUZU_NFT_MANAGER = '0x1d0434ae92598710f5ccbfbf51cf66cf2fe8ba8e77381bed92f45bb32d237bc2';
-          
-          for (const nft of nftHoldings) {
-            const collectionName = nft.current_token_data?.current_collection?.collection_name || '';
-            const creatorAddress = nft.current_token_data?.current_collection?.creator_address || '';
-            const tokenName = nft.current_token_data?.token_name || '';
-            const isYuzuPosition = 
-              collectionName.toLowerCase().includes('yuzu') ||
-              collectionName.toLowerCase().includes('liquidity position') ||
-              creatorAddress.toLowerCase() === YUZU_NFT_MANAGER;
-            
-            if (isYuzuPosition) {
-              const positionId = tokenName;
-              const poolAddress = creatorAddress;
-              let poolPair = 'LP Position';
-              const collectionMatch = collectionName.match(/\|\s*([A-Za-z0-9.]+\/[A-Za-z0-9.]+)\s*\|/i);
-              if (collectionMatch) {
-                poolPair = collectionMatch[1].replace('/', ' / ');
-              }
-              
-              let liquidityValue = 0;
-              let token0Amount = 0;
-              let token1Amount = 0;
-              const getMovePrice = () => {
-                if (!priceMap) return 0.5;
-                return priceMap['0xa'] || priceMap['0x1'] || 0.5;
-              };
-              if (poolAddress && positionId) {
-                try {
-                  const response = await fetch(`${DEFAULT_NETWORK.rpc}/view`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      function: '0x46566b4a16a1261ab400ab5b9067de84ba152b5eb4016b217187f2a2ca980c5a::position_nft_manager::get_position_token_amounts',
-                      typeArguments: [],
-                      arguments: [poolAddress, positionId]
-                    })
-                  });
-                  
-                  if (response.ok) {
-                    const result = await response.json();
-                    if (Array.isArray(result) && result.length >= 2) {
-                      const tokens = poolPair.split('/').map(t => t.trim().replace(/\.e$/, '').toUpperCase());
-                      const getTokenDecimals = (symbol) => {
-                        if (['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(symbol)) return 6;
-                        return 8;
-                      };
-                      
-                      const decimals0 = tokens[0] ? getTokenDecimals(tokens[0]) : 8;
-                      const decimals1 = tokens[1] ? getTokenDecimals(tokens[1]) : 8;
-                      
-                      token0Amount = Number(result[0]) / Math.pow(10, decimals0);
-                      token1Amount = Number(result[1]) / Math.pow(10, decimals1);
-                      const token0Symbol = tokens[0] || '';
-                      const token1Symbol = tokens[1] || '';
-                      const isStable0 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token0Symbol);
-                      const isStable1 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token1Symbol);
-                      const MEME_TOKENS = ['CAPY', 'MOVECAT', 'GMOVE', 'TUBI', 'GCAT'];
-                      const isMeme0 = MEME_TOKENS.includes(token0Symbol);
-                      const isMeme1 = MEME_TOKENS.includes(token1Symbol);
-                      if (isMeme0 || isMeme1) {
-                        liquidityValue = 0;
-                      } else if (isStable0 && isStable1) {
-                        liquidityValue = token0Amount + token1Amount;
-                      } else if (token0Symbol === 'MOVE' && isStable1) {
-                        const movePrice = getMovePrice();
-                        liquidityValue = (token0Amount * movePrice) + token1Amount;
-                      } else if (token1Symbol === 'MOVE' && isStable0) {
-                        const movePrice = getMovePrice();
-                        liquidityValue = token0Amount + (token1Amount * movePrice);
+
+                if (protocol === 'meridian') {
+                  const poolAddress = String(balance.address || balance.type || '').toLowerCase();
+                  const poolInfo = meridianPoolInfoByAddress[poolAddress];
+                  const userLpRaw = Number(balance.rawAmount || 0);
+
+                  if (poolInfo && poolInfo.totalSupplyRaw > 0 && userLpRaw > 0) {
+                    const userShare = userLpRaw / poolInfo.totalSupplyRaw;
+                    const poolTokens = poolInfo.tokens
+                      .map((token) => ({
+                        ...token,
+                        userAmount: token.amount * userShare,
+                      }))
+                      .filter((token) => token.userAmount > 0);
+
+                    if (poolTokens.length > 0) {
+                      const poolMatchesPosition = isMeridianPoolMatch(
+                        meridianComposition.tokenX,
+                        meridianComposition.tokenY,
+                        poolTokens
+                      );
+
+                      if (poolMatchesPosition || (!meridianComposition.tokenX && !meridianComposition.tokenY)) {
+                        meridianComposition.poolId = poolInfo.poolId;
+                        meridianComposition.poolTokens = poolTokens.map((token) => ({
+                          symbol: token.symbol,
+                          amount: token.userAmount,
+                          decimals: token.decimals,
+                          address: token.assetType,
+                        }));
+
+                        if (!meridianComposition.tokenX && poolTokens[0]) {
+                          meridianComposition.tokenX = poolTokens[0].symbol;
+                        }
+                        if (!meridianComposition.tokenY && poolTokens[1]) {
+                          meridianComposition.tokenY = poolTokens[1].symbol;
+                        }
+
+                        if (priceMap) {
+                          const stableSymbols = ['USDT', 'USDT.E', 'USDC', 'USDC.E', 'USDCX', 'USDA', 'USDE'];
+                          const meridianUsdValue = poolTokens.reduce((sum, token) => {
+                            const tokenAddress = String(token.assetType || '').toLowerCase();
+                            const tokenSymbol = String(token.symbol || '').toUpperCase();
+
+                            let tokenPrice = 0;
+                            if (tokenAddress && priceMap[tokenAddress] !== undefined) {
+                              tokenPrice = Number(priceMap[tokenAddress]) || 0;
+                            } else if (stableSymbols.includes(tokenSymbol)) {
+                              tokenPrice = 1;
+                            }
+
+                            return sum + (token.userAmount * tokenPrice);
+                          }, 0);
+
+                          if (meridianUsdValue > 0) {
+                            usdValue = meridianUsdValue;
+                          }
+                        }
                       } else {
-                        liquidityValue = 0;
+                        console.warn('Warning: Meridian pool token mismatch, skipping pool override', {
+                          expected: [meridianComposition.tokenX, meridianComposition.tokenY],
+                          actual: poolTokens.map((token) => token.symbol),
+                          poolId: poolInfo.poolId,
+                        });
                       }
                     }
                   }
-                } catch (err) {
-                  console.warn('Failed to fetch Yuzu position value:', err);
                 }
+
+                lpPositions.push({
+                  id: `lp-${balance.type || balance.address}`,
+                  protocol,
+                  protocolName: protocol.charAt(0).toUpperCase() + protocol.slice(1),
+                  symbol: symbol,
+                  name: name || symbol,
+                  amount,
+                  decimals: balance.decimals || 8,
+                  address: balance.type || balance.address,
+                  underlying: underlyingAsset,
+                  usdValue,
+                  liquidityValue: usdValue,
+                  isMeridianLP: underlyingAsset === 'MERIDIAN_LP',
+                  ...meridianComposition
+                });
+                break;
               }
-              
-              lpPositions.push({
-                id: `yuzu-nft-${nft.token_data_id}`,
-                protocol: 'yuzu',
-                protocolName: 'Yuzu Swap',
-                symbol: `YUZ-LP #${positionId}`,
-                name: poolPair,
-                amount: Number(nft.amount) || 1,
-                decimals: 0,
-                address: poolAddress || nft.token_data_id,
-                underlying: poolPair,
-                usdValue: liquidityValue,
-                liquidityValue,
-                token0Amount,
-                token1Amount,
-                isNFT: true,
-                positionId,
-                tokenDataId: nft.token_data_id,
-              });
             }
-          }
-        } catch (error) {
-          console.warn("Failed to fetch Yuzu NFT positions:", error);
+          });
         }
-      }
+        if (viewingAddress) {
+          try {
+            const { nftHoldings, yuzuEvents } = await getCachedYuzuDiscovery(viewingAddress);
+            const yuzuLiquidityMap = {};
+            for (const event of yuzuEvents) {
+              try {
+                const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                if (data && data.position_id) {
+                  const posId = String(data.position_id);
+                  if (!yuzuLiquidityMap[posId] || event.transaction_version > yuzuLiquidityMap[posId].version) {
+                    yuzuLiquidityMap[posId] = {
+                      version: event.transaction_version,
+                      liquidity: data.liquidity_delta || data.liquidity || 0,
+                      amount0: data.amount_0 || data.token_0_amount || 0,
+                      amount1: data.amount_1 || data.token_1_amount || 0,
+                      pool: data.pool_address || data.pool || '',
+                    };
+                  }
+                }
+              } catch {
+                // Ignore malformed Yuzu event payloads
+              }
+            }
+            const YUZU_NFT_MANAGER = '0x1d0434ae92598710f5ccbfbf51cf66cf2fe8ba8e77381bed92f45bb32d237bc2';
+
+            for (const nft of nftHoldings) {
+              const collectionName = nft.current_token_data?.current_collection?.collection_name || '';
+              const creatorAddress = nft.current_token_data?.current_collection?.creator_address || '';
+              const tokenName = nft.current_token_data?.token_name || '';
+              const isYuzuPosition =
+                collectionName.toLowerCase().includes('yuzu') ||
+                collectionName.toLowerCase().includes('liquidity position') ||
+                creatorAddress.toLowerCase() === YUZU_NFT_MANAGER;
+
+              if (isYuzuPosition) {
+                const positionId = tokenName;
+                const poolAddress = creatorAddress;
+                let poolPair = 'LP Position';
+                const collectionMatch = collectionName.match(/\|\s*([A-Za-z0-9.]+\/[A-Za-z0-9.]+)\s*\|/i);
+                if (collectionMatch) {
+                  poolPair = collectionMatch[1].replace('/', ' / ');
+                }
+
+                let liquidityValue = 0;
+                let token0Amount = 0;
+                let token1Amount = 0;
+                const getMovePrice = () => {
+                  if (!priceMap) return 0.5;
+                  return priceMap['0xa'] || priceMap['0x1'] || 0.5;
+                };
+                if (poolAddress && positionId) {
+                  try {
+                    const response = await fetch(`${DEFAULT_NETWORK.rpc}/view`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        function: '0x46566b4a16a1261ab400ab5b9067de84ba152b5eb4016b217187f2a2ca980c5a::position_nft_manager::get_position_token_amounts',
+                        typeArguments: [],
+                        arguments: [poolAddress, positionId]
+                      })
+                    });
+
+                    if (response.ok) {
+                      const result = await response.json();
+                      if (Array.isArray(result) && result.length >= 2) {
+                        const tokens = poolPair.split('/').map(t => t.trim().replace(/\.e$/, '').toUpperCase());
+                        const getTokenDecimals = (symbol) => {
+                          if (['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(symbol)) return 6;
+                          return 8;
+                        };
+
+                        const decimals0 = tokens[0] ? getTokenDecimals(tokens[0]) : 8;
+                        const decimals1 = tokens[1] ? getTokenDecimals(tokens[1]) : 8;
+
+                        token0Amount = Number(result[0]) / Math.pow(10, decimals0);
+                        token1Amount = Number(result[1]) / Math.pow(10, decimals1);
+                        const token0Symbol = tokens[0] || '';
+                        const token1Symbol = tokens[1] || '';
+                        const isStable0 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token0Symbol);
+                        const isStable1 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token1Symbol);
+                        const MEME_TOKENS = ['CAPY', 'MOVECAT', 'GMOVE', 'TUBI', 'GCAT'];
+                        const isMeme0 = MEME_TOKENS.includes(token0Symbol);
+                        const isMeme1 = MEME_TOKENS.includes(token1Symbol);
+                        if (isMeme0 || isMeme1) {
+                          liquidityValue = 0;
+                        } else if (isStable0 && isStable1) {
+                          liquidityValue = token0Amount + token1Amount;
+                        } else if (token0Symbol === 'MOVE' && isStable1) {
+                          const movePrice = getMovePrice();
+                          liquidityValue = (token0Amount * movePrice) + token1Amount;
+                        } else if (token1Symbol === 'MOVE' && isStable0) {
+                          const movePrice = getMovePrice();
+                          liquidityValue = token0Amount + (token1Amount * movePrice);
+                        } else {
+                          liquidityValue = 0;
+                        }
+                      }
+                    }
+                  } catch (err) {
+                    console.warn('Failed to fetch Yuzu position value:', err);
+                  }
+                }
+
+                lpPositions.push({
+                  id: `yuzu-nft-${nft.token_data_id}`,
+                  protocol: 'yuzu',
+                  protocolName: 'Yuzu Swap',
+                  symbol: `YUZ-LP #${positionId}`,
+                  name: poolPair,
+                  amount: Number(nft.amount) || 1,
+                  decimals: 0,
+                  address: poolAddress || nft.token_data_id,
+                  underlying: poolPair,
+                  usdValue: liquidityValue,
+                  liquidityValue,
+                  token0Amount,
+                  token1Amount,
+                  isNFT: true,
+                  positionId,
+                  tokenDataId: nft.token_data_id,
+                });
+              }
+            }
+          } catch (error) {
+            console.warn("Failed to fetch Yuzu NFT positions:", error);
+          }
+        }
 
         if (!cancelled) {
           setLiquidityPositions(lpPositions);
@@ -2291,10 +2291,8 @@ const Dashboard = () => {
 
             <span className="hero-v3-title">
               {userProfile?.username ? (
-                <>
-                  <span className="hero-username-highlight">{userProfile.username}</span>'s net worth
-                </>
-              ) : 'Net Worth'}
+                t(language, 'dashNetWorthUser', { username: userProfile.username })
+              ) : t(language, 'dashNetWorth')}
             </span>
 
             <div className="hero-v3-value">
@@ -2346,7 +2344,7 @@ const Dashboard = () => {
                   )}
                 </>
               ) : (
-                <span className="hero-v3-label">No Wallet Connected</span>
+                <span className="hero-v3-label">{t(language, 'dashNoWalletConnected')}</span>
               )}
             </div>
 
@@ -2368,7 +2366,7 @@ const Dashboard = () => {
 
                   </span>
 
-                  <span className="hero-v3-stat-label">Wallet Balance</span>
+                  <span className="hero-v3-stat-label">{t(language, 'dashWalletBalance')}</span>
 
                 </div>
 
@@ -2382,7 +2380,7 @@ const Dashboard = () => {
 
                   </span>
 
-                  <span className="hero-v3-stat-label">Utilized Balance</span>
+                  <span className="hero-v3-stat-label">{t(language, 'dashUtilizedBalance')}</span>
 
                 </div>
 
@@ -2396,7 +2394,7 @@ const Dashboard = () => {
 
                     </span>
 
-                    <span className="hero-v3-stat-label">Wallet Age (Days)</span>
+                    <span className="hero-v3-stat-label">{t(language, 'dashWalletAge')} ({t(language, 'dashDays')})</span>
 
                   </div>
 
@@ -2438,7 +2436,7 @@ const Dashboard = () => {
 
             <section className="grid-section">
 
-              <h3 className="section-title">Wallet balance</h3>
+              <h3 className="section-title">{t(language, 'dashWalletBalance')}</h3>
 
               <div className="grid-container">
 
@@ -2461,17 +2459,12 @@ const Dashboard = () => {
 
 
                 {!assetsLoading && !error && balances.length === 0 && !viewingAddress && (
-
-                  <div className="empty-state">Connect wallet to view your portfolio</div>
-
+                  <div className="empty-state">{t(language, 'dashConnectPortfolio')}</div>
                 )}
 
 
-
                 {!assetsLoading && !error && balances.length === 0 && viewingAddress && (
-
-                  <div className="empty-state">No tokens found in this wallet</div>
-
+                  <div className="empty-state">{t(language, 'dashNoTokens')}</div>
                 )}
 
 
@@ -2485,11 +2478,9 @@ const Dashboard = () => {
                     token={token}
 
                     delay={index * ANIMATION_DELAYS.TOKEN_CARD}
-
                     convertUSD={convertUSD}
-
                     formatCurrencyValue={formatCurrencyValue}
-
+                    language={language}
                   />
 
                 ))}
@@ -2500,7 +2491,7 @@ const Dashboard = () => {
 
             <section className="grid-section">
 
-              <h3 className="section-title">DeFi Positions</h3>
+              <h3 className="section-title">{t(language, 'dashDefiPositions')}</h3>
 
               <div className="grid-container">
 
@@ -2514,11 +2505,11 @@ const Dashboard = () => {
 
 
                 {!defiLoading && !assetsLoading && visibleDeFiPositions.length === 0 && viewingAddress && (
-                  <div className="empty-state">No active DeFi positions found</div>
+                  <div className="empty-state">{t(language, 'dashNoDefi')}</div>
                 )}
 
                 {!defiLoading && !assetsLoading && visibleDeFiPositions.length === 0 && !viewingAddress && (
-                  <div className="empty-state">Connect wallet to view DeFi positions</div>
+                  <div className="empty-state">{t(language, 'dashConnectDefi')}</div>
                 )}
 
 
@@ -2552,6 +2543,7 @@ const Dashboard = () => {
                       convertUSD={convertUSD}
                       formatCurrencyValue={formatCurrencyValue}
                       currencySymbol={currencySymbol}
+                      language={language}
                     />
                   ));
                 })()}
@@ -2562,7 +2554,7 @@ const Dashboard = () => {
 
             <section className="grid-section">
               <h3 className="section-title">
-                <span></span> Liquidity Positions
+                {t(language, 'dashLiquidityPositions')}
               </h3>
               <div className="grid-container lp-grid">
                 {(lpLoading || indexerLoading) && (
@@ -2573,11 +2565,11 @@ const Dashboard = () => {
                 )}
 
                 {!lpLoading && !indexerLoading && visibleLiquidityPositions.length === 0 && viewingAddress && (
-                  <div className="empty-state">No liquidity positions found</div>
+                  <div className="empty-state">{t(language, 'dashNoLiquidity')}</div>
                 )}
 
                 {!lpLoading && !indexerLoading && visibleLiquidityPositions.length === 0 && !viewingAddress && (
-                  <div className="empty-state">Connect wallet to view liquidity positions</div>
+                  <div className="empty-state">{t(language, 'dashConnectLiquidity')}</div>
                 )}
 
                 {!indexerLoading && visibleLiquidityPositions.length > 0 && visibleLiquidityPositions.map((position, index) => (
@@ -2589,6 +2581,7 @@ const Dashboard = () => {
                     convertUSD={convertUSD}
                     formatCurrencyValue={formatCurrencyValue}
                     currencySymbol={currencySymbol}
+                    language={language}
                   />
                 ))}
               </div>
@@ -2621,7 +2614,7 @@ const Dashboard = () => {
                   />
                 </div>
                 <div className="modal-info-section">
-                  <h2 className="modal-username">{userProfile?.username || 'Anonymous User'}</h2>
+                  <h2 className="modal-username">{userProfile?.username || t(language, 'dashAnonymousUser')}</h2>
                   <div className="modal-address">
                     {viewingAddress && (
                       <>
@@ -2652,18 +2645,18 @@ const Dashboard = () => {
                         navigate('/profile');
                       }}
                     >
-                      Edit Profile
+                      {t(language, 'dashEditProfile')}
                     </button>
                   )}
                 </div>
                 {!levelLoading && (
                   <div className="modal-level-section">
                     <div className="modal-level-row">
-                      <span className="modal-level-label">Current Level</span>
+                      <span className="modal-level-label">{t(language, 'dashCurrentLevel')}</span>
                       <span className="modal-level-value">{level}</span>
                     </div>
                     <div className="modal-xp-row">
-                      <span className="modal-xp-label">Experience Points</span>
+                      <span className="modal-xp-label">{t(language, 'dashExpPoints')}</span>
                       <span className="modal-xp-value">{xp} / {nextLevelXP}</span>
                     </div>
                     <div className="modal-xp-bar-container">
@@ -2672,12 +2665,12 @@ const Dashboard = () => {
                   </div>
                 )}
               </div>
-              <div className="modal-badges-section">
-                <h3 className="modal-badges-title">Collected Badges ({userBadges.length})</h3>
+               <div className="modal-badges-section">
+                <h3 className="modal-badges-title">{t(language, 'dashCollectedBadges')} ({userBadges.length})</h3>
                 <div className="modal-onchain-badges">
-                  <h4 className="modal-onchain-title">Available Badges</h4>
+                  <h4 className="modal-onchain-title">{t(language, 'onchainBadges')}</h4>
                   {onchainBadgesLoading ? (
-                    <div className="modal-onchain-loading">Loading badges...</div>
+                    <div className="modal-onchain-loading">{t(language, 'dashLoadingBadges')}</div>
                   ) : onchainBadges && onchainBadges.length > 0 ? (
                     <div className="modal-onchain-badges-grid">
                       {onchainBadges.map((b) => (
@@ -2685,13 +2678,13 @@ const Dashboard = () => {
                           <div className="modal-onchain-badge-icon">{b.imageUrl ? <img src={b.imageUrl} alt={b.name} onError={(e) => { e.target.style.display = 'none' }} /> : (b.name ? b.name[0] : 'B')}</div>
                           <div className="modal-onchain-badge-info">
                             <div className="modal-onchain-badge-name">{b.name}</div>
-                            <div className="modal-onchain-badge-meta">{b.earned ? 'Owned' : 'Not owned'}</div>
+                            <div className="modal-onchain-badge-meta">{b.earned ? t(language, 'dashOwned') : t(language, 'dashNotOwned')}</div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="modal-onchain-empty">No on-chain badges</div>
+                    <div className="modal-onchain-empty">{t(language, 'dashNoOnchainBadges')}</div>
                   )}
                 </div>
                 {(persistedBadges && persistedBadges.length > 0) || userBadges.length > 0 ? (
@@ -2709,7 +2702,7 @@ const Dashboard = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="modal-no-badges">No badges earned yet. Mint badges to level up!</p>
+                  <p className="modal-no-badges">{t(language, 'dashNoBadgesEarned')}</p>
                 )}
               </div>
             </div>

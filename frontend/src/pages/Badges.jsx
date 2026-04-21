@@ -19,21 +19,23 @@ import { confirmMintAndOwnership } from '../services/badges/mintVerification.js'
 import { bulkCheckEligibility } from '../services/badges/engineService.js';
 import useBadges from '../hooks/useBadges.js';
 import useBadgeEligibility from '../hooks/useBadgeEligibility.js';
+import { t, getStoredLanguagePreference } from '../utils/language';
+import { getSettingsStorageKey } from '../utils/settings';
 
-const getProgressMessage = (progress, fallbackReason) => {
+const getProgressMessage = (progress, fallbackReason, language) => {
   const current = Number(progress?.current);
   const required = Number(progress?.required);
 
   if (Number.isFinite(current) && Number.isFinite(required) && required > 0) {
     const ratio = current / required;
-    const suffix = ratio >= 0.9 ? 'almost there!' : 'keep going';
+    const suffix = ratio >= 0.9 ? t(language, 'badgesAlmostThere') : t(language, 'badgesKeepGoing');
     return `${Math.floor(current)}/${Math.floor(required)} — ${suffix}`;
   }
 
-  return fallbackReason || 'Not eligible yet';
+  return fallbackReason || t(language, 'badgesNotEligible');
 };
 
-function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
+function BadgeEligibilityActions({ badge, minting, onMint, disabled, language }) {
   const { status, progress, reason, checkEligibility, isLoading } = useBadgeEligibility(badge);
 
   const effectiveStatus = badge?.earned
@@ -43,17 +45,17 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
       : status;
 
   if (disabled) {
-    return <p className="achievement-muted-note">This badge campaign has ended</p>;
+    return <p className="achievement-muted-note">{t(language, 'badgesCampaignEnded')}</p>;
   }
 
   if (isLoading || effectiveStatus === 'loading') {
-    return <p className="achievement-muted-note">Checking eligibility...</p>;
+    return <p className="achievement-muted-note">{t(language, 'badgesChecking')}</p>;
   }
 
   if (effectiveStatus === 'eligible') {
     return (
       <div className="achievement-eligible-wrap">
-        <span className="achievement-ok">✓ Eligible</span>
+        <span className="achievement-ok">✓ {t(language, 'badgesEligible')}</span>
         <button
           className="achievement-claim-btn"
           onClick={(event) => {
@@ -62,14 +64,14 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
           }}
           disabled={minting || disabled}
         >
-          {minting ? 'Claiming...' : 'Claim Badge'}
+          {minting ? t(language, 'badgesClaiming') : t(language, 'badgesClaim')}
         </button>
       </div>
     );
   }
 
   if (effectiveStatus === 'not_eligible') {
-    const progressMessage = getProgressMessage(progress, reason);
+    const progressMessage = getProgressMessage(progress, reason, language);
     const width = Number(progress?.required) > 0
       ? Math.max(4, Math.min(100, (Number(progress?.current || 0) / Number(progress.required)) * 100))
       : 8;
@@ -88,7 +90,7 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
           }}
           type="button"
         >
-          Re-check
+          {t(language, 'badgesRecheck')}
         </button>
       </div>
     );
@@ -97,19 +99,19 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
   if (effectiveStatus === 'already_owned') {
     return (
       <button className="achievement-check-btn" disabled type="button">
-        You own this badge ✓
+        {t(language, 'badgesOwned')}
       </button>
     );
   }
 
   if (effectiveStatus === 'requires_admin') {
-    return <p className="achievement-muted-note">Contact admin to enable claiming</p>;
+    return <p className="achievement-muted-note">{t(language, 'badgesContactAdmin')}</p>;
   }
 
   if (effectiveStatus === 'error') {
     return (
       <div className="achievement-not-eligible-wrap">
-        <p className="achievement-muted-note">Check failed — try again</p>
+        <p className="achievement-muted-note">{t(language, 'badgesCheckFailed')}</p>
         {reason ? <p className="achievement-muted-note achievement-muted-note-small">{reason}</p> : null}
         <button
           className="achievement-check-btn"
@@ -119,7 +121,7 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
           }}
           type="button"
         >
-          Retry
+          {t(language, 'badgesRetry')}
         </button>
       </div>
     );
@@ -134,13 +136,18 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled }) {
       }}
       type="button"
     >
-      Check Eligibility
+      {t(language, 'badgesChecking')}
     </button>
   );
 }
 
 export default function Badges() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
+  const address = connected && account?.address
+    ? (typeof account.address === 'string' ? account.address : account.address.toString())
+    : null;
+
+  const [language, setLanguage] = useState(() => getStoredLanguagePreference(getSettingsStorageKey(address)));
   const [lifecycleTab, setLifecycleTab] = useState('active');
   const [mintingIds, setMintingIds] = useState(new Set());
   const [error, setError] = useState('');
@@ -151,11 +158,6 @@ export default function Badges() {
   const [scanResults, setScanResults] = useState({});
 
   const { client: movementClient, loading: movementClientLoading } = useMovementClient();
-
-  const address = connected && account?.address
-    ? (typeof account.address === 'string' ? account.address : account.address.toString())
-    : null;
-
   const {
     badges,
     totalBadges,
@@ -165,11 +167,11 @@ export default function Badges() {
     refresh,
   } = useBadges(address, {
     client: movementClient,
-      clientLoading: movementClientLoading,
+    clientLoading: movementClientLoading,
     enablePolling: false,
   });
 
-  const earnedLabel = `${earnedCount} of ${totalBadges} Earned`;
+  const earnedLabel = t(language, 'badgesEarned', { earned: earnedCount, total: totalBadges });
 
   const isBadgeExpired = useCallback((badge) => {
     const timeLimited = badge?.metadata?.special?.timeLimited;
@@ -215,10 +217,11 @@ export default function Badges() {
     try {
       const results = await bulkCheckEligibility(address, visibleBadges);
       setScanResults(results);
-      setSuccessMsg(`Scan complete! Found ${Object.values(results).filter(r => r.eligible).length} new eligible badges.`);
+      const eligibleCount = Object.values(results).filter(r => r.eligible).length;
+      setSuccessMsg(t(language, 'badgesScanResults', { count: eligibleCount }));
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
-      setError('Deep scan failed. Try again in a moment.');
+      setError(t(language, 'badgesScanFailed'));
     } finally {
       setIsScanning(false);
     }
@@ -244,7 +247,7 @@ export default function Badges() {
     }
 
     if (attempt === 0) {
-      setSuccessMsg('Badge minted successfully but XP sync failed. Your XP will update shortly.');
+      setSuccessMsg(t(language, 'badgesMintSuccessSyncFail'));
       setTimeout(() => setSuccessMsg(''), 6500);
       setTimeout(() => {
         void syncBadgeMint({ senderAddress, badge, txHash, attempt: 1 });
@@ -276,24 +279,24 @@ export default function Badges() {
   }, [selectedBadge, closeBadgeModal]);
 
   const handleShareBadge = useCallback(async (badge) => {
-    const shareTitle = `${badge.name} achievement`;
-    const shareText = `${badge.name} - ${badge.description || 'Movement Network achievement unlocked.'}`;
+    const shareTitle = t(language, 'badgesShareTitle', { name: badge.name }) || `${badge.name} achievement`;
+    const shareText = `${badge.name} - ${badge.description || t(language, 'badgesDescriptionFallback')}`;
 
     try {
       if (navigator.share) {
         await navigator.share({ title: shareTitle, text: shareText });
       } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(`${shareTitle}\n${shareText}`);
-        setSuccessMsg('Achievement details copied to clipboard.');
+        setSuccessMsg(t(language, 'badgesShareSuccess'));
         setTimeout(() => setSuccessMsg(''), 2500);
       } else {
-        setError('Sharing is not supported on this browser.');
+        setError(t(language, 'badgesShareNotSupported'));
         setTimeout(() => setError(''), 2500);
       }
     } catch (err) {
       // Ignore abort errors from dismissed native share sheet.
       if (err?.name !== 'AbortError') {
-        setError('Could not share this achievement right now.');
+        setError(t(language, 'badgesShareError'));
         setTimeout(() => setError(''), 2500);
       }
     }
@@ -329,7 +332,7 @@ export default function Badges() {
 
         <div className="achievement-content">
           <h3>{badge.name}</h3>
-          <p>{badge.description || 'Complete this challenge to unlock the achievement.'}</p>
+          <p>{badge.description || t(language, 'badgesDescriptionFallback')}</p>
 
           {!badge.earned && !badge.eligible && progressClamped > 0 && (
             <div className="achievement-progress" aria-label={`Progress ${Math.round(progressClamped)} percent`}>
@@ -344,13 +347,14 @@ export default function Badges() {
             minting={isMinting}
             onMint={handleMint}
             disabled={badge.isExpired}
+            language={language}
           />
 
-          {badge.earned && <span className="achievement-status-pill">Unlocked</span>}
-          {!badge.earned && !badge.eligible && !badge.attestationPending && !badge.attestationFailed && <span className="achievement-status-pill">Locked</span>}
-          {badge.publishPending && <span className="achievement-status-pill">Publishing on-chain</span>}
-          {badge.attestationPending && <span className="achievement-status-pill">Attesting…</span>}
-          {badge.attestationFailed && <span className="achievement-status-pill achievement-status-pill--warn" title="Auto-attestation failed. The on-chain service may not be configured yet.">Attestation unavailable</span>}
+          {badge.earned && <span className="achievement-status-pill">{t(language, 'badgesAchievements')}</span>}
+          {!badge.earned && !badge.eligible && !badge.attestationPending && !badge.attestationFailed && <span className="achievement-status-pill">{t(language, 'badgesLocked')}</span>}
+          {badge.publishPending && <span className="achievement-status-pill">{t(language, 'badgesPublishing')}</span>}
+          {badge.attestationPending && <span className="achievement-status-pill">{t(language, 'badgesAttesting')}</span>}
+          {badge.attestationFailed && <span className="achievement-status-pill achievement-status-pill--warn" title={t(language, 'badgesAttestationFailedNote')}>{t(language, 'badgesAttestationFailed')}</span>}
 
           <span className="achievement-chevron" aria-hidden="true">›</span>
         </div>
@@ -361,11 +365,11 @@ export default function Badges() {
   // Mint handler
   const handleMint = useCallback(async (badge) => {
     if (!connected || !account || !signAndSubmitTransaction) {
-      setError('Please connect your wallet to claim badges');
+      setError(t(language, 'badgesConnectToClaim'));
       return;
     }
     if (!movementClient) {
-      setError('Movement client is still loading. Please try again in a moment.');
+      setError(t(language, 'badgesClientLoading'));
       return;
     }
 
@@ -375,14 +379,14 @@ export default function Badges() {
 
     try {
       if (badge.onChainBadgeId == null) {
-        throw new Error('Badge is not yet published on-chain. Please wait for admin to publish this SBT.');
+        throw new Error(t(language, 'badgesNotPublished'));
       }
 
       let txHash = null;
       const senderAddress = typeof account.address === 'string' ? account.address : account.address.toString();
       const sigResult = await requestMintSignature(senderAddress, badge.onChainBadgeId);
       if (!sigResult.ok) {
-        throw new Error(sigResult.error || 'Could not obtain mint authorization from server');
+        throw new Error(sigResult.error || t(language, 'badgesMintAuthFailed'));
       }
 
       const tx = await mintBadge({
@@ -406,7 +410,7 @@ export default function Badges() {
         syncOk = await syncBadgeMint({ senderAddress, badge, txHash });
       } catch (syncError) {
         syncOk = false;
-        setSuccessMsg('Badge minted successfully but XP sync failed. Your XP will update shortly.');
+        setSuccessMsg(t(language, 'badgesMintSuccessSyncFail'));
         setTimeout(() => setSuccessMsg(''), 6500);
         setTimeout(() => {
           void syncBadgeMint({ senderAddress, badge, txHash, attempt: 1 });
@@ -430,12 +434,12 @@ export default function Badges() {
       }, 1400);
 
       if (syncOk) {
-        setSuccessMsg(`"${badge.name}" badge claimed!`);
+        setSuccessMsg(t(language, 'badgesClaimSuccess', { badgeName: badge.name }));
         setTimeout(() => setSuccessMsg(''), 4000);
       }
     } catch (err) {
       console.error('Mint error:', err);
-      setError(err.message || 'Failed to claim badge. Please try again.');
+      setError(err.message || t(language, 'badgesCheckFailed'));
     } finally {
       setMintingIds(prev => {
         const next = new Set(prev);
@@ -450,9 +454,9 @@ export default function Badges() {
       <div className="badges-container">
         <header className="badges-header">
           <div className="badges-header-text">
-            <span className="badges-eyebrow">Achievements</span>
-            <h1>Badges</h1>
-            <p>Earn SBT achievements by participating in the Movement Network.</p>
+            <span className="badges-eyebrow">{t(language, 'badgesAchievements')}</span>
+            <h1>{t(language, 'badgesTitle')}</h1>
+            <p>{t(language, 'badgesSubtitle')}</p>
           </div>
 
           <div className="badges-progress" aria-label="Badge progress summary">
@@ -471,7 +475,7 @@ export default function Badges() {
         {!connected && (
           <div className="badges-connect-prompt">
             <div className="badges-connect-icon">🔐</div>
-            <p>Connect your wallet to view your badge progress and claim earned badges.</p>
+            <p>{t(language, 'badgesConnectPrompt')}</p>
           </div>
         )}
 
@@ -479,14 +483,14 @@ export default function Badges() {
         {connected && loading && totalBadges > 0 && badgesWithLifecycle.length === 0 && (
           <div className="badges-loading">
             <div className="badges-spinner" />
-            <p>Checking eligibility...</p>
+            <p>{t(language, 'badgesChecking')}</p>
           </div>
         )}
 
         {/* No badges defined yet */}
         {connected && !loading && totalBadges === 0 && (
           <div className="badges-empty">
-            <p>No badges available yet</p>
+            <p>{t(language, 'badgesNoBadgesAvailable')}</p>
           </div>
         )}
 
@@ -497,7 +501,7 @@ export default function Badges() {
             {loading && (
               <div className="badges-realtime-indicator">
                 <span className="badges-pulse-dot" />
-                Updating eligibility...
+                {t(language, 'badgesChecking')}
               </div>
             )}
 
@@ -508,10 +512,10 @@ export default function Badges() {
                 onClick={handleDeepScan} 
                 disabled={loading || isScanning}
               >
-                {isScanning ? '⚡ Scanning Network...' : '🔍 Deep Scan My Wallet'}
+                {isScanning ? t(language, 'badgesScanning') : t(language, 'badgesDeepScan')}
               </button>
               <button className="badges-refresh-btn" onClick={refresh} disabled={loading || isScanning}>
-                ↻ Refresh
+                ↻ {t(language, 'badgesRefresh')}
               </button>
             </div>
 
@@ -522,7 +526,7 @@ export default function Badges() {
                 role="tab"
                 aria-selected={lifecycleTab === 'active'}
               >
-                Active
+                {t(language, 'badgesActive')}
                 <span>{activeBadges.length}</span>
               </button>
               <button
@@ -531,14 +535,14 @@ export default function Badges() {
                 role="tab"
                 aria-selected={lifecycleTab === 'expired'}
               >
-                Expired
+                {t(language, 'badgesExpired')}
                 <span>{expiredBadges.length}</span>
               </button>
             </div>
 
             {visibleBadges.length === 0 && (
               <div className="badges-empty">
-                <p>{lifecycleTab === 'expired' ? 'No expired badges yet.' : 'No active badges yet.'}</p>
+                <p>{lifecycleTab === 'expired' ? t(language, 'badgesNoExpired') : t(language, 'badgesNoActive')}</p>
               </div>
             )}
 
@@ -546,9 +550,9 @@ export default function Badges() {
               <>
                 <section className="badges-section">
                   <h2 className="badges-section-title">
-                    Completed
+                    {t(language, 'badgesCompleted')}
                     <span className="badges-section-count">{completedBadges.length}</span>
-                    <small>Achievements are updated weekly.</small>
+                    <small>{t(language, 'badgesCompletedNote')}</small>
                   </h2>
                   <div className="achievement-grid">
                     {completedBadges.map(renderAchievementCard)}
@@ -557,9 +561,9 @@ export default function Badges() {
 
                 <section className="badges-section">
                   <h2 className="badges-section-title">
-                    Incomplete
+                    {t(language, 'badgesIncomplete')}
                     <span className="badges-section-count">{incompleteBadges.length}</span>
-                    <small>Keep trading to unlock more.</small>
+                    <small>{t(language, 'badgesIncompleteNote')}</small>
                   </h2>
                   <div className="achievement-grid">
                     {incompleteBadges.map(renderAchievementCard)}
@@ -593,22 +597,22 @@ export default function Badges() {
             </div>
 
             <h3 id="badge-modal-title">{selectedBadge.name}</h3>
-            <p>{selectedBadge.description || 'Complete this challenge to unlock this achievement.'}</p>
+            <p>{selectedBadge.description || t(language, 'badgesDescriptionFallback')}</p>
 
             <div className="badge-modal-meta">
-              {selectedBadge.earned && <span className="badge-modal-pill is-earned">Unlocked</span>}
-              {selectedBadge.eligible && !selectedBadge.earned && <span className="badge-modal-pill is-claim">Ready to claim</span>}
-              {!selectedBadge.earned && !selectedBadge.eligible && <span className="badge-modal-pill is-locked">In progress</span>}
+              {selectedBadge.earned && <span className="badge-modal-pill is-earned">{t(language, 'badgesAchievements')}</span>}
+              {selectedBadge.eligible && !selectedBadge.earned && <span className="badge-modal-pill is-claim">{t(language, 'badgesReadyToClaim')}</span>}
+              {!selectedBadge.earned && !selectedBadge.eligible && <span className="badge-modal-pill is-locked">{t(language, 'badgesInProgress')}</span>}
             </div>
 
             {selectedBadge.attestationPending && (
               <p className="badge-modal-note">
-                You&apos;re eligible! On-chain attestation is being processed automatically — the Claim button will appear shortly.
+                {t(language, 'badgesAttestationNote')}
               </p>
             )}
             {selectedBadge.attestationFailed && (
               <p className="badge-modal-note badge-modal-note--warn">
-                You&apos;re eligible, but the on-chain attestation service isn&apos;t available right now (the badge may not be configured on-chain yet). Contact the admin to enable claiming.
+                {t(language, 'badgesAttestationFailedNote')}
               </p>
             )}
 
@@ -617,7 +621,7 @@ export default function Badges() {
               onClick={() => handleShareBadge(selectedBadge)}
               type="button"
             >
-              Share achievement
+              {t(language, 'badgesShare')}
             </button>
           </div>
         </div>

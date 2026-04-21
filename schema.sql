@@ -149,6 +149,19 @@ CREATE TABLE IF NOT EXISTS public.dapp_swap_stats (
   CONSTRAINT wallet_address_lowercase CHECK (wallet_address = lower(wallet_address))
 );
 
+-- TABLE: tracked_entities
+CREATE TABLE IF NOT EXISTS public.tracked_entities (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  address          text NOT NULL UNIQUE,
+  name             text NOT NULL,
+  category         text DEFAULT 'Protocol', -- e.g. 'Treasury', 'Dex', 'Bridge'
+  logo_url         text,
+  website_url      text,
+  is_verified      boolean DEFAULT true,
+  created_at       timestamptz DEFAULT now(),
+  updated_at       timestamptz DEFAULT now()
+);
+
 -- ----------------------------------------------------------------------------
 -- 4. INDEXES
 -- ----------------------------------------------------------------------------
@@ -178,6 +191,7 @@ ALTER TABLE public.price_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transaction_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dapp_swap_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.used_nonces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tracked_entities ENABLE ROW LEVEL SECURITY;
 
 -- Dynamic Policy Refresh
 DO $$ 
@@ -189,6 +203,7 @@ BEGIN
     DROP POLICY IF EXISTS "Public read transactions" ON public.transaction_history;
     DROP POLICY IF EXISTS "Public read prices" ON public.price_cache;
     DROP POLICY IF EXISTS "Public read swap stats" ON public.dapp_swap_stats;
+    DROP POLICY IF EXISTS "Public read entities" ON public.tracked_entities;
     DROP POLICY IF EXISTS "Allow anon select eligibility" ON public.badge_eligible_wallets;
     DROP POLICY IF EXISTS "Service role manage all" ON public.badge_eligible_wallets;
     
@@ -201,6 +216,7 @@ BEGIN
     DROP POLICY IF EXISTS "Service role full access attestations" ON public.badge_attestations;
     DROP POLICY IF EXISTS "Service role full access nonces" ON public.used_nonces;
     DROP POLICY IF EXISTS "Service role full access rates" ON public.api_rate_limits;
+    DROP POLICY IF EXISTS "Service role full access entities" ON public.tracked_entities;
 END $$;
 
 -- Public Access (Read Only)
@@ -210,6 +226,7 @@ CREATE POLICY "Public read attestations" ON public.badge_attestations FOR SELECT
 CREATE POLICY "Public read transactions" ON public.transaction_history FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Public read prices" ON public.price_cache FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Public read swap stats" ON public.dapp_swap_stats FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "Public read entities" ON public.tracked_entities FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Allow anon select eligibility" ON public.badge_eligible_wallets FOR SELECT TO anon, authenticated USING (true);
 
 -- Admin Access (Full Control)
@@ -219,12 +236,54 @@ CREATE POLICY "Service role full access badges" ON public.badge_definitions FOR 
 CREATE POLICY "Service role full access attestations" ON public.badge_attestations FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access nonces" ON public.used_nonces FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access rates" ON public.api_rate_limits FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access entities" ON public.tracked_entities FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- ----------------------------------------------------------------------------
 -- 6. XP & UPDATED_AT TRIGGERS
 -- ----------------------------------------------------------------------------
 
--- Award/Update XP Function
+-- Award Trade XP Function
+CREATE OR REPLACE FUNCTION public.sync_trade_xp()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_volume numeric;
+  v_xp_reward bigint := 0;
+BEGIN
+  -- Only process successful Daftar swaps
+  IF (NEW.source != 'daftar_swap' OR NEW.status != 'success') THEN
+    RETURN NEW;
+  END IF;
+
+  -- Use average of in/out as volume benchmark
+  v_volume := (COALESCE(NEW.amount_in_usd, 0) + COALESCE(NEW.amount_out_usd, 0)) / 2;
+  
+  -- Logic: 1 XP per $5 volume
+  v_xp_reward := FLOOR(v_volume / 5);
+
+  -- Bonuses: +50 for $500+, +5 for $100+
+  IF v_volume >= 500 THEN
+    v_xp_reward := v_xp_reward + 50;
+  ELSIF v_volume >= 100 THEN
+    v_xp_reward := v_xp_reward + 5;
+  END IF;
+
+  -- Ensure profile exists
+  INSERT INTO public.profiles (wallet_address, xp)
+  VALUES (NEW.wallet_address, 0)
+  ON CONFLICT (wallet_address) DO NOTHING;
+
+  -- Award XP
+  IF v_xp_reward > 0 THEN
+    UPDATE public.profiles 
+    SET xp = xp + v_xp_reward, 
+        updated_at = now() 
+    WHERE wallet_address = NEW.wallet_address;
+  END IF;
+
+  RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+-- Award/Update Badge XP Function
 CREATE OR REPLACE FUNCTION public.sync_user_xp()
 RETURNS TRIGGER AS $$
 DECLARE v_xp_val bigint;
@@ -267,6 +326,11 @@ CREATE TRIGGER trg_badge_xp_sync
 AFTER INSERT OR UPDATE ON public.badge_attestations 
 FOR EACH ROW EXECUTE FUNCTION public.sync_user_xp();
 
+DROP TRIGGER IF EXISTS trg_trade_xp_sync ON public.transaction_history;
+CREATE TRIGGER trg_trade_xp_sync
+AFTER INSERT ON public.transaction_history
+FOR EACH ROW EXECUTE FUNCTION public.sync_trade_xp();
+
 DROP TRIGGER IF EXISTS trg_badge_xp_revoke ON public.badge_attestations;
 CREATE TRIGGER trg_badge_xp_revoke 
 AFTER DELETE ON public.badge_attestations 
@@ -284,6 +348,9 @@ CREATE TRIGGER trg_badge_attestations_updated_at BEFORE UPDATE ON public.badge_a
 
 DROP TRIGGER IF EXISTS trg_api_rate_limits_updated_at ON public.api_rate_limits;
 CREATE TRIGGER trg_api_rate_limits_updated_at BEFORE UPDATE ON public.api_rate_limits FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_tracked_entities_updated_at ON public.tracked_entities;
+CREATE TRIGGER trg_tracked_entities_updated_at BEFORE UPDATE ON public.tracked_entities FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- ----------------------------------------------------------------------------
 -- 7. PL/PGSQL FUNCTIONS (Rate Limiter)

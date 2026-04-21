@@ -5,6 +5,7 @@
  */
 
 import { createProfileMigrationProofHeaders } from './profileProof';
+import { devLog } from '../utils/devLogger.js';
 
 const PROFILE_PREFIX = 'move_profile_';
 const PROFILES_INDEX = 'move_profiles_index';
@@ -135,7 +136,7 @@ export const getProfile = (address) => {
       address: normalizedAddress,
     };
   } catch (error) {
-    console.error('Error getting profile:', error);
+    devLog('Error getting profile:', error);
     return null;
   }
 };
@@ -171,7 +172,7 @@ export const saveProfile = async (profileData) => {
     
     return profile;
   } catch (error) {
-    console.error('Error saving profile:', error);
+    devLog('Error saving profile:', error);
     throw error;
   }
 };
@@ -189,7 +190,7 @@ const updateProfilesIndex = (address) => {
       localStorage.setItem(PROFILES_INDEX, JSON.stringify(index));
     }
   } catch (error) {
-    console.error('Error updating profiles index:', error);
+    devLog('Error updating profiles index:', error);
   }
 };
 
@@ -206,7 +207,7 @@ export const getAllProfiles = () => {
       .map(addr => getProfile(addr))
       .filter(profile => profile !== null);
   } catch (error) {
-    console.error('Error getting all profiles:', error);
+    devLog('Error getting all profiles:', error);
     return [];
   }
 };
@@ -240,7 +241,7 @@ export const deleteProfile = (address) => {
     
     return true;
   } catch (error) {
-    console.error('Error deleting profile:', error);
+    devLog('Error deleting profile:', error);
     return false;
   }
 };
@@ -320,7 +321,7 @@ export const importProfile = async (profileData) => {
     
     return await saveProfile(profileData);
   } catch (error) {
-    console.error('Error importing profile:', error);
+    devLog('Error importing profile:', error);
     throw error;
   }
 };
@@ -459,7 +460,7 @@ export const getProfileAsync = async (address) => {
       };
     }
   } catch (error) {
-    console.warn('getProfileAsync remote fetch failed:', error);
+    devLog('getProfileAsync remote fetch failed:', error);
   }
 
   return getProfile(normalizedAddress);
@@ -496,7 +497,7 @@ export const saveProfileAsync = async (profileData, migrationAuth = null) => {
       body: JSON.stringify({ ...profile, ...(editKey ? { editKey } : {}) }),
     });
   } catch (error) {
-    console.warn('saveProfileAsync remote save failed, falling back to local storage:', error);
+    devLog('saveProfileAsync remote save failed, falling back to local storage:', error);
     const localProfile = await saveProfile(profile);
     cacheProfile(localProfile);
     return localProfile;
@@ -580,7 +581,7 @@ export const deleteProfileAsync = async (address, migrationAuth = null) => {
       body: JSON.stringify({ ...(editKey ? { editKey } : {}) }),
     });
   } catch (error) {
-    console.warn('deleteProfileAsync remote delete failed, falling back to local storage:', error);
+    devLog('deleteProfileAsync remote delete failed, falling back to local storage:', error);
     return deleteProfile(normalizedAddress);
   }
 
@@ -640,7 +641,7 @@ export const getAllProfilesAsync = async () => {
       return remote;
     }
   } catch (error) {
-    console.warn('getAllProfilesAsync remote fetch failed:', error);
+    devLog('getAllProfilesAsync remote fetch failed:', error);
   }
 
   return getAllProfiles();
@@ -658,7 +659,7 @@ export const searchProfilesAsync = async (query) => {
       return remote;
     }
   } catch (error) {
-    console.warn('searchProfilesAsync remote search failed:', error);
+    devLog('searchProfilesAsync remote search failed:', error);
   }
 
   return searchProfiles(query);

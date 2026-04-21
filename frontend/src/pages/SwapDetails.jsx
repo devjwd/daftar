@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DEFAULT_NETWORK } from "../config/network";
+import { getStoredLanguagePreference, t } from "../utils/language";
 import "./SwapDetails.css";
 
 const SWAP_DETAILS_STORAGE_KEY = "movement_last_swap_details_v1";
@@ -38,6 +39,25 @@ const BackIcon = () => (
 export default function SwapDetails() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [language, setLanguage] = React.useState(() => getStoredLanguagePreference());
+
+  React.useEffect(() => {
+    const syncLanguage = () => setLanguage(getStoredLanguagePreference());
+    const onLanguageChange = (event) => {
+      if (event?.detail?.language) {
+        setLanguage(event.detail.language);
+      } else {
+        syncLanguage();
+      }
+    };
+
+    window.addEventListener('languagechange', onLanguageChange);
+    window.addEventListener('storage', syncLanguage);
+    return () => {
+      window.removeEventListener('languagechange', onLanguageChange);
+      window.removeEventListener('storage', syncLanguage);
+    };
+  }, []);
 
   const swapDetails = useMemo(() => {
     const fromRoute = location.state?.swapDetails;
@@ -58,16 +78,16 @@ export default function SwapDetails() {
       <div className="swap-details-page">
         <div className="swap-details-shell">
           <div className="swap-details-header">
-            <button type="button" className="swap-details-back" onClick={() => navigate("/swap")} aria-label="Back to swap">
+            <button type="button" className="swap-details-back" onClick={() => navigate("/swap")} aria-label={t(language, 'swapBackToSwap')}>
               <BackIcon />
             </button>
-            <h1>Transaction details</h1>
+            <h1>{t(language, 'swapTxDetails')}</h1>
             <span className="swap-details-spacer" />
           </div>
 
           <div className="swap-details-empty">
-            <p>No recent swap details found.</p>
-            <button type="button" onClick={() => navigate("/swap")}>Back to Swap</button>
+            <p>{t(language, 'swapNoDetails')}</p>
+            <button type="button" onClick={() => navigate("/swap")}>{t(language, 'swapBackToSwap')}</button>
           </div>
         </div>
       </div>
@@ -82,10 +102,10 @@ export default function SwapDetails() {
     <div className="swap-details-page">
       <div className="swap-details-shell">
         <div className="swap-details-header">
-          <button type="button" className="swap-details-back" onClick={() => navigate("/swap")} aria-label="Back to swap">
+          <button type="button" className="swap-details-back" onClick={() => navigate("/swap")} aria-label={t(language, 'swapBackToSwap')}>
             <BackIcon />
           </button>
-          <h1>Transaction details</h1>
+          <h1>{t(language, 'swapTxDetails')}</h1>
           <span className="swap-details-spacer" />
         </div>
 
@@ -95,7 +115,7 @@ export default function SwapDetails() {
         </div>
 
         <section className="swap-details-card">
-          <div className="swap-details-card-title">Swap</div>
+          <div className="swap-details-card-title">{t(language, 'swapTitle')}</div>
 
           <div className="swap-details-token-row">
             <div className="swap-details-token-line">
@@ -109,10 +129,10 @@ export default function SwapDetails() {
             </div>
           </div>
 
-          <div className="swap-details-provider">{safeValue(swapDetails.provider)} route</div>
+          <div className="swap-details-provider">{t(language, 'swapRouteLabel', { provider: safeValue(swapDetails.provider) })}</div>
 
           <div className="swap-details-status-list">
-            <div className="swap-details-status">✓ Swap completed</div>
+            <div className="swap-details-status">✓ {t(language, 'swapCompleted')}</div>
           </div>
         </section>
 
@@ -121,29 +141,29 @@ export default function SwapDetails() {
             <span>{safeValue(swapDetails.rateLabel)}</span>
           </div>
           <div className="swap-details-kv">
-            <span>Network cost</span>
+            <span>{t(language, 'swapNetworkCost')}</span>
             <strong>{safeValue(swapDetails.networkCostLabel)}</strong>
           </div>
           <div className="swap-details-kv">
-            <span>Price impact</span>
+            <span>{t(language, 'swapPriceImpact')}</span>
             <strong>{safeValue(swapDetails.priceImpact)}%</strong>
           </div>
           <div className="swap-details-kv">
-            <span>Slippage</span>
+            <span>{t(language, 'swapSlippage')}</span>
             <strong>{safeValue(swapDetails.slippage)}%</strong>
           </div>
         </section>
 
         <section className="swap-details-card compact">
           <div className="swap-details-transfer-head">
-            <span>Trx hash</span>
+            <span>{t(language, 'swapTrxHash')}</span>
             {txLink ? (
               <a href={txLink} target="_blank" rel="noopener noreferrer" className="swap-details-open">
-                Open ↗
+                {t(language, 'swapOpenExplorer')}
               </a>
             ) : null}
           </div>
-          <code>{txHash || "Unavailable"}</code>
+          <code>{txHash || t(language, 'swapUnavailable')}</code>
         </section>
 
         <button
@@ -151,7 +171,7 @@ export default function SwapDetails() {
           className="swap-details-support"
           onClick={() => window.open(SUPPORT_DISCORD_URL, "_blank", "noopener,noreferrer")}
         >
-          Contact support
+          {t(language, 'swapContactSupport')}
         </button>
       </div>
     </div>

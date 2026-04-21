@@ -79,6 +79,13 @@ export default function BadgeManager({
         </button>
       </div>
 
+      {badges.length === 0 && (
+        <div className="ba-empty-state">
+          <h3>No badges defined.</h3>
+          <p>You haven't created any custom badges for the platform yet. Click the button above to get started!</p>
+        </div>
+      )}
+
       <div className="ba-badge-list">
         {badges.map(badge => (
           <div key={badge.id} className={`ba-badge-item ${!badge.enabled ? 'disabled' : ''}`}>

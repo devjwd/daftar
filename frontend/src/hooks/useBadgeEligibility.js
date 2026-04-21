@@ -1,3 +1,5 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { evaluateBadge } from '../services/badges/engineService.js';
 import { fetchBadge } from '../services/badgeService.js';
 import { useMovementClient } from './useMovementClient.js';

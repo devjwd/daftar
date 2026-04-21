@@ -25,9 +25,11 @@ export function registerCriterion(plugin) {
 export function evaluateCriterion(type, stats, params) {
   const plugin = registry.get(type);
   if (!plugin) {
+    // Return a stable fallback for unimplemented criteria
     return {
       eligible: false,
-      error: `Unknown criteria type: ${type}`,
+      reason: 'Automatic eligibility for this rule is coming soon.',
+      label: '🕒 Automated Check Pending',
       progress: 0
     };
   }
@@ -107,18 +109,19 @@ registerCriterion({
     if (!profile) {
       return { eligible: false, current: 0, required: 1, progress: 0, label: 'No profile found' };
     }
-
+ 
     const requirePfp = params?.requirePfp !== false;
     const requireBio = params?.requireBio !== false;
-
+ 
     let criteriaMet = true;
     const missing = [];
-
+ 
     if (!profile.username) {
       criteriaMet = false;
       missing.push('username');
     }
-    if (requirePfp && !profile.pfp) {
+    // Corrected property name: profileService use avatar_url
+    if (requirePfp && !profile.avatar_url) {
       criteriaMet = false;
       missing.push('profile picture');
     }
@@ -126,13 +129,13 @@ registerCriterion({
       criteriaMet = false;
       missing.push('bio');
     }
-
+ 
     const current = criteriaMet ? 1 : 0;
     return {
       eligible: criteriaMet,
       current,
       required: 1,
-      progress: criteriaMet ? 100 : 33,
+      progress: criteriaMet ? 100 : 0,
       label: criteriaMet ? 'Profile Complete' : `Missing: ${missing.join(', ')}`
     };
   }
