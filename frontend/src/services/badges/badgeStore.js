@@ -17,6 +17,10 @@ const BADGE_AWARDS_KEY = 'movement_badge_awards_v3';
 const BADGE_STORE_META_KEY = 'movement_badges_meta_v3';
 const STORE_SCHEMA_VERSION = 3;
 
+// Throttling for background syncs
+const LAST_SYNC_TIMES = new Map();
+const SYNC_COOLDOWN_MS = 60000; // 1 minute
+
 function normalizeBadgeId(value) {
   const normalized = String(value || '')
     .toLowerCase()
@@ -28,7 +32,7 @@ function normalizeBadgeId(value) {
 
 function normalizeLoadedBadge(rawBadge) {
   if (!rawBadge || typeof rawBadge !== 'object') return null;
- 
+
   // CRITICAL: Prefer Database UUID (badge_id or id)
   const id = rawBadge.badge_id || rawBadge.id || `badge-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
@@ -207,9 +211,16 @@ export async function syncBadgesFromBackend() {
   return { ok: true, badges };
 }
 
-export async function syncUserAwardsFromBackend(address) {
+export async function syncUserAwardsFromBackend(address, force = false) {
   if (!address) return { ok: true, awards: [] };
 
+  const now = Date.now();
+  const lastSync = LAST_SYNC_TIMES.get(address) || 0;
+  if (!force && (now - lastSync < SYNC_COOLDOWN_MS)) {
+    return { ok: true, awards: getUserAwards(address), throttled: true };
+  }
+
+  LAST_SYNC_TIMES.set(address, now);
   const response = await fetchUserBadges(address);
   if (!response.ok) {
     return { ok: false, awards: getUserAwards(address) };
@@ -418,15 +429,15 @@ export async function awardBadge(address, badgeId, extra = {}) {
 
   const remoteResult = extra?.adminAuth
     ? await awardBadgeToUser(
-        normalized,
-        badgeId,
-        {
-          ...(extra.metadata || {}),
-          txHash: extra.txHash || null,
-          onChainBadgeId: extra.onChainBadgeId ?? resolvedBadge.onChainBadgeId ?? null,
-        },
-        { adminAuth: extra.adminAuth }
-      )
+      normalized,
+      badgeId,
+      {
+        ...(extra.metadata || {}),
+        txHash: extra.txHash || null,
+        onChainBadgeId: extra.onChainBadgeId ?? resolvedBadge.onChainBadgeId ?? null,
+      },
+      { adminAuth: extra.adminAuth }
+    )
     : { ok: false };
 
   if (remoteResult.ok && remoteResult.data) {

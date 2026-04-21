@@ -38,14 +38,19 @@ class ErrorBoundary extends React.Component {
       return;
     }
 
+    // Safety: only attempt one automatic reload to fetch fresh chunks
     try {
       const alreadyRetried = sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
       if (!alreadyRetried) {
         sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+        console.warn("[ErrorBoundary] ChunkLoadError detected. Attempting one-time automatic page refresh...");
         window.location.reload();
+      } else {
+        console.error("[ErrorBoundary] ChunkLoadError persisted after refresh. Stopping reload cycle.");
       }
-    } catch {
-      window.location.reload();
+    } catch (e) {
+      console.error("[ErrorBoundary] Storage access failed, cannot safely auto-reload:", e);
+      // If we can't track retries, we MUST NOT auto-reload or we risk a 42 req/sec loop.
     }
   }
 

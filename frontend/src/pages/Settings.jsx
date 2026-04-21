@@ -61,19 +61,16 @@ export default function Settings() {
     persistSettings();
     saveThemePreference(theme, settingsKey);
     saveLanguagePreference(language, settingsKey);
+    applyTheme(theme);
     alert(t(language, 'settingsSaved'));
   };
 
   const handleThemeChange = (nextTheme) => {
     setTheme(nextTheme);
-    persistSettings({ theme: nextTheme });
-    saveThemePreference(nextTheme, settingsKey);
   };
 
   const handleLanguageChange = (nextLanguage) => {
     setLanguage(nextLanguage);
-    persistSettings({ language: nextLanguage });
-    saveLanguagePreference(nextLanguage, settingsKey);
   };
 
   const handleReset = () => {
@@ -109,7 +106,6 @@ export default function Settings() {
                 value={currency}
                 onChange={(e) => {
                   setCurrency(e.target.value);
-                  persistSettings({ currency: e.target.value });
                 }}
                 className="setting-select"
               >
@@ -165,7 +161,6 @@ export default function Settings() {
                 onChange={(e) => {
                   const nextThreshold = Number(e.target.value);
                   setHidePositionThreshold(nextThreshold);
-                  persistSettings({ hidePositionThreshold: nextThreshold });
                 }}
                 className="setting-select"
               >

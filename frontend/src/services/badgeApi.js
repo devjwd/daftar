@@ -339,16 +339,15 @@ export const verifyBadge = async (wallet_address, badge_id) => {
     };
   }
 
-  const status = String(response.data?.status || '').trim().toLowerCase();
+  const data = response.data || {};
   return {
     data: {
-      eligible: status === 'eligible',
-      status: status || (response.data?.eligible ? 'eligible' : 'not_eligible'),
-      reason: response.data?.reason || null,
-      progress: response.data?.progress || null,
-      cached: Boolean(response.data?.cached),
-      proofHash: response.data?.proofHash || null,
-      expiresAt: response.data?.expiresAt || null,
+      eligible: Boolean(data.eligible),
+      status: data.eligible ? 'eligible' : 'not_eligible',
+      reason: data.reason || null,
+      progress: data.progress || null,
+      cached: Boolean(data.cached),
+      proofHash: data.proofHash || data.proof_hash || null,
     },
     error: null,
   };

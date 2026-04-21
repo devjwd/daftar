@@ -167,9 +167,16 @@ export default function BadgeAdmin() {
       const txResult = await trackTransaction(`Creating On-Chain Badge: ${form.name}`, txPromise);
       
       showMessage('info', 'Waiting for on-chain confirmation...');
-      const onChainBadgeId = await waitForTxAndGetId(movementClient, txResult.hash);
+      let onChainBadgeId;
+      try {
+        onChainBadgeId = await waitForTxAndGetId(movementClient, txResult.hash);
+      } catch (waitErr) {
+        console.error('[BadgeAdmin] Event detection failed:', waitErr);
+        // Fallback or more descriptive error
+        throw new Error(`Transaction succeeded but badge ID detection failed. Please check the explorer: ${txResult.hash}`);
+      }
       
-      if (!onChainBadgeId) throw new Error('Failed to detect new badge ID from events');
+      if (!onChainBadgeId) throw new Error('Failed to detect new badge ID from events. The transaction was successful, but the indexer may be lagging.');
 
       // 4. Handle Allowlist offboarding (extract addresses for dedicated table)
       const allowlistCriterion = form.criteria.find(c => c.type === 'allowlist');
@@ -211,8 +218,12 @@ export default function BadgeAdmin() {
       setSubTab('manage');
       loadBadges();
     } catch (err) {
-      console.error('[BadgeAdmin] Submit error', err);
-      showMessage('error', err.message || 'Failed to create badge');
+      console.error('Error saving entity:', err);
+      let errorMsg = err.message || 'Error saving entity';
+      if (err.code === '42501') {
+        errorMsg = 'Permission denied: Only administrators can manage entities. Please ensure you are logged in with the admin wallet.';
+      }
+      setMessage({ text: errorMsg, type: 'error' });
     } finally {
       setSubmitting(false);
     }

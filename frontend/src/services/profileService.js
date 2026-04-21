@@ -13,6 +13,14 @@ const PROFILE_EDIT_KEY_PREFIX = 'move_profile_edit_key_';
 const API_BASE = '';
 
 /**
+ * Request Deduping & Caching
+ * Prevents redundant network requests for the same profile within a short window.
+ */
+const PENDING_REQUESTS = new Map();
+const PROFILE_CACHE = new Map();
+const CLIENT_CACHE_TTL = 60000; // 1 minute
+
+/**
  * Normalize address to consistent format
  */
 export const normalizeAddress = (address) => {
@@ -449,21 +457,43 @@ export const getProfileAsync = async (address) => {
   const normalizedAddress = normalizeAddress(address);
   if (!normalizedAddress) return null;
 
-  try {
-    const res = await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(normalizedAddress)}`);
-    const remote = await safeJson(res);
-    if (remote && remote.address) {
-      cacheProfile(remote);
-      return {
-        ...remote,
-        address: normalizedAddress,
-      };
-    }
-  } catch (error) {
-    devLog('getProfileAsync remote fetch failed:', error);
+  const cacheKey = `profile:${normalizedAddress}`;
+  const now = Date.now();
+  
+  // 1. Check in-memory cache
+  const cached = PROFILE_CACHE.get(cacheKey);
+  if (cached && (now - cached.timestamp < CLIENT_CACHE_TTL)) {
+    return cached.data;
   }
 
-  return getProfile(normalizedAddress);
+  // 2. Check for pending request to dedupe
+  if (PENDING_REQUESTS.has(cacheKey)) {
+    return PENDING_REQUESTS.get(cacheKey);
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(normalizedAddress)}`);
+      const remote = await safeJson(res);
+      if (remote && remote.address) {
+        cacheProfile(remote);
+        const profile = {
+          ...remote,
+          address: normalizedAddress,
+        };
+        PROFILE_CACHE.set(cacheKey, { data: profile, timestamp: Date.now() });
+        return profile;
+      }
+    } catch (error) {
+      devLog('getProfileAsync remote fetch failed:', error);
+    } finally {
+      PENDING_REQUESTS.delete(cacheKey);
+    }
+    return getProfile(normalizedAddress);
+  })();
+
+  PENDING_REQUESTS.set(cacheKey, fetchPromise);
+  return fetchPromise;
 };
 
 export const saveProfileAsync = async (profileData, migrationAuth = null) => {

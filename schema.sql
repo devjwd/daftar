@@ -229,6 +229,9 @@ CREATE POLICY "Public read swap stats" ON public.dapp_swap_stats FOR SELECT TO a
 CREATE POLICY "Public read entities" ON public.tracked_entities FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Allow anon select eligibility" ON public.badge_eligible_wallets FOR SELECT TO anon, authenticated USING (true);
 
+-- Authenticated Admin Management for Entities
+CREATE POLICY "Authenticated manage entities" ON public.tracked_entities FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 -- Admin Access (Full Control)
 CREATE POLICY "Service role manage all" ON public.badge_eligible_wallets FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access profiles" ON public.profiles FOR ALL TO service_role USING (true) WITH CHECK (true);

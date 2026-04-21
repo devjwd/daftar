@@ -81,7 +81,11 @@ export default function EntityAdmin() {
       fetchEntities();
     } catch (err) {
       console.error('Error saving entity:', err);
-      setMessage({ text: err.message || 'Error saving entity', type: 'error' });
+      let errorMsg = err.message || 'Error saving entity';
+      if (err.code === '42501') {
+        errorMsg = 'Permission denied: Only administrators can manage entities. Please ensure you are logged in with the admin wallet.';
+      }
+      setMessage({ text: errorMsg, type: 'error' });
     }
   };
 

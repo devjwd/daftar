@@ -18,7 +18,7 @@ import {
  */
 export function useUserLevel(address) {
   const [awardsVersion, setAwardsVersion] = useState(0);
-  const [profileXP, setProfileXP] = useState(0);
+  const [profileXP, setProfileXP] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const hydrate = useCallback(async () => {
@@ -34,6 +34,8 @@ export function useUserLevel(address) {
 
       if (profile && typeof profile.xp === 'number') {
         setProfileXP(profile.xp);
+      } else if (!profile) {
+        setProfileXP(0); // Explicitly zero if profile doesn't exist
       }
       setAwardsVersion((v) => v + 1);
     } catch (err) {
@@ -42,15 +44,6 @@ export function useUserLevel(address) {
       setLoading(false);
     }
   }, [address]);
-
-  useEffect(() => {
-    if (!address) return undefined;
-
-    const unsub = subscribe('awards:changed', () => {
-      hydrate();
-    });
-    return unsub;
-  }, [address, hydrate]);
 
   useEffect(() => {
     hydrate();
@@ -68,20 +61,20 @@ export function useUserLevel(address) {
       .filter(Boolean);
   }, [address, awardsVersion]);
 
-  const xp = useMemo(() => profileXP, [profileXP]);
-  const level = useMemo(() => getLevelFromXP(xp), [xp]);
-  const nextLevelXP = useMemo(() => getNextLevelXP(xp), [xp]);
-  const progress = useMemo(() => getLevelProgress(xp), [xp]);
+  const xp = profileXP;
+  const level = xp !== null ? getLevelFromXP(xp) : null;
+  const nextLevelXP = xp !== null ? getNextLevelXP(xp) : null;
+  const progress = xp !== null ? getLevelProgress(xp) : { percentage: 0, progressXP: 0, requiredXP: 0 };
 
   return {
     level,
-    xp,
+    xp: xp ?? 0,
     nextLevelXP,
     xpProgress: progress.percentage,
     progressXP: progress.progressXP,
     requiredXP: progress.requiredXP,
     badges,
-    loading,
+    loading: loading || xp === null,
     badgeCount: badges.length,
     refresh: hydrate,
   };

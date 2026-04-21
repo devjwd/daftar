@@ -20,6 +20,7 @@ app.use(
 );
 
 const { SUPABASE_URL, PORT = '3001' } = process.env;
+const PAGE_SIZE = 20;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
 let supabaseAdmin = null;
@@ -117,6 +118,47 @@ const awardLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests' },
 });
+
+const profileLimiter = rateLimit({
+  windowMs: oneMinuteMs,
+  max: 30, // 30 requests per minute for viewing profiles
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Rate limit exceeded for profile lookups' },
+});
+
+const generalLimiter = rateLimit({
+  windowMs: oneMinuteMs,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * In-Memory Request Cache
+ * Prevents DB spam for identical hot-path GET requests.
+ */
+const MEMORY_CACHE = new Map();
+const CACHE_TTL_MS = 30000; // 30 seconds
+
+const getCached = (key) => {
+  const entry = MEMORY_CACHE.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    MEMORY_CACHE.delete(key);
+    return null;
+  }
+  return entry.data;
+};
+
+const setCached = (key, data) => {
+  MEMORY_CACHE.set(key, { data, timestamp: Date.now() });
+  // Periodic cleanup
+  if (MEMORY_CACHE.size > 1000) {
+    const oldestKey = MEMORY_CACHE.keys().next().value;
+    MEMORY_CACHE.delete(oldestKey);
+  }
+};
 
 /**
  * Global Database-Backed Rate Limiter
@@ -462,12 +504,111 @@ app.get('/api/prices', async (req, res) => {
   }
 });
 
+// --- TRANSACTION API ROUTES ---
+
+// GET /api/badges/eligibility
+app.get('/api/badges/eligibility', generalLimiter, async (req, res) => {
+  const { wallet, badgeId } = req.query;
+  if (!wallet || !badgeId) return res.status(400).json({ error: 'wallet and badgeId are required' });
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  try {
+    // Invoke the Supabase Edge Function to do the heavy lifting
+    const { data, error } = await supabaseAdmin.functions.invoke('verify-badge', {
+      body: { wallet_address: wallet, badge_id: badgeId },
+      headers: {
+        'x-api-key': process.env.VERIFY_BADGE_API_KEY || ''
+      }
+    });
+
+    if (error) throw error;
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error('[Server] Eligibility check error:', error);
+    return res.status(500).json({ error: 'Failed to verify eligibility' });
+  }
+});
+
+// POST /api/badges/track
+app.post('/api/badges/track', generalLimiter, async (req, res) => {
+  const wallet = normalizeAddress(req.query.wallet);
+  if (!wallet) return res.status(400).json({ error: 'wallet address is required' });
+
+  const page = Math.max(1, parseInt(req.query.page || '1'));
+  const type = req.query.type || 'all';
+
+  const { error } = await supabaseAdmin
+    .from('profiles') // Changed to profiles since we don't have badge_tracked_addresses
+    .update({ updated_at: new Date().toISOString() })
+    .eq('wallet_address', wallet);
+
+  if (error) {
+    return res.status(500).json({ error: error.message || 'Failed to track address' });
+  }
+
+  return res.status(200).json({ ok: true, walletAddress: wallet });
+});
+
+// GET /api/transactions
+app.get('/api/transactions', generalLimiter, async (req, res) => {
+  const wallet = normalizeAddress(req.query.wallet);
+  if (!wallet) return res.status(400).json({ error: 'wallet address is required' });
+
+  const page = Math.max(1, parseInt(req.query.page || '1'));
+  const type = req.query.type || 'all';
+  const cacheKey = `tx:${wallet}:${page}:${type}`;
+
+  const cached = getCached(cacheKey);
+  if (cached) return res.status(200).json(cached);
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database service unavailable' });
+
+  try {
+    let query = supabaseAdmin
+      .from('transaction_history')
+      .select('*', { count: 'exact' })
+      .eq('wallet_address', wallet)
+      .order('tx_timestamp', { ascending: false });
+
+    if (type !== 'all') {
+      // Basic type filtering
+      if (type === 'transfers') {
+        query = query.in('tx_type', ['transfer', 'received']);
+      } else {
+        query = query.eq('tx_type', type);
+      }
+    }
+
+    const { data, count, error } = await query
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    const result = {
+      transactions: data || [],
+      total: count || 0,
+      page,
+      hasMore: (count || 0) > page * PAGE_SIZE,
+    };
+    setCached(cacheKey, result);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[Server] Transaction fetch error:', error);
+    return res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+});
+
 // --- PROFILE API ROUTES ---
 
 // GET /api/profiles/:address
-app.get('/api/profiles/:address', async (req, res) => {
+app.get('/api/profiles/:address', profileLimiter, async (req, res) => {
   const address = normalizeAddress(req.params.address);
   if (!address) return res.status(400).json({ error: 'Invalid address' });
+
+  const cacheKey = `profile:${address}`;
+  const cached = getCached(cacheKey);
+  if (cached) return res.status(200).json(cached);
 
   if (!supabaseAdmin) {
     return res.status(503).json({ error: 'Profile service unavailable' });
@@ -487,7 +628,7 @@ app.get('/api/profiles/:address', async (req, res) => {
     }
 
     // Convert DB snake_case to Frontend camelCase if necessary
-    return res.status(200).json({
+    const profile = {
       address: data.wallet_address,
       username: data.username,
       bio: data.bio,
@@ -497,7 +638,9 @@ app.get('/api/profiles/:address', async (req, res) => {
       telegram: data.telegram,
       updatedAt: data.updated_at,
       createdAt: data.created_at
-    });
+    };
+    setCached(cacheKey, profile);
+    return res.status(200).json(profile);
   } catch (error) {
     console.error('[Server] Profile fetch error:', error);
     return res.status(500).json({ error: 'Failed to fetch profile' });
@@ -615,9 +758,15 @@ app.delete('/api/profiles/:address', async (req, res) => {
 });
 
 // GET /api/profiles - List/Search
-app.get('/api/profiles', async (req, res) => {
+app.get('/api/profiles', generalLimiter, async (req, res) => {
   const query = req.query.query;
   const limit = Math.min(parseInt(req.query.limit || '20'), 50);
+
+  // Apply DB-backed rate limit to search (prevent scraping)
+  if (query) {
+    const searchRateLimit = await checkRateLimit('search_api', 60000, 100);
+    if (!searchRateLimit.ok) return res.status(429).json({ error: 'Search rate limit exceeded' });
+  }
 
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
 
@@ -641,7 +790,11 @@ app.get('/api/profiles', async (req, res) => {
   }
 });
 
-app.listen(Number(PORT), () => {
-  // eslint-disable-next-line no-console
-  console.log(`Badge API listening on ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(Number(PORT), () => {
+    // eslint-disable-next-line no-console
+    console.log(`Badge API listening on ${PORT}`);
+  });
+}
+
+export default app;
