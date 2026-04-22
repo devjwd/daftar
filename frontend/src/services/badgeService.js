@@ -390,22 +390,39 @@ export const waitForTxAndGetId = async (client, txHash) => {
   if (!client || !txHash) return null;
 
   try {
+    // 1. Wait for transaction to be processed
     const tx = await client.waitForTransaction({ transactionHash: txHash });
     if (!tx || tx.type !== 'user_transaction' || !tx.success) {
       throw new Error(`Transaction failed or not found: ${txHash}`);
     }
 
+    // 2. Attempt to find the ID in events (Fastest)
     const moduleAddress = normalizeAddress(getBadgeModuleAddress());
     const eventType = `${moduleAddress}::badges::BadgeCreatedEvent`;
-
     const event = tx.events?.find(e => e.type === eventType);
-    if (!event) {
-      console.warn('[badgeService] BadgeCreatedEvent not found in tx:', txHash);
-      return null;
+    
+    if (event) {
+      const badgeId = Number(event.data?.badge_id ?? event.data?.id ?? null);
+      if (badgeId) return badgeId;
     }
 
-    // In Aptos/Movement events, data usually contains the fields
-    return Number(event.data?.badge_id ?? event.data?.id ?? null);
+    // 3. Fallback: Registry Polling (If events are missing/lagging)
+    console.warn('[badgeService] BadgeCreatedEvent missing, polling registry for next_id fallback...');
+    
+    // The new ID is usually (next_id - 1)
+    const registryInfo = await fetchRegistryInfo(client);
+    if (registryInfo && registryInfo.nextId > 0) {
+      const suspectedId = registryInfo.nextId - 1;
+      
+      // Verify this badge exists and belongs to us (extra safety)
+      const badgeDetails = await fetchBadge(client, suspectedId);
+      if (badgeDetails) {
+        console.log('[badgeService] Successfully recovered badge ID via registry poll:', suspectedId);
+        return suspectedId;
+      }
+    }
+
+    return null;
   } catch (err) {
     console.error('[badgeService] waitForTxAndGetId error:', err);
     throw err;

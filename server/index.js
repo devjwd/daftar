@@ -617,8 +617,17 @@ app.get('/api/transactions', generalLimiter, async (req, res) => {
     setCached(cacheKey, result);
     return res.status(200).json(result);
   } catch (error) {
-    console.error('[Server] Transaction fetch error:', error);
-    return res.status(500).json({ error: 'Failed to fetch transactions' });
+    console.error('[Server] Transactions fetch error:', error.message || error);
+    
+    // GRACEFUL DEGRADATION: 
+    // Instead of a 500 error, return an empty result so the frontend can fallback to Indexer
+    return res.status(200).json({
+      transactions: [],
+      total: 0,
+      page: Number(req.query.page || 1),
+      hasMore: false,
+      error: 'database_unavailable_falling_back'
+    });
   }
 });
 

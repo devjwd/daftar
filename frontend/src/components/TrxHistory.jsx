@@ -64,23 +64,44 @@ const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal
   });
 
   try {
+    // Attempt 1: Backend Database (Fastest for Profile Users)
     const response = await fetch(`/api/transactions?${params.toString()}`, {
       signal,
     });
 
     if (response.ok) {
       const json = await response.json();
-      return { ...EMPTY_RESPONSE, ...json };
+      // If we got valid transactions from the DB, return them
+      if (Array.isArray(json.transactions) && json.transactions.length > 0) {
+        return { ...EMPTY_RESPONSE, ...json };
+      }
     }
+  } catch (backendError) {
+    console.warn('[TrxHistory] Backend fetch failed, falling back to indexer:', backendError.message);
+  }
 
-    throw new Error(`Transactions request failed (${response.status})`);
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw error;
-    }
-    
-    console.error('[TrxHistory] fetchTransactionsPage failed:', error);
-    throw error;
+  // Attempt 2: Indexer Fallback (Reliable for all users)
+  try {
+    const indexerRows = await getOrFetchTransactions(walletAddress, {
+      limit: TRANSACTIONS_PAGE_SIZE,
+      allowCachedRead: false, // Force fresh indexer load if backend failed
+      persist: false // Don't try to save back to DB from client to avoid RLS/CORS complexity here
+    });
+
+    const filteredRows = activeFilter === 'all' 
+      ? indexerRows 
+      : indexerRows.filter(tx => String(tx.tx_type).toLowerCase() === activeFilter);
+
+    return {
+      transactions: filteredRows,
+      total: filteredRows.length,
+      page: 1,
+      hasMore: false,
+      source: 'indexer-fallback'
+    };
+  } catch (indexerError) {
+    console.error('[TrxHistory] Indexer fallback also failed:', indexerError);
+    throw indexerError;
   }
 };
 
