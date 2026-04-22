@@ -1025,8 +1025,8 @@ const enrichTransactionsWithUsd = async (walletAddress, transactions) => {
 
 const DAFTAR_BRANDING = {
   dapp_key: 'daftar',
-  dapp_name: 'Daftar',
-  dapp_logo: '/daftar-logo.svg',
+  dapp_name: 'DAFTAR swap',
+  dapp_logo: '/favicon.ico',
   dapp_website: 'https://daftar.fi',
 };
 

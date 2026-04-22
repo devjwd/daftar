@@ -139,7 +139,7 @@ const mapBadgeDefinitionRow = (row) => ({
   updatedAt: row?.updated_at || row?.updatedAt || null,
 });
 
-const mapBadgeDefinitionToRow = (badge) => {
+export const mapBadgeDefinitionToRow = (badge) => {
   const badgeId = String(badge?.id || badge?.badge_id || '').trim();
   const { ruleType, ruleParams } = getRuleDefinition(badge);
   return {

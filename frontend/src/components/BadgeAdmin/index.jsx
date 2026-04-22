@@ -6,7 +6,8 @@ import { useTransactionTracker } from '../../hooks/useTransactionTracker.js';
 import { 
   fetchAllBadges, 
   saveBadgeDefinitions,
-  manageBadgeDefinition 
+  manageBadgeDefinition,
+  mapBadgeDefinitionToRow
 } from '../../services/badgeApi.js';
 import { createAdminProofHeaders } from '../../services/adminProof.js';
 
@@ -194,7 +195,12 @@ export default function BadgeAdmin() {
       };
 
       const badgePayload = { ...sanitizedForm, onChainBadgeId, id: `badge_${Date.now()}` };
-      const auth = await createManageBadgeAuth({ action: 'create', badge: badgePayload });
+      
+      // FIX: Sign the exact body that saveBadgeDefinitions will send (batch_sync)
+      const auth = await createManageBadgeAuth({ 
+        action: 'batch_sync', 
+        badges: [mapBadgeDefinitionToRow(badgePayload)] 
+      });
       
       const apiResult = await saveBadgeDefinitions({ 
         badges: [badgePayload], 
