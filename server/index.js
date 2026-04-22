@@ -14,7 +14,7 @@ app.use(express.json({ limit: '1mb' }));
 
 app.use(
   cors({
-    origin: process.env.BADGE_CORS_ORIGIN ? process.env.BADGE_CORS_ORIGIN.split(',') : ['http://localhost:3000', 'http://localhost:3001'],
+    origin: process.env.BADGE_CORS_ORIGIN ? process.env.BADGE_CORS_ORIGIN.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'https://www.daftar.fi', 'https://daftar.fi'],
     credentials: true,
   })
 );
@@ -166,7 +166,7 @@ const setCached = (key, data) => {
  */
 const checkRateLimit = async (key, windowMs, maxRequests) => {
   if (!supabaseAdmin) return { ok: true }; // Skip if DB not configured
-  
+
   try {
     const { data, error } = await supabaseAdmin.rpc('increment_api_rate_limit', {
       p_key: key,
@@ -196,9 +196,9 @@ const checkRateLimit = async (key, windowMs, maxRequests) => {
  */
 const checkAndBurnNonce = async (address, nonce, ttlMinutes = 5) => {
   if (!supabaseAdmin) return { ok: true };
-  
+
   const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
-  
+
   try {
     // Attempt to insert. If it exists, it will fail due to PK constraint (wallet_address, nonce)
     const { error } = await supabaseAdmin
@@ -411,9 +411,9 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
 
     if (verifyError) throw verifyError;
     if (!verifyData?.eligible) {
-      return res.status(403).json({ 
-        error: 'Not eligible for this badge', 
-        reason: verifyData?.reason || 'Criteria not met' 
+      return res.status(403).json({
+        error: 'Not eligible for this badge',
+        reason: verifyData?.reason || 'Criteria not met'
       });
     }
   } catch (err) {
@@ -461,7 +461,7 @@ app.get('/api/prices', async (req, res) => {
     if (cachedRows && cachedRows.length > 0) {
       const prices = {};
       const priceChanges = {};
-      
+
       // Map DB cache to response format
       cachedRows.forEach(row => {
         prices[row.token_id] = Number(row.price_usd);
@@ -673,7 +673,7 @@ app.get('/api/profiles/:address', profileLimiter, async (req, res) => {
 // POST /api/profiles - Save/Update
 app.post('/api/profiles', async (req, res) => {
   const { address, username, bio, avatar_url, twitter, telegram, signature, signedMessage, nonce } = req.body;
-  
+
   // Support multiple naming conventions for profile picture
   const finalAvatarUrl = avatar_url || req.body.avatarUrl || req.body.pfp;
   const normalizedAddr = normalizeAddress(address);

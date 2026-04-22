@@ -16,7 +16,7 @@ const getAllowedOrigins = () => {
 
   const list = splitCsv(env);
   if (list.length === 0) {
-    const defaults = ['http://localhost:5173', 'http://localhost:3000'];
+    const defaults = ['http://localhost:5173', 'http://localhost:3000', 'https://www.daftar.fi', 'https://daftar.fi'];
     const vercelProd = String(process.env.VERCEL_PROJECT_PRODUCTION_URL || '').trim();
     const vercelPreview = String(process.env.VERCEL_URL || '').trim();
 

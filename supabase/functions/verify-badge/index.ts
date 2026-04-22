@@ -14,7 +14,7 @@ const getAllowedOrigins = () => {
   if (allowed.length > 0) return allowed
 
   // Safe defaults for local dev.
-  return ['http://localhost:5173', 'http://localhost:3000']
+  return ['http://localhost:5173', 'http://localhost:3000', 'https://www.daftar.fi', 'https://daftar.fi']
 }
 
 

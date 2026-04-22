@@ -19,7 +19,7 @@ const getAllowedOrigins = () => {
   const env = Deno.env.get('BADGE_CORS_ORIGIN') ?? Deno.env.get('API_CORS_ORIGIN') ?? ''
   const allowed = splitCsv(env)
   if (allowed.length > 0) return allowed
-  return ['http://localhost:5173', 'http://localhost:3000']
+  return ['http://localhost:5173', 'http://localhost:3000', 'https://www.daftar.fi', 'https://daftar.fi']
 }
 
 export const getCorsHeaders = (req: Request) => {

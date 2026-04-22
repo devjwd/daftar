@@ -34,12 +34,13 @@ export function useUserLevel(address) {
 
       if (profile && typeof profile.xp === 'number') {
         setProfileXP(profile.xp);
-      } else if (!profile) {
-        setProfileXP(0); // Explicitly zero if profile doesn't exist
+      } else {
+        setProfileXP(0); // Default to 0 if profile doesn't exist or xp is missing
       }
       setAwardsVersion((v) => v + 1);
     } catch (err) {
       console.warn('Level hydration error:', err);
+      setProfileXP(0);
     } finally {
       setLoading(false);
     }
@@ -61,10 +62,12 @@ export function useUserLevel(address) {
       .filter(Boolean);
   }, [address, awardsVersion]);
 
-  const xp = profileXP;
-  const level = xp !== null ? getLevelFromXP(xp) : null;
-  const nextLevelXP = xp !== null ? getNextLevelXP(xp) : null;
-  const progress = xp !== null ? getLevelProgress(xp) : { percentage: 0, progressXP: 0, requiredXP: 0 };
+  const badgeXP = useMemo(() => calculateTotalXP(badges), [badges]);
+  const xp = Math.max(profileXP ?? 0, badgeXP);
+  
+  const level = xp !== null ? getLevelFromXP(xp) : 1;
+  const nextLevelXP = xp !== null ? getNextLevelXP(xp) : 100;
+  const progress = xp !== null ? getLevelProgress(xp) : { percentage: 0, progressXP: 0, requiredXP: 100 };
 
   return {
     level,

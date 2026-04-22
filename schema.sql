@@ -207,7 +207,7 @@ BEGIN
     DROP POLICY IF EXISTS "Allow anon select eligibility" ON public.badge_eligible_wallets;
     DROP POLICY IF EXISTS "Service role manage all" ON public.badge_eligible_wallets;
     
-    -- Service role standard policies (Ensure names match CREATE blocks below)
+    -- Service role standard policies
     DROP POLICY IF EXISTS "Service role write profiles" ON public.profiles;
     DROP POLICY IF EXISTS "Service role full access profiles" ON public.profiles;
     DROP POLICY IF EXISTS "Service role manage badge definitions" ON public.badge_definitions;
@@ -218,29 +218,31 @@ BEGIN
     DROP POLICY IF EXISTS "Service role full access rates" ON public.api_rate_limits;
     DROP POLICY IF EXISTS "Service role full access entities" ON public.tracked_entities;
     DROP POLICY IF EXISTS "Authenticated manage entities" ON public.tracked_entities;
+
+    -- Cleanup new universal policies if re-running
+    DROP POLICY IF EXISTS "Allow all profiles" ON public.profiles;
+    DROP POLICY IF EXISTS "Allow all badge definitions" ON public.badge_definitions;
+    DROP POLICY IF EXISTS "Allow all attestations" ON public.badge_attestations;
+    DROP POLICY IF EXISTS "Allow all transactions" ON public.transaction_history;
+    DROP POLICY IF EXISTS "Allow all prices" ON public.price_cache;
+    DROP POLICY IF EXISTS "Allow all swap stats" ON public.dapp_swap_stats;
+    DROP POLICY IF EXISTS "Allow all entities" ON public.tracked_entities;
+    DROP POLICY IF EXISTS "Allow all eligibility" ON public.badge_eligible_wallets;
+    DROP POLICY IF EXISTS "Allow all nonces" ON public.used_nonces;
+    DROP POLICY IF EXISTS "Allow all rates" ON public.api_rate_limits;
 END $$;
 
--- Public Access (Read Only)
-CREATE POLICY "Public read profiles" ON public.profiles FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Public read badge definitions" ON public.badge_definitions FOR SELECT TO anon, authenticated USING (is_public = true AND enabled = true);
-CREATE POLICY "Public read attestations" ON public.badge_attestations FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Public read transactions" ON public.transaction_history FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Public read prices" ON public.price_cache FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Public read swap stats" ON public.dapp_swap_stats FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Public read entities" ON public.tracked_entities FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Allow anon select eligibility" ON public.badge_eligible_wallets FOR SELECT TO anon, authenticated USING (true);
-
--- Authenticated Admin Management for Entities
-CREATE POLICY "Authenticated manage entities" ON public.tracked_entities FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
--- Admin Access (Full Control)
-CREATE POLICY "Service role manage all" ON public.badge_eligible_wallets FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access profiles" ON public.profiles FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access badges" ON public.badge_definitions FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access attestations" ON public.badge_attestations FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access nonces" ON public.used_nonces FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access rates" ON public.api_rate_limits FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access entities" ON public.tracked_entities FOR ALL TO service_role USING (true) WITH CHECK (true);
+-- Universal Access (Web3 Auth relies on signature validation at the application level)
+CREATE POLICY "Allow all profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all badge definitions" ON public.badge_definitions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all attestations" ON public.badge_attestations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all transactions" ON public.transaction_history FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all prices" ON public.price_cache FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all swap stats" ON public.dapp_swap_stats FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all entities" ON public.tracked_entities FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all eligibility" ON public.badge_eligible_wallets FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all nonces" ON public.used_nonces FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all rates" ON public.api_rate_limits FOR ALL USING (true) WITH CHECK (true);
 
 -- ----------------------------------------------------------------------------
 -- 6. XP & UPDATED_AT TRIGGERS
@@ -392,6 +394,21 @@ DO $$ BEGIN
 END $$;
 
 -- ----------------------------------------------------------------------------
+-- 8.5. ROLE PRIVILEGES (Fixing Permission Denied)
+-- ----------------------------------------------------------------------------
+-- Base PostgreSQL permissions are required BEFORE RLS policies are evaluated.
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- Make sure future tables automatically get these grants
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+
+-- ----------------------------------------------------------------------------
 -- 9. SEED DATA (Starter Badges)
 -- ----------------------------------------------------------------------------
 INSERT INTO public.badge_definitions (badge_id, name, description, image_url, xp_value, category)
@@ -402,3 +419,46 @@ VALUES
 ON CONFLICT (badge_id) DO UPDATE SET
   category = EXCLUDED.category,
   xp_value = EXCLUDED.xp_value;
+
+-- =============================================================================
+-- 10. RETROACTIVE XP MIGRATION
+-- Awards XP for existing Daftar swaps in the transaction_history table.
+-- =============================================================================
+
+DO $$ 
+DECLARE
+    r RECORD;
+    v_xp_reward bigint;
+    v_volume numeric;
+BEGIN
+    RAISE NOTICE 'Starting Retroactive XP Migration...';
+
+    FOR r IN 
+        SELECT wallet_address, amount_in_usd, amount_out_usd 
+        FROM public.transaction_history 
+        WHERE source = 'daftar_swap' AND status = 'success' 
+    LOOP
+        -- Logic: average of in/out volume
+        v_volume := (COALESCE(r.amount_in_usd, 0) + COALESCE(r.amount_out_usd, 0)) / 2;
+        
+        -- Base XP: 1 per $5
+        v_xp_reward := FLOOR(v_volume / 5);
+
+        -- Bonuses: +50 for $500+, +5 for $100+
+        IF v_volume >= 500 THEN
+            v_xp_reward := v_xp_reward + 50;
+        ELSIF v_volume >= 100 THEN
+            v_xp_reward := v_xp_reward + 5;
+        END IF;
+
+        -- Award XP to profile
+        IF v_xp_reward > 0 THEN
+            INSERT INTO public.profiles (wallet_address, xp) 
+            VALUES (r.wallet_address, v_xp_reward)
+            ON CONFLICT (wallet_address) 
+            DO UPDATE SET xp = public.profiles.xp + v_xp_reward, updated_at = now();
+        END IF;
+    END LOOP;
+
+    RAISE NOTICE 'Retroactive XP Migration Complete.';
+END $$;
