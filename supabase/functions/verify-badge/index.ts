@@ -80,14 +80,20 @@ serve(async (req) => {
   }
 
   const requiredApiKey = String(Deno.env.get('VERIFY_BADGE_API_KEY') ?? '').trim()
-  if (requiredApiKey) {
-    const provided = String(req.headers.get('x-api-key') ?? '').trim()
-    if (!provided || provided !== requiredApiKey) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+  if (!requiredApiKey) {
+    console.error('[verify-badge] VERIFY_BADGE_API_KEY is not configured')
+    return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  const provided = String(req.headers.get('x-api-key') ?? '').trim()
+  if (!provided || provided !== requiredApiKey) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 
   let body: Record<string, unknown>
@@ -224,6 +230,7 @@ serve(async (req) => {
     wallet_address: walletAddress,
     reason: evaluation.reason,
     cached: evaluation.fromCache,
+    proof_hash: proofHash,
   }), {
     status: 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -176,7 +176,7 @@ const checkRateLimit = async (key, windowMs, maxRequests) => {
 
     if (error) {
       console.error('[RateLimit] DB error:', error);
-      return { ok: true }; // Fail open for UX, but log error
+      return { ok: false, error: 'Rate limit service error' }; // Fail closed
     }
 
     const currentCount = data?.[0]?.count || 1;
@@ -187,7 +187,7 @@ const checkRateLimit = async (key, windowMs, maxRequests) => {
     };
   } catch (err) {
     console.error('[RateLimit] Critical error:', err.message);
-    return { ok: true };
+    return { ok: false, error: 'Rate limit service failure' }; // Fail closed
   }
 };
 
@@ -214,13 +214,13 @@ const checkAndBurnNonce = async (address, nonce, ttlMinutes = 5) => {
         return { ok: false, error: 'Nonce already used (Replay Attack detected)' };
       }
       console.error('[Nonce] DB error:', error.message);
-      return { ok: true }; // Fail open on generic error to avoid blocking valid flow
+      return { ok: false, error: 'Nonce verification error' }; // Fail closed
     }
 
     return { ok: true };
   } catch (err) {
     console.error('[Nonce] Critical error:', err.message);
-    return { ok: true };
+    return { ok: false, error: 'Nonce service failure' }; // Fail closed
   }
 };
 
@@ -400,8 +400,30 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
     return res.status(401).json({ error: 'Invalid wallet signature or expired message' });
   }
 
+  // 3. Eligibility Verification (Harden against self-attestation)
+  try {
+    const { data: verifyData, error: verifyError } = await supabaseAdmin.functions.invoke('verify-badge', {
+      body: { wallet_address: walletAddress, badge_id: badgeId },
+      headers: {
+        'x-api-key': process.env.VERIFY_BADGE_API_KEY || ''
+      }
+    });
+
+    if (verifyError) throw verifyError;
+    if (!verifyData?.eligible) {
+      return res.status(403).json({ 
+        error: 'Not eligible for this badge', 
+        reason: verifyData?.reason || 'Criteria not met' 
+      });
+    }
+  } catch (err) {
+    console.error('[Award] Eligibility check failed:', err.message);
+    return res.status(500).json({ error: 'Failed to verify badge eligibility' });
+  }
+
   const txHash = metadata.txHash || null;
   const awardedAt = new Date().toISOString();
+  const proofHash = verifyData?.proof_hash || null;
 
   const { error } = await supabaseAdmin.from('badge_attestations').upsert(
     {
@@ -410,6 +432,7 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
       eligible: true,
       awarded_at: awardedAt,
       tx_hash: txHash,
+      proof_hash: proofHash,
       metadata: metadata
     },
     { onConflict: 'wallet_address,badge_id' }
@@ -454,7 +477,7 @@ app.get('/api/prices', async (req, res) => {
     }
 
     // 2. Refresh from External API if cache stale
-    const ids = Array.from(new Set(Object.values(COINGECKO_IDS))).join(',');
+    const ids = Array.from(new Set(Object.values(TOKEN_COINGECKO_IDS))).join(',');
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
 
     const response = await fetch(url, {
@@ -472,7 +495,7 @@ app.get('/api/prices', async (req, res) => {
     const priceChanges = {};
     const dbInserts = [];
 
-    Object.entries(COINGECKO_IDS).forEach(([address, geckoId]) => {
+    Object.entries(TOKEN_COINGECKO_IDS).forEach(([address, geckoId]) => {
       const usd = data[geckoId]?.usd;
       if (usd !== undefined) {
         prices[address] = usd;
@@ -651,8 +674,8 @@ app.get('/api/profiles/:address', profileLimiter, async (req, res) => {
 app.post('/api/profiles', async (req, res) => {
   const { address, username, bio, avatar_url, twitter, telegram, signature, signedMessage, nonce } = req.body;
   
-  // Legacy support for pfp key in request body
-  const finalAvatarUrl = avatar_url || req.body.pfp;
+  // Support multiple naming conventions for profile picture
+  const finalAvatarUrl = avatar_url || req.body.avatarUrl || req.body.pfp;
   const normalizedAddr = normalizeAddress(address);
 
   if (!normalizedAddr) return res.status(400).json({ error: 'Invalid address' });
@@ -774,7 +797,9 @@ app.get('/api/profiles', generalLimiter, async (req, res) => {
     let supabaseQuery = supabaseAdmin.from('profiles').select('*').limit(limit);
 
     if (query) {
-      supabaseQuery = supabaseQuery.or(`username.ilike.%${query}%,wallet_address.ilike.%${query}%`);
+      // Sanitize query to prevent PostgREST injection
+      const sanitized = String(query).replace(/[(),.:]/g, '');
+      supabaseQuery = supabaseQuery.or(`username.ilike.%${sanitized}%,wallet_address.ilike.%${sanitized}%`);
     }
 
     const { data, error } = await supabaseQuery;

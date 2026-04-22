@@ -309,15 +309,8 @@ export default async function handler(req, res) {
     }
 
     // 5. UPDATE CACHES & METADATA (Background-ish updates)
-    // Update Badge Definition cache
-    await supabase.from('badge_definitions').upsert({
-      badge_id: badge.badge_id,
-      name: badge.badge_name,
-      description: badge.description,
-      image_url: badgeDefinition?.image_url ?? '',
-      xp_value: badge.xp_value,
-      on_chain_badge_id: badge.on_chain_badge_id,
-    }, { onConflict: 'badge_id' });
+    // NOTE: We no longer allow unauthenticated clients to update badge_definitions.
+    // This table should be managed via admin sync paths only to prevent cross-slug corruption.
 
     // Mark as tracked
     await supabase.from('badge_tracked_addresses').upsert({

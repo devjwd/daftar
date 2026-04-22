@@ -30,6 +30,12 @@ COPY --from=builder /app/dist /app/dist
 # Copy public assets (if any aren't already in dist)
 COPY frontend/public /app/dist/public
 
+# Set ownership to node user
+RUN chown -R node:node /app
+
+# Switch to non-root user
+USER node
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"

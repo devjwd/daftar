@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { getCorsHeaders, verifyAdminRequest } from '../_shared/admin.ts'
+import { getCorsHeaders, normalizeAddress, verifyAdminRequest } from '../_shared/admin.ts'
 
 /**
  * import-allowlist
