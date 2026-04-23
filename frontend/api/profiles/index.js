@@ -220,19 +220,21 @@ export default async function handler(req, res) {
 
       const current = mapProfileRow(currentResult.data) || {};
       const providedEditKey = pickEditKey(req);
-      const canUseMigrationProof = requiresEditKeyMigration(current);
+      const providedEditKey = pickEditKey(req);
+      const canUseMigrationProof = requiresEditKeyMigration(current) || !isEditKeyValid(current, providedEditKey);
 
       if (canUseMigrationProof) {
+        // ALLOWANCE: If the user provides a valid wallet signature proof, we allow the update
+        // even if they don't have the legacy editKey. This is the new standard auth.
         const migration = await verifyMigrationForWrite({ req, body, address });
         if (!migration.ok) {
-          return sendJson(res, 409, {
-            error: 'Profile is missing an edit key and must be migrated with a wallet signature before it can be changed',
-          });
+          if (requiresEditKeyMigration(current)) {
+            return sendJson(res, 409, {
+              error: 'Profile is missing an edit key and must be migrated with a wallet signature before it can be changed',
+            });
+          }
+          return sendJson(res, 403, { error: 'Invalid profile edit key for this address' });
         }
-      }
-
-      if (!canUseMigrationProof && !isEditKeyValid(current, providedEditKey)) {
-        return sendJson(res, 403, { error: 'Invalid profile edit key for this address' });
       }
 
       const nextEditKey = providedEditKey || current.editKey || createEditKey();

@@ -46,21 +46,21 @@ export default function Settings() {
       const storedTheme = data.theme || getStoredThemePreference(settingsKey);
       setTheme(storedTheme);
       applyTheme(storedTheme);
-      
+
       const storedLang = data.language || getStoredLanguagePreference(settingsKey);
       setLanguage(storedLang);
       setUiLanguage(storedLang);
-      
+
       setHidePositionThreshold(getStoredHidePositionThreshold(settingsKey));
     } else {
       const storedTheme = getStoredThemePreference(settingsKey);
       setTheme(storedTheme);
       applyTheme(storedTheme);
-      
+
       const storedLang = getStoredLanguagePreference(settingsKey);
       setLanguage(storedLang);
       setUiLanguage(storedLang);
-      
+
       setHidePositionThreshold(getStoredHidePositionThreshold(settingsKey));
     }
   }, [settingsKey]);

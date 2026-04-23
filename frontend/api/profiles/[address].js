@@ -169,19 +169,20 @@ export default async function handler(req, res) {
         return sendJson(res, 200, { deleted: false });
       }
 
-      const canUseMigrationProof = requiresEditKeyMigration(target);
+      const providedEditKey = pickEditKey(req);
+      const canUseMigrationProof = requiresEditKeyMigration(target) || !isEditKeyValid(target, providedEditKey);
+      
       if (canUseMigrationProof) {
+        // ALLOWANCE: Signature auth bypass for legacy keys
         const migration = await verifyMigrationForDelete({ req, address });
         if (!migration.ok) {
-          return sendJson(res, 409, {
-            error: 'Profile is missing an edit key and must be migrated with a wallet signature before it can be deleted',
-          });
+          if (requiresEditKeyMigration(target)) {
+            return sendJson(res, 409, {
+              error: 'Profile is missing an edit key and must be migrated with a wallet signature before it can be deleted',
+            });
+          }
+          return sendJson(res, 403, { error: 'Invalid profile edit key for this address' });
         }
-      }
-
-      const providedEditKey = pickEditKey(req);
-      if (!canUseMigrationProof && !isEditKeyValid(target, providedEditKey)) {
-        return sendJson(res, 403, { error: 'Invalid profile edit key for this address' });
       }
 
       const deleteResult = await supabase

@@ -231,7 +231,17 @@ export default async function handler(req, res) {
     const eligibilityResult = await isCacheEligibleWallet({ supabase, wallet });
     if (!eligibilityResult.ok) {
       console.error('[transactions] failed to determine cache eligibility', eligibilityResult.error);
-      return sendJson(res, 500, { error: 'Failed to fetch transactions' });
+      // Fallback to live indexer instead of 500 error
+      const liveTransactions = await getOrFetchTransactions(wallet, {
+        persist: false,
+        allowCachedRead: false,
+        limit: TRANSACTION_HISTORY_LIMIT,
+      });
+      return sendJson(res, 200, formatLiveTransactionsResponse({
+        rows: liveTransactions,
+        type,
+        page,
+      }));
     }
 
     const liveTransactions = await getOrFetchTransactions(wallet, {
@@ -246,7 +256,14 @@ export default async function handler(req, res) {
       page,
     }));
   } catch (error) {
-    console.error('[transactions] request failed', error);
-    return sendJson(res, 500, { error: 'Failed to fetch transactions' });
+    console.error('[transactions] request failed, providing empty response for fallback', error);
+    // Return a 200 OK empty response so frontend TrxHistory can fallback to Indexer
+    return sendJson(res, 200, {
+      transactions: [],
+      total: 0,
+      page: 1,
+      hasMore: false,
+      error: 'api_fallback_triggered'
+    });
   }
 }
