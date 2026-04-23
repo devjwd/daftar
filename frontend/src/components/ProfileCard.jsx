@@ -20,9 +20,6 @@ export default function ProfileCard({ address }) {
     );
   }
 
-  if (!profile) {
-    return null;
-  }
 
   const formatAddress = (addr) => {
     if (!addr) return '';
@@ -41,14 +38,14 @@ export default function ProfileCard({ address }) {
       <div className="profile-card-header">
         <div className="profile-card-avatar">
           <img 
-            src={profile.pfp || '/pfp.PNG'} 
-            alt={profile.username || 'User'} 
+            src={profile?.pfp || '/pfp/default.png'} 
+            alt={profile?.username || 'User'} 
             className="profile-card-image" 
           />
         </div>
         <div className="profile-card-info">
           <h3 className="profile-card-name">
-            {profile.username || formatAddress(address)}
+            {profile?.username || formatAddress(address)}
           </h3>
           <p className="profile-card-address">{formatAddress(address)}</p>
         </div>
@@ -56,13 +53,13 @@ export default function ProfileCard({ address }) {
 
       <div className="profile-card-divider" />
 
-      {profile.bio && (
-        <p className="profile-card-bio">{profile.bio}</p>
-      )}
+      <p className={`profile-card-bio ${!profile?.bio ? 'placeholder' : ''}`}>
+        {profile?.bio || "( This user has not added a bio yet )"}
+      </p>
 
-      {(profile.twitter || profile.telegram) && (
+      {(profile?.twitter || profile?.telegram) && (
         <div className="profile-card-socials">
-          {profile.twitter && (
+          {profile?.twitter && (
             <a
               href={`https://twitter.com/${profile.twitter.replace('@', '')}`}
               target="_blank"
@@ -73,7 +70,7 @@ export default function ProfileCard({ address }) {
               <span className="social-icon">𝕏</span>
             </a>
           )}
-          {profile.telegram && (
+          {profile?.telegram && (
             <a
               href={`https://t.me/${profile.telegram.replace('@', '')}`}
               target="_blank"

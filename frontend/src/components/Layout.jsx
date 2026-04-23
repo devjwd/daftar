@@ -15,6 +15,7 @@ import {
 } from '../services/profileService';
 import { checkAccountExists } from '../services/indexer';
 import { getEnv } from '../config/envValidator';
+import { searchEntities } from '../services/entityStore';
 import './Layout.css';
 
 const SWAP_ENABLED = getEnv('VITE_ENABLE_SWAP', true);
@@ -24,7 +25,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { connect, disconnect, account, connected, wallets } = useWallet();
-  
+
   const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
@@ -96,12 +97,20 @@ export default function Layout({ children }) {
   }, []);
 
   // Save search to recent searches
-  const saveRecentSearch = useCallback((address) => {
+  const saveRecentSearch = useCallback((address, name) => {
     setRecentSearches((prev) => {
-      // Remove if already exists
-      const filtered = prev.filter(a => a.toLowerCase() !== address.toLowerCase());
+      // name might be 'Wallet address' or a real username
+      const displayName = name && name !== 'Wallet address' ? name : formatAddress(address, 8, 6);
+      
+      // Remove if already exists (by address)
+      const filtered = prev.filter(item => {
+        const itemAddr = typeof item === 'string' ? item : item.address;
+        return itemAddr.toLowerCase() !== address.toLowerCase();
+      });
+
       // Add to front
-      const updated = [address, ...filtered].slice(0, 5);
+      const newItem = { address, name: displayName };
+      const updated = [newItem, ...filtered].slice(0, 5);
       localStorage.setItem('recentSearches', JSON.stringify(updated));
       return updated;
     });
@@ -176,10 +185,10 @@ export default function Layout({ children }) {
   };
 
   // Navigate to a profile address
-  const goToWallet = useCallback((address) => {
+  const goToWallet = useCallback((address, name) => {
     if (!address) return;
     const addr = address.trim();
-    saveRecentSearch(addr);
+    saveRecentSearch(addr, name);
     navigate(`/profile/${addr}`);
     setSearchQuery("");
     setShowSuggestions(false);
@@ -202,13 +211,24 @@ export default function Layout({ children }) {
         pfp: profile.pfp || null,
       }));
 
+    // Search for entities
+    const entityMatches = searchEntities(query).map(entity => ({
+      type: 'platform',
+      address: entity.address,
+      username: entity.name,
+      pfp: entity.logo_url || '/movement-logo.svg'
+    }));
+
+    // Combine results, prioritizing entities
+    const combinedResults = [...entityMatches, ...profileMatches];
+
     if (isValidAddress(query)) {
-      const alreadyInProfiles = profileMatches.some(
+      const alreadyInResults = combinedResults.some(
         (p) => p.address?.toLowerCase() === query.toLowerCase()
       );
 
-      const immediateResults = [...profileMatches];
-      if (!alreadyInProfiles) {
+      const immediateResults = [...combinedResults];
+      if (!alreadyInResults) {
         immediateResults.unshift({
           type: 'address',
           address: query,
@@ -238,9 +258,9 @@ export default function Layout({ children }) {
 
     return {
       isAddress: false,
-      profileMatches,
+      profileMatches: combinedResults,
       alreadyInProfiles: false,
-      results: profileMatches,
+      results: combinedResults,
     };
   }, []);
 
@@ -319,7 +339,7 @@ export default function Layout({ children }) {
   const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
     if (!query) return;
-    
+
     // If valid address, navigate directly
     if (isValidAddress(query)) {
       goToWallet(query);
@@ -329,13 +349,13 @@ export default function Layout({ children }) {
     // Try to resolve username
     const resolvedAddress = await resolveAddressOrUsernameAsync(query) || resolveAddressOrUsername(query);
     if (resolvedAddress) {
-      goToWallet(resolvedAddress);
+      goToWallet(resolvedAddress, query);
       return;
     }
 
     // If we have any search results, go to first
     if (searchResults.length > 0 && searchResults[0].address) {
-      goToWallet(searchResults[0].address);
+      goToWallet(searchResults[0].address, searchResults[0].username);
       return;
     }
 
@@ -356,7 +376,7 @@ export default function Layout({ children }) {
               <span className="logo-beta-tag">beta</span>
             </div>
             <ul className="nav-links">
-              <li 
+              <li
                 className={location.pathname.startsWith("/profile/") ? "active" : ""}
               >
                 <button
@@ -407,7 +427,7 @@ export default function Layout({ children }) {
               </li>
 
               <li className="more-dropdown-container">
-                <button 
+                <button
                   className={`nav-more-btn ${moreDropdownOpen ? 'active' : ''}`}
                   onClick={handleMoreClick}
                   type="button"
@@ -419,7 +439,7 @@ export default function Layout({ children }) {
                 {moreDropdownOpen && (
                   <div className="more-dropdown-menu">
 
-                    <button 
+                    <button
                       className="more-menu-item"
                       onClick={() => {
                         window.open('https://discord.gg/fER9kNyPvk', '_blank', 'noopener,noreferrer');
@@ -428,13 +448,13 @@ export default function Layout({ children }) {
                     >
                       <div className="more-menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 19H11V17H13V19ZM15.07 11.25L14.17 12.17C13.45 12.9 13 13.5 13 15H11V14.5C11 13.4 11.45 12.4 12.17 11.67L13.41 10.41C13.78 10.05 14 9.55 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9H8C8 6.79 9.79 5 12 5C14.21 5 16 6.79 16 9C16 9.88 15.64 10.68 15.07 11.25Z" fill="currentColor"/>
+                          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 19H11V17H13V19ZM15.07 11.25L14.17 12.17C13.45 12.9 13 13.5 13 15H11V14.5C11 13.4 11.45 12.4 12.17 11.67L13.41 10.41C13.78 10.05 14 9.55 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9H8C8 6.79 9.79 5 12 5C14.21 5 16 6.79 16 9C16 9.88 15.64 10.68 15.07 11.25Z" fill="currentColor" />
                         </svg>
                       </div>
                       <span>{t(language, 'menuSupport')}</span>
                     </button>
 
-                    <button 
+                    <button
                       className="more-menu-item"
                       onClick={() => {
                         navigate('/settings');
@@ -443,14 +463,14 @@ export default function Layout({ children }) {
                     >
                       <div className="more-menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 3C11.45 3 11 3.45 11 4V5C11 5.55 11.45 6 12 6C12.55 6 13 5.55 13 5V4C13 3.45 12.55 3 12 3ZM18 12C18 11.45 18.45 11 19 11H20C20.55 11 21 11.45 21 12C21 12.55 20.55 13 20 13H19C18.45 13 18 12.55 18 12ZM6 12C6 11.45 5.55 11 5 11H4C3.45 11 3 11.45 3 12C3 12.55 3.45 13 4 13H5C5.55 13 6 12.55 6 12ZM12 18C11.45 18 11 18.45 11 19V20C11 20.55 11.45 21 12 21C12.55 21 13 20.55 13 20V19C13 18.45 12.55 18 12 18ZM17.66 6.34C17.27 5.95 16.64 5.95 16.25 6.34L15.54 7.05C15.15 7.44 15.15 8.07 15.54 8.46C15.93 8.85 16.56 8.85 16.95 8.46L17.66 7.75C18.05 7.36 18.05 6.73 17.66 6.34ZM6.34 17.66C5.95 17.27 5.95 16.64 6.34 16.25L7.05 15.54C7.44 15.15 8.07 15.15 8.46 15.54C8.85 15.93 8.85 16.56 8.46 16.95L7.75 17.66C7.36 18.05 6.73 18.05 6.34 17.66ZM8.46 8.46C8.85 8.07 8.85 7.44 8.46 7.05L7.75 6.34C7.36 5.95 6.73 5.95 6.34 6.34C5.95 6.73 5.95 7.36 6.34 7.75L7.05 8.46C7.44 8.85 8.07 8.85 8.46 8.46ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z" fill="currentColor"/>
+                          <path d="M12 3C11.45 3 11 3.45 11 4V5C11 5.55 11.45 6 12 6C12.55 6 13 5.55 13 5V4C13 3.45 12.55 3 12 3ZM18 12C18 11.45 18.45 11 19 11H20C20.55 11 21 11.45 21 12C21 12.55 20.55 13 20 13H19C18.45 13 18 12.55 18 12ZM6 12C6 11.45 5.55 11 5 11H4C3.45 11 3 11.45 3 12C3 12.55 3.45 13 4 13H5C5.55 13 6 12.55 6 12ZM12 18C11.45 18 11 18.45 11 19V20C11 20.55 11.45 21 12 21C12.55 21 13 20.55 13 20V19C13 18.45 12.55 18 12 18ZM17.66 6.34C17.27 5.95 16.64 5.95 16.25 6.34L15.54 7.05C15.15 7.44 15.15 8.07 15.54 8.46C15.93 8.85 16.56 8.85 16.95 8.46L17.66 7.75C18.05 7.36 18.05 6.73 17.66 6.34ZM6.34 17.66C5.95 17.27 5.95 16.64 6.34 16.25L7.05 15.54C7.44 15.15 8.07 15.15 8.46 15.54C8.85 15.93 8.85 16.56 8.46 16.95L7.75 17.66C7.36 18.05 6.73 18.05 6.34 17.66ZM8.46 8.46C8.85 8.07 8.85 7.44 8.46 7.05L7.75 6.34C7.36 5.95 6.73 5.95 6.34 6.34C5.95 6.73 5.95 7.36 6.34 7.75L7.05 8.46C7.44 8.85 8.07 8.85 8.46 8.46ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z" fill="currentColor" />
                         </svg>
                       </div>
                       <span>{t(language, 'menuTheme')}</span>
                       <div className="more-menu-arrow">→</div>
                     </button>
 
-                    <button 
+                    <button
                       className="more-menu-item"
                       onClick={() => {
                         navigate('/settings');
@@ -459,20 +479,20 @@ export default function Layout({ children }) {
                     >
                       <div className="more-menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor"/>
+                          <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor" />
                         </svg>
                       </div>
                       <span>{t(language, 'menuSettings')}</span>
                       <div className="more-menu-arrow">→</div>
                     </button>
 
-                    <button 
+                    <button
                       className="more-menu-item"
                       onClick={handleResourcesDownload}
                     >
                       <div className="more-menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M20 6H12L10 4H4C2.9 4 2.01 4.9 2.01 6L2 18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6ZM20 18H4V8H20V18Z" fill="currentColor"/>
+                          <path d="M20 6H12L10 4H4C2.9 4 2.01 4.9 2.01 6L2 18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6ZM20 18H4V8H20V18Z" fill="currentColor" />
                         </svg>
                       </div>
                       <span>{t(language, 'menuResources')}</span>
@@ -484,17 +504,17 @@ export default function Layout({ children }) {
                     <div className="more-menu-social">
                       <a href="https://x.com/Daftar_xyz" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="X">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                         </svg>
                       </a>
                       <a href="https://discord.gg/fER9kNyPvk" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="Discord">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
+                          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z" />
                         </svg>
                       </a>
                       <a href="https://t.me/daftarfi" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="Telegram">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" />
                         </svg>
                       </a>
                     </div>
@@ -533,8 +553,8 @@ export default function Layout({ children }) {
             <div className="search-wrapper">
               <div className={`search-bar ${searchError ? 'search-error' : ''} ${showSuggestions && searchQuery.trim() ? 'search-active' : ''}`}>
                 <svg className="search-icon-svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"/>
-                  <path d="m21 21-4.35-4.35"/>
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
                 </svg>
                 <input
                   type="text"
@@ -570,8 +590,8 @@ export default function Layout({ children }) {
                   <div className="search-spinner" />
                 )}
                 {searchQuery.trim() && !searchLoading && (
-                  <button 
-                    className="search-clear-btn" 
+                  <button
+                    className="search-clear-btn"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -583,7 +603,7 @@ export default function Layout({ children }) {
                     aria-label="Clear search"
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 6L6 18M6 6l12 12"/>
+                      <path d="M18 6L6 18M6 6l12 12" />
                     </svg>
                   </button>
                 )}
@@ -598,27 +618,31 @@ export default function Layout({ children }) {
                   {!searchQuery.trim() && recentSearches.length > 0 && (
                     <>
                       <div className="search-suggestion-header">{t(language, 'recentSearches')}</div>
-                      {recentSearches.map((address, i) => (
-                        <button
-                          key={`recent-${address}-${i}`}
-                          className="search-suggestion-item recent-search"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            goToWallet(address);
-                          }}
-                        >
-                          <div className="suggestion-avatar recent">
-                            <span className="suggestion-icon recent-icon">🕐</span>
-                          </div>
-                          <div className="suggestion-info">
-                            <div className="suggestion-main">
-                              <span className="suggestion-name">{formatAddress(address, 8, 6)}</span>
-                              <span className="suggestion-badge recent">Recent</span>
+                      {recentSearches.map((item, i) => {
+                        const address = typeof item === 'string' ? item : item.address;
+                        const displayName = typeof item === 'string' ? formatAddress(item, 8, 6) : item.name;
+                        return (
+                          <button
+                            key={`recent-${address}-${i}`}
+                            className="search-suggestion-item recent-search"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              goToWallet(address, displayName);
+                            }}
+                          >
+                            <div className="suggestion-avatar recent">
+                              <span className="suggestion-icon recent-icon">🕐</span>
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                            <div className="suggestion-info">
+                              <div className="suggestion-main">
+                                <span className="suggestion-name">{displayName}</span>
+                                <span className="suggestion-badge recent">Recent</span>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </>
                   )}
                   {searchQuery.trim() && (
@@ -637,19 +661,20 @@ export default function Layout({ children }) {
                             onMouseDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              goToWallet(result.address);
+                              goToWallet(result.address, result.username);
                             }}
                           >
                             <div className="suggestion-avatar">
-                              <img src={result.pfp || '/pfp.PNG'} alt={`${result.username} profile`} className="suggestion-pfp" />
+                              <img src={result.pfp || '/pfp/default.png'} alt={`${result.username} profile`} className="suggestion-pfp" />
                             </div>
                             <div className="suggestion-info">
                               <div className="suggestion-main">
                                 <span className="suggestion-name">{result.username}</span>
                                 <span className={`suggestion-badge ${result.type}`}>
-                                  {result.type === 'blockchain' ? `✓ ${t(language, 'onChain')}` 
-                                    : result.type === 'profile' ? t(language, 'profile') 
-                                    : t(language, 'address')}
+                                  {result.type === 'blockchain' ? `✓ ${t(language, 'onChain')}`
+                                    : result.type === 'profile' ? t(language, 'profile')
+                                      : result.type === 'platform' ? 'Platform'
+                                        : t(language, 'address')}
                                 </span>
                               </div>
                               <span className="suggestion-address">{formatAddress(result.address, 10, 6)}</span>
@@ -663,7 +688,7 @@ export default function Layout({ children }) {
                               className="search-go-btn"
                               onMouseDown={(e) => {
                                 e.preventDefault();
-                                goToWallet(searchQuery.trim());
+                                goToWallet(searchQuery.trim(), searchQuery.trim());
                               }}
                             >
                               <span>🔍</span>
@@ -692,91 +717,91 @@ export default function Layout({ children }) {
               </button>
             </div>
 
-          {connected && account ? (
-            <div className="wallet-dropdown-container">
-              <button 
-                className="connect-btn connected" 
-                type="button"
-                onClick={handleWalletClick}
-              >
-                <span className="wallet-status-dot"></span>
-                {formatAddress(account.address) || "Connected"}
-              </button>
+            {connected && account ? (
+              <div className="wallet-dropdown-container">
+                <button
+                  className="connect-btn connected"
+                  type="button"
+                  onClick={handleWalletClick}
+                >
+                  <span className="wallet-status-dot"></span>
+                  {formatAddress(account.address) || "Connected"}
+                </button>
 
-              {walletDropdownOpen && (
-                <div className="wallet-dropdown">
-                  <button 
-                    className="wallet-menu-item"
-                    onClick={() => {
-                      navigate('/profile');
-                      setWalletDropdownOpen(false);
-                    }}
-                  >
-                    <div className="wallet-menu-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v3h20v-3c0-3.33-6.67-5-10-5z" fill="currentColor"/>
-                      </svg>
-                    </div>
-                    {t(language, 'profile')}
-                  </button>
-                  <div className="dropdown-divider"></div>
-                  <button 
-                    className="wallet-menu-item disconnect"
-                    onClick={() => {
-                      disconnect();
-                      setWalletDropdownOpen(false);
-                    }}
-                  >
-                    <div className="wallet-menu-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M10 17l1.41-1.41L8.83 13H20v-2H8.83l2.58-2.59L10 7l-5 5 5 5z" fill="currentColor"/>
-                      </svg>
-                    </div>
-                    {t(language, 'disconnect')}
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="wallet-picker-container">
-              <button className="connect-btn" type="button" onClick={handleConnect}>
-                {t(language, 'connectWallet')}
-              </button>
-              {walletPickerOpen && (
-                <div className="wallet-picker">
-                  {wallets
-                    .filter((wallet) => !wallet.name.includes('Google') && !wallet.name.includes('Apple'))
-                    .map((wallet) => {
-                      const getWalletLogo = (name) => {
-                        const lowerName = name.toLowerCase();
-                        if (lowerName.includes('okx')) return '/okx.png';
-                        if (lowerName.includes('leap')) return '/leap.png';
-                        if (lowerName.includes('razor')) return '/razor.png';
-                        if (lowerName.includes('nightly')) return '/nightly.png';
-                        if (lowerName.includes('petra')) return '/logo.png';
-                        return null;
-                      };
-                      const logo = getWalletLogo(wallet.name);
-                      return (
-                        <button
-                          key={wallet.name}
-                          className="wallet-option"
-                          type="button"
-                          onClick={() => handleSelectWallet(wallet.name)}
-                        >
-                          {logo ? (
-                            <img src={logo} alt={wallet.name} className="wallet-option-logo" />
-                          ) : (
-                            <span className="wallet-option-icon">🔗</span>
-                          )}
-                          {wallet.name}
-                        </button>
-                      );
-                    })}
-                </div>
-              )}
-            </div>
-          )}
+                {walletDropdownOpen && (
+                  <div className="wallet-dropdown">
+                    <button
+                      className="wallet-menu-item"
+                      onClick={() => {
+                        navigate('/profile');
+                        setWalletDropdownOpen(false);
+                      }}
+                    >
+                      <div className="wallet-menu-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v3h20v-3c0-3.33-6.67-5-10-5z" fill="currentColor" />
+                        </svg>
+                      </div>
+                      {t(language, 'profile')}
+                    </button>
+                    <div className="dropdown-divider"></div>
+                    <button
+                      className="wallet-menu-item disconnect"
+                      onClick={() => {
+                        disconnect();
+                        setWalletDropdownOpen(false);
+                      }}
+                    >
+                      <div className="wallet-menu-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 17l1.41-1.41L8.83 13H20v-2H8.83l2.58-2.59L10 7l-5 5 5 5z" fill="currentColor" />
+                        </svg>
+                      </div>
+                      {t(language, 'disconnect')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="wallet-picker-container">
+                <button className="connect-btn" type="button" onClick={handleConnect}>
+                  {t(language, 'connectWallet')}
+                </button>
+                {walletPickerOpen && (
+                  <div className="wallet-picker">
+                    {wallets
+                      .filter((wallet) => !wallet.name.includes('Google') && !wallet.name.includes('Apple'))
+                      .map((wallet) => {
+                        const getWalletLogo = (name) => {
+                          const lowerName = name.toLowerCase();
+                          if (lowerName.includes('okx')) return '/okx.png';
+                          if (lowerName.includes('leap')) return '/leap.png';
+                          if (lowerName.includes('razor')) return '/razor.png';
+                          if (lowerName.includes('nightly')) return '/nightly.png';
+                          if (lowerName.includes('petra')) return '/logo.png';
+                          return null;
+                        };
+                        const logo = getWalletLogo(wallet.name);
+                        return (
+                          <button
+                            key={wallet.name}
+                            className="wallet-option"
+                            type="button"
+                            onClick={() => handleSelectWallet(wallet.name)}
+                          >
+                            {logo ? (
+                              <img src={logo} alt={wallet.name} className="wallet-option-logo" />
+                            ) : (
+                              <span className="wallet-option-icon">🔗</span>
+                            )}
+                            {wallet.name}
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </nav>

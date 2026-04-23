@@ -334,6 +334,7 @@ const TRANSLATIONS = {
     badgesNoActive: "No active badges yet.",
     badgesAttestationNote: "You're eligible! On-chain attestation is being processed automatically — the Claim button will appear shortly.",
     badgesAttestationFailedNote: "You're eligible, but the on-chain attestation service isn't available right now (the badge may not be configured on-chain yet). Contact the admin to enable claiming.",
+    profileNoBioGuest: "This user has not added a bio yet",
   },
   zh: {
     navPortfolio: "投资组合",
@@ -542,6 +543,7 @@ const TRANSLATIONS = {
     badgesNoActive: "尚无有效的徽章。",
     badgesAttestationNote: "您符合资格！链上证明正在自动处理中 — 领取按钮很快就会出现。",
     badgesAttestationFailedNote: "您符合资格，但链上证明服务目前不可用（徽章可能尚未在链上配置）。请联系管理员开启领取。",
+    profileNoBioGuest: "该用户尚未添加简介",
   },
   ko: {
     navPortfolio: "포트폴리오",
@@ -750,6 +752,7 @@ const TRANSLATIONS = {
     badgesNoActive: "활성 배지가 없습니다.",
     badgesAttestationNote: "조건을 충족했습니다! 온체인 증명이 자동으로 처리되고 있습니다. 곧 받기 버튼이 나타납니다.",
     badgesAttestationFailedNote: "조건을 충족했으나 온체인 증명 서비스를 현재 사용할 수 없습니다(배지가 온체인에 아직 설정되지 않았을 수 있습니다). 받기 활성화를 위해 관리자에게 문의하세요.",
+    profileNoBioGuest: "이 사용자는 아직 자기소개를 추가하지 않았습니다",
   },
   tr: {
     navPortfolio: "PORTFÖY",
@@ -956,8 +959,9 @@ const TRANSLATIONS = {
     badgesNoBadgesAvailable: "Henüz rozet mevcut değil",
     badgesNoExpired: "Henüz süresi dolmuş rozet yok.",
     badgesNoActive: "Henüz aktif rozet yok.",
-    badgesAttestationNote: "Uygunsunuz! Zincir üstü onaylama otomatik olarak işleniyor — Al butonu kısa süre içinde görünecektir.",
-    badgesAttestationFailedNote: "Uygunsunuz, ancak zincir üstü onaylama hizmeti şu anda mevcut değil (rozet henüz zincir üzerinde yapılandırılmamış olabilir). Alımı etkinleştirmek için yöneticiyle iletişime geçin.",
+    badgesAttestationNote: "Uygunluk durumunuz onaylandı! Zincir üstü onay otomatik olarak işleniyor — Talep Et butonu kısa süre içinde görünecektir.",
+    badgesAttestationFailedNote: "Uygunsunuz ancak zincir üstü onay hizmeti şu anda kullanılamıyor (rozet henüz zincir üstü yapılandırılmamış olabilir). Talebi etkinleştirmek için yöneticiyle iletişime geçin.",
+    profileNoBioGuest: "Bu kullanıcı henüz bir biyografi eklemedi",
   },
 };
 

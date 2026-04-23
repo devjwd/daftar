@@ -6,8 +6,9 @@ import {
   CACHE_TTL_MS,
   filterTransactionsByType,
   getOrFetchTransactions,
-  TRANSACTION_HISTORY_LIMIT,
 } from '../src/services/transactionService.js';
+
+const TRANSACTION_HISTORY_LIMIT = 100;
 
 const METHODS = ['GET', 'OPTIONS'];
 const PAGE_SIZE = 20;

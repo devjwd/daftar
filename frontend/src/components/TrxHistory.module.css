@@ -145,75 +145,31 @@
 }
 
 .badgeSwap {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
+  color: #9ca3af;
 }
 
-.badgeLend {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
+.badgeLend, .badgeBorrow, .badgeRepay, .badgeDeposit, .badgeWithdraw {
+  color: #9ca3af;
 }
 
-.badgeBorrow {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
+.badgeStake, .badgeUnstake, .badgeClaim {
+  color: #9ca3af;
 }
 
-.badgeRepay {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
+.badgeAirdrop {
+  color: #9ca3af;
 }
 
-.badgeStake {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
+.badgeBridge {
+  color: #9ca3af;
 }
 
-.badgeUnstake {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
-}
-
-.badgeDeposit {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
-}
-
-.badgeWithdraw {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
-}
-
-.badgeTransfer {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
-}
-
-.badgeReceived {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
-}
-
-.badgeClaim {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
+.badgeTransfer, .badgeReceived {
+  color: #cda169;
 }
 
 .badgeOther {
-  color: inherit;
-  background: transparent;
-  border-color: transparent;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .typeCell {
@@ -324,6 +280,12 @@
 
 .neutral {
   color: rgba(255, 255, 255, 0.45);
+}
+
+.loadingMoreSkeleton {
+  margin-top: 1rem;
+  padding: 0 1.5rem;
+  opacity: 0.6;
 }
 
 .hashLink {

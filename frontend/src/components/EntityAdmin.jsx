@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase';
 import { syncEntities } from '../services/entityStore';
 import styles from './EntityAdmin.module.css';
 
-const CATEGORIES = ['Protocol', 'Treasury', 'Dex', 'Bridge', 'Exchange', 'Venture'];
+const CATEGORIES = ['Protocol', 'Treasury', 'Swap', 'Dex', 'Lending', 'Staking', 'Bridge', 'Exchange', 'Venture', 'Airdrop'];
 
 export default function EntityAdmin() {
   const [entities, setEntities] = useState([]);
@@ -17,6 +17,9 @@ export default function EntityAdmin() {
     category: 'Protocol',
     logo_url: '',
     website_url: '',
+    twitter_url: '',
+    custom_type: '',
+    badge_color: '#9ca3af',
     is_verified: true
   });
 
@@ -77,7 +80,17 @@ export default function EntityAdmin() {
 
       setMessage({ text: `Successfully ${editingId ? 'updated' : 'added'} entity`, type: 'success' });
       setIsAdding(false);
-      setFormData({ address: '', name: '', category: 'Protocol', logo_url: '', website_url: '', is_verified: true });
+      setFormData({ 
+        address: '', 
+        name: '', 
+        category: 'Protocol', 
+        logo_url: '', 
+        website_url: '', 
+        twitter_url: '', 
+        custom_type: '', 
+        badge_color: '#9ca3af',
+        is_verified: true 
+      });
       fetchEntities();
     } catch (err) {
       console.error('Error saving entity:', err);
@@ -96,6 +109,9 @@ export default function EntityAdmin() {
       category: entity.category,
       logo_url: entity.logo_url || '',
       website_url: entity.website_url || '',
+      twitter_url: entity.twitter_url || '',
+      custom_type: entity.custom_type || '',
+      badge_color: entity.badge_color || '#9ca3af',
       is_verified: entity.is_verified
     });
     setEditingId(entity.id);
@@ -135,7 +151,7 @@ export default function EntityAdmin() {
           onClick={() => {
             setIsAdding(!isAdding);
             setEditingId(null);
-            setFormData({ address: '', name: '', category: 'Protocol', logo_url: '', website_url: '', is_verified: true });
+            setFormData({ address: '', name: '', category: 'Protocol', logo_url: '', website_url: '', twitter_url: '', is_verified: true });
           }}
         >
           {isAdding ? 'Cancel' : '+ Add Entity'}
@@ -173,13 +189,40 @@ export default function EntityAdmin() {
               />
             </div>
             <div className={styles.inputGroup}>
-              <label>Category</label>
+              <label>Category (Entity Classification)</label>
               <select 
                 value={formData.category}
                 onChange={e => setFormData({...formData, category: e.target.value})}
               >
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+            </div>
+            <div className={styles.inputGroup}>
+              <label>Special Transaction Tag (Badge Label)</label>
+              <input 
+                type="text" 
+                placeholder="e.g. CASHBACK, REWARD, MINT"
+                value={formData.custom_type || ''}
+                onChange={e => setFormData({...formData, custom_type: e.target.value})}
+              />
+            </div>
+            <div className={styles.inputGroup}>
+              <label>Badge Color</label>
+              <div className={styles.colorPickerWrap}>
+                <input 
+                  type="color" 
+                  value={formData.badge_color || '#9ca3af'}
+                  onChange={e => setFormData({...formData, badge_color: e.target.value})}
+                  className={styles.colorPicker}
+                />
+                <input 
+                  type="text" 
+                  value={formData.badge_color || '#9ca3af'}
+                  onChange={e => setFormData({...formData, badge_color: e.target.value})}
+                  className={styles.colorHexInput}
+                  placeholder="#FFFFFF"
+                />
+              </div>
             </div>
             <div className={styles.inputGroup}>
               <label>Logo URL (optional)</label>
@@ -197,6 +240,15 @@ export default function EntityAdmin() {
                 placeholder="https://..."
                 value={formData.website_url}
                 onChange={e => setFormData({...formData, website_url: e.target.value})}
+              />
+            </div>
+            <div className={styles.inputGroup}>
+              <label>X (Twitter) URL</label>
+              <input 
+                type="text" 
+                placeholder="https://x.com/..."
+                value={formData.twitter_url}
+                onChange={e => setFormData({...formData, twitter_url: e.target.value})}
               />
             </div>
             <div className={styles.checkboxGroup}>

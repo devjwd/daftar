@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { devLog } from "../utils/devLogger.js";
 
-import { resolveEntityBranding, syncEntities } from "./entityStore";
+import { resolveEntityBranding, syncEntities, findEntityByAddress, findEntityByName } from "./entityStore";
 import { findTrackedDappMatch } from "../config/dapps.js";
 import { DEFAULT_NETWORK } from "../config/network.js";
 import { getTokenInfo } from "../config/tokens.js";
@@ -1026,16 +1026,70 @@ const enrichTransactionsWithUsd = async (walletAddress, transactions) => {
 const DAFTAR_BRANDING = {
   dapp_key: 'daftar',
   dapp_name: 'DAFTAR swap',
-  dapp_logo: '/favicon.ico',
+  dapp_logo: '/daftar%20icon.png',
   dapp_website: 'https://daftar.fi',
 };
 
-const applyDaftarBranding = (rows) => {
+const applyProjectBranding = (rows) => {
   if (!Array.isArray(rows)) return rows;
   return rows.map((row) => {
-    if (row.source === 'daftar_swap') {
-      return { ...row, ...DAFTAR_BRANDING };
+    // 1. Priority: Explicit Daftar Branding (Only for verified Daftar-originated swaps)
+    if (
+      row.source === 'daftar_swap' || 
+      row.dapp_name === 'Daftar' || 
+      row.dapp_name === 'DAFTAR swap'
+    ) {
+      return { ...row, ...DAFTAR_BRANDING, tx_type: row.tx_type || 'swap', is_verified: true };
     }
+
+    // 2. Tracked Entities Branding
+    const contractAddr = row.dapp_contract || row.to_address;
+    let entity = findEntityByAddress(contractAddr);
+    
+    // Safety check: Only fallback to name if it's a verified project or explicit Daftar branding
+    // This avoids misidentifying simple transfers to unknown addresses (like exchange deposits)
+    if (!entity && row.dapp_name && (row.dapp_name === 'Daftar' || row.dapp_name === 'DAFTAR swap')) {
+      entity = findEntityByName(row.dapp_name);
+    }
+    
+    if (entity) {
+      // 1. Priority: Custom transaction tag set by admin
+      // 2. Secondary: Admin-selected Category
+      // 3. Fallback: Original transaction type from blockchain
+      const badgeLabel = entity.custom_type || entity.category || row.tx_type || 'other';
+      const normalizedLabel = String(badgeLabel).toLowerCase().trim();
+      
+      // Safety: If it's still 'other' but we found an entity, try to use a better default
+      const finalLabel = (normalizedLabel === 'other' && entity.name) ? 'protocol' : normalizedLabel;
+
+      return {
+        ...row,
+        dapp_name: entity.name || row.dapp_name,
+        dapp_logo: entity.logo_url || row.dapp_logo,
+        dapp_website: entity.website_url || row.dapp_website,
+        badge_color: entity.badge_color,
+        tx_type: finalLabel,
+        is_verified: true
+      };
+    }
+
+    // 3. Cleanup: If no entity match was found, we need to be very skeptical of indexer "guesses"
+    // especially for common false positives like Yuzu Swap or MovePosition on simple transfers.
+    if (!entity) {
+      const isSuspectProject = row.dapp_name === 'Yuzu Swap' || row.dapp_name === 'MovePosition';
+      const isSimpleTransfer = !row.dapp_contract || row.tx_type === 'transfer' || row.tx_type === 'send' || row.tx_type === 'withdraw';
+
+      if (isSuspectProject || isSimpleTransfer) {
+        return {
+          ...row,
+          dapp_name: 'Wallet',
+          dapp_logo: null,
+          // Force back to transfer if it looks like a mislabeled withdrawal/deposit to an unknown address
+          tx_type: (row.tx_type === 'withdraw' || row.tx_type === 'deposit') ? 'transfer' : (row.tx_type || 'transfer')
+        };
+      }
+    }
+
     return row;
   });
 };
@@ -1307,9 +1361,10 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
 
   const supabase = effectivePersist || allowCachedRead ? getSupabaseClient() : null;
 
+  let cachedRows = [];
   try {
-    if (supabase && allowCachedRead) {
-      const { data: cachedRows, error: cacheError } = await supabase
+    if (supabase) {
+      const { data, error: cacheError } = await supabase
         .from("transaction_history")
         .select("*")
         .eq("wallet_address", normalizedAddress)
@@ -1317,19 +1372,11 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
         .limit(limit);
 
       if (cacheError) {
-        devLog("Failed to read transaction cache:", cacheError);
-      } else if (Array.isArray(cachedRows) && cachedRows.length > 0) {
-        if (cachedRows.length > limit) {
+        devLog("Failed to read transaction metadata:", cacheError);
+      } else if (Array.isArray(data)) {
+        cachedRows = data;
+        if (cachedRows.length > limit && allowCachedRead) {
           await pruneStoredTransactions(supabase, normalizedAddress, limit);
-        }
-
-        const freshestFetch = cachedRows.reduce((latest, row) => {
-          const nextTime = new Date(row?.fetched_at || 0).getTime();
-          return nextTime > latest ? nextTime : latest;
-        }, 0);
-
-        if (freshestFetch > 0 && (Date.now() - freshestFetch) < CACHE_TTL_MS) {
-          return trimTransactions(applyDaftarBranding(cachedRows), limit);
         }
       }
     }
@@ -1344,7 +1391,23 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
       limit
     );
 
-    if (effectivePersist && supabase && enrichedTransactions.length > 0) {
+    // MERGE: Apply metadata (like 'source') from database to the full Indexer history
+    const finalResults = enrichedTransactions.map(row => {
+      // If we have a cached version of this same TX, merge its metadata
+      const cached = cachedRows?.find(r => r.tx_hash === row.tx_hash);
+      if (cached) {
+        return {
+          ...row,
+          source: cached.source || row.source,
+          dapp_name: cached.dapp_name || row.dapp_name,
+          dapp_key: cached.dapp_key || row.dapp_key,
+          dapp_logo: cached.dapp_logo || row.dapp_logo
+        };
+      }
+      return row;
+    });
+
+    if (effectivePersist && supabase && finalResults.length > 0) {
       try {
         // Don't overwrite rows already recorded by Daftar swap
         const enrichedHashes = enrichedTransactions.map((row) => row.tx_hash).filter(Boolean);
@@ -1374,26 +1437,9 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
       } catch (error) {
         devLog('Failed to save transaction history:', error);
       }
-
-      try {
-        const { data: refreshedRows, error: refreshedError } = await supabase
-          .from('transaction_history')
-          .select('*')
-          .eq('wallet_address', normalizedAddress)
-          .order('tx_timestamp', { ascending: false })
-          .limit(limit);
-
-        if (refreshedError) {
-          console.error('Failed to read refreshed transaction history:', refreshedError);
-        } else if (Array.isArray(refreshedRows)) {
-          return trimTransactions(applyDaftarBranding(refreshedRows), limit);
-        }
-      } catch (error) {
-        console.error('Failed to fetch refreshed transaction history:', error);
-      }
     }
 
-    return trimTransactions(enrichedTransactions, limit);
+    return trimTransactions(applyProjectBranding(finalResults), limit);
   } catch (error) {
     console.error("getOrFetchTransactions failed:", error);
     return [];

@@ -2266,22 +2266,38 @@ const Dashboard = () => {
                       className="hero-social-link"
                       title={`Twitter: @${userProfile.twitter.replace('@', '')}`}
                     >
-                      <span className="hero-social-icon">X</span>
+                    <span className="hero-social-icon">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.292 19.49h2.039L6.486 3.24H4.298l13.311 17.403z"/>
+                      </svg>
+                    </span>
                     </a>
                   ) : null}
                   {userProfile?.telegram ? (
                     <a
-                      href={`https://t.me/${userProfile.telegram.replace('@', '')}`}
+                      href={userProfile.telegram.startsWith('http') ? userProfile.telegram : `https://${userProfile.telegram}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hero-social-link"
-                      title={`Telegram: @${userProfile.telegram.replace('@', '')}`}
+                      title="Link"
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="hero-social-icon">
-                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a11.955 11.955 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.153-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.36-1.37.2-.456-.134-.883-.414-1.289-.77-.147-.127-.336-.191-.52-.191-.055 0-.109.005-.163.013-.502.113-1.005.656-1.059 1.22 0 .57.38.85.583 1.027.378.338.884.592 1.297.637.502.038 1.091-.044 1.601-.135 1.027-.226 1.918-.779 2.425-1.779.29-.576.17-1.392.589-1.487z" />
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="hero-social-icon">
+                        <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
                       </svg>
                     </a>
                   ) : null}
+                  <button
+                    className="hero-social-link"
+                    title="Share Profile"
+                    onClick={() => {}}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="hero-social-icon">
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                      <polyline points="16 6 12 2 8 6"></polyline>
+                      <line x1="12" y1="2" x2="12" y2="15"></line>
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -2295,26 +2311,24 @@ const Dashboard = () => {
               ) : t(language, 'dashNetWorth')}
             </span>
 
-            <div className="hero-v3-value">
-
-              {assetsLoading ? <NetWorthValueSkeleton /> :
-
-                error ? <span style={{ fontSize: "24px", opacity: 0.7 }}>Error</span> :
-
-                  <span>{formatCurrencyValue(convertUSD(combinedNetWorth))}</span>
-
-              }
+            <div className="hero-v3-value-container">
+              <div className="hero-v3-value">
+                {assetsLoading ? <NetWorthValueSkeleton /> :
+                  error ? <span style={{ fontSize: "24px", opacity: 0.7 }}>Error</span> :
+                    <span>{formatCurrencyValue(convertUSD(combinedNetWorth))}</span>
+                }
+              </div>
 
               {!assetsLoading && portfolio24hChange !== null && (
-
-                <span className={`hero-v3-change ${portfolio24hChange >= 0 ? 'positive' : 'negative'}`}>
-
-                  {portfolio24hChange >= 0 ? '+' : '-'} {Math.abs(portfolio24hChange).toFixed(2)}%
-
-                </span>
-
+                <div className={`hero-v3-sub-value ${portfolio24hChange >= 0 ? 'positive' : 'negative'}`}>
+                  <span className="change-arrow">{portfolio24hChange >= 0 ? '▲' : '▼'}</span>
+                  <span className="change-usd">
+                    {portfolio24hChange >= 0 ? '+' : '-'}{formatCurrencyValue(convertUSD(Math.abs(combinedNetWorth * (portfolio24hChange / 100))))}
+                  </span>
+                  <span className="change-percent">({Math.abs(portfolio24hChange).toFixed(2)}%)</span>
+                  <span className="change-label">{t(language, 'profileToday').toLowerCase()}</span>
+                </div>
               )}
-
             </div>
 
             <div className="hero-v3-meta">
@@ -2337,9 +2351,27 @@ const Dashboard = () => {
                       <img src="/copy.png" alt="Copy" className="copy-icon-img" />
                     </button>
                   </div>
-                  {userProfile?.bio && (
+                  {userProfile?.bio ? (
                     <div className="hero-v3-bio">
                       {userProfile.bio}
+                    </div>
+                  ) : canEditProfile ? (
+                    <div 
+                      className="hero-v3-bio-nudge"
+                      onClick={() => navigate('/profile')}
+                      role="button"
+                      tabIndex={0}
+                      onKeyPress={(e) => e.key === 'Enter' && navigate('/profile')}
+                    >
+                      <span>{t(language, 'profileBioPlaceholder') || "Add a bio to introduce yourself"}</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="bio-nudge-icon">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="hero-v3-bio empty-guest">
+                      ( {t(language, 'profileNoBioGuest') || "This user has not added a bio yet"} )
                     </div>
                   )}
                 </>
@@ -2668,38 +2700,35 @@ const Dashboard = () => {
                <div className="modal-badges-section">
                 <h3 className="modal-badges-title">{t(language, 'dashCollectedBadges')} ({userBadges.length})</h3>
                 <div className="modal-onchain-badges">
-                  <h4 className="modal-onchain-title">{t(language, 'onchainBadges')}</h4>
                   {onchainBadgesLoading ? (
                     <div className="modal-onchain-loading">{t(language, 'dashLoadingBadges')}</div>
-                  ) : onchainBadges && onchainBadges.length > 0 ? (
+                  ) : onchainBadges && onchainBadges.filter(b => b.earned).length > 0 && (
                     <div className="modal-onchain-badges-grid">
-                      {onchainBadges.map((b) => (
-                        <div key={b.id} className={`modal-onchain-badge ${b.earned ? 'owned' : 'locked'}`}>
-                          <div className="modal-onchain-badge-icon">{b.imageUrl ? <img src={b.imageUrl} alt={b.name} onError={(e) => { e.target.style.display = 'none' }} /> : (b.name ? b.name[0] : 'B')}</div>
-                          <div className="modal-onchain-badge-info">
-                            <div className="modal-onchain-badge-name">{b.name}</div>
-                            <div className="modal-onchain-badge-meta">{b.earned ? t(language, 'dashOwned') : t(language, 'dashNotOwned')}</div>
+                      {onchainBadges.filter(b => b.earned).map((b) => (
+                        <div key={b.id} className="modal-onchain-badge owned" title={b.name}>
+                          <div className="modal-onchain-badge-icon">
+                            {b.imageUrl ? (
+                              <img src={b.imageUrl} alt={b.name} onError={(e) => { e.target.style.display = 'none' }} />
+                            ) : (
+                              <span className="badge-fallback-letter">{b.name ? b.name[0] : 'B'}</span>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="modal-onchain-empty">{t(language, 'dashNoOnchainBadges')}</div>
                   )}
                 </div>
-                {(persistedBadges && persistedBadges.length > 0) || userBadges.length > 0 ? (
+                {((persistedBadges && persistedBadges.length > 0 ? persistedBadges : userBadges).filter(b => b.earned !== false).length > 0) ? (
                   <div className="modal-badges-grid">
-                    {(persistedBadges && persistedBadges.length > 0 ? persistedBadges : userBadges).map(badge => (
-                      <div key={badge.id} className="modal-badge-item">
-                        <div className="modal-badge-icon-box">
-                          <span className="modal-badge-icon">{badge.icon || 'Badge'}</span>
+                    {(persistedBadges && persistedBadges.length > 0 ? persistedBadges : userBadges)
+                      .filter(b => b.earned !== false)
+                      .map(badge => (
+                        <div key={badge.id} className="modal-badge-item collection-style" title={`${badge.name}: ${badge.description}`}>
+                          <div className="modal-badge-icon-box">
+                            <span className="modal-badge-icon">{badge.icon || 'Badge'}</span>
+                          </div>
                         </div>
-                        <div className="modal-badge-info">
-                          <div className="modal-badge-name">{badge.name}</div>
-                          <div className="modal-badge-description">{badge.description}</div>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 ) : (
                   <p className="modal-no-badges">{t(language, 'dashNoBadgesEarned')}</p>

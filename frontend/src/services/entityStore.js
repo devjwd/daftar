@@ -51,6 +51,17 @@ export const findEntityByAddress = (address) => {
   return entitiesCache.get(address.toLowerCase()) || null;
 };
 
+export const findEntityByName = (name) => {
+  if (!name) return null;
+  const searchName = name.toLowerCase().trim();
+  for (const entity of entitiesCache.values()) {
+    if (entity.name.toLowerCase().trim() === searchName) {
+      return entity;
+    }
+  }
+  return null;
+};
+
 /**
  * Helper to get the name and logo for an address if it's a tracked entity
  */
@@ -66,6 +77,25 @@ export const resolveEntityBranding = (address) => {
     is_verified: entity.is_verified,
     category: entity.category
   };
+};
+/**
+ * Search entities by name or address
+ */
+export const searchEntities = (query) => {
+  if (!query) return [];
+  const q = query.toLowerCase().trim();
+  const results = [];
+
+  for (const entity of entitiesCache.values()) {
+    if (
+      entity.name.toLowerCase().includes(q) ||
+      entity.address.toLowerCase() === q
+    ) {
+      results.push(entity);
+    }
+  }
+
+  return results.slice(0, 5);
 };
 
 // Initial sync on module load

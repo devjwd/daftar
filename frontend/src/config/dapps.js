@@ -43,7 +43,7 @@ export const TRACKED_DAPPS = [
   createDapp({
     key: "daftar",
     protocol: {
-      name: "Daftar",
+      name: "DAFTAR swap",
       website: "https://daftar.fi",
       type: "Portfolio",
       addresses: [
@@ -51,7 +51,7 @@ export const TRACKED_DAPPS = [
       ],
       keywords: ["daftar", "portfolio", "swap"],
     },
-    logo: "/daftar-logo.svg",
+    logo: "/daftar%20icon.png",
     contracts: ["0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69"],
     keywords: ["daftar", "swap", "portfolio"],
   }),

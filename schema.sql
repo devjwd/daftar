@@ -154,9 +154,12 @@ CREATE TABLE IF NOT EXISTS public.tracked_entities (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   address          text NOT NULL UNIQUE,
   name             text NOT NULL,
-  category         text DEFAULT 'Protocol', -- e.g. 'Treasury', 'Dex', 'Bridge'
+  category         text DEFAULT 'Protocol', -- e.g. 'Treasury', 'Dex', 'Bridge', 'Airdrop'
   logo_url         text,
   website_url      text,
+  twitter_url      text,
+  custom_type      text, -- e.g. 'CASHBACK', 'REWARD', 'MINT'
+  badge_color      text, -- Custom HEX or color name
   is_verified      boolean DEFAULT true,
   created_at       timestamptz DEFAULT now(),
   updated_at       timestamptz DEFAULT now()

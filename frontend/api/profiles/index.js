@@ -220,7 +220,6 @@ export default async function handler(req, res) {
 
       const current = mapProfileRow(currentResult.data) || {};
       const providedEditKey = pickEditKey(req);
-      const providedEditKey = pickEditKey(req);
       const canUseMigrationProof = requiresEditKeyMigration(current) || !isEditKeyValid(current, providedEditKey);
 
       if (canUseMigrationProof) {

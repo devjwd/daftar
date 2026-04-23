@@ -36,6 +36,8 @@ const TYPE_LABELS = {
   transfer: 'TRANSFER',
   received: 'RECEIVED',
   claim: 'CLAIM',
+  airdrop: 'AIRDROP',
+  bridge: 'BRIDGE',
   other: 'OTHER',
 };
 
@@ -56,11 +58,12 @@ const parseTimestampDate = (value) => {
   return new Date(value);
 };
 
-const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal }) => {
+const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal, pageSize = TRANSACTIONS_PAGE_SIZE }) => {
   const params = new URLSearchParams({
     wallet: walletAddress,
     page: String(page),
     type: activeFilter,
+    limit: String(pageSize)
   });
 
   try {
@@ -82,21 +85,26 @@ const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal
 
   // Attempt 2: Indexer Fallback (Reliable for all users)
   try {
+    const fetchLimit = page * pageSize + (pageSize === TRANSACTIONS_PAGE_SIZE ? 20 : 0); // Always fetch ahead
     const indexerRows = await getOrFetchTransactions(walletAddress, {
-      limit: TRANSACTIONS_PAGE_SIZE,
-      allowCachedRead: false, // Force fresh indexer load if backend failed
-      persist: false // Don't try to save back to DB from client to avoid RLS/CORS complexity here
+      limit: fetchLimit,
+      allowCachedRead: false,
+      persist: false
     });
 
-    const filteredRows = activeFilter === 'all' 
-      ? indexerRows 
+    const filteredRows = activeFilter === 'all'
+      ? indexerRows
       : indexerRows.filter(tx => String(tx.tx_type).toLowerCase() === activeFilter);
 
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize;
+    const pageRows = filteredRows.slice(from, to);
+
     return {
-      transactions: filteredRows,
+      transactions: pageRows,
       total: filteredRows.length,
-      page: 1,
-      hasMore: false,
+      page: page,
+      hasMore: filteredRows.length > to,
       source: 'indexer-fallback'
     };
   } catch (indexerError) {
@@ -191,9 +199,9 @@ const normalizeDisplayToken = (value) => {
   const normalized = String(value || '').trim();
   return normalized
     ? {
-        label: shortenTokenLabel(normalized),
-        full: normalized.toUpperCase(),
-      }
+      label: shortenTokenLabel(normalized),
+      full: normalized.toUpperCase(),
+    }
     : null;
 };
 
@@ -269,6 +277,8 @@ const getBadgeClass = (type) => {
   if (normalized === 'transfer') return styles.badgeTransfer;
   if (normalized === 'received') return styles.badgeReceived;
   if (normalized === 'claim') return styles.badgeClaim;
+  if (normalized === 'airdrop') return styles.badgeAirdrop;
+  if (normalized === 'bridge') return styles.badgeBridge;
   return styles.badgeOther;
 };
 
@@ -302,9 +312,9 @@ const TokenIcon = ({ symbol }) => {
   );
 };
 
-const SkeletonRows = () => (
+const SkeletonRows = ({ count = 5 }) => (
   <div className={styles.skeletonList} aria-hidden="true">
-    {Array.from({ length: 5 }).map((_, index) => (
+    {Array.from({ length: count }).map((_, index) => (
       <div key={index} className={styles.skeletonRow}>
         <span className={cn(styles.skeletonBlock, styles.skeletonBadge)} />
         <span className={cn(styles.skeletonBlock, styles.skeletonTokens)} />
@@ -324,9 +334,8 @@ export default function TrxHistory({ walletAddress }) {
   const [activeFilter, setActiveFilter] = useState('all');
   const [transactions, setTransactions] = useState([]);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [totalTransactionCount, setTotalTransactionCount] = useState(null);
   const [hasMore, setHasMore] = useState(false);
+  const [totalTransactionCount, setTotalTransactionCount] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
@@ -376,8 +385,7 @@ export default function TrxHistory({ walletAddress }) {
         if (!disposed) {
           const payload = { ...EMPTY_RESPONSE, ...json };
           setTransactions(Array.isArray(payload.transactions) ? payload.transactions : []);
-          setPage(Number(payload.page || 1));
-          setTotal(Number(payload.total || 0));
+          setPage(1);
           setHasMore(Boolean(payload.hasMore));
         }
       } catch (fetchError) {
@@ -450,7 +458,6 @@ export default function TrxHistory({ walletAddress }) {
     const controller = new AbortController();
     paginationAbortRef.current = controller;
 
-    if (!mountedRef.current) return;
     setLoadingMore(true);
     setLoadMoreError('');
 
@@ -465,28 +472,16 @@ export default function TrxHistory({ walletAddress }) {
 
       const payload = { ...EMPTY_RESPONSE, ...json };
       if (!mountedRef.current) return;
+
       setTransactions((prev) => [...prev, ...(Array.isArray(payload.transactions) ? payload.transactions : [])]);
-      if (!mountedRef.current) return;
-      setPage(Number(payload.page || nextPage));
-      if (!mountedRef.current) return;
-      setTotal(Number(payload.total || 0));
-      if (!mountedRef.current) return;
+      setPage(nextPage);
       setHasMore(Boolean(payload.hasMore));
     } catch (fetchError) {
-      if (fetchError?.name === 'AbortError') {
-        return;
-      }
-
-      console.error('Failed to load more transactions:', fetchError);
-      if (!mountedRef.current) return;
+      if (fetchError?.name === 'AbortError') return;
       setLoadMoreError('Unable to load more transactions');
     } finally {
-      if (paginationAbortRef.current === controller) {
-        paginationAbortRef.current = null;
-      }
-      if (mountedRef.current) {
-        setLoadingMore(false);
-      }
+      if (paginationAbortRef.current === controller) paginationAbortRef.current = null;
+      if (mountedRef.current) setLoadingMore(false);
     }
   };
 
@@ -495,9 +490,9 @@ export default function TrxHistory({ walletAddress }) {
       return `${totalTransactionCount} ${totalTransactionCount === 1 ? 'total transaction' : 'total transactions'}`;
     }
 
-    const totalTransactions = Math.max(Number(total || 0), transactions.length);
+    const totalTransactions = transactions.length;
     return `${totalTransactions} ${totalTransactions === 1 ? 'transaction' : 'transactions'}`;
-  }, [total, totalTransactionCount, transactions.length]);
+  }, [totalTransactionCount, transactions.length]);
 
   if (!walletAddress) {
     return <section className={styles.emptyState}>Connect wallet to view transactions</section>;
@@ -548,13 +543,14 @@ export default function TrxHistory({ walletAddress }) {
                   const tokenIn = normalizeDisplayToken(tx.token_in);
                   const tokenOut = normalizeDisplayToken(tx.token_out);
                   const hasTokenIn = Boolean(tokenIn?.label);
-                  const hasTokenOut = Boolean(tokenOut?.label);
+                  const hasTokenOut = Boolean(tokenOut?.label) && (tokenOut.label !== tokenIn?.label);
                   const displayAmounts = getDisplayAmounts(tx);
                   const hasAmountIn = displayAmounts.length > 0;
-                  const hasAmountOut = displayAmounts.length > 1;
+                  const hasAmountOut = displayAmounts.length > 1 && (displayAmounts[1] !== displayAmounts[0]);
                   const amountTone = getAmountTone(tx);
                   const dappName = String(tx.dapp_name || 'Wallet');
-                  const typeLabel = TYPE_LABELS[String(tx.tx_type || 'other').toLowerCase()] || 'OTHER';
+                  const rawType = String(tx.tx_type || 'other').toLowerCase();
+                  const typeLabel = TYPE_LABELS[rawType] || rawType.toUpperCase();
                   const typeTitle = tx.dapp_contract
                     ? `${dappName} · ${typeLabel} · ${tx.dapp_contract}`
                     : `${dappName} · ${typeLabel}`;
@@ -568,9 +564,12 @@ export default function TrxHistory({ walletAddress }) {
                         <div className={styles.typeCell} title={typeTitle}>
                           <DappIcon tx={tx} />
                           <div className={styles.typeMeta}>
-                            <span className={cn(styles.typeBadge, getBadgeClass(tx.tx_type))}>
+                            <div
+                              className={cn(styles.typeBadge, getBadgeClass(tx.tx_type))}
+                              style={tx.badge_color ? { color: tx.badge_color } : {}}
+                            >
                               {typeLabel}
-                            </span>
+                            </div>
                             <span className={styles.typeDappName}>{dappName}</span>
                           </div>
                         </div>
@@ -595,9 +594,23 @@ export default function TrxHistory({ walletAddress }) {
                       </td>
                       <td>
                         <div className={styles.amountPair}>
-                          {hasAmountIn ? <span className={styles[amountTone]}>{formatAmount(displayAmounts[0])}</span> : null}
+                          {hasAmountIn ? (
+                            <span
+                              className={styles[amountTone]}
+                              style={tx.badge_color ? { color: tx.badge_color } : {}}
+                            >
+                              {formatAmount(displayAmounts[0])}
+                            </span>
+                          ) : null}
                           {hasAmountIn && hasAmountOut ? <span className={styles.amountArrow}>→</span> : null}
-                          {hasAmountOut ? <span className={styles[amountTone]}>{formatAmount(displayAmounts[1])}</span> : null}
+                          {hasAmountOut ? (
+                            <span
+                              className={styles[amountTone]}
+                              style={tx.badge_color ? { color: tx.badge_color } : {}}
+                            >
+                              {formatAmount(displayAmounts[1])}
+                            </span>
+                          ) : null}
                           {!hasAmountIn && !hasAmountOut ? <span className={styles.neutral}>—</span> : null}
                         </div>
                       </td>
@@ -618,6 +631,12 @@ export default function TrxHistory({ walletAddress }) {
               </tbody>
             </table>
           </div>
+
+          {loadingMore && (
+            <div className={styles.loadingMoreSkeleton}>
+              <SkeletonRows count={20} />
+            </div>
+          )}
 
           {hasMore ? (
             <div className={styles.loadMoreWrap}>

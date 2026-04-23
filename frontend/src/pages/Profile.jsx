@@ -249,7 +249,11 @@ export default function Profile() {
             
             <div className="form-group">
               <label>
-                <span className="social-icon">𝕏</span> Twitter/X
+                <span className="social-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: 'middle', marginTop: '-2px' }}>
+                    <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.292 19.49h2.039L6.486 3.24H4.298l13.311 17.403z"/>
+                  </svg>
+                </span> Twitter/X
               </label>
               <input
                 type="text"
@@ -262,14 +266,15 @@ export default function Profile() {
 
             <div className="form-group">
               <label>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="social-icon" style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }}>
-                  <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a11.955 11.955 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.153-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.36-1.37.2-.456-.134-.883-.414-1.289-.77-.147-.127-.336-.191-.52-.191-.055 0-.109.005-.163.013-.502.113-1.005.656-1.059 1.22 0 .57.38.85.583 1.027.378.338.884.592 1.297.637.502.038 1.091-.044 1.601-.135 1.027-.226 1.918-.779 2.425-1.779.29-.576.17-1.392.589-1.487z"/>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="social-icon" style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }}>
+                  <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
                 </svg>
-                Telegram
+                Link
               </label>
               <input
                 type="text"
-                placeholder="@username"
+                placeholder="https://website.com"
                 value={telegram}
                 onChange={(e) => setTelegram(e.target.value)}
                 className="form-input"
