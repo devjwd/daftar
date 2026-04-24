@@ -261,6 +261,7 @@ export default function Profile() {
                 value={twitter}
                 onChange={(e) => setTwitter(e.target.value)}
                 className="form-input"
+                maxLength={100}
               />
             </div>
 
@@ -278,6 +279,7 @@ export default function Profile() {
                 value={telegram}
                 onChange={(e) => setTelegram(e.target.value)}
                 className="form-input"
+                maxLength={200}
               />
             </div>
           </div>

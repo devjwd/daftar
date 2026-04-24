@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.badge_definitions (
 -- TABLE: badge_attestations
 CREATE TABLE IF NOT EXISTS public.badge_attestations (
   id              uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
-  wallet_address  text         NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE CASCADE,
+  wallet_address  text         NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE RESTRICT,
   badge_id        text         NOT NULL REFERENCES public.badge_definitions(badge_id) ON DELETE CASCADE,
   eligible        boolean      NOT NULL DEFAULT false,
   proof_hash      text,
@@ -222,7 +222,7 @@ BEGIN
     DROP POLICY IF EXISTS "Service role full access entities" ON public.tracked_entities;
     DROP POLICY IF EXISTS "Authenticated manage entities" ON public.tracked_entities;
 
-    -- Cleanup new universal policies if re-running
+    -- Cleanup universal policies if re-running
     DROP POLICY IF EXISTS "Allow all profiles" ON public.profiles;
     DROP POLICY IF EXISTS "Allow all badge definitions" ON public.badge_definitions;
     DROP POLICY IF EXISTS "Allow all attestations" ON public.badge_attestations;
@@ -233,19 +233,28 @@ BEGIN
     DROP POLICY IF EXISTS "Allow all eligibility" ON public.badge_eligible_wallets;
     DROP POLICY IF EXISTS "Allow all nonces" ON public.used_nonces;
     DROP POLICY IF EXISTS "Allow all rates" ON public.api_rate_limits;
+
+    -- Cleanup new secure policies
+    DROP POLICY IF EXISTS "Read for anon profiles" ON public.profiles;
+    DROP POLICY IF EXISTS "Read for anon badge definitions" ON public.badge_definitions;
+    DROP POLICY IF EXISTS "Read for anon attestations" ON public.badge_attestations;
+    DROP POLICY IF EXISTS "Read for anon transactions" ON public.transaction_history;
+    DROP POLICY IF EXISTS "Read for anon prices" ON public.price_cache;
+    DROP POLICY IF EXISTS "Read for anon swap stats" ON public.dapp_swap_stats;
+    DROP POLICY IF EXISTS "Read for anon entities" ON public.tracked_entities;
+    DROP POLICY IF EXISTS "Read for anon eligibility" ON public.badge_eligible_wallets;
 END $$;
 
--- Universal Access (Web3 Auth relies on signature validation at the application level)
-CREATE POLICY "Allow all profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all badge definitions" ON public.badge_definitions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all attestations" ON public.badge_attestations FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all transactions" ON public.transaction_history FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all prices" ON public.price_cache FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all swap stats" ON public.dapp_swap_stats FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all entities" ON public.tracked_entities FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all eligibility" ON public.badge_eligible_wallets FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all nonces" ON public.used_nonces FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all rates" ON public.api_rate_limits FOR ALL USING (true) WITH CHECK (true);
+-- Secure Access (Read-only for anon, full access is granted automatically to service_role)
+CREATE POLICY "Read for anon profiles" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Read for anon badge definitions" ON public.badge_definitions FOR SELECT USING (true);
+CREATE POLICY "Read for anon attestations" ON public.badge_attestations FOR SELECT USING (true);
+CREATE POLICY "Read for anon transactions" ON public.transaction_history FOR SELECT USING (true);
+CREATE POLICY "Read for anon prices" ON public.price_cache FOR SELECT USING (true);
+CREATE POLICY "Read for anon swap stats" ON public.dapp_swap_stats FOR SELECT USING (true);
+CREATE POLICY "Read for anon entities" ON public.tracked_entities FOR SELECT USING (true);
+CREATE POLICY "Read for anon eligibility" ON public.badge_eligible_wallets FOR SELECT USING (true);
+-- used_nonces and api_rate_limits have NO read access for anon
 
 -- ----------------------------------------------------------------------------
 -- 6. XP & UPDATED_AT TRIGGERS

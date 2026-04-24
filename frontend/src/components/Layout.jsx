@@ -101,7 +101,7 @@ export default function Layout({ children }) {
     setRecentSearches((prev) => {
       // name might be 'Wallet address' or a real username
       const displayName = name && name !== 'Wallet address' ? name : formatAddress(address, 8, 6);
-      
+
       // Remove if already exists (by address)
       const filtered = prev.filter(item => {
         const itemAddr = typeof item === 'string' ? item : item.address;
@@ -240,7 +240,7 @@ export default function Layout({ children }) {
       return {
         isAddress: true,
         profileMatches,
-        alreadyInProfiles,
+        alreadyInResults,
         results: immediateResults,
       };
     }
@@ -259,7 +259,7 @@ export default function Layout({ children }) {
     return {
       isAddress: false,
       profileMatches: combinedResults,
-      alreadyInProfiles: false,
+      alreadyInResults: false,
       results: combinedResults,
     };
   }, []);
@@ -301,7 +301,7 @@ export default function Layout({ children }) {
         }
 
         const results = [...local.profileMatches];
-        if (!local.alreadyInProfiles) {
+        if (!local.alreadyInResults) {
           results.unshift({
             type: exists ? 'blockchain' : 'address',
             address: query,

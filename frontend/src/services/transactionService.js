@@ -32,6 +32,10 @@ const ADDRESS_PATTERN = /0x[a-f0-9]{1,128}/ig;
 let supabaseClient = null;
 const pricePromiseCache = new Map();
 
+let entityCache = null;
+let entityCacheExpiry = 0;
+const ENTITY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const resolveEnv = () => {
   const env = (typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env : {};
   const processEnv = (typeof globalThis !== "undefined" && globalThis.process?.env) ? globalThis.process.env : {};
@@ -63,10 +67,7 @@ const resolveEnv = () => {
       processEnv.SUPABASE_ANON_KEY ||
       ""
     ).trim() || null,
-    supabaseServiceRoleKey: String(
-      processEnv.SUPABASE_SERVICE_ROLE_KEY ||
-      ""
-    ).trim() || null,
+    // NOTE: Service role key intentionally excluded from frontend — server-only secret
   };
 };
 
@@ -75,14 +76,13 @@ const getSupabaseClient = () => {
     return supabaseClient;
   }
 
-  const { supabaseUrl, supabaseAnonKey, supabaseServiceRoleKey } = resolveEnv();
-  const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
-  if (!supabaseUrl || !keyToUse) {
+  const { supabaseUrl, supabaseAnonKey } = resolveEnv();
+  if (!supabaseUrl || !supabaseAnonKey) {
     return null;
   }
 
   try {
-    supabaseClient = createClient(supabaseUrl, keyToUse, {
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -477,6 +477,9 @@ const isDistinctAssetPair = (leftActivity, rightActivity) => {
 };
 
 const buildStructuredTransaction = async (rawTx, activities, walletAddress = "") => {
+  // Ensure dynamic entities are loaded before matching
+  await syncEntities();
+  
   const functionName = getFunctionName(rawTx);
   const dapp = detectTransactionDapp(rawTx, activities);
 

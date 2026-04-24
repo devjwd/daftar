@@ -27,15 +27,14 @@ export const normalizeAddress = (address) => {
   if (!address) return null;
   
   // Handle different address types from wallet adapters
-  if (typeof address === 'string') {
-    return address.toLowerCase().trim();
-  }
-  
-  if (address.toString && typeof address.toString === 'function') {
-    return address.toString().toLowerCase().trim();
-  }
-  
-  return String(address).toLowerCase().trim();
+  const raw = (typeof address === 'string' ? address : String(address)).trim().toLowerCase();
+  if (!raw) return null;
+
+  // Strip 0x prefix, remove leading zeros, re-add prefix
+  const stripped = raw.startsWith('0x') ? raw.slice(2) : raw;
+  if (!/^[a-f0-9]+$/i.test(stripped)) return null;
+  const compact = stripped.replace(/^0+/, '') || '0';
+  return `0x${compact}`;
 };
 
 /**

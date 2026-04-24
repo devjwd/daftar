@@ -2,6 +2,7 @@
 node_modules/
 dist/
 .vercel/
+eslint-report.json
 
 # Local env files (never commit)
 .env

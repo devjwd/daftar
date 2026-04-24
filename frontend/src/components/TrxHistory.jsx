@@ -94,7 +94,9 @@ const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal
 
     const filteredRows = activeFilter === 'all'
       ? indexerRows
-      : indexerRows.filter(tx => String(tx.tx_type).toLowerCase() === activeFilter);
+      : activeFilter === 'transfers'
+        ? indexerRows.filter(tx => ['transfer', 'received'].includes(String(tx.tx_type).toLowerCase()))
+        : indexerRows.filter(tx => String(tx.tx_type).toLowerCase() === activeFilter);
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize;
@@ -355,7 +357,6 @@ export default function TrxHistory({ walletAddress }) {
     if (!walletAddress) {
       setTransactions([]);
       setPage(1);
-      setTotal(0);
       setTotalTransactionCount(null);
       setHasMore(false);
       setLoading(false);
@@ -398,7 +399,7 @@ export default function TrxHistory({ walletAddress }) {
           setError('Unable to load transactions right now');
           setTransactions([]);
           setPage(1);
-          setTotal(0);
+          setTotalTransactionCount(0);
           setHasMore(false);
           setLoadMoreError('');
         }

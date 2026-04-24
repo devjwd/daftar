@@ -1,5 +1,15 @@
 import { supabase } from './supabase';
 
+// Normalize to compact format: 0x00ab → 0xab (matches server/transactionService)
+const normalizeEntityAddress = (address) => {
+  const raw = String(address || '').trim().toLowerCase();
+  if (!raw) return null;
+  const stripped = raw.startsWith('0x') ? raw.slice(2) : raw;
+  if (!/^[a-f0-9]+$/i.test(stripped)) return null;
+  const compact = stripped.replace(/^0+/, '') || '0';
+  return `0x${compact}`;
+};
+
 let entitiesCache = new Map();
 let lastSync = 0;
 const CACHE_TTL = 300000; // 5 minutes
@@ -29,7 +39,11 @@ export const syncEntities = async (force = false) => {
     if (Array.isArray(entities)) {
       entities.forEach(entity => {
         if (entity.address) {
-          newMap.set(entity.address.toLowerCase(), entity);
+          // Store with normalized compact address as key
+          const normalized = normalizeEntityAddress(entity.address);
+          if (normalized) {
+            newMap.set(normalized, entity);
+          }
         }
       });
     }
@@ -48,7 +62,8 @@ export const syncEntities = async (force = false) => {
  */
 export const findEntityByAddress = (address) => {
   if (!address) return null;
-  return entitiesCache.get(address.toLowerCase()) || null;
+  const normalized = normalizeEntityAddress(address);
+  return normalized ? (entitiesCache.get(normalized) || null) : null;
 };
 
 export const findEntityByName = (name) => {

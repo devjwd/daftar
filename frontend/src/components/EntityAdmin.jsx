@@ -60,20 +60,21 @@ export default function EntityAdmin() {
         ...formData,
         address: addr
       };
-
-      let result;
+      
       if (editingId) {
-        result = await supabase
-          .from('tracked_entities')
-          .update(payload)
-          .eq('id', editingId);
-      } else {
-        result = await supabase
-          .from('tracked_entities')
-          .insert([payload]);
+        payload.id = editingId;
       }
 
-      if (result.error) throw result.error;
+      const response = await fetch('/api/entities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to save entity');
+      }
 
       // Refresh dynamic entity cache
       await syncEntities(true);
@@ -122,12 +123,14 @@ export default function EntityAdmin() {
     if (!window.confirm('Are you sure you want to delete this entity mapping?')) return;
 
     try {
-       const { error } = await supabase
-        .from('tracked_entities')
-        .delete()
-        .eq('id', id);
+       const response = await fetch(`/api/entities/${id}`, {
+         method: 'DELETE'
+       });
        
-       if (error) throw error;
+       const result = await response.json();
+       if (!response.ok || !result.ok) {
+         throw new Error(result.error || 'Failed to delete entity');
+       }
 
        // Refresh dynamic entity cache
        await syncEntities(true);

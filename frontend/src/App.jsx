@@ -17,7 +17,6 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SwapPage = lazy(() => import("./pages/Swap"));
 const SwapDetails = lazy(() => import("./pages/SwapDetails"));
 const Profile = lazy(() => import("./pages/Profile"));
-const ProfileView = lazy(() => import("./pages/ProfileView"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Badges = lazy(() => import("./pages/Badges"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
@@ -183,7 +182,6 @@ export default function App() {
                     <Route path="/level" element={<Level />} />
                     <Route path="/terms" element={<Terms />} />
                     <Route path="/privacy" element={<Privacy />} />
-                    <Route path="/profile/:address" element={<ProfileView />} />
                     <Route path="*" element={<NotFoundPage />} />
                   </Routes>
                 </Layout>

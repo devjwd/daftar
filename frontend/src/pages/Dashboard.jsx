@@ -133,7 +133,7 @@ const shouldDisplayPosition = (usdValue, threshold) => {
   return usdValue >= threshold;
 };
 
-const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue, language }) => {
+const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue, language, hideValues }) => {
   const tokenInfo = getTokenInfo(token.address);
   const isKnownToken = !!tokenInfo;
 
@@ -150,13 +150,13 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue, language }) 
   const hasValue = usdValueNum > 0;
 
   const convertedValue = convertUSD ? convertUSD(usdValueNum) : usdValueNum;
-  const displayValue = formatCurrencyValue ? formatCurrencyValue(convertedValue) : `$${usdValueNum.toFixed(2)}`;
+  const displayValue = hideValues ? '***' : (formatCurrencyValue ? formatCurrencyValue(convertedValue) : `$${usdValueNum.toFixed(2)}`);
 
   const HIGH_VALUE_COINS = ['ETH', 'WETH', 'BTC', 'WBTC', 'LBTC', 'EZETH', 'RSETH', 'SOLVBTC', 'WEETH'];
   const isHighValueCoin = HIGH_VALUE_COINS.some(coin => baseSymbol.includes(coin));
-  const formattedAmount = isHighValueCoin
+  const formattedAmount = hideValues ? '*****' : (isHighValueCoin
     ? (token.numericAmount || parseFloat(token.amount) || 0).toFixed(5)
-    : token.amount;
+    : token.amount);
 
   return (
     <div
@@ -937,7 +937,15 @@ const Dashboard = () => {
 
   const settingsKey = useMemo(() => getSettingsStorageKey(account?.address), [account?.address]);
 
+  const [hideValues, setHideValues] = useState(() => localStorage.getItem('hideValues') === 'true');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(0);
+
   const { convertUSD, formatValue: formatCurrencyValue, currencySymbol } = useCurrency();
+
+  useEffect(() => {
+    localStorage.setItem('hideValues', hideValues);
+  }, [hideValues]);
 
   useEffect(() => {
     const syncHidePositionThreshold = () => {
@@ -960,12 +968,37 @@ const Dashboard = () => {
     balances: indexerBalances,
     loading: indexerLoading,
     error: indexerError,
+    refetch: refetchBalances
   } = useIndexerBalances(viewingAddress);
 
   const {
     positions,
-    loading: defiLoading
+    loading: defiLoading,
+    refetch: refetchPositions
   } = useDeFiPositions(viewingAddress);
+
+  const handleRefresh = async () => {
+    const now = Date.now();
+    if (now - lastRefresh < 30000) return;
+    
+    setIsRefreshing(true);
+    setLastRefresh(now);
+    try {
+      if (viewingAddress) {
+        devLog("Refreshing assets for:", viewingAddress);
+        // Using existing logic + refetch hooks
+        fetchAssets && fetchAssets(viewingAddress);
+      }
+      await Promise.all([
+        refetchBalances && refetchBalances(),
+        refetchPositions && refetchPositions()
+      ]);
+    } catch (e) {
+      console.error('Refresh failed:', e);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 800);
+    }
+  };
   const { prices: priceMap, priceChanges } = useTokenPrices();
 
   // Legacy Memos for Filtering
@@ -2218,12 +2251,6 @@ const Dashboard = () => {
     return diffDays.toString();
   };
 
-  const handleRefresh = () => {
-    if (viewingAddress) {
-      devLog("Refreshing assets for:", viewingAddress);
-      fetchAssets(viewingAddress);
-    }
-  };
 
 
 
@@ -2303,7 +2330,42 @@ const Dashboard = () => {
             </div>
           )}
 
-          <div className="hero-v3-main-content">
+          <div className="hero-v3-main-content" style={{ position: 'relative' }}>
+            <div className="hero-v3-actions" style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '12px', zIndex: 10 }}>
+              <button 
+                className="hero-action-btn" 
+                onClick={() => setHideValues(prev => !prev)}
+                title={hideValues ? "Show Values" : "Hide Values"}
+                style={{ background: 'var(--surface-color, #1a1a1a)', border: 'none', color: '#9ca3af', padding: '8px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', width: '36px', height: '36px' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'var(--surface-hover, #2a2a2a)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.background = 'var(--surface-color, #1a1a1a)' }}
+              >
+                {hideValues ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                )}
+              </button>
+              <button 
+                className={`hero-action-btn ${isRefreshing ? 'spin' : ''}`} 
+                onClick={handleRefresh}
+                disabled={isRefreshing || (Date.now() - lastRefresh < 30000)}
+                title="Refresh Data"
+                style={{ background: 'var(--surface-color, #1a1a1a)', border: 'none', color: '#9ca3af', padding: '8px', borderRadius: '50%', cursor: (isRefreshing || (Date.now() - lastRefresh < 30000)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', width: '36px', height: '36px', opacity: (isRefreshing || (Date.now() - lastRefresh < 30000)) ? 0.5 : 1 }}
+                onMouseEnter={(e) => { if(!isRefreshing && (Date.now() - lastRefresh >= 30000)) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'var(--surface-hover, #2a2a2a)' } }}
+                onMouseLeave={(e) => { if(!isRefreshing && (Date.now() - lastRefresh >= 30000)) { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.background = 'var(--surface-color, #1a1a1a)' } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={isRefreshing ? { animation: 'spin 1s linear infinite' } : {}}>
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                </svg>
+              </button>
+            </div>
 
             <span className="hero-v3-title">
               {userProfile?.username ? (
@@ -2315,7 +2377,9 @@ const Dashboard = () => {
               <div className="hero-v3-value">
                 {assetsLoading ? <NetWorthValueSkeleton /> :
                   error ? <span style={{ fontSize: "24px", opacity: 0.7 }}>Error</span> :
-                    <span>{formatCurrencyValue(convertUSD(combinedNetWorth))}</span>
+                    <span style={hideValues ? { fontSize: '0.7em', display: 'inline-block', transform: 'translateY(-4px)', letterSpacing: '4px' } : {}}>
+                      {hideValues ? '*****' : formatCurrencyValue(convertUSD(combinedNetWorth))}
+                    </span>
                 }
               </div>
 
@@ -2323,9 +2387,9 @@ const Dashboard = () => {
                 <div className={`hero-v3-sub-value ${portfolio24hChange >= 0 ? 'positive' : 'negative'}`}>
                   <span className="change-arrow">{portfolio24hChange >= 0 ? '▲' : '▼'}</span>
                   <span className="change-usd">
-                    {portfolio24hChange >= 0 ? '+' : '-'}{formatCurrencyValue(convertUSD(Math.abs(combinedNetWorth * (portfolio24hChange / 100))))}
+                    {hideValues ? '*****' : `${portfolio24hChange >= 0 ? '+' : '-'}${formatCurrencyValue(convertUSD(Math.abs(combinedNetWorth * (portfolio24hChange / 100))))}`}
                   </span>
-                  <span className="change-percent">({Math.abs(portfolio24hChange).toFixed(2)}%)</span>
+                  <span className="change-percent">({hideValues ? '*****' : Math.abs(portfolio24hChange).toFixed(2)}%)</span>
                   <span className="change-label">{t(language, 'profileToday').toLowerCase()}</span>
                 </div>
               )}
@@ -2394,7 +2458,7 @@ const Dashboard = () => {
 
                   <span className="hero-v3-stat-value">
 
-                    {formatCurrencyValue(convertUSD(totalUsdValue))}
+                    {hideValues ? '*****' : formatCurrencyValue(convertUSD(totalUsdValue))}
 
                   </span>
 
@@ -2408,7 +2472,7 @@ const Dashboard = () => {
 
                   <span className={`hero-v3-stat-value ${(defiNetValue + liquidityTotalValue) >= 0 ? 'positive' : 'negative'}`}>
 
-                    {formatCurrencyValue(convertUSD(defiNetValue + liquidityTotalValue))}
+                    {hideValues ? '*****' : formatCurrencyValue(convertUSD(defiNetValue + liquidityTotalValue))}
 
                   </span>
 
@@ -2513,6 +2577,7 @@ const Dashboard = () => {
                     convertUSD={convertUSD}
                     formatCurrencyValue={formatCurrencyValue}
                     language={language}
+                    hideValues={hideValues}
                   />
 
                 ))}

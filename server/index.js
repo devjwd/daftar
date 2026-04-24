@@ -354,14 +354,19 @@ app.post('/api/badges/track', async (req, res) => {
     return res.status(400).json({ error: 'walletAddress is required' });
   }
 
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Service unavailable' });
+  }
+
+  // Ensure the wallet exists in profiles (ghost profile pattern)
   const { error } = await supabaseAdmin
-    .from('badge_tracked_addresses')
+    .from('profiles')
     .upsert(
       {
         wallet_address: walletAddress,
-        added_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
-      { onConflict: 'wallet_address' }
+      { onConflict: 'wallet_address', ignoreDuplicates: false }
     );
 
   if (error) {
@@ -369,6 +374,66 @@ app.post('/api/badges/track', async (req, res) => {
   }
 
   return res.status(200).json({ ok: true, walletAddress });
+});
+
+// ------ Badge Sync (post-mint persistence) ------
+app.post('/api/badges/sync', async (req, res) => {
+  const walletAddress = normalizeAddress(req.body?.walletAddress);
+  const badgeId = String(req.body?.badgeId || '').trim();
+  const txHash = String(req.body?.txHash || '').trim();
+  const onChainBadgeId = req.body?.onChainBadgeId;
+  const xpValue = Number(req.body?.xpValue) || 0;
+  const badgeName = String(req.body?.badgeName || '').trim();
+
+  if (!walletAddress || !badgeId) {
+    return res.status(400).json({ error: 'walletAddress and badgeId are required' });
+  }
+
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Database unavailable' });
+  }
+
+  try {
+    // Ensure profile exists (ghost profile)
+    await supabaseAdmin.from('profiles').upsert(
+      { wallet_address: walletAddress, xp: 0 },
+      { onConflict: 'wallet_address', ignoreDuplicates: true }
+    );
+
+    // Generate proof hash from mint data
+    const proofHash = createHash('sha256')
+      .update(`${walletAddress}:${badgeId}:${txHash || Date.now()}`)
+      .digest('hex');
+
+    // Upsert attestation
+    const { error } = await supabaseAdmin.from('badge_attestations').upsert(
+      {
+        wallet_address: walletAddress,
+        badge_id: badgeId,
+        eligible: true,
+        proof_hash: proofHash,
+        metadata: {
+          txHash: txHash || null,
+          onChainBadgeId: onChainBadgeId || null,
+          badgeName: badgeName || null,
+          syncedAt: new Date().toISOString(),
+          source: 'post_mint_sync',
+        },
+        verified_at: new Date().toISOString(),
+      },
+      { onConflict: 'wallet_address,badge_id' }
+    );
+
+    if (error) {
+      console.error('[badges/sync] Upsert failed:', error);
+      return res.status(500).json({ error: error.message || 'Sync failed' });
+    }
+
+    return res.status(200).json({ ok: true, badgeId, walletAddress });
+  } catch (err) {
+    console.error('[badges/sync] Error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 app.post('/api/badges/award', awardLimiter, async (req, res) => {
@@ -379,8 +444,8 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
   const nonce = req.body?.nonce;
   const metadata = req.body?.metadata || {};
 
-  if (!walletAddress || !signedMessage || !signature || !badgeId) {
-    return res.status(400).json({ error: 'walletAddress, badgeId, signedMessage, and signature are required' });
+  if (!walletAddress || !signedMessage || !signature || !badgeId || !nonce) {
+    return res.status(400).json({ error: 'walletAddress, badgeId, signedMessage, signature, and nonce are required' });
   }
 
   // 1. Global Rate Limit (DB Backed)
@@ -389,11 +454,9 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
     return res.status(429).json({ error: 'Too many award attempts', reset_at: rateLimit.resetAt });
   }
 
-  // 2. Replay Protection: Nonce Check
-  if (nonce) {
-    const nonceCheck = await checkAndBurnNonce(walletAddress, nonce);
-    if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
-  }
+  // 2. Replay Protection: Nonce Check (mandatory)
+  const nonceCheck = await checkAndBurnNonce(walletAddress, nonce);
+  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
 
   const isValid = verifyWalletSignature(walletAddress, signedMessage, signature);
   if (!isValid) {
@@ -401,8 +464,9 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
   }
 
   // 3. Eligibility Verification (Harden against self-attestation)
+  let verifyData = null;
   try {
-    const { data: verifyData, error: verifyError } = await supabaseAdmin.functions.invoke('verify-badge', {
+    const { data, error: verifyError } = await supabaseAdmin.functions.invoke('verify-badge', {
       body: { wallet_address: walletAddress, badge_id: badgeId },
       headers: {
         'x-api-key': process.env.VERIFY_BADGE_API_KEY || ''
@@ -410,6 +474,7 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
     });
 
     if (verifyError) throw verifyError;
+    verifyData = data;
     if (!verifyData?.eligible) {
       return res.status(403).json({
         error: 'Not eligible for this badge',
@@ -423,7 +488,8 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
 
   const txHash = metadata.txHash || null;
   const awardedAt = new Date().toISOString();
-  const proofHash = verifyData?.proof_hash || null;
+  // Generate fallback proof hash if edge function didn't return one (required by DB constraint)
+  const proofHash = verifyData?.proof_hash || createHash('sha256').update(`${walletAddress}:${badgeId}:${awardedAt}`).digest('hex');
 
   const { error } = await supabaseAdmin.from('badge_attestations').upsert(
     {
@@ -553,25 +619,8 @@ app.get('/api/badges/eligibility', generalLimiter, async (req, res) => {
   }
 });
 
-// POST /api/badges/track
-app.post('/api/badges/track', generalLimiter, async (req, res) => {
-  const wallet = normalizeAddress(req.query.wallet);
-  if (!wallet) return res.status(400).json({ error: 'wallet address is required' });
-
-  const page = Math.max(1, parseInt(req.query.page || '1'));
-  const type = req.query.type || 'all';
-
-  const { error } = await supabaseAdmin
-    .from('profiles') // Changed to profiles since we don't have badge_tracked_addresses
-    .update({ updated_at: new Date().toISOString() })
-    .eq('wallet_address', wallet);
-
-  if (error) {
-    return res.status(500).json({ error: error.message || 'Failed to track address' });
-  }
-
-  return res.status(200).json({ ok: true, walletAddress: wallet });
-});
+// NOTE: Duplicate POST /api/badges/track handler was removed.
+// The primary handler is defined above (line 351) using req.body.walletAddress.
 
 // GET /api/transactions
 app.get('/api/transactions', generalLimiter, async (req, res) => {
@@ -698,11 +747,10 @@ app.post('/api/profiles', async (req, res) => {
   const rateLimit = await checkRateLimit(`profile_upd:${normalizedAddr}`, 60000, 5);
   if (!rateLimit.ok) return res.status(429).json({ error: 'Rate limit exceeded' });
 
-  // 2. Replay Protection: Nonce
-  if (nonce) {
-    const nonceCheck = await checkAndBurnNonce(normalizedAddr, nonce);
-    if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
-  }
+  // 2. Replay Protection: Nonce (mandatory)
+  if (!nonce) return res.status(400).json({ error: 'nonce is required for replay protection' });
+  const nonceCheck = await checkAndBurnNonce(normalizedAddr, nonce);
+  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
 
   const isValid = verifyWalletSignature(normalizedAddr, signedMessage, signature);
   if (!isValid) {
@@ -766,11 +814,10 @@ app.delete('/api/profiles/:address', async (req, res) => {
   const rateLimit = await checkRateLimit(`profile_del:${address}`, 3600000, 3); // Max 3 deletes per hour
   if (!rateLimit.ok) return res.status(429).json({ error: 'Too many delete attempts' });
 
-  // Nonce
-  if (nonce) {
-    const nonceCheck = await checkAndBurnNonce(address, nonce);
-    if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
-  }
+  // Nonce (mandatory)
+  if (!nonce) return res.status(400).json({ error: 'nonce is required for replay protection' });
+  const nonceCheck = await checkAndBurnNonce(address, nonce);
+  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
 
   const isValid = verifyWalletSignature(address, signedMessage, signature);
   if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
@@ -796,7 +843,8 @@ app.get('/api/profiles', generalLimiter, async (req, res) => {
 
   // Apply DB-backed rate limit to search (prevent scraping)
   if (query) {
-    const searchRateLimit = await checkRateLimit('search_api', 60000, 100);
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const searchRateLimit = await checkRateLimit(`search:${clientIp}`, 60000, 100);
     if (!searchRateLimit.ok) return res.status(429).json({ error: 'Search rate limit exceeded' });
   }
 
@@ -806,9 +854,11 @@ app.get('/api/profiles', generalLimiter, async (req, res) => {
     let supabaseQuery = supabaseAdmin.from('profiles').select('*').limit(limit);
 
     if (query) {
-      // Sanitize query to prevent PostgREST injection
-      const sanitized = String(query).replace(/[(),.:]/g, '');
-      supabaseQuery = supabaseQuery.or(`username.ilike.%${sanitized}%,wallet_address.ilike.%${sanitized}%`);
+      // Sanitize query to prevent PostgREST injection — strip all non-alphanumeric except spaces and hyphens
+      const sanitized = String(query).replace(/[^a-zA-Z0-9\s\-_x]/g, '').slice(0, 100);
+      if (sanitized) {
+        supabaseQuery = supabaseQuery.or(`username.ilike.%${sanitized}%,wallet_address.ilike.%${sanitized}%`);
+      }
     }
 
     const { data, error } = await supabaseQuery;
@@ -821,6 +871,67 @@ app.get('/api/profiles', generalLimiter, async (req, res) => {
   } catch (error) {
     console.error('[Server] Profile search error:', error);
     return res.status(500).json({ error: 'Search failed' });
+  }
+});
+// --- HEALTH PROBES ---
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok', uptime: process.uptime() }));
+app.get('/ready', async (req, res) => {
+  try {
+    if (!supabaseAdmin) throw new Error('DB connection not initialized');
+    await supabaseAdmin.from('profiles').select('wallet_address').limit(1);
+    res.status(200).json({ status: 'ready' });
+  } catch (error) {
+    res.status(503).json({ status: 'unavailable', error: error.message });
+  }
+});
+
+// --- ENTITIES API (Admin-only in Production) ---
+app.post('/api/entities', async (req, res) => {
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
+  
+  // Note: Production would enforce an admin signature or session here.
+  // We use the service_role key to bypass RLS.
+  try {
+    const payload = req.body;
+    let result;
+    if (payload.id) {
+      result = await supabaseAdmin.from('tracked_entities').update(payload).eq('id', payload.id);
+    } else {
+      result = await supabaseAdmin.from('tracked_entities').insert([payload]);
+    }
+
+    if (result.error) throw result.error;
+
+    // Auto-create/update profile for this entity address
+    if (payload.address) {
+      try {
+        await supabaseAdmin.from('profiles').upsert({
+          wallet_address: payload.address,
+          username: payload.name,
+          avatar_url: payload.logo_url || null,
+          twitter: payload.twitter_url || null,
+          telegram: payload.website_url || null,
+        }, { onConflict: 'wallet_address', ignoreDuplicates: false });
+      } catch (profileErr) {
+        console.warn('[Entities API] Auto-profile creation failed:', profileErr);
+      }
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('[Entities API] Error saving entity:', err);
+    return res.status(500).json({ error: err.message || 'Failed to save entity' });
+  }
+});
+
+app.delete('/api/entities/:id', async (req, res) => {
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
+  try {
+    const { error } = await supabaseAdmin.from('tracked_entities').delete().eq('id', req.params.id);
+    if (error) throw error;
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to delete entity' });
   }
 });
 

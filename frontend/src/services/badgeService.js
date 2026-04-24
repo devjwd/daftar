@@ -221,13 +221,7 @@ export const hasBadge = async (client, badgeId, owner) => {
   }
 };
 
-export const isAllowlisted = async (client, badgeId, owner) => {
-  void client;
-  void badgeId;
-  void owner;
-  // Removed in the new contract architecture.
-  return false;
-};
+// Note: isAllowlisted was removed — no longer supported by the soulbound-signature-based contract architecture.
 
 // Note: is_badge_available does not exist as a contract view function.
 // Computed client-side from get_badge_info results via isBadgeMintable.
@@ -506,9 +500,6 @@ export const setFeeTreasury = async ({
     },
   });
 };
-
-// ═══════════════════════════════════════════════════════════════════════════════════════════
-// USER FUNCTIONS - Badge Minting
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // USER FUNCTIONS - Badge Minting
