@@ -98,9 +98,16 @@ export default function Layout({ children }) {
 
   // Save search to recent searches
   const saveRecentSearch = useCallback((address, name) => {
+    if (!address || !isValidAddress(address)) return;
+
     setRecentSearches((prev) => {
       // name might be 'Wallet address' or a real username
-      const displayName = name && name !== 'Wallet address' ? name : formatAddress(address, 8, 6);
+      let displayName = name && name !== 'Wallet address' && name !== 'User' ? name : formatAddress(address, 8, 6);
+
+      // Prevent saving very short or meaningless names as recent searches
+      if (!displayName || displayName.length < 2) {
+         displayName = formatAddress(address, 8, 6);
+      }
 
       // Remove if already exists (by address)
       const filtered = prev.filter(item => {
@@ -114,6 +121,15 @@ export default function Layout({ children }) {
       localStorage.setItem('recentSearches', JSON.stringify(updated));
       return updated;
     });
+  }, []);
+
+  const handleClearRecentSearches = useCallback((e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setRecentSearches([]);
+    localStorage.removeItem('recentSearches');
   }, []);
 
   // Close dropdown when clicking outside
@@ -207,7 +223,7 @@ export default function Layout({ children }) {
       .map((profile) => ({
         type: 'profile',
         address: profile.address,
-        username: profile.username || 'User',
+        username: profile.username || formatAddress(profile.address, 8, 6),
         pfp: profile.pfp || null,
       }));
 
@@ -349,7 +365,8 @@ export default function Layout({ children }) {
     // Try to resolve username
     const resolvedAddress = await resolveAddressOrUsernameAsync(query) || resolveAddressOrUsername(query);
     if (resolvedAddress) {
-      goToWallet(resolvedAddress, query);
+      const profile = await getProfileAsync(resolvedAddress) || getProfile(resolvedAddress);
+      goToWallet(resolvedAddress, profile?.username || query);
       return;
     }
 
@@ -617,7 +634,16 @@ export default function Layout({ children }) {
                 <div className="search-suggestions">
                   {!searchQuery.trim() && recentSearches.length > 0 && (
                     <>
-                      <div className="search-suggestion-header">{t(language, 'recentSearches')}</div>
+                      <div className="search-suggestion-header">
+                        <span>{t(language, 'recentSearches')}</span>
+                        <button 
+                          className="search-clear-all-btn" 
+                          onMouseDown={handleClearRecentSearches}
+                          type="button"
+                        >
+                          {t(language, 'clearAll') || 'Clear'}
+                        </button>
+                      </div>
                       {recentSearches.map((item, i) => {
                         const address = typeof item === 'string' ? item : item.address;
                         const displayName = typeof item === 'string' ? formatAddress(item, 8, 6) : item.name;

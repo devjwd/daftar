@@ -871,13 +871,38 @@ body[data-theme='light'] .language-badge {
 
 /* Recent searches header */
 .search-suggestion-header {
-  padding: 10px 14px 6px;
+  padding: 12px 14px 8px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: #7a6f65;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  margin-bottom: 4px;
+}
+
+.search-clear-all-btn {
+  background: transparent;
+  border: none;
+  color: #cda169;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.search-clear-all-btn:hover {
+  opacity: 1;
+  background: rgba(205, 161, 105, 0.1);
+  color: #deb884;
 }
 
 /* Recent search item styling */

@@ -155,12 +155,12 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue, language, hi
   const HIGH_VALUE_COINS = ['ETH', 'WETH', 'BTC', 'WBTC', 'LBTC', 'EZETH', 'RSETH', 'SOLVBTC', 'WEETH'];
   const isHighValueCoin = HIGH_VALUE_COINS.some(coin => baseSymbol.includes(coin));
   const formattedAmount = hideValues ? '*****' : (isHighValueCoin
-    ? (token.numericAmount || parseFloat(token.amount) || 0).toFixed(5)
+    ? (token.numericAmount || parseFloat(token.amount) || 0).toFixed(7)
     : token.amount);
 
   return (
     <div
-      className={`token-card-new ${isKnownToken ? 'verified' : ''}`}
+      className="token-card-new"
       style={{
         animationDelay: `${delay}ms`,
         '--token-color': tokenColor.primary,
@@ -185,13 +185,7 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue, language, hi
             ) : (
               <span className="token-initial">{symbol.charAt(0) || '?'}</span>
             )}
-            {isKnownToken && (
-              <div className="token-verified-dot">
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                  <path d="M1 4L3 6L7 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-            )}
+
           </div>
 
           <div className="token-info">
@@ -329,7 +323,7 @@ const StakingCard = ({ name, value, type, delay }) => (
 
 );
 
-const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language }) => {
+const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language, hideValues }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const firstPos = protocolPositions[0];
   const getProtocolKey = () => {
@@ -349,6 +343,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
   const debtPositions = protocolPositions.filter(p => p.type === 'Debt');
 
   const formatValue = (val) => {
+    if (hideValues) return '*****';
     const num = parseFloat(val);
     if (isNaN(num)) return '0.00';
     if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
@@ -357,6 +352,7 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
   };
 
   const formatUsdValue = (val) => {
+    if (hideValues) return '*****';
     const num = parseFloat(val);
     if (isNaN(num) || num === 0) return formatCurrencyValue(0);
     const converted = convertUSD(num);
@@ -577,7 +573,7 @@ const humanizeAssetName = (raw) => {
   return raw;
 };
 
-const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language }) => {
+const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language, hideValues }) => {
   const LP_PROTOCOLS = {
     canopy: {
       logo: '/canopy.png',
@@ -686,6 +682,7 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     position.symbol?.includes('stMOVE');
 
   const formatValue = (val) => {
+    if (hideValues) return '*****';
     const num = parseFloat(val);
     if (isNaN(num)) return '0.00';
     if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
@@ -694,6 +691,7 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
   };
 
   const formatUsd = (val) => {
+    if (hideValues) return '*****';
     const num = parseFloat(val);
     if (isNaN(num) || num === 0) return formatCurrencyValue(0);
     const converted = convertUSD(num);
@@ -980,7 +978,7 @@ const Dashboard = () => {
   const handleRefresh = async () => {
     const now = Date.now();
     if (now - lastRefresh < 30000) return;
-    
+
     setIsRefreshing(true);
     setLastRefresh(now);
     try {
@@ -1128,7 +1126,19 @@ const Dashboard = () => {
     balances.forEach(token => {
       const address = token.address;
       const usdValue = token.usdValue || 0;
-      const change = priceChanges[address];
+
+      // Try exact match, then normalized match, then MOVE fallback
+      let change = priceChanges[address];
+
+      if (change === undefined && address) {
+        // Simple normalization for 0x1 vs 0x0...1
+        const normalized = address.toLowerCase().replace(/^0x0+/, "0x");
+        change = priceChanges[normalized];
+      }
+
+      if (change === undefined && (token.symbol === "MOVE" || token.symbol === "move")) {
+        change = priceChanges["0xa"] || priceChanges["0x1"];
+      }
 
       if (change !== undefined && usdValue > 0) {
         weightedChange += change * usdValue;
@@ -2293,11 +2303,11 @@ const Dashboard = () => {
                       className="hero-social-link"
                       title={`Twitter: @${userProfile.twitter.replace('@', '')}`}
                     >
-                    <span className="hero-social-icon">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.292 19.49h2.039L6.486 3.24H4.298l13.311 17.403z"/>
-                      </svg>
-                    </span>
+                      <span className="hero-social-icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.292 19.49h2.039L6.486 3.24H4.298l13.311 17.403z" />
+                        </svg>
+                      </span>
                     </a>
                   ) : null}
                   {userProfile?.telegram ? (
@@ -2317,7 +2327,7 @@ const Dashboard = () => {
                   <button
                     className="hero-social-link"
                     title="Share Profile"
-                    onClick={() => {}}
+                    onClick={() => { }}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="hero-social-icon">
                       <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
@@ -2332,8 +2342,8 @@ const Dashboard = () => {
 
           <div className="hero-v3-main-content" style={{ position: 'relative' }}>
             <div className="hero-v3-actions" style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '12px', zIndex: 10 }}>
-              <button 
-                className="hero-action-btn" 
+              <button
+                className="hero-action-btn"
                 onClick={() => setHideValues(prev => !prev)}
                 title={hideValues ? "Show Values" : "Hide Values"}
                 style={{ background: 'var(--surface-color, #1a1a1a)', border: 'none', color: '#9ca3af', padding: '8px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', width: '36px', height: '36px' }}
@@ -2352,17 +2362,17 @@ const Dashboard = () => {
                   </svg>
                 )}
               </button>
-              <button 
-                className={`hero-action-btn ${isRefreshing ? 'spin' : ''}`} 
+              <button
+                className={`hero-action-btn ${isRefreshing ? 'spin' : ''}`}
                 onClick={handleRefresh}
                 disabled={isRefreshing || (Date.now() - lastRefresh < 30000)}
                 title="Refresh Data"
                 style={{ background: 'var(--surface-color, #1a1a1a)', border: 'none', color: '#9ca3af', padding: '8px', borderRadius: '50%', cursor: (isRefreshing || (Date.now() - lastRefresh < 30000)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', width: '36px', height: '36px', opacity: (isRefreshing || (Date.now() - lastRefresh < 30000)) ? 0.5 : 1 }}
-                onMouseEnter={(e) => { if(!isRefreshing && (Date.now() - lastRefresh >= 30000)) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'var(--surface-hover, #2a2a2a)' } }}
-                onMouseLeave={(e) => { if(!isRefreshing && (Date.now() - lastRefresh >= 30000)) { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.background = 'var(--surface-color, #1a1a1a)' } }}
+                onMouseEnter={(e) => { if (!isRefreshing && (Date.now() - lastRefresh >= 30000)) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'var(--surface-hover, #2a2a2a)' } }}
+                onMouseLeave={(e) => { if (!isRefreshing && (Date.now() - lastRefresh >= 30000)) { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.background = 'var(--surface-color, #1a1a1a)' } }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={isRefreshing ? { animation: 'spin 1s linear infinite' } : {}}>
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
                 </svg>
               </button>
             </div>
@@ -2420,7 +2430,7 @@ const Dashboard = () => {
                       {userProfile.bio}
                     </div>
                   ) : canEditProfile ? (
-                    <div 
+                    <div
                       className="hero-v3-bio-nudge"
                       onClick={() => navigate('/profile')}
                       role="button"
@@ -2641,6 +2651,7 @@ const Dashboard = () => {
                       formatCurrencyValue={formatCurrencyValue}
                       currencySymbol={currencySymbol}
                       language={language}
+                      hideValues={hideValues}
                     />
                   ));
                 })()}
@@ -2679,6 +2690,7 @@ const Dashboard = () => {
                     formatCurrencyValue={formatCurrencyValue}
                     currencySymbol={currencySymbol}
                     language={language}
+                    hideValues={hideValues}
                   />
                 ))}
               </div>
@@ -2762,7 +2774,7 @@ const Dashboard = () => {
                   </div>
                 )}
               </div>
-               <div className="modal-badges-section">
+              <div className="modal-badges-section">
                 <h3 className="modal-badges-title">{t(language, 'dashCollectedBadges')} ({userBadges.length})</h3>
                 <div className="modal-onchain-badges">
                   {onchainBadgesLoading ? (

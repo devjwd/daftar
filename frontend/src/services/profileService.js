@@ -415,7 +415,9 @@ const storeEditKey = (address, editKey) => {
 
 const shouldFallbackToLocalProfileStore = (status) => status === 404 || status === 405;
 
-const isLegacyProfileMigrationError = (status, message) => status === 409 && /missing an edit key/i.test(String(message || ''));
+const isLegacyProfileMigrationError = (status, message) => 
+  (status === 409 && /missing an edit key/i.test(String(message || ''))) ||
+  (status === 403 && /invalid profile edit key/i.test(String(message || '')));
 
 const readErrorPayload = async (res, fallbackMessage) => {
   let message = fallbackMessage;

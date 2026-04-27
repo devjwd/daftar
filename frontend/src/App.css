@@ -3352,21 +3352,13 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   }
 }
 
-.token-card-new:hover {
-  transform: translateY(-6px) scale(1.01);
-  border-color: rgba(205, 161, 105, 0.4);
-  box-shadow:
-    0 20px 40px rgba(0, 0, 0, 0.4),
-    0 0 60px rgba(205, 161, 105, 0.08);
-}
+
 
 .token-card-new.verified {
   border-color: rgba(205, 161, 105, 0.15);
 }
 
-.token-card-new.verified:hover {
-  border-color: var(--token-color);
-}
+
 
 /* Glow effect */
 .token-card-glow {
@@ -3383,9 +3375,7 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   pointer-events: none;
 }
 
-.token-card-new:hover .token-card-glow {
-  opacity: 1;
-}
+
 
 /* Content layout */
 .token-card-content {
@@ -3428,13 +3418,7 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   background: linear-gradient(145deg, rgba(40, 36, 32, 0.95), rgba(25, 23, 20, 0.98));
 }
 
-.token-card-new:hover .token-logo-wrapper {
-  transform: scale(1.08) rotate(-2deg);
-  border-color: var(--token-color);
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.4),
-    0 0 20px rgba(205, 161, 105, 0.15);
-}
+
 
 .token-logo {
   width: 28px;
@@ -3486,6 +3470,7 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: all 0.3s ease;
 }
 
 .token-network {
@@ -3498,6 +3483,7 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.3s ease;
 }
 
 /* Right side - balance */
@@ -3516,6 +3502,7 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   font-family: var(--font-display);
   letter-spacing: -0.5px;
   line-height: 1.2;
+  transition: color 0.3s ease;
 }
 
 .token-value {
@@ -3531,6 +3518,14 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   opacity: 1;
 }
 
+.token-card-new:hover .token-network,
+.token-card-new:hover .token-symbol,
+.token-card-new:hover .token-balance,
+.token-card-new:hover .token-value {
+  color: var(--token-color);
+  opacity: 1;
+}
+
 /* Bottom accent */
 .token-card-accent {
   position: absolute;
@@ -3543,17 +3538,13 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   transition: all 0.3s ease;
 }
 
-.token-card-new:hover .token-card-accent {
-  opacity: 0.6;
-}
+
 
 .token-card-new.verified .token-card-accent {
   opacity: 0.3;
 }
 
-.token-card-new.verified:hover .token-card-accent {
-  opacity: 0.8;
-}
+
 
 /* Legacy Token Card Specific */
 

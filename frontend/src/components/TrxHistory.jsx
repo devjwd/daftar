@@ -34,10 +34,15 @@ const TYPE_LABELS = {
   deposit: 'DEPOSIT',
   withdraw: 'WITHDRAW',
   transfer: 'TRANSFER',
+  send: 'SEND',
   received: 'RECEIVED',
   claim: 'CLAIM',
   airdrop: 'AIRDROP',
   bridge: 'BRIDGE',
+  mint: 'MINT',
+  nft_mint: 'NFT MINT',
+  nft_transfer: 'NFT TRANSFER',
+  liquidity: 'LIQUIDITY',
   other: 'OTHER',
 };
 
@@ -95,8 +100,12 @@ const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal
     const filteredRows = activeFilter === 'all'
       ? indexerRows
       : activeFilter === 'transfers'
-        ? indexerRows.filter(tx => ['transfer', 'received'].includes(String(tx.tx_type).toLowerCase()))
-        : indexerRows.filter(tx => String(tx.tx_type).toLowerCase() === activeFilter);
+        ? indexerRows.filter(tx => ['transfer', 'received', 'send'].includes(String(tx.tx_type).toLowerCase()))
+        : activeFilter === 'lending'
+          ? indexerRows.filter(tx => ['lend', 'borrow', 'repay', 'deposit', 'withdraw', 'liquidity'].includes(String(tx.tx_type).toLowerCase()))
+          : activeFilter === 'staking'
+            ? indexerRows.filter(tx => ['stake', 'unstake', 'claim'].includes(String(tx.tx_type).toLowerCase()))
+            : indexerRows.filter(tx => String(tx.tx_type).toLowerCase() === activeFilter);
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize;
@@ -276,21 +285,32 @@ const getBadgeClass = (type) => {
   if (normalized === 'unstake') return styles.badgeUnstake;
   if (normalized === 'deposit') return styles.badgeDeposit;
   if (normalized === 'withdraw') return styles.badgeWithdraw;
-  if (normalized === 'transfer') return styles.badgeTransfer;
+  if (normalized === 'transfer' || normalized === 'send') return styles.badgeTransfer;
   if (normalized === 'received') return styles.badgeReceived;
   if (normalized === 'claim') return styles.badgeClaim;
   if (normalized === 'airdrop') return styles.badgeAirdrop;
   if (normalized === 'bridge') return styles.badgeBridge;
+  if (normalized === 'liquidity') return styles.badgeLiquidity;
+  if (normalized.includes('mint')) return styles.badgeMint;
   return styles.badgeOther;
 };
 
 const DappIcon = ({ tx }) => {
-  const dappName = String(tx?.dapp_name || 'Wallet');
   const dappLogo = String(tx?.dapp_logo || '').trim();
+  const txIcon = tx?.tx_icon || '⚙️';
+  const txBg = tx?.tx_bg || 'rgba(148,163,184,0.1)';
+
+  if (dappLogo) {
+    return (
+      <span className={styles.dappIcon} aria-hidden="true">
+        <img src={dappLogo} alt="" className={styles.dappIconImage} />
+      </span>
+    );
+  }
 
   return (
-    <span className={styles.dappIcon} aria-hidden="true">
-      {dappLogo ? <img src={dappLogo} alt="" className={styles.dappIconImage} /> : dappName.charAt(0) || '?'}
+    <span className={styles.typeIcon} style={{ background: txBg }} aria-hidden="true">
+      {txIcon}
     </span>
   );
 };
@@ -509,6 +529,7 @@ export default function TrxHistory({ walletAddress }) {
               type="button"
               className={cn(styles.filterTab, activeFilter === filter.value && styles.filterTabActive)}
               onClick={() => setActiveFilter(filter.value)}
+              disabled={filter.value !== 'all'}
             >
               {filter.label}
             </button>
@@ -543,15 +564,32 @@ export default function TrxHistory({ walletAddress }) {
                   const txUrl = `${EXPLORER_TX_BASE}/${encodeURIComponent(tx.tx_hash)}?network=mainnet`;
                   const tokenIn = normalizeDisplayToken(tx.token_in);
                   const tokenOut = normalizeDisplayToken(tx.token_out);
-                  const hasTokenIn = Boolean(tokenIn?.label);
-                  const hasTokenOut = Boolean(tokenOut?.label) && (tokenOut.label !== tokenIn?.label);
+                  const rawType = String(tx.tx_type || 'other').toLowerCase();
+                  
+                  const isSwap = rawType === 'swap';
+                  
+                  let hasTokenIn = Boolean(tokenIn?.label);
+                  let hasTokenOut = Boolean(tokenOut?.label);
+
+                  // For non-swaps, we usually only want to show one side of the token flow
+                  if (!isSwap) {
+                    if (['withdraw', 'unstake', 'claim', 'borrow', 'received'].includes(rawType)) {
+                      hasTokenIn = false; // Hide the receipt token/outflow for withdrawals
+                    } else if (['lend', 'deposit', 'stake', 'repay', 'send'].includes(rawType)) {
+                      hasTokenOut = false; // Hide the receipt token/inflow for deposits
+                    } else if (tokenOut?.label === tokenIn?.label) {
+                      hasTokenOut = false;
+                    }
+                  }
+                  
                   const displayAmounts = getDisplayAmounts(tx);
                   const hasAmountIn = displayAmounts.length > 0;
-                  const hasAmountOut = displayAmounts.length > 1 && (displayAmounts[1] !== displayAmounts[0]);
+                  const hasAmountOut = displayAmounts.length > 1 && (isSwap || displayAmounts[1] !== displayAmounts[0]);
+                  
                   const amountTone = getAmountTone(tx);
                   const dappName = String(tx.dapp_name || 'Wallet');
-                  const rawType = String(tx.tx_type || 'other').toLowerCase();
-                  const typeLabel = TYPE_LABELS[rawType] || rawType.toUpperCase();
+                  
+                  const typeLabel = tx.tx_label || TYPE_LABELS[rawType] || rawType.toUpperCase();
                   const typeTitle = tx.dapp_contract
                     ? `${dappName} · ${typeLabel} · ${tx.dapp_contract}`
                     : `${dappName} · ${typeLabel}`;
@@ -567,7 +605,7 @@ export default function TrxHistory({ walletAddress }) {
                           <div className={styles.typeMeta}>
                             <div
                               className={cn(styles.typeBadge, getBadgeClass(tx.tx_type))}
-                              style={tx.badge_color ? { color: tx.badge_color } : {}}
+                              style={tx.tx_color ? { color: tx.tx_color } : {}}
                             >
                               {typeLabel}
                             </div>

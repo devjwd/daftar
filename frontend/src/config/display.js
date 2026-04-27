@@ -1,7 +1,7 @@
 export const DEFAULT_TOKEN_COLOR = { primary: "#cda169", secondary: "#deb884" };
 
 export const TOKEN_VISUALS = {
-  MOVE: { logo: "/movement-logo.svg", color: { primary: "#cda169", secondary: "#deb884" } },
+  MOVE: { logo: "/movement-logo.svg", color: { primary: "#f7b91c", secondary: "#ffd54f" } },
   USDC: { logo: "/usdc.png", color: { primary: "#2775ca", secondary: "#5a9fd4" } },
   USDCX: { logo: "/usdc.png", color: { primary: "#2775ca", secondary: "#5a9fd4" } },
   USDCx: { logo: "/usdc.png", color: { primary: "#2775ca", secondary: "#5a9fd4" } },
@@ -32,6 +32,8 @@ export const DEFI_PROTOCOL_VISUALS = {
   layerbank: { logo: "/LayerBank.png", name: "LayerBank", color: "#5c8ead", gradient: "linear-gradient(135deg, #5c8ead, #76a6c3)" },
   mosaic: { logo: "/mosaic.png", name: "Mosaic", color: "#06b6d4", gradient: "linear-gradient(135deg, #06b6d4, #22d3ee)" },
   yuzu: { logo: "/yuzu.png", name: "Yuzu Swap", color: "#eab308", gradient: "linear-gradient(135deg, #eab308, #facc15)" },
+  tradeport: { logo: "/tradeport.png", name: "Tradeport", color: "#6366f1", gradient: "linear-gradient(135deg, #6366f1, #818cf8)" },
+  moversmap: { logo: "/moversmap.png", name: "Moversmap", color: "#10b981", gradient: "linear-gradient(135deg, #10b981, #059669)" },
 };
 
 export const DEFAULT_PROTOCOL_VISUAL = {

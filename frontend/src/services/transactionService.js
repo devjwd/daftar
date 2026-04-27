@@ -6,6 +6,7 @@ import { findTrackedDappMatch } from "../config/dapps.js";
 import { DEFAULT_NETWORK } from "../config/network.js";
 import { getTokenInfo } from "../config/tokens.js";
 import { parseCoinType, getTokenDecimals, isValidAddress } from "../utils/tokenUtils.js";
+import { markTransaction, TX_TYPES } from "./historyEngine.js";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 export const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -160,7 +161,7 @@ const getTrackedEntities = async () => {
       .from('tracked_entities')
       .select('*')
       .is('is_verified', true);
-    
+
     entityCache = Array.isArray(data) ? data : [];
     entityCacheExpiry = Date.now() + ENTITY_CACHE_TTL;
     return entityCache;
@@ -478,150 +479,36 @@ const isDistinctAssetPair = (leftActivity, rightActivity) => {
 
 const buildStructuredTransaction = async (rawTx, activities, walletAddress = "") => {
   // Ensure dynamic entities are loaded before matching
-  await syncEntities();
-  
-  const functionName = getFunctionName(rawTx);
-  const dapp = detectTransactionDapp(rawTx, activities);
+  const entities = await getTrackedEntities();
 
-  let finalDapp = dapp;
-  
-  // Dynamic Entity Resolution (Production Ready)
-  const addressCandidates = extractAddressCandidates(rawTx, activities);
-  for (const addr of addressCandidates) {
-    const entityBranding = resolveEntityBranding(addr);
-    if (entityBranding) {
-      finalDapp = entityBranding;
-      break; 
-    }
-  }
+  // Use the new History Engine for core marking logic
+  const marked = markTransaction(rawTx, walletAddress, entities || []);
 
-  // Fallback to text matching if no address/dapp match
-  if (!finalDapp) {
-    finalDapp = findTrackedDappMatch({ 
-      textParts: [functionName, rawTx?.payload?.function], 
-      addresses: addressCandidates
-    });
-  }
-
-  const txType = classifyTransactionType(functionName, activities, finalDapp);
-  let finalTxType = txType;
-  const incoming = activities.filter((activity) => activity.direction === "in" && activity.amount > 0);
-  const outgoing = activities.filter((activity) => activity.direction === "out" && activity.amount > 0);
+  // Apply additional branding and refinement
+  const dapp = marked.dapp_key ? { key: marked.dapp_key, name: marked.dapp_name, logo: marked.dapp_logo } : null;
 
   const senderAddress = normalizeAddress(rawTx?.sender || "");
   const userAddress = normalizeAddress(walletAddress) || senderAddress;
 
-  const ownerMatches = (activity) =>
-    !activity.owner || !userAddress || activity.owner === userAddress;
-
-  const userIncoming = incoming.filter(ownerMatches);
-  const userOutgoing = outgoing.filter(ownerMatches);
-
-  const primaryIncoming = getPrimaryActivity(incoming);
-  const primaryOutgoing = getPrimaryActivity(outgoing);
-  const primaryUserIncoming = getPrimaryActivity(userIncoming);
-  const primaryUserOutgoing = getPrimaryActivity(userOutgoing);
-
-  let tokenIn = null;
-  let tokenOut = null;
-  let amountIn = null;
-  let amountOut = null;
-
-  if (txType === "swap") {
-    const swapOut = primaryUserOutgoing || primaryOutgoing;
-    const swapInCandidates = (userIncoming.length > 0 ? userIncoming : incoming)
-      .filter((a) => !isGasActivity(a) && a.symbol !== swapOut?.symbol);
-    const swapIn = getPrimaryActivity(swapInCandidates) || primaryUserIncoming || primaryIncoming;
-
-    tokenIn = swapOut?.symbol || null;
-    tokenOut = swapIn?.symbol || null;
-    amountIn = swapOut?.amount ?? null;
-    amountOut = swapIn?.amount ?? null;
-  } else if (txType === "lend" || txType === "deposit" || txType === "repay") {
-    const supplied = primaryUserOutgoing || primaryOutgoing;
-    tokenIn = supplied?.symbol || null;
-    amountIn = supplied?.amount ?? null;
-  } else if (txType === "stake") {
-    const supplied = primaryUserOutgoing || primaryOutgoing;
-    const receivedCandidates = (userIncoming.length > 0 ? userIncoming : incoming)
-      .filter((activity) => !isGasActivity(activity) && isDistinctAssetPair(supplied, activity));
-    const received = getPrimaryActivity(receivedCandidates) || primaryUserIncoming || primaryIncoming;
-
-    tokenIn = supplied?.symbol || null;
-    amountIn = supplied?.amount ?? null;
-
-    if (isDistinctAssetPair(supplied, received)) {
-      tokenOut = received?.symbol || null;
-      amountOut = received?.amount ?? null;
-    }
-  } else if (txType === "withdraw" || txType === "unstake" || txType === "claim" || txType === "borrow") {
-    const received = primaryUserIncoming || primaryIncoming;
-    tokenOut = received?.symbol || null;
-    amountOut = received?.amount ?? null;
-  } else if (txType === "received") {
-    tokenOut = primaryIncoming?.symbol || null;
-    amountOut = primaryIncoming?.amount ?? null;
-  } else if (txType === "transfer") {
-    const transferOut = primaryUserOutgoing || null;
-    const transferIn = primaryUserIncoming || null;
-
-    if (transferOut && !transferIn) {
-      finalTxType = "withdraw";
-      tokenIn = transferOut?.symbol || null;
-      amountIn = transferOut?.amount ?? null;
-    } else if (transferIn && !transferOut) {
-      finalTxType = "received";
-      tokenOut = transferIn?.symbol || null;
-      amountOut = transferIn?.amount ?? null;
-    } else {
-      const fallbackOut = transferOut || primaryOutgoing;
-      const fallbackIn = transferIn || primaryIncoming;
-
-      if (
-        fallbackOut &&
-        fallbackIn &&
-        fallbackOut.symbol &&
-        fallbackOut.symbol === fallbackIn.symbol &&
-        Math.abs(toNumber(fallbackOut.amount) - toNumber(fallbackIn.amount)) < 1e-12
-      ) {
-        if (senderAddress && userAddress && senderAddress === userAddress) {
-          finalTxType = "withdraw";
-          tokenIn = fallbackOut.symbol || null;
-          amountIn = fallbackOut.amount ?? null;
-        } else {
-          finalTxType = "received";
-          tokenOut = fallbackIn.symbol || null;
-          amountOut = fallbackIn.amount ?? null;
-        }
-      } else {
-        tokenIn = fallbackOut?.symbol || null;
-        tokenOut = fallbackIn?.symbol || null;
-        amountIn = fallbackOut?.amount ?? null;
-        amountOut = fallbackIn?.amount ?? null;
-      }
-    }
-  } else {
-    tokenIn = primaryOutgoing?.symbol || null;
-    tokenOut = primaryIncoming?.symbol || null;
-    amountIn = primaryOutgoing?.amount ?? null;
-    amountOut = primaryIncoming?.amount ?? null;
-  }
-
   return {
-    tx_hash: String(rawTx?.tx_hash || rawTx?.hash || rawTx?.transaction_version || ""),
-    tx_type: finalTxType,
-    dapp_key: finalDapp?.key || null,
-    dapp_name: finalDapp?.name || null,
-    dapp_logo: finalDapp?.logo || null,
-    dapp_website: finalDapp?.website || null,
-    dapp_contract: finalDapp?.contracts?.[0] || null,
-    token_in: tokenIn,
-    token_out: tokenOut,
-    amount_in: amountIn,
-    amount_out: amountOut,
+    tx_hash: String(marked.tx_hash),
+    tx_type: marked.tx_type,
+    tx_label: marked.tx_label,
+    tx_icon: marked.tx_icon,
+    tx_color: marked.tx_color,
+    tx_bg: marked.tx_bg,
+    dapp_key: dapp?.key || marked.dapp_key,
+    dapp_name: dapp?.name || marked.dapp_name,
+    dapp_logo: dapp?.logo || marked.dapp_logo,
+    dapp_website: dapp?.website || marked.dapp_website,
+    dapp_contract: marked.dapp_contract || null,
+    token_in: marked.token_in,
+    token_out: marked.token_out,
+    amount_in: marked.amount_in,
+    amount_out: marked.amount_out,
     gas_fee: calculateGasFeeInMove(rawTx?.gas_used, rawTx?.gas_unit_price),
     tx_timestamp: rawTx?.tx_timestamp || rawTx?.timestamp || rawTx?.transaction_timestamp || null,
-    status: rawTx?.success === false || rawTx?.status === "failed" ? "failed" : "success",
+    status: marked.status,
   };
 };
 
@@ -1036,7 +923,9 @@ const DAFTAR_BRANDING = {
 const applyProjectBranding = (rows) => {
   if (!Array.isArray(rows)) return rows;
   return rows.map((row) => {
-    // 1. Priority: Explicit Daftar Branding (Only for verified Daftar-originated swaps)
+    // 1. (DISABLED) Priority: Explicit Daftar Branding
+    // The user requested to disable this for now to avoid confusion on aggregators like Mosaic
+    /*
     if (
       row.source === 'daftar_swap' || 
       row.dapp_name === 'Daftar' || 
@@ -1044,25 +933,19 @@ const applyProjectBranding = (rows) => {
     ) {
       return { ...row, ...DAFTAR_BRANDING, tx_type: row.tx_type || 'swap', is_verified: true };
     }
+    */
 
-    // 2. Tracked Entities Branding
+    // 2. Tracked Entities Branding (Supabase Verified)
     const contractAddr = row.dapp_contract || row.to_address;
     let entity = findEntityByAddress(contractAddr);
-    
-    // Safety check: Only fallback to name if it's a verified project or explicit Daftar branding
-    // This avoids misidentifying simple transfers to unknown addresses (like exchange deposits)
+
     if (!entity && row.dapp_name && (row.dapp_name === 'Daftar' || row.dapp_name === 'DAFTAR swap')) {
       entity = findEntityByName(row.dapp_name);
     }
-    
+
     if (entity) {
-      // 1. Priority: Custom transaction tag set by admin
-      // 2. Secondary: Admin-selected Category
-      // 3. Fallback: Original transaction type from blockchain
       const badgeLabel = entity.custom_type || entity.category || row.tx_type || 'other';
       const normalizedLabel = String(badgeLabel).toLowerCase().trim();
-      
-      // Safety: If it's still 'other' but we found an entity, try to use a better default
       const finalLabel = (normalizedLabel === 'other' && entity.name) ? 'protocol' : normalizedLabel;
 
       return {
@@ -1076,19 +959,17 @@ const applyProjectBranding = (rows) => {
       };
     }
 
-    // 3. Cleanup: If no entity match was found, we need to be very skeptical of indexer "guesses"
-    // especially for common false positives like Yuzu Swap or MovePosition on simple transfers.
-    if (!entity) {
-      const isSuspectProject = row.dapp_name === 'Yuzu Swap' || row.dapp_name === 'MovePosition';
-      const isSimpleTransfer = !row.dapp_contract || row.tx_type === 'transfer' || row.tx_type === 'send' || row.tx_type === 'withdraw';
+    // 3. Cleanup: Only fallback to Wallet if there is NO dapp match from the history engine 
+    // AND it's a simple transfer.
+    if (!entity && !row.dapp_key) {
+      const isSimpleTransfer = !row.dapp_contract || ['transfer', 'send', 'received'].includes(row.tx_type);
 
-      if (isSuspectProject || isSimpleTransfer) {
+      if (isSimpleTransfer) {
         return {
           ...row,
           dapp_name: 'Wallet',
           dapp_logo: null,
-          // Force back to transfer if it looks like a mislabeled withdrawal/deposit to an unknown address
-          tx_type: (row.tx_type === 'withdraw' || row.tx_type === 'deposit') ? 'transfer' : (row.tx_type || 'transfer')
+          tx_type: row.tx_type || 'transfer'
         };
       }
     }
@@ -1350,14 +1231,14 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
   const persist = options.persist !== false;
   const allowCachedRead = options.allowCachedRead !== false;
   const limit = normalizeLimit(options.limit ?? DEFAULT_LIMIT);
-  
+
   // Safety: If running in browser and we don't have a service role key, 
   // we usually disable persistence. However, for the platform owner (Admin) on localhost,
   // we allow direct persistence so they can verify history and rewards populate.
   const isBrowser = typeof window !== 'undefined';
   const { supabaseServiceRoleKey } = resolveEnv();
   const isAdminConnected = normalizedAddress === '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69';
-  
+
   const effectivePersist = persist && (
     (!isBrowser || !!supabaseServiceRoleKey)
   );
@@ -1386,8 +1267,8 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
 
     const rawTransactions = await fetchTransactions(normalizedAddress, limit);
     const parsedTransactions = (await Promise.all(
-        rawTransactions.map(async (row) => await parseTransaction(row, normalizedAddress))
-      )).filter((row) => row.tx_hash);
+      rawTransactions.map(async (row) => await parseTransaction(row, normalizedAddress))
+    )).filter((row) => row.tx_hash);
 
     const enrichedTransactions = trimTransactions(
       await enrichTransactionsWithUsd(normalizedAddress, parsedTransactions),

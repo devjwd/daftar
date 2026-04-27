@@ -67,7 +67,7 @@ export const DEFI_PROTOCOLS = {
     keywords: ["layerbank", "layer_bank"],
   },
   MOSAIC: {
-    name: "Mosaic",
+    name: "Mosaic Swap",
     address: "0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c",
     addresses: [
       "0xede23ef215f0594e658b148c2a391b1523335ab01495d8637e076ec510c6ec3c",

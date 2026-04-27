@@ -76,7 +76,7 @@ export const MOSAIC_CONFIG = {
  * Documentation: https://docs.yuzu.finance/
  */
 export const YUZU_CONFIG = {
-  packageAddress: "0x90c2c69d2cfaa0537ce152c2bcc67859626a2a867d7ca624ab2d17de19bac78f",
+  packageAddress: "0x4bf51972879e3b95c4781a5cdcb9e1ee24ef483e7d22f2d903626f126df62bd1",
   defaultFeeTier: 2500, // 0.25%
 };
 

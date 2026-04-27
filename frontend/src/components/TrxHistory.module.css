@@ -61,10 +61,15 @@
   transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
-.filterTab:hover {
+.filterTab:hover:not(:disabled) {
   transform: translateY(-1px);
   color: rgba(255, 255, 255, 0.82);
   background: rgba(255, 255, 255, 0.05);
+}
+
+.filterTab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .filterTabActive {
@@ -168,6 +173,14 @@
   color: #cda169;
 }
 
+.badgeMint {
+  color: #a855f7;
+}
+
+.badgeLiquidity {
+  color: #0ea5e9;
+}
+
 .badgeOther {
   color: rgba(255, 255, 255, 0.6);
 }
@@ -195,6 +208,19 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.typeIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  font-size: 14px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .dappIcon {

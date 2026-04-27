@@ -273,11 +273,74 @@ const FALLBACK_PRICES = {
   '0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650': 1.0,
 };
 
-let cachedSnapshot = {
-  prices: { ...FALLBACK_PRICES },
-  priceChanges: {},
-  updatedAt: 0,
+const getCoinGeckoApiUrl = () => {
+  const ids = Array.from(new Set(Object.values(TOKEN_COINGECKO_IDS))).join(',');
+  return `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
 };
+
+const fetchCoinGeckoPrices = async () => {
+  const headers = { Accept: 'application/json' };
+  const apiKey = String(process.env.COINGECKO_API_KEY || '').trim();
+  if (apiKey) headers['x-cg-demo-api-key'] = apiKey;
+
+  try {
+    const response = await fetch(getCoinGeckoApiUrl(), {
+      method: 'GET',
+      headers,
+      timeout: 5000
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+
+    const prices = { ...FALLBACK_PRICES };
+    const priceChanges = {};
+
+    Object.entries(TOKEN_COINGECKO_IDS).forEach(([address, geckoId]) => {
+      const usd = data?.[geckoId]?.usd;
+      if (usd != null) prices[address] = usd;
+      const change = data?.[geckoId]?.usd_24h_change;
+      if (change != null) priceChanges[address] = change;
+    });
+
+    return { prices, priceChanges };
+  } catch (err) {
+    console.error('[Prices] Fetch error:', err.message);
+    return null;
+  }
+};
+
+app.get('/api/prices', generalLimiter, async (req, res) => {
+  const now = Date.now();
+  const CACHE_TTL = 30000;
+
+  if (cachedSnapshot.updatedAt && now - cachedSnapshot.updatedAt < CACHE_TTL) {
+    return res.json({ ...cachedSnapshot, source: 'cache' });
+  }
+
+  const live = await fetchCoinGeckoPrices();
+  if (live) {
+    cachedSnapshot = { ...live, updatedAt: now };
+    return res.json({ ...cachedSnapshot, source: 'coingecko' });
+  }
+
+  return res.json({ ...cachedSnapshot, source: 'stale-cache', warning: 'Live refresh failed' });
+});
+
+app.get('/api/transactions', generalLimiter, async (req, res) => {
+  const address = normalizeAddress(req.query.address);
+  if (!address) return res.status(400).json({ error: 'Address required' });
+
+  const rpcUrl = process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1';
+  try {
+    const response = await fetch(`${rpcUrl}/accounts/${address}/transactions?limit=25`);
+    if (!response.ok) throw new Error(`RPC error: ${response.status}`);
+    const data = await response.json();
+    return res.json(Array.isArray(data) ? data : []);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 app.use('/api/badges', badgeLimiter);
 
@@ -321,6 +384,24 @@ app.get('/api/badges/definitions', async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.status(200).json({ badges: data || [] });
+});
+
+// GET /api/badges/config - Scanner configurations
+app.get('/api/badges/config', async (req, res) => {
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  // Ported logic: Returns the scanner-compatible criteria from active definitions
+  const { data, error } = await supabaseAdmin
+    .from('badge_definitions')
+    .select('badge_id, name, criteria, enabled')
+    .eq('is_active', true);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  return res.status(200).json({
+    badgeConfigs: data || [],
+    source: 'supabase'
+  });
 });
 
 // GET /api/leaderboard - Get top users sorted by XP
@@ -546,12 +627,20 @@ app.get('/api/prices', async (req, res) => {
     const ids = Array.from(new Set(Object.values(TOKEN_COINGECKO_IDS))).join(',');
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
 
+    const apiKey = (process.env.COINGECKO_API_KEY || process.env.VITE_COINGECKO_API_KEY || '').trim();
+    const headers = {
+      'Accept': 'application/json',
+      'User-Agent': 'Daftar-Portfolio/1.1'
+    };
+
+    if (apiKey) {
+      // CoinGecko Demo keys require this specific header
+      headers['x-cg-demo-api-key'] = apiKey;
+    }
+
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Daftar-Portfolio/1.1'
-      }
+      headers
     });
 
     if (!response.ok) throw new Error(`CoinGecko status ${response.status}`);
@@ -667,7 +756,7 @@ app.get('/api/transactions', generalLimiter, async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     console.error('[Server] Transactions fetch error:', error.message || error);
-    
+
     // GRACEFUL DEGRADATION: 
     // Instead of a 500 error, return an empty result so the frontend can fallback to Indexer
     return res.status(200).json({
@@ -888,7 +977,7 @@ app.get('/ready', async (req, res) => {
 // --- ENTITIES API (Admin-only in Production) ---
 app.post('/api/entities', async (req, res) => {
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
-  
+
   // Note: Production would enforce an admin signature or session here.
   // We use the service_role key to bypass RLS.
   try {

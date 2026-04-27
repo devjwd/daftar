@@ -11,7 +11,7 @@ import './Profile.css';
 export default function Profile() {
   const { account, connected, signMessage } = useWallet();
   const navigate = useNavigate();
-  
+
   const address = normalizeAddress(account?.address);
   const { profile, loading, saving, updateProfile, error } = useProfile(address, {
     account,
@@ -19,7 +19,7 @@ export default function Profile() {
     signMessage,
   });
   const { level } = useUserLevel(address);
-  
+
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [twitter, setTwitter] = useState('');
@@ -113,7 +113,7 @@ export default function Profile() {
       });
 
       setShowSuccess(true);
-      
+
       // Trigger auto-award check in background (check for Profile Complete etc)
       import('../services/badges/AutoAwardService.js').then(module => {
         module.checkAndAwardBadges(address, { triggeredBy: 'profile_update' });
@@ -146,7 +146,7 @@ export default function Profile() {
           {t(language, 'profileSavedSuccess')}
         </div>
       )}
-      
+
       <div className="profile-container">
         <div className="profile-header">
           <div className="profile-avatar-section" ref={pfpPickerRef}>
@@ -156,10 +156,10 @@ export default function Profile() {
               onClick={() => setShowPfpPicker(true)}
               aria-label="Open profile picture picker"
             >
-              <img 
-                src={activeAvatarSrc} 
-                alt="Profile" 
-                className="avatar-image" 
+              <img
+                src={activeAvatarSrc}
+                alt="Profile"
+                className="avatar-image"
               />
             </button>
             <p className="level-avatar-hint">{t(language, 'profilePfpHint', { level })}</p>
@@ -208,7 +208,7 @@ export default function Profile() {
               </div>
             )}
           </div>
-          
+
           <h1>{t(language, 'profileTitle')}</h1>
           <p className="profile-address">{formatAddress(address)}</p>
         </div>
@@ -216,7 +216,7 @@ export default function Profile() {
         <div className="profile-form">
           <div className="form-section">
             <h2 className="section-title">{t(language, 'profileBasicInfo')}</h2>
-            
+
             <div className="form-group">
               <label>{t(language, 'profileDisplayName')}</label>
               <input
@@ -246,12 +246,12 @@ export default function Profile() {
 
           <div className="form-section">
             <h2 className="section-title">{t(language, 'profileSocialLinks')}</h2>
-            
+
             <div className="form-group">
               <label>
                 <span className="social-icon">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: 'middle', marginTop: '-2px' }}>
-                    <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.292 19.49h2.039L6.486 3.24H4.298l13.311 17.403z"/>
+                    <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.292 19.49h2.039L6.486 3.24H4.298l13.311 17.403z" />
                   </svg>
                 </span> Twitter/X
               </label>
@@ -297,7 +297,7 @@ export default function Profile() {
           <p className="profile-migration-note">
             {t(language, 'profileMigrationNote')}
           </p>
-          
+
           {error && (
             <div className="error-message">{error}</div>
           )}
