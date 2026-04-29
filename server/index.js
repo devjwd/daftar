@@ -6,6 +6,10 @@ import { createHash } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { Ed25519PublicKey, Ed25519Signature } from '@aptos-labs/ts-sdk';
 import dotenv from 'dotenv';
+import { BADGE_RULES, validateBadgeDefinitionPayload } from './lib/badgeValidation.js';
+import { evaluateRule } from './lib/badgeEvaluation.js';
+import { signMintAuthorization } from './lib/signing.js';
+import { verifyAdminRequest } from './lib/admin.js';
 
 dotenv.config();
 
@@ -42,8 +46,8 @@ const normalizeAddress = (value) => {
   if (!raw) return '';
   const stripped = raw.startsWith('0x') ? raw.slice(2) : raw;
   if (!/^[a-f0-9]+$/i.test(stripped)) return '';
-  const compact = stripped.replace(/^0+/, '') || '0';
-  return `0x${compact}`;
+  // Use padStart(64, '0') to ensure 32-byte consistency for Movement/Aptos
+  return `0x${stripped.padStart(64, '0')}`;
 };
 
 const parseSignaturePayload = (signature) => {
@@ -517,194 +521,288 @@ app.post('/api/badges/sync', async (req, res) => {
   }
 });
 
-app.post('/api/badges/award', awardLimiter, async (req, res) => {
-  const walletAddress = normalizeAddress(req.body?.walletAddress);
-  const signedMessage = String(req.body?.signedMessage || '').trim();
-  const signature = req.body?.signature;
-  const badgeId = String(req.body?.badgeId || '').trim();
-  const nonce = req.body?.nonce;
-  const metadata = req.body?.metadata || {};
-
-  if (!walletAddress || !signedMessage || !signature || !badgeId || !nonce) {
-    return res.status(400).json({ error: 'walletAddress, badgeId, signedMessage, signature, and nonce are required' });
-  }
-
-  // 1. Global Rate Limit (DB Backed)
-  const rateLimit = await checkRateLimit(`award:${walletAddress}`, 60000, 10);
-  if (!rateLimit.ok) {
-    return res.status(429).json({ error: 'Too many award attempts', reset_at: rateLimit.resetAt });
-  }
-
-  // 2. Replay Protection: Nonce Check (mandatory)
-  const nonceCheck = await checkAndBurnNonce(walletAddress, nonce);
-  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
-
-  const isValid = verifyWalletSignature(walletAddress, signedMessage, signature);
-  if (!isValid) {
-    return res.status(401).json({ error: 'Invalid wallet signature or expired message' });
-  }
-
-  // 3. Eligibility Verification (Harden against self-attestation)
-  let verifyData = null;
-  try {
-    const { data, error: verifyError } = await supabaseAdmin.functions.invoke('verify-badge', {
-      body: { wallet_address: walletAddress, badge_id: badgeId },
-      headers: {
-        'x-api-key': process.env.VERIFY_BADGE_API_KEY || ''
-      }
-    });
-
-    if (verifyError) throw verifyError;
-    verifyData = data;
-    if (!verifyData?.eligible) {
-      return res.status(403).json({
-        error: 'Not eligible for this badge',
-        reason: verifyData?.reason || 'Criteria not met'
-      });
-    }
-  } catch (err) {
-    console.error('[Award] Eligibility check failed:', err.message);
-    return res.status(500).json({ error: 'Failed to verify badge eligibility' });
-  }
-
-  const txHash = metadata.txHash || null;
-  const awardedAt = new Date().toISOString();
-  // Generate fallback proof hash if edge function didn't return one (required by DB constraint)
-  const proofHash = verifyData?.proof_hash || createHash('sha256').update(`${walletAddress}:${badgeId}:${awardedAt}`).digest('hex');
-
-  const { error } = await supabaseAdmin.from('badge_attestations').upsert(
-    {
-      wallet_address: walletAddress,
-      badge_id: badgeId,
-      eligible: true,
-      awarded_at: awardedAt,
-      tx_hash: txHash,
-      proof_hash: proofHash,
-      metadata: metadata
-    },
-    { onConflict: 'wallet_address,badge_id' }
-  );
-
-  if (error) {
-    return res.status(500).json({ error: error.message || 'Failed to write attestation' });
-  }
-
   return res.status(200).json({ ok: true, walletAddress, badgeId, awardedAt });
 });
 
-// --- PRICE API ROUTE ---
-app.get('/api/prices', async (req, res) => {
-  const now = Date.now();
+// GET /api/badges/eligibility
+app.get('/api/badges/eligibility', generalLimiter, async (req, res) => {
+  const wallet = normalizeAddress(req.query.wallet || req.query.wallet_address);
+  const badgeId = String(req.query.badgeId || req.query.badge_id || '').trim();
+
+  if (!wallet || !badgeId) {
+    return res.status(400).json({ error: 'wallet and badgeId are required' });
+  }
+
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Service unavailable' });
+  }
 
   try {
-    if (!supabaseAdmin) throw new Error('DB connection required for production price cache');
-
-    // 1. Check Database Cache First (Production Hardening)
-    const { data: cachedRows } = await supabaseAdmin
-      .from('price_cache')
+    // 1. Resolve Badge Definition
+    const { data: badge, error: badgeError } = await supabaseAdmin
+      .from('badge_definitions')
       .select('*')
-      .gt('cached_at', new Date(now - 30 * 1000).toISOString()); // 30 second validity
+      .eq('badge_id', badgeId)
+      .eq('is_active', true)
+      .maybeSingle();
 
-    if (cachedRows && cachedRows.length > 0) {
-      const prices = {};
-      const priceChanges = {};
-
-      // Map DB cache to response format
-      cachedRows.forEach(row => {
-        prices[row.token_id] = Number(row.price_usd);
-        priceChanges[row.token_id] = Number(row.change_24h || 0);
-      });
-
-      return res.status(200).json({
-        prices,
-        priceChanges,
-        updatedAt: new Date(cachedRows[0].cached_at).getTime(),
-        source: 'db-cache'
-      });
+    if (badgeError || !badge) {
+      return res.status(404).json({ error: 'Badge not found or inactive' });
     }
 
-    // 2. Refresh from External API if cache stale
-    const ids = Array.from(new Set(Object.values(TOKEN_COINGECKO_IDS))).join(',');
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
+    // 2. Check current attestation
+    const { data: attestation } = await supabaseAdmin
+      .from('badge_attestations')
+      .select('*')
+      .eq('wallet_address', wallet)
+      .eq('badge_id', badge.badge_id)
+      .maybeSingle();
 
-    const apiKey = (process.env.COINGECKO_API_KEY || process.env.VITE_COINGECKO_API_KEY || '').trim();
-    const headers = {
-      'Accept': 'application/json',
-      'User-Agent': 'Daftar-Portfolio/1.1'
-    };
+    // 3. Evaluate Eligibility
+    const evaluation = await evaluateRule(supabaseAdmin, wallet, badge, attestation);
 
-    if (apiKey) {
-      // CoinGecko Demo keys require this specific header
-      headers['x-cg-demo-api-key'] = apiKey;
-    }
+    // 4. Update DB in background if status changed or stale
+    if (!evaluation.fromCache) {
+      const proofHash = evaluation.eligible
+        ? createHash('sha256').update(`${wallet}:${badge.badge_id}:${evaluation.reason}:${Date.now()}`).digest('hex')
+        : null;
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers
-    });
-
-    if (!response.ok) throw new Error(`CoinGecko status ${response.status}`);
-
-    const data = await response.json();
-    const prices = { ...FALLBACK_PRICES };
-    const priceChanges = {};
-    const dbInserts = [];
-
-    Object.entries(TOKEN_COINGECKO_IDS).forEach(([address, geckoId]) => {
-      const usd = data[geckoId]?.usd;
-      if (usd !== undefined) {
-        prices[address] = usd;
-        priceChanges[address] = data[geckoId]?.usd_24h_change || 0;
-        dbInserts.push({
-          token_id: address,
-          price_usd: usd,
-          change_24h: data[geckoId]?.usd_24h_change || 0,
-          cached_at: new Date().toISOString()
-        });
-      }
-    });
-
-    // 3. Update DB Cache in background
-    if (dbInserts.length > 0) {
-      supabaseAdmin.from('price_cache').upsert(dbInserts, { onConflict: 'token_id' }).then(({ error }) => {
-        if (error) console.error('[PriceEngine] DB cache update failed:', error.message);
+      supabaseAdmin.from('badge_attestations').upsert({
+        wallet_address: wallet,
+        badge_id: badge.badge_id,
+        eligible: evaluation.eligible,
+        verified_at: new Date().toISOString(),
+        proof_hash: proofHash,
+      }, { onConflict: 'wallet_address,badge_id' }).then(({ error }) => {
+        if (error) console.error('[Eligibility] DB background update failed:', error.message);
       });
+      
+      // Add the new proof hash to return
+      if (evaluation.eligible) evaluation.proof_hash = proofHash;
+    } else if (attestation?.proof_hash) {
+      evaluation.proof_hash = attestation.proof_hash;
     }
 
-    return res.status(200).json({ prices, priceChanges, updatedAt: now, source: 'network' });
-  } catch (error) {
-    console.warn('[Server] Price refresh failed:', error.message);
     return res.status(200).json({
-      prices: cachedSnapshot.prices,
-      stale: true,
-      source: 'memory-fallback'
+      ...evaluation,
+      badge_id: badge.badge_id,
+      wallet_address: wallet
     });
+  } catch (err) {
+    console.error('[Eligibility] Error:', err);
+    return res.status(500).json({ error: 'Failed to verify eligibility' });
   }
 });
 
-// --- TRANSACTION API ROUTES ---
+app.post('/api/badges/award', awardLimiter, async (req, res) => {
+  const body = req.body;
+  const walletAddress = normalizeAddress(body?.walletAddress || body?.wallet_address);
+  const badgeId = String(body?.badgeId || body?.badge_id || '').trim();
+  const onChainBadgeId = body?.onChainBadgeId != null ? Number(body.onChainBadgeId) : null;
+  const metadata = body?.metadata || {};
 
-// GET /api/badges/eligibility
-app.get('/api/badges/eligibility', generalLimiter, async (req, res) => {
-  const { wallet, badgeId } = req.query;
-  if (!wallet || !badgeId) return res.status(400).json({ error: 'wallet and badgeId are required' });
+  if (!walletAddress || (!badgeId && onChainBadgeId === null)) {
+    return res.status(400).json({ error: 'walletAddress and badgeId (or onChainBadgeId) are required' });
+  }
 
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Database unavailable' });
+  }
 
   try {
-    // Invoke the Supabase Edge Function to do the heavy lifting
-    const { data, error } = await supabaseAdmin.functions.invoke('verify-badge', {
-      body: { wallet_address: wallet, badge_id: badgeId },
-      headers: {
-        'x-api-key': process.env.VERIFY_BADGE_API_KEY || ''
+    // 1. Resolve Badge Definition
+    let badgeQuery = supabaseAdmin.from('badge_definitions').select('*');
+    if (onChainBadgeId !== null) {
+      badgeQuery = badgeQuery.eq('on_chain_badge_id', onChainBadgeId);
+    } else {
+      badgeQuery = badgeQuery.eq('badge_id', badgeId);
+    }
+
+    const { data: badge, error: badgeError } = await badgeQuery.maybeSingle();
+    if (badgeError || !badge) {
+      return res.status(404).json({ error: 'Badge definition not found' });
+    }
+
+    // 2. Security Check: Admin vs User flow
+    const isSignatureRequest = onChainBadgeId !== null;
+    if (!isSignatureRequest) {
+      // Manual award requires admin auth
+      const auth = verifyAdminRequest(req, body, 'award-badge');
+      if (!auth.ok) return res.status(auth.status || 401).json({ error: auth.error });
+    }
+
+    // 3. Evaluate Eligibility
+    const { data: attestation } = await supabaseAdmin
+      .from('badge_attestations')
+      .select('*')
+      .eq('wallet_address', walletAddress)
+      .eq('badge_id', badge.badge_id)
+      .maybeSingle();
+
+    const evaluation = await evaluateRule(supabaseAdmin, walletAddress, badge, attestation);
+    
+    if (!evaluation.eligible) {
+      return res.status(403).json({ 
+        error: 'Not eligible for this badge', 
+        reason: evaluation.reason,
+        eligible: false 
+      });
+    }
+
+    // 4. Generate Move Signature if requested
+    let sigData = null;
+    let proofHash = evaluation.proof_hash || attestation?.proof_hash;
+
+    const privateKey = process.env.BADGE_SIGNER_PRIVATE_KEY;
+    const moduleAddress = process.env.BADGE_MODULE_ADDRESS;
+
+    if (isSignatureRequest) {
+      if (!privateKey || !moduleAddress) {
+        return res.status(500).json({ error: 'Server configuration error (missing signer keys)' });
       }
+
+      // Fetch signer_epoch (simplified for now, ideally from chain)
+      const signerEpoch = 0; // Can be enhanced later
+      const validUntil = Math.floor(Date.now() / 1000) + (30 * 60); // 30 mins
+      
+      sigData = await signMintAuthorization(
+        privateKey,
+        moduleAddress,
+        walletAddress,
+        badge.on_chain_badge_id,
+        validUntil,
+        signerEpoch
+      );
+
+      // Link DB record to crypto claim
+      const signatureHex = Buffer.from(sigData.signatureBytes).toString('hex');
+      proofHash = `sig:${signatureHex.slice(0, 32)}`;
+    }
+
+    if (!proofHash) {
+      proofHash = createHash('sha256').update(`${walletAddress}:${badge.badge_id}:${Date.now()}`).digest('hex');
+    }
+
+    // 5. Update Attestation
+    const awardedAt = new Date().toISOString();
+    const { error: upsertError } = await supabaseAdmin.from('badge_attestations').upsert({
+      wallet_address: walletAddress,
+      badge_id: badge.badge_id,
+      eligible: true,
+      verified_at: awardedAt,
+      awarded_at: awardedAt,
+      proof_hash: proofHash,
+      metadata: { ...metadata, ...(sigData ? { sig_valid_until: sigData.validUntil } : {}) }
+    }, { onConflict: 'wallet_address,badge_id' });
+
+    if (upsertError) {
+      console.error('[Award] DB upsert failed:', upsertError.message);
+      return res.status(500).json({ error: 'Failed to record award' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      eligible: true,
+      wallet_address: walletAddress,
+      badge_id: badge.badge_id,
+      awarded_at: awardedAt,
+      ...(sigData || {})
     });
 
+  } catch (err) {
+    console.error('[Award] Critical error:', err);
+    return res.status(500).json({ error: 'Internal server error during award' });
+  }
+});
+
+// --- ADMIN MANAGEMENT ROUTES ---
+
+app.post('/api/admin/manage-badge', async (req, res) => {
+  const auth = verifyAdminRequest(req, req.body, 'manage-badge-definition');
+  if (!auth.ok) return res.status(auth.status || 401).json({ error: auth.error });
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
+
+  const { action, badge, badges } = req.body;
+
+  try {
+    if (action === 'batch_sync') {
+      const list = Array.isArray(badges) ? badges : [];
+      const validated = list.map(b => validateBadgeDefinitionPayload(b)).filter(v => v.ok).map(v => v.badge);
+      if (validated.length === 0) return res.json({ success: true, count: 0 });
+
+      const { error } = await supabaseAdmin.from('badge_definitions').upsert(validated, { onConflict: 'badge_id' });
+      if (error) throw error;
+      return res.json({ success: true, action, count: validated.length });
+    }
+
+    if (action === 'delete') {
+      const badgeId = badge?.badge_id || badge?.id;
+      if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
+      const { error } = await supabaseAdmin.from('badge_definitions').delete().eq('badge_id', badgeId);
+      if (error) throw error;
+      return res.json({ success: true, action, badge_id: badgeId });
+    }
+
+    // Create/Update
+    const validated = validateBadgeDefinitionPayload(badge);
+    if (!validated.ok) return res.status(400).json({ error: validated.error });
+
+    const { error } = await supabaseAdmin.from('badge_definitions').upsert(validated.badge, { onConflict: 'badge_id' });
     if (error) throw error;
-    return res.status(200).json(data);
-  } catch (error) {
-    console.error('[Server] Eligibility check error:', error);
-    return res.status(500).json({ error: 'Failed to verify eligibility' });
+
+    return res.json({ success: true, action, badge_id: validated.badgeId });
+  } catch (err) {
+    console.error('[Admin] Manage badge error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/import-allowlist', async (req, res) => {
+  const auth = verifyAdminRequest(req, req.body, 'import-allowlist');
+  if (!auth.ok) return res.status(auth.status || 401).json({ error: auth.error });
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
+
+  const { badge_id, addresses, action = 'import' } = req.body;
+  if (!badge_id) return res.status(400).json({ error: 'badge_id required' });
+
+  try {
+    if (action === 'stats') {
+      const { count, error } = await supabaseAdmin.from('badge_eligible_wallets').select('*', { count: 'exact', head: true }).eq('badge_id', badge_id);
+      if (error) throw error;
+      return res.json({ badge_id, count: count || 0 });
+    }
+
+    if (action === 'clear') {
+      const { error } = await supabaseAdmin.from('badge_eligible_wallets').delete().eq('badge_id', badge_id);
+      if (error) throw error;
+      return res.json({ success: true, badge_id, action: 'cleared' });
+    }
+
+    if (action === 'import') {
+      if (!Array.isArray(addresses) || addresses.length === 0) return res.status(400).json({ error: 'addresses required' });
+      
+      const normalized = [...new Set(addresses.map(a => normalizeAddress(a)).filter(Boolean))];
+      const BATCH_SIZE = 500;
+      let count = 0;
+
+      for (let i = 0; i < normalized.length; i += BATCH_SIZE) {
+        const batch = normalized.slice(i, i + BATCH_SIZE).map(addr => ({
+          badge_id,
+          wallet_address: addr
+        }));
+        const { error } = await supabaseAdmin.from('badge_eligible_wallets').upsert(batch, { onConflict: 'badge_id,wallet_address' });
+        if (error) throw error;
+        count += batch.length;
+      }
+      return res.json({ success: true, badge_id, imported: count });
+    }
+
+    return res.status(400).json({ error: 'Invalid action' });
+  } catch (err) {
+    console.error('[Admin] Import allowlist error:', err.message);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -1025,9 +1123,8 @@ app.delete('/api/entities/:id', async (req, res) => {
 });
 
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-  app.listen(Number(PORT), () => {
-    // eslint-disable-next-line no-console
-    console.log(`Badge API listening on ${PORT}`);
+  app.listen(PORT, () => {
+    console.log(`[Server] Running on port ${PORT}`);
   });
 }
 

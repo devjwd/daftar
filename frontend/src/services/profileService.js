@@ -25,7 +25,7 @@ const CLIENT_CACHE_TTL = 60000; // 1 minute
  */
 export const normalizeAddress = (address) => {
   if (!address) return null;
-  
+
   // Handle different address types from wallet adapters
   const raw = (typeof address === 'string' ? address : String(address)).trim().toLowerCase();
   if (!raw) return null;
@@ -44,17 +44,17 @@ const validateProfile = (profile) => {
   if (!profile.address) {
     throw new Error('Profile must have an address');
   }
-  
+
   // Validate username length
   if (profile.username && profile.username.length > 50) {
     throw new Error('Username must be 50 characters or less');
   }
-  
+
   // Validate bio length
   if (profile.bio && profile.bio.length > 500) {
     throw new Error('Bio must be 500 characters or less');
   }
-  
+
   return true;
 };
 
@@ -67,19 +67,19 @@ export const imageToBase64 = (file) => {
       resolve(null);
       return;
     }
-    
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       reject(new Error('File must be an image'));
       return;
     }
-    
+
     // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       reject(new Error('Image must be smaller than 2MB'));
       return;
     }
-    
+
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
@@ -97,7 +97,7 @@ export const compressImage = (base64Image, maxWidth = 400, maxHeight = 400) => {
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
-      
+
       // Calculate new dimensions
       if (width > height) {
         if (width > maxWidth) {
@@ -110,13 +110,13 @@ export const compressImage = (base64Image, maxWidth = 400, maxHeight = 400) => {
           height = maxHeight;
         }
       }
-      
+
       canvas.width = width;
       canvas.height = height;
-      
+
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      
+
       resolve(canvas.toDataURL('image/jpeg', 0.8));
     };
     img.onerror = () => reject(new Error('Failed to load image for compression'));
@@ -130,13 +130,13 @@ export const compressImage = (base64Image, maxWidth = 400, maxHeight = 400) => {
 export const getProfile = (address) => {
   const normalizedAddress = normalizeAddress(address);
   if (!normalizedAddress) return null;
-  
+
   try {
     const key = PROFILE_PREFIX + normalizedAddress;
     const data = localStorage.getItem(key);
-    
+
     if (!data) return null;
-    
+
     const profile = JSON.parse(data);
     return {
       ...profile,
@@ -157,7 +157,7 @@ export const saveProfile = async (profileData) => {
     if (!normalizedAddress) {
       throw new Error('Invalid address');
     }
-    
+
     const profile = {
       address: normalizedAddress,
       username: profileData.username || '',
@@ -168,15 +168,15 @@ export const saveProfile = async (profileData) => {
       updatedAt: new Date().toISOString(),
       createdAt: profileData.createdAt || new Date().toISOString(),
     };
-    
+
     validateProfile(profile);
-    
+
     const key = PROFILE_PREFIX + normalizedAddress;
     localStorage.setItem(key, JSON.stringify(profile));
-    
+
     // Update profiles index
     updateProfilesIndex(normalizedAddress);
-    
+
     return profile;
   } catch (error) {
     devLog('Error saving profile:', error);
@@ -191,7 +191,7 @@ const updateProfilesIndex = (address) => {
   try {
     const indexData = localStorage.getItem(PROFILES_INDEX);
     let index = indexData ? JSON.parse(indexData) : [];
-    
+
     if (!index.includes(address)) {
       index.push(address);
       localStorage.setItem(PROFILES_INDEX, JSON.stringify(index));
@@ -208,7 +208,7 @@ export const getAllProfiles = () => {
   try {
     const indexData = localStorage.getItem(PROFILES_INDEX);
     if (!indexData) return [];
-    
+
     const addresses = JSON.parse(indexData);
     return addresses
       .map(addr => getProfile(addr))
@@ -226,10 +226,10 @@ export const deleteProfile = (address) => {
   try {
     const normalizedAddress = normalizeAddress(address);
     if (!normalizedAddress) return false;
-    
+
     const key = PROFILE_PREFIX + normalizedAddress;
     localStorage.removeItem(key);
-    
+
     // Remove from index
     const indexData = localStorage.getItem(PROFILES_INDEX);
     if (indexData) {
@@ -245,7 +245,7 @@ export const deleteProfile = (address) => {
     } catch {
       // ignore sessionStorage cleanup failures
     }
-    
+
     return true;
   } catch (error) {
     devLog('Error deleting profile:', error);
@@ -258,10 +258,10 @@ export const deleteProfile = (address) => {
  */
 export const searchProfiles = (query) => {
   if (!query) return [];
-  
+
   const allProfiles = getAllProfiles();
   const lowerQuery = query.toLowerCase();
-  
+
   return allProfiles.filter(profile => {
     return (
       profile.username?.toLowerCase().includes(lowerQuery) ||
@@ -276,11 +276,11 @@ export const searchProfiles = (query) => {
  */
 export const getProfileByUsername = (username) => {
   if (!username) return null;
-  
+
   const allProfiles = getAllProfiles();
   const lowerUsername = username.toLowerCase();
-  
-  return allProfiles.find(profile => 
+
+  return allProfiles.find(profile =>
     profile.username?.toLowerCase() === lowerUsername
   ) || null;
 };
@@ -290,14 +290,14 @@ export const getProfileByUsername = (username) => {
  */
 export const resolveAddressOrUsername = (query) => {
   if (!query) return null;
-  
+
   const trimmedQuery = query.trim();
-  
+
   // Check if it's a valid address format
   if (trimmedQuery.startsWith('0x')) {
     return normalizeAddress(trimmedQuery);
   }
-  
+
   // Otherwise search by username
   const profile = getProfileByUsername(trimmedQuery);
   return profile ? profile.address : null;
@@ -309,7 +309,7 @@ export const resolveAddressOrUsername = (query) => {
 export const exportProfile = (address) => {
   const profile = getProfile(address);
   if (!profile) return null;
-  
+
   return {
     ...profile,
     exportedAt: new Date().toISOString(),
@@ -325,7 +325,7 @@ export const importProfile = async (profileData) => {
     if (!profileData.address) {
       throw new Error('Invalid profile data');
     }
-    
+
     return await saveProfile(profileData);
   } catch (error) {
     devLog('Error importing profile:', error);
@@ -415,7 +415,7 @@ const storeEditKey = (address, editKey) => {
 
 const shouldFallbackToLocalProfileStore = (status) => status === 404 || status === 405;
 
-const isLegacyProfileMigrationError = (status, message) => 
+const isLegacyProfileMigrationError = (status, message) =>
   (status === 409 && /missing an edit key/i.test(String(message || ''))) ||
   (status === 403 && /invalid profile edit key/i.test(String(message || '')));
 
@@ -460,7 +460,7 @@ export const getProfileAsync = async (address) => {
 
   const cacheKey = `profile:${normalizedAddress}`;
   const now = Date.now();
-  
+
   // 1. Check in-memory cache
   const cached = PROFILE_CACHE.get(cacheKey);
   if (cached && (now - cached.timestamp < CLIENT_CACHE_TTL)) {

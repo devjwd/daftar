@@ -208,33 +208,76 @@ const TokenCard = ({ token, delay, convertUSD, formatCurrencyValue, language, hi
 };
 
 const SkeletonCard = ({ delay = 0 }) => (
-
   <div
-
     className="card skeleton-card"
-
     style={{ animationDelay: `${delay}ms`, cursor: 'default' }}
-
   >
-
     <div className="skeleton skeleton-circle"></div>
-
     <div className="skeleton-text" style={{ flex: 1 }}>
-
       <div className="skeleton skeleton-line" style={{ width: '80px' }}></div>
-
     </div>
-
     <div className="skeleton-text" style={{ minWidth: '100px' }}>
-
       <div className="skeleton skeleton-line" style={{ width: '80px' }}></div>
-
       <div className="skeleton skeleton-line" style={{ width: '60px', height: '12px' }}></div>
-
     </div>
-
   </div>
+);
 
+const LiquiditySkeleton = ({ delay = 0 }) => (
+  <div
+    className="lp-card skeleton-card"
+    style={{ animationDelay: `${delay}ms`, cursor: 'default' }}
+  >
+    <div className="lp-card-header">
+      <div className="lp-card-logo skeleton"></div>
+      <div className="lp-card-info">
+        <div className="skeleton skeleton-line" style={{ width: '120px', height: '18px', marginBottom: '6px' }}></div>
+        <div className="skeleton skeleton-line" style={{ width: '80px', height: '12px' }}></div>
+      </div>
+    </div>
+    <div className="lp-card-body">
+      <div className="lp-card-stats-row">
+        <div className="lp-card-stat" style={{ border: 'none', background: 'rgba(255,255,255,0.03)' }}>
+          <div className="skeleton skeleton-line" style={{ width: '40px', height: '10px', marginBottom: '8px' }}></div>
+          <div className="skeleton skeleton-line" style={{ width: '70px', height: '16px' }}></div>
+        </div>
+        <div className="lp-card-stat" style={{ border: 'none', background: 'rgba(255,255,255,0.03)' }}>
+          <div className="skeleton skeleton-line" style={{ width: '50px', height: '10px', marginBottom: '8px' }}></div>
+          <div className="skeleton skeleton-line" style={{ width: '60px', height: '16px' }}></div>
+        </div>
+      </div>
+      <div className="lp-card-details">
+        <div className="lp-card-detail-row" style={{ border: 'none', background: 'rgba(255,255,255,0.02)' }}>
+          <div className="skeleton skeleton-line" style={{ width: '60px', height: '10px' }}></div>
+          <div className="skeleton skeleton-line" style={{ width: '100px', height: '10px' }}></div>
+        </div>
+        <div className="lp-card-detail-row" style={{ border: 'none', background: 'rgba(255,255,255,0.02)' }}>
+          <div className="skeleton skeleton-line" style={{ width: '60px', height: '10px' }}></div>
+          <div className="skeleton skeleton-line" style={{ width: '80px', height: '10px' }}></div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const DeFiSkeleton = ({ delay = 0 }) => (
+  <div
+    className="defi-card-v2 is-compact skeleton-card"
+    style={{ animationDelay: `${delay}ms`, cursor: 'default' }}
+  >
+    <div className="defi-v2-header">
+      <div className="defi-v2-logo skeleton"></div>
+      <div className="defi-v2-title">
+        <div className="skeleton skeleton-line" style={{ width: '100px', height: '18px' }}></div>
+      </div>
+    </div>
+    <div className="defi-v2-compact-body">
+      <div className="defi-v2-net">
+        <div className="skeleton skeleton-line" style={{ width: '60px', height: '10px' }}></div>
+        <div className="skeleton skeleton-line" style={{ width: '80px', height: '16px' }}></div>
+      </div>
+    </div>
+  </div>
 );
 
 const NetWorthValueSkeleton = () => (
@@ -479,7 +522,10 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
                 {supplyPositions.length > 0 ? supplyPositions.map((pos, idx) => (
                   <div key={idx} className="defi-v2-item">
                     <div className="defi-v2-item-token-wrap">
-                      <span className="defi-v2-item-token">{pos.tokenSymbol || 'Token'}</span>
+                      <TokenIcon symbol={pos.tokenSymbol} />
+                      <span className="defi-v2-item-token">
+                        {renderColoredTokenText(pos.tokenSymbol || 'Token')}
+                      </span>
                       {formatNativeStakingMeta(pos) && (
                         <span className="defi-v2-item-meta">{formatNativeStakingMeta(pos)}</span>
                       )}
@@ -503,7 +549,12 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
               <div className="defi-v2-column-items">
                 {debtPositions.length > 0 ? debtPositions.map((pos, idx) => (
                   <div key={idx} className="defi-v2-item">
-                    <span className="defi-v2-item-token">{pos.tokenSymbol || 'Token'}</span>
+                    <div className="defi-v2-item-token-wrap">
+                      <TokenIcon symbol={pos.tokenSymbol} />
+                      <span className="defi-v2-item-token">
+                        {renderColoredTokenText(pos.tokenSymbol || 'Token')}
+                      </span>
+                    </div>
                     <div className="defi-v2-item-values">
                       <span className="defi-v2-item-amount debt">-{formatValue(pos.value)}</span>
                       <span className="defi-v2-item-usd debt">-{formatUsdValue(getPositionUsdValue(pos))}</span>
@@ -573,6 +624,94 @@ const humanizeAssetName = (raw) => {
   return raw;
 };
 
+const LP_TOKEN_COLORS = {
+  MOVE: '#cda169',
+  USDC: '#2775ca',
+  USDT: '#26a17b',
+  ETH: '#627eea',
+  WETH: '#627eea',
+  BTC: '#f7931a',
+  WBTC: '#f7931a',
+  CAPY: '#ff6b9d',
+  MOVECAT: '#9b59b6',
+  LBTC: '#f7931a',
+  EZETH: '#00d395',
+  RSETH: '#4caf50',
+  SOLVBTC: '#f7931a',
+  USDE: '#171717',
+  USDA: '#2196f3',
+  WEETH: '#7c3aed',
+  USDCX: '#2775ca',
+  SUSDE: '#ffffff',
+};
+
+const getTokenTextColor = (rawSymbol) => {
+  if (!rawSymbol) return null;
+  const normalized = rawSymbol
+    .toString()
+    .toUpperCase()
+    .replace(/[^A-Z0-9.]/g, '');
+
+  const withoutSuffix = normalized.replace(/\.E$/i, '');
+  const withoutCvPrefix = withoutSuffix.replace(/^CV/, '');
+  const withoutLPrefix = withoutCvPrefix.replace(/^L/, '');
+
+  return (
+    LP_TOKEN_COLORS[withoutLPrefix] ||
+    LP_TOKEN_COLORS[withoutCvPrefix] ||
+    LP_TOKEN_COLORS[withoutSuffix] ||
+    LP_TOKEN_COLORS[normalized] ||
+    null
+  );
+};
+
+const renderColoredTokenText = (value) => {
+  if (typeof value !== 'string' || !value) return value;
+
+  const pieces = value.split(/(\s+|\/|\+|,|:|\(|\))/g).filter((piece) => piece !== '');
+  const NON_TOKEN_WORDS = new Set(['LP', 'TOKEN', 'POSITION', 'NOT', 'AVAILABLE', 'ASSET']);
+
+  return pieces.map((piece, index) => {
+    const trimmed = piece.trim();
+    if (!trimmed) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
+
+    const normalized = trimmed.replace(/[^A-Za-z0-9.]/g, '');
+    const hasLetters = /[A-Za-z]/.test(normalized);
+    if (!hasLetters) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
+
+    const upper = normalized.toUpperCase();
+    if (NON_TOKEN_WORDS.has(upper)) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
+
+    const color = getTokenTextColor(upper);
+    if (!color) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
+
+    return (
+      <span key={`lp-txt-${index}`} className="lp-token-colored" style={{ color }}>
+        {piece}
+      </span>
+    );
+  });
+};
+
+const TokenIcon = ({ symbol, size = 16 }) => {
+  const baseSymbol = String(symbol || '').toUpperCase().replace(/\.E$/i, '').replace(/^CV/, '').replace(/^L/, '');
+  const visual = TOKEN_VISUALS[baseSymbol] || TOKEN_VISUALS[symbol?.toUpperCase()] || null;
+  const logo = visual?.logo || null;
+
+  if (logo) {
+    return (
+      <img
+        src={logo}
+        alt={symbol}
+        className="token-mini-icon"
+        style={{ width: size, height: size, borderRadius: '4px', marginRight: '6px', objectFit: 'contain' }}
+        onError={(e) => { e.target.style.display = 'none'; }}
+      />
+    );
+  }
+  return null;
+};
+
 const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language, hideValues }) => {
   const LP_PROTOCOLS = {
     canopy: {
@@ -610,71 +749,8 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     website: null
   };
 
-  const LP_TOKEN_COLORS = {
-    MOVE: '#cda169',
-    USDC: '#2775ca',
-    USDT: '#26a17b',
-    ETH: '#627eea',
-    WETH: '#627eea',
-    BTC: '#f7931a',
-    WBTC: '#f7931a',
-    CAPY: '#ff6b9d',
-    MOVECAT: '#9b59b6',
-    LBTC: '#f7931a',
-    EZETH: '#00d395',
-    RSETH: '#4caf50',
-    SOLVBTC: '#f7931a',
-    USDE: '#171717',
-    USDA: '#2196f3',
-    WEETH: '#7c3aed',
-  };
-
-  const getTokenTextColor = (rawSymbol) => {
-    if (!rawSymbol) return null;
-    const normalized = rawSymbol
-      .toString()
-      .toUpperCase()
-      .replace(/[^A-Z0-9.]/g, '');
-
-    const withoutSuffix = normalized.replace(/\.E$/i, '');
-    const withoutCvPrefix = withoutSuffix.replace(/^CV/, '');
-    const withoutLPrefix = withoutCvPrefix.replace(/^L/, '');
-
-    return (
-      LP_TOKEN_COLORS[withoutLPrefix] ||
-      LP_TOKEN_COLORS[withoutCvPrefix] ||
-      LP_TOKEN_COLORS[withoutSuffix] ||
-      LP_TOKEN_COLORS[normalized] ||
-      null
-    );
-  };
-
-  const renderColoredTokenText = (value) => {
-    if (typeof value !== 'string' || !value) return value;
-
-    const pieces = value.split(/(\s+|\/|\+|,|:|\(|\))/g).filter((piece) => piece !== '');
-    const NON_TOKEN_WORDS = new Set(['LP', 'TOKEN', 'POSITION', 'NOT', 'AVAILABLE', 'ASSET']);
-
-    return pieces.map((piece, index) => {
-      const trimmed = piece.trim();
-      if (!trimmed) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
-
-      const normalized = trimmed.replace(/[^A-Za-z0-9.]/g, '');
-      const hasLetters = /[A-Za-z]/.test(normalized);
-      if (!hasLetters) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
-
-      const upper = normalized.toUpperCase();
-      if (NON_TOKEN_WORDS.has(upper)) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
-
-      const color = getTokenTextColor(upper);
-      if (!color) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
-
-      return (
-        <span key={`lp-txt-${index}`} className="lp-token-colored" style={{ color }}>
-          {piece}
-        </span>
-      );
-    });
+  const renderColoredTokenTextLocal = (value) => {
+    return renderColoredTokenText(value);
   };
 
   const isCanopyDeposit = position.protocol === 'canopy' ||
@@ -2034,8 +2110,13 @@ const Dashboard = () => {
                 creatorAddress.toLowerCase() === YUZU_NFT_MANAGER;
 
               if (isYuzuPosition) {
-                const positionId = tokenName;
-                const poolAddress = creatorAddress;
+                // Yuzu position IDs are numeric, extracted from token name (e.g., "9410" or "YUZ-LP #9410")
+                const positionId = tokenName.replace(/[^0-9]/g, '');
+
+                // Try to find pool address from events if not the creator address
+                const eventData = yuzuLiquidityMap[positionId];
+                const poolAddress = eventData?.pool || creatorAddress;
+
                 let poolPair = 'LP Position';
                 const collectionMatch = collectionName.match(/\|\s*([A-Za-z0-9.]+\/[A-Za-z0-9.]+)\s*\|/i);
                 if (collectionMatch) {
@@ -2045,60 +2126,107 @@ const Dashboard = () => {
                 let liquidityValue = 0;
                 let token0Amount = 0;
                 let token1Amount = 0;
+
+                const tokens = poolPair.split('/').map(t => t.trim().replace(/\.e$/, '').toUpperCase());
+                const getTokenDecimals = (symbol) => {
+                  if (['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(symbol)) return 6;
+                  return 8;
+                };
+
+                const decimals0 = tokens[0] ? getTokenDecimals(tokens[0]) : 8;
+                const decimals1 = tokens[1] ? getTokenDecimals(tokens[1]) : 8;
+
+                // Initial fallback from event data
+                if (eventData) {
+                  token0Amount = Number(eventData.amount0 || 0) / Math.pow(10, decimals0);
+                  token1Amount = Number(eventData.amount1 || 0) / Math.pow(10, decimals1);
+                }
+
                 const getMovePrice = () => {
                   if (!priceMap) return 0.5;
                   return priceMap['0xa'] || priceMap['0x1'] || 0.5;
                 };
+
                 if (poolAddress && positionId) {
                   try {
-                    const response = await fetch(`${DEFAULT_NETWORK.rpc}/view`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        function: '0x46566b4a16a1261ab400ab5b9067de84ba152b5eb4016b217187f2a2ca980c5a::position_nft_manager::get_position_token_amounts',
-                        typeArguments: [],
-                        arguments: [poolAddress, positionId]
-                      })
-                    });
+                    // Try to get fresh amounts via view function
+                    const viewPayload = {
+                      function: '0x46566b4a16a1261ab400ab5b9067de84ba152b5eb4016b217187f2a2ca980c5a::position_nft_manager::get_position_token_amounts',
+                      typeArguments: [],
+                      functionArguments: [poolAddress, positionId]
+                    };
 
-                    if (response.ok) {
-                      const result = await response.json();
-                      if (Array.isArray(result) && result.length >= 2) {
-                        const tokens = poolPair.split('/').map(t => t.trim().replace(/\.e$/, '').toUpperCase());
-                        const getTokenDecimals = (symbol) => {
-                          if (['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(symbol)) return 6;
-                          return 8;
-                        };
+                    let result;
+                    if (movementClient) {
+                      result = await movementClient.view({ payload: viewPayload });
+                    } else {
+                      const response = await fetch(`${DEFAULT_NETWORK.rpc}/view`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          function: viewPayload.function,
+                          type_arguments: viewPayload.typeArguments,
+                          arguments: viewPayload.functionArguments
+                        })
+                      });
+                      if (response.ok) result = await response.json();
+                    }
 
-                        const decimals0 = tokens[0] ? getTokenDecimals(tokens[0]) : 8;
-                        const decimals1 = tokens[1] ? getTokenDecimals(tokens[1]) : 8;
+                    if (Array.isArray(result) && result.length >= 2) {
+                      const freshAmount0 = Number(result[0]) / Math.pow(10, decimals0);
+                      const freshAmount1 = Number(result[1]) / Math.pow(10, decimals1);
 
-                        token0Amount = Number(result[0]) / Math.pow(10, decimals0);
-                        token1Amount = Number(result[1]) / Math.pow(10, decimals1);
-                        const token0Symbol = tokens[0] || '';
-                        const token1Symbol = tokens[1] || '';
-                        const isStable0 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token0Symbol);
-                        const isStable1 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token1Symbol);
-                        const MEME_TOKENS = ['CAPY', 'MOVECAT', 'GMOVE', 'TUBI', 'GCAT'];
-                        const isMeme0 = MEME_TOKENS.includes(token0Symbol);
-                        const isMeme1 = MEME_TOKENS.includes(token1Symbol);
-                        if (isMeme0 || isMeme1) {
-                          liquidityValue = 0;
-                        } else if (isStable0 && isStable1) {
-                          liquidityValue = token0Amount + token1Amount;
-                        } else if (token0Symbol === 'MOVE' && isStable1) {
-                          const movePrice = getMovePrice();
-                          liquidityValue = (token0Amount * movePrice) + token1Amount;
-                        } else if (token1Symbol === 'MOVE' && isStable0) {
-                          const movePrice = getMovePrice();
-                          liquidityValue = token0Amount + (token1Amount * movePrice);
-                        } else {
-                          liquidityValue = 0;
-                        }
+                      // Only update if we got non-zero values (fees might make them larger than event amounts)
+                      if (freshAmount0 > 0 || freshAmount1 > 0) {
+                        token0Amount = freshAmount0;
+                        token1Amount = freshAmount1;
                       }
                     }
                   } catch (err) {
-                    console.warn('Failed to fetch Yuzu position value:', err);
+                    console.warn(`Failed to fetch fresh Yuzu amounts for #${positionId}:`, err);
+                    // Keep fallback values from events
+                  }
+                }
+
+                // Calculate USD value using priceMap
+                const token0Symbol = tokens[0] || '';
+                const token1Symbol = tokens[1] || '';
+                const movePrice = getMovePrice();
+
+                const getPrice = (symbol) => {
+                  if (!priceMap) return 0;
+                  if (symbol === 'MOVE') return movePrice;
+                  if (['USDC', 'USDT', 'USDA', 'USDE'].includes(symbol)) return 1.0;
+
+                  // Try to find in priceMap by symbol
+                  const found = Object.entries(priceMap).find(([addr, price]) => {
+                    const meta = indexerBalances?.find(b => b.address === addr);
+                    return meta?.symbol?.toUpperCase() === symbol;
+                  });
+                  return found ? found[1] : 0;
+                };
+
+                const p0 = getPrice(token0Symbol);
+                const p1 = getPrice(token1Symbol);
+
+                if (p0 > 0 || p1 > 0) {
+                  liquidityValue = (token0Amount * p0) + (token1Amount * p1);
+                } else {
+                  // Basic fallback logic
+                  const isStable0 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token0Symbol);
+                  const isStable1 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token1Symbol);
+                  const MEME_TOKENS = ['CAPY', 'MOVECAT', 'GMOVE', 'TUBI', 'GCAT'];
+                  const isMeme0 = MEME_TOKENS.includes(token0Symbol);
+                  const isMeme1 = MEME_TOKENS.includes(token1Symbol);
+
+                  if (isMeme0 || isMeme1) {
+                    liquidityValue = 0;
+                  } else if (isStable0 && isStable1) {
+                    liquidityValue = token0Amount + token1Amount;
+                  } else if (token0Symbol === 'MOVE' && isStable1) {
+                    liquidityValue = (token0Amount * movePrice) + token1Amount;
+                  } else if (token1Symbol === 'MOVE' && isStable0) {
+                    liquidityValue = token0Amount + (token1Amount * movePrice);
                   }
                 }
 
@@ -2126,6 +2254,7 @@ const Dashboard = () => {
             console.warn("Failed to fetch Yuzu NFT positions:", error);
           }
         }
+
 
         if (!cancelled) {
           setLiquidityPositions(lpPositions);
@@ -2604,8 +2733,10 @@ const Dashboard = () => {
 
                 {(defiLoading || assetsLoading) && visibleDeFiPositions.length === 0 && (
                   <>
-                    <SkeletonCard delay={0} />
-                    <SkeletonCard delay={50} />
+                    <DeFiSkeleton delay={0} />
+                    <DeFiSkeleton delay={50} />
+                    <DeFiSkeleton delay={100} />
+                    <DeFiSkeleton delay={150} />
                   </>
                 )}
 
@@ -2665,10 +2796,12 @@ const Dashboard = () => {
                 {t(language, 'dashLiquidityPositions')}
               </h3>
               <div className="grid-container lp-grid">
-                {(lpLoading || indexerLoading) && (
+                {(lpLoading || indexerLoading) && visibleLiquidityPositions.length === 0 && (
                   <>
-                    <SkeletonCard delay={0} />
-                    <SkeletonCard delay={50} />
+                    <LiquiditySkeleton delay={0} />
+                    <LiquiditySkeleton delay={50} />
+                    <LiquiditySkeleton delay={100} />
+                    <LiquiditySkeleton delay={150} />
                   </>
                 )}
 

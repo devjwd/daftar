@@ -308,12 +308,6 @@
   color: rgba(255, 255, 255, 0.45);
 }
 
-.loadingMoreSkeleton {
-  margin-top: 1rem;
-  padding: 0 1.5rem;
-  opacity: 0.6;
-}
-
 .hashLink {
   color: #cda169;
   text-decoration: none;
@@ -366,38 +360,52 @@
   display: grid;
   place-items: center;
   min-height: 240px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.025);
-  color: rgba(255, 255, 255, 0.58);
-  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
   font-size: 14px;
-  font-weight: 500;
 }
 
-.skeletonList {
+.skeletonRow td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.skeletonTypeCell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.skeletonIcon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeletonTypeMeta {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
-.skeletonRow {
-  display: grid;
-  grid-template-columns: 88px 1.7fr 1.2fr 1.2fr 0.9fr;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.025);
+.skeletonBadge {
+  width: 64px;
+  height: 12px;
+}
+
+.skeletonDappName {
+  width: 42px;
+  height: 10px;
+  opacity: 0.5;
 }
 
 .skeletonBlock {
   position: relative;
   overflow: hidden;
-  height: 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  height: 14px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .skeletonBlock::after {
@@ -405,31 +413,29 @@
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
-  animation: shimmer 1.3s ease-in-out infinite;
-}
-
-.skeletonBadge {
-  height: 28px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  animation: shimmer 1.6s infinite linear;
 }
 
 .skeletonTokens {
-  width: 82%;
+  width: 120px;
 }
 
 .skeletonAmount {
-  width: 76%;
+  width: 80px;
 }
 
-.skeletonDate,
+.skeletonDate {
+  width: 110px;
+}
+
 .skeletonHash {
-  width: 70%;
+  width: 90px;
 }
 
 @keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 @media (max-width: 900px) {
@@ -446,10 +452,6 @@
 @media (max-width: 640px) {
   .table {
     min-width: 620px;
-  }
-
-  .skeletonRow {
-    grid-template-columns: 88px 1.8fr 1.2fr 1.1fr 0.9fr;
   }
 }
 

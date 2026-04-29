@@ -11,8 +11,11 @@ const parseJsonSafe = async (response) => {
 };
 
 const callLocalBadgeApi = async ({ path, method = 'GET', body, headers = {} }) => {
+  const baseUrl = import.meta.env.VITE_API_URL || '';
+  const url = path.startsWith('http') ? path : `${baseUrl}${path}`;
+  
   try {
-    const response = await fetch(path, {
+    const response = await fetch(url, {
       method,
       headers: {
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -170,20 +173,15 @@ const getErrorStatus = (error, fallback = 500) => Number(error?.context?.status 
 const getErrorMessage = (error, fallback = 'Request failed') =>
   String(error?.message || error?.context?.message || fallback);
 
-const invokeAdminFunction = async (name, body, adminAuth = null) => {
-  if (!supabase) {
-    return { ok: false, status: 503, data: { error: 'Supabase not configured' } };
-  }
-  const { data, error } = await supabase.functions.invoke(name, {
+const invokeAdminFunction = async (path, body, adminAuth = null) => {
+  const response = await callLocalBadgeApi({
+    path,
+    method: 'POST',
     body,
     headers: adminAuth && typeof adminAuth === 'object' ? adminAuth : {},
   });
 
-  return {
-    ok: !error,
-    status: error ? getErrorStatus(error) : 200,
-    data: error ? { error: getErrorMessage(error) } : data,
-  };
+  return response;
 };
 
 const resolveAdminHeaders = async (adminAuth, body) => {
@@ -299,7 +297,7 @@ export const saveBadgeDefinitions = async ({ badges, adminAuth, clearAwards = fa
     };
   }
 
-  const result = await invokeAdminFunction('manage-badge-definition', body, headers);
+  const result = await invokeAdminFunction('/api/admin/manage-badge', body, headers);
   if (!result.ok) return result;
 
   return {
@@ -346,7 +344,7 @@ export const verifyBadge = async (wallet_address, badge_id) => {
       status: data.eligible ? 'eligible' : 'not_eligible',
       reason: data.reason || null,
       progress: data.progress || null,
-      cached: Boolean(data.cached),
+      cached: Boolean(data.cached || data.fromCache),
       proofHash: data.proofHash || data.proof_hash || null,
     },
     error: null,
@@ -354,67 +352,71 @@ export const verifyBadge = async (wallet_address, badge_id) => {
 };
 
 export const awardBadge = async (wallet_address, badge_id, adminAuth = null, signatureProof = null) => {
-  if (!supabase) return { data: null, error: new Error('Supabase not configured') };
-  const { data, error } = await supabase.functions.invoke('award-badge', {
-    body: {
-      wallet_address,
-      walletAddress: normalizeAddress(wallet_address),
-      badge_id,
-      signedMessage: String(signatureProof?.signedMessage || ''),
-      signature: signatureProof?.signature || null,
-    },
-    headers: adminAuth && typeof adminAuth === 'object' ? adminAuth : {},
+  const body = {
+    walletAddress: normalizeAddress(wallet_address),
+    badgeId: badge_id,
+    signedMessage: String(signatureProof?.signedMessage || ''),
+    signature: signatureProof?.signature || null,
+    nonce: signatureProof?.nonce,
+  };
+
+  const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
+
+  const response = await callLocalBadgeApi({
+    path: '/api/badges/award',
+    method: 'POST',
+    body,
+    headers,
   });
-  return { data, error };
+
+  return { data: response.data, error: response.ok ? null : new Error(response.data?.error || 'Award failed') };
 };
 
 export const manageBadgeDefinition = async (action, badge, adminAuth = null) => {
-  if (!supabase) return { data: null, error: new Error('Supabase not configured') };
-  const { data, error } = await supabase.functions.invoke('manage-badge-definition', {
-    body: { action, badge },
-    headers: adminAuth && typeof adminAuth === 'object' ? adminAuth : {},
+  const body = { action, badge };
+  const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
+  const response = await callLocalBadgeApi({
+    path: '/api/admin/manage-badge',
+    method: 'POST',
+    body,
+    headers,
   });
-  return { data, error };
+  return { data: response.data, error: response.ok ? null : new Error(response.data?.error || 'Management failed') };
 };
 
 export const importAllowlist = async (badgeId, addresses, adminAuth = null) => {
-  if (!supabase) return { ok: false, error: 'Supabase not configured' };
   const body = { badge_id: badgeId, addresses, action: 'import' };
   const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
-  const { data, error } = await supabase.functions.invoke('import-allowlist', { body, headers });
-  return { ok: !error && !data?.error, data: data || { error: error?.message }, status: error ? 500 : 200 };
+  const response = await callLocalBadgeApi({ path: '/api/admin/import-allowlist', method: 'POST', body, headers });
+  return { ok: response.ok, data: response.data, status: response.status };
 };
 
 export const getAllowlistStats = async (badgeId, adminAuth = null) => {
-  if (!supabase) return { ok: false, error: 'Supabase not configured' };
   const body = { badge_id: badgeId, action: 'stats' };
   const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
-  const { data, error } = await supabase.functions.invoke('import-allowlist', { body, headers });
-  return { ok: !error && !data?.error, data: data || { error: error?.message } };
+  const response = await callLocalBadgeApi({ path: '/api/admin/import-allowlist', method: 'POST', body, headers });
+  return { ok: response.ok, data: response.data };
 };
 
 export const searchAllowlist = async (badgeId, walletAddress, adminAuth = null) => {
-  if (!supabase) return { ok: false, error: 'Supabase not configured' };
   const body = { badge_id: badgeId, wallet_address: walletAddress, action: 'search' };
   const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
-  const { data, error } = await supabase.functions.invoke('import-allowlist', { body, headers });
-  return { ok: !error && !data?.error, data: data || { error: error?.message } };
+  const response = await callLocalBadgeApi({ path: '/api/admin/import-allowlist', method: 'POST', body, headers });
+  return { ok: response.ok, data: response.data };
 };
 
 export const removeFromAllowlist = async (badgeId, walletAddress, adminAuth = null) => {
-  if (!supabase) return { ok: false, error: 'Supabase not configured' };
   const body = { badge_id: badgeId, wallet_address: walletAddress, action: 'remove' };
   const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
-  const { data, error } = await supabase.functions.invoke('import-allowlist', { body, headers });
-  return { ok: !error && !data?.error, data: data || { error: error?.message } };
+  const response = await callLocalBadgeApi({ path: '/api/admin/import-allowlist', method: 'POST', body, headers });
+  return { ok: response.ok, data: response.data };
 };
 
 export const clearAllowlist = async (badgeId, adminAuth = null) => {
-  if (!supabase) return { ok: false, error: 'Supabase not configured' };
   const body = { badge_id: badgeId, action: 'clear' };
   const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
-  const { data, error } = await supabase.functions.invoke('import-allowlist', { body, headers });
-  return { ok: !error && !data?.error, data: data || { error: error?.message } };
+  const response = await callLocalBadgeApi({ path: '/api/admin/import-allowlist', method: 'POST', body, headers });
+  return { ok: response.ok, data: response.data };
 };
 
 export const getUserBadges = async (wallet_address) => {
@@ -539,19 +541,20 @@ export const publishScannerConfigs = async ({ badgeConfigs }) => {
 };
 
 export const requestMintSignature = async (walletAddress, onChainBadgeId) => {
-  if (!supabase) return { ok: false, error: 'Supabase not configured' };
-
-  const { data, error } = await supabase.functions.invoke('award-badge', {
+  const response = await callLocalBadgeApi({
+    path: '/api/badges/award',
+    method: 'POST',
     body: { walletAddress, onChainBadgeId },
   });
 
-  if (error || !data || data.error) {
+  if (!response.ok) {
     return {
       ok: false,
-      error: error?.message || data?.error || 'Failed to obtain mint signature',
+      error: response.data?.error || 'Failed to obtain mint signature',
     };
   }
 
+  const data = response.data;
   const signatureBytes = data?.signatureBytes;
   if (!Array.isArray(signatureBytes) || signatureBytes.length !== 64) {
     return { ok: false, error: 'Invalid signature returned from server' };

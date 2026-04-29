@@ -299,7 +299,7 @@ const DEFI_PATTERNS = [
 // RECEIPT TOKEN PATTERNS - Protocol-specific deposit tokens
 // =============================================================================
 const RECEIPT_TOKEN_PATTERNS = [
-  { regex: /ecUSD|ecMOVE|ecWETH|ecWBTC|ecUSDT|ecUSDC/i, protocol: "ECHELON", category: "Lending" },
+  { regex: /ecUSD|ecMOVE|ecWETH|ecWBTC|ecUSDT|ecUSDC|ecUSDC\.E|ecUSDCX|ecsUSDe|ecLBTC|ecSolvBTC|ecrsETH|ecezETH/i, protocol: "ECHELON", category: "Lending" },
   { regex: /jUSD|jMOVE|jWETH|jWBTC/i, protocol: "JOULE", category: "Lending" },
   { regex: /stMOVE|sMOVE|cvMOVE|cvUSDC|cvUSDT|cvWBTC|cvWETH/i, protocol: "CANOPY", category: "Staking" },
   { regex: /mLP|mToken/i, protocol: "MOSAIC", category: "Liquidity" },
@@ -962,7 +962,7 @@ export const useDeFiPositions = (searchAddress = null) => {
 
           // Only include supported Echelon assets and keep exact token identities
           const ECHELON_SUPPORTED_ASSETS = new Set([
-            "MOVE", "WETH", "RSETH", "USDC", "USDT", "SUSDE", "WBTC", "LBTC", "SOLVBTC", "EZETH"
+            "MOVE", "WETH", "RSETH", "USDC", "USDT", "SUSDE", "WBTC", "LBTC", "SOLVBTC", "EZETH", "USDC.E", "USDCX"
           ]);
 
           // Helper to get decimals and symbol from market asset name
@@ -972,6 +972,8 @@ export const useDeFiPositions = (searchAddress = null) => {
 
             // Specific mappings first (avoid collapsing all BTC/ETH to one symbol)
             if (nameUpper.includes("SUSDE")) return { symbol: "sUSDe", decimals: 6, supported: true };
+            if (nameUpper.includes("USDCX")) return { symbol: "USDCx", decimals: 6, supported: true };
+            if (nameUpper.includes("USDC.E")) return { symbol: "USDC.e", decimals: 6, supported: true };
             if (nameUpper.includes("USDC")) return { symbol: "USDC", decimals: 6, supported: true };
             if (nameUpper.includes("USDT") || nameUpper.includes("USDT.E")) return { symbol: "USDT", decimals: 6, supported: true };
 

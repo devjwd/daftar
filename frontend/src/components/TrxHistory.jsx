@@ -335,19 +335,33 @@ const TokenIcon = ({ symbol }) => {
 };
 
 const SkeletonRows = ({ count = 5 }) => (
-  <div className={styles.skeletonList} aria-hidden="true">
+  <>
     {Array.from({ length: count }).map((_, index) => (
-      <div key={index} className={styles.skeletonRow}>
-        <span className={cn(styles.skeletonBlock, styles.skeletonBadge)} />
-        <span className={cn(styles.skeletonBlock, styles.skeletonTokens)} />
-        <span className={cn(styles.skeletonBlock, styles.skeletonAmount)} />
-        <span className={cn(styles.skeletonBlock, styles.skeletonUsd)} />
-        <span className={cn(styles.skeletonBlock, styles.skeletonPnl)} />
-        <span className={cn(styles.skeletonBlock, styles.skeletonDate)} />
-        <span className={cn(styles.skeletonBlock, styles.skeletonHash)} />
-      </div>
+      <tr key={index} className={styles.skeletonRow}>
+        <td>
+          <div className={styles.skeletonTypeCell}>
+            <div className={cn(styles.skeletonBlock, styles.skeletonIcon)} />
+            <div className={styles.skeletonTypeMeta}>
+              <div className={cn(styles.skeletonBlock, styles.skeletonBadge)} />
+              <div className={cn(styles.skeletonBlock, styles.skeletonDappName)} />
+            </div>
+          </div>
+        </td>
+        <td>
+          <div className={cn(styles.skeletonBlock, styles.skeletonTokens)} />
+        </td>
+        <td>
+          <div className={cn(styles.skeletonBlock, styles.skeletonAmount)} />
+        </td>
+        <td>
+          <div className={cn(styles.skeletonBlock, styles.skeletonDate)} />
+        </td>
+        <td>
+          <div className={cn(styles.skeletonBlock, styles.skeletonHash)} />
+        </td>
+      </tr>
     ))}
-  </div>
+  </>
 );
 
 export default function TrxHistory({ walletAddress }) {
@@ -538,28 +552,34 @@ export default function TrxHistory({ walletAddress }) {
         <div className={styles.toolbarMeta}>{txCountLabel}</div>
       </div>
 
-      {loading ? <SkeletonRows /> : null}
-
-      {!loading && error ? <div className={styles.emptyState}>{error}</div> : null}
-
-      {!loading && !error && transactions.length === 0 ? (
-        <div className={styles.emptyState}>No transactions found</div>
-      ) : null}
-
-      {!loading && !error && transactions.length > 0 ? (
-        <>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Tokens</th>
-                  <th>Amount</th>
-                  <th>Date</th>
-                  <th>TX</th>
-                </tr>
-              </thead>
-              <tbody>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Tokens</th>
+              <th>Amount</th>
+              <th>Date</th>
+              <th>TX</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <SkeletonRows count={8} />
+            ) : error ? (
+              <tr>
+                <td colSpan="5">
+                  <div className={styles.emptyState}>{error}</div>
+                </td>
+              </tr>
+            ) : transactions.length === 0 ? (
+              <tr>
+                <td colSpan="5">
+                  <div className={styles.emptyState}>No transactions found</div>
+                </td>
+              </tr>
+            ) : (
+              <>
                 {transactions.map((tx) => {
                   const txUrl = `${EXPLORER_TX_BASE}/${encodeURIComponent(tx.tx_hash)}?network=mainnet`;
                   const tokenIn = normalizeDisplayToken(tx.token_in);
@@ -571,12 +591,11 @@ export default function TrxHistory({ walletAddress }) {
                   let hasTokenIn = Boolean(tokenIn?.label);
                   let hasTokenOut = Boolean(tokenOut?.label);
 
-                  // For non-swaps, we usually only want to show one side of the token flow
                   if (!isSwap) {
                     if (['withdraw', 'unstake', 'claim', 'borrow', 'received'].includes(rawType)) {
-                      hasTokenIn = false; // Hide the receipt token/outflow for withdrawals
+                      hasTokenIn = false;
                     } else if (['lend', 'deposit', 'stake', 'repay', 'send'].includes(rawType)) {
-                      hasTokenOut = false; // Hide the receipt token/inflow for deposits
+                      hasTokenOut = false;
                     } else if (tokenOut?.label === tokenIn?.label) {
                       hasTokenOut = false;
                     }
@@ -667,32 +686,27 @@ export default function TrxHistory({ walletAddress }) {
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+                {loadingMore && <SkeletonRows count={5} />}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-          {loadingMore && (
-            <div className={styles.loadingMoreSkeleton}>
-              <SkeletonRows count={20} />
-            </div>
-          )}
-
-          {hasMore ? (
-            <div className={styles.loadMoreWrap}>
-              <button
-                type="button"
-                className={styles.loadMoreButton}
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-              >
-                {loadingMore ? 'Loading...' : 'Load more'}
-              </button>
-            </div>
-          ) : null}
-
-          {loadMoreError ? <div className={styles.inlineError}>{loadMoreError}</div> : null}
-        </>
+      {hasMore && !loading && !error && transactions.length > 0 ? (
+        <div className={styles.loadMoreWrap}>
+          <button
+            type="button"
+            className={styles.loadMoreButton}
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading...' : 'Load more'}
+          </button>
+        </div>
       ) : null}
+
+      {loadMoreError ? <div className={styles.inlineError}>{loadMoreError}</div> : null}
     </section>
   );
 }

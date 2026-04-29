@@ -823,7 +823,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
           <div className="settings-header">
             <div className="settings-h">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="settings-icon">
-                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor"/>
+                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor" />
               </svg>
               <div className="settings-title-group">
                 <h3>{t(lang, 'swapSettings')}</h3>
@@ -930,182 +930,182 @@ const Swap = ({ balances, onSwapSuccess }) => {
   return (
     <div className="swap-container">
       <div className="swap-card">
-          {/* Header */}
-          <div className="swap-header">
-            <div className="swap-header-left">
-              <h2>{t(lang, 'swapTitle')}</h2>
-            </div>
-            <div className="swap-header-actions">
-              <button
-                className={`quote-btn ${isQuoting ? "quoting" : ""}`}
-                onClick={fetchQuote}
-                title="Instant Quote"
-                disabled={!canRequestInstantQuote}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 3a9 9 0 1 0 8.94 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  <path d="M21 3v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-              <button className="settings-btn" onClick={() => setShowSettings(true)} title="Settings">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor"/>
-                </svg>
-              </button>
-            </div>
+        {/* Header */}
+        <div className="swap-header">
+          <div className="swap-header-left">
+            <h2>{t(lang, 'swapTitle')}</h2>
           </div>
-          {/* Connect Prompt */}
-          {!connected && (
-            <div className="swap-connect-prompt">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="connect-icon">
-                <circle cx="12" cy="5" r="3" />
-                <path d="M12 13v6M6 15l-3-2M18 15l3-2M8 17H4v2c0 1.1.9 2 2 2h2M20 17h4v2c0 1.1-.9 2-2 2h-2" />
-                <line x1="12" y1="13" x2="12" y2="18" />
+          <div className="swap-header-actions">
+            <button
+              className={`quote-btn ${isQuoting ? "quoting" : ""}`}
+              onClick={fetchQuote}
+              title="Instant Quote"
+              disabled={!canRequestInstantQuote}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 3a9 9 0 1 0 8.94 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path d="M21 3v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <p>{t(lang, 'swapConnectPrompt')}</p>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {connected && availableTokens.length === 0 && (
-            <div className="swap-empty-state">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="empty-icon">
-                <path d="M8 6h12M8 10h12M8 14h8M3 4h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
-                <circle cx="6" cy="18" r="3" fill="none" />
-                <circle cx="18" cy="18" r="3" fill="none" />
+            </button>
+            <button className="settings-btn" onClick={() => setShowSettings(true)} title="Settings">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor" />
               </svg>
-              <p>{t(lang, 'swapEmptyTokens')}</p>
-              <span className="empty-hint">{t(lang, 'swapEmptyTokensHint')}</span>
-            </div>
-          )}
+            </button>
+          </div>
+        </div>
+        {/* Connect Prompt */}
+        {!connected && (
+          <div className="swap-connect-prompt">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="connect-icon">
+              <circle cx="12" cy="5" r="3" />
+              <path d="M12 13v6M6 15l-3-2M18 15l3-2M8 17H4v2c0 1.1.9 2 2 2h2M20 17h4v2c0 1.1-.9 2-2 2h-2" />
+              <line x1="12" y1="13" x2="12" y2="18" />
+            </svg>
+            <p>{t(lang, 'swapConnectPrompt')}</p>
+          </div>
+        )}
 
-          {/* Main Swap Interface */}
-          {connected && availableTokens.length > 0 && (
-            <>
-              {/* From Token Input */}
-              <div className="swap-input-group">
-                <div className="swap-input-label">
-                  <span>From</span>
-                  {fromToken && <span className="swap-balance">Balance: {fromToken.amount}</span>}
-                </div>
-                <div className="swap-input-container">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    className="swap-input"
-                    placeholder="0.0"
-                    value={fromAmount}
-                    onChange={handleAmountChange}
-                  />
-                  <div className="swap-input-right">
-                    <div className="quick-fill-group" aria-label="Quick amount selector">
-                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(25)}>25%</button>
-                      <span className="quick-fill-separator" aria-hidden="true">-</span>
-                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(50)}>50%</button>
-                      <span className="quick-fill-separator" aria-hidden="true">-</span>
-                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(100)}>100%</button>
-                    </div>
-                    <button className="swap-token-selector" onClick={() => setShowFromSelector(true)}>
-                      <TokenBadge token={fromToken} getTokenLogo={getTokenLogo} />
-                    </button>
-                  </div>
-                </div>
-                {fromToken && fromAmount && (
-                  <div className="swap-input-footer">
-                    <span className="swap-usd-value">{formatUsd(fromAmount, resolveTokenPrice(fromToken))}</span>
-                  </div>
-                )}
+        {/* Empty State */}
+        {connected && availableTokens.length === 0 && (
+          <div className="swap-empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="empty-icon">
+              <path d="M8 6h12M8 10h12M8 14h8M3 4h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
+              <circle cx="6" cy="18" r="3" fill="none" />
+              <circle cx="18" cy="18" r="3" fill="none" />
+            </svg>
+            <p>{t(lang, 'swapEmptyTokens')}</p>
+            <span className="empty-hint">{t(lang, 'swapEmptyTokensHint')}</span>
+          </div>
+        )}
+
+        {/* Main Swap Interface */}
+        {connected && availableTokens.length > 0 && (
+          <>
+            {/* From Token Input */}
+            <div className="swap-input-group">
+              <div className="swap-input-label">
+                <span>From</span>
+                {fromToken && <span className="swap-balance">Balance: {fromToken.amount}</span>}
               </div>
-
-              {/* Swap Direction Button */}
-              <div className="swap-switch-container">
-                <button className="swap-switch-btn" onClick={handleSwapTokens} title="Switch tokens">
-                  <span className="swap-switch-icon">⇅</span>
-                </button>
-              </div>
-
-              {/* To Token Input */}
-              <div className="swap-input-group">
-                <div className="swap-input-label">
-                  <span>{t(lang, 'swapTo')}</span>
-                  {toToken && <span className="swap-balance">{t(lang, 'swapBalance', { amount: toToken.amount })}</span>}
-                </div>
-                <div className="swap-input-container">
-                  <input
-                    type="text"
-                    className="swap-input"
-                    placeholder="0.0"
-                    value={isQuoting ? "..." : toAmount}
-                    readOnly
-                  />
-                  <div className="swap-input-right">
-                    <button className="swap-token-selector" onClick={() => setShowToSelector(true)}>
-                      <TokenBadge token={toToken} getTokenLogo={getTokenLogo} />
-                    </button>
+              <div className="swap-input-container">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="swap-input"
+                  placeholder="0.0"
+                  value={fromAmount}
+                  onChange={handleAmountChange}
+                />
+                <div className="swap-input-right">
+                  <div className="quick-fill-group" aria-label="Quick amount selector">
+                    <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(25)}>25%</button>
+                    <span className="quick-fill-separator" aria-hidden="true">-</span>
+                    <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(50)}>50%</button>
+                    <span className="quick-fill-separator" aria-hidden="true">-</span>
+                    <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(100)}>100%</button>
                   </div>
+                  <button className="swap-token-selector" onClick={() => setShowFromSelector(true)}>
+                    <TokenBadge token={fromToken} getTokenLogo={getTokenLogo} />
+                  </button>
                 </div>
-                {toToken && toAmount && (
-                  <div className="swap-input-footer">
-                    <span className="swap-usd-value">{formatUsd(toAmount, resolveTokenPrice(toToken))}</span>
-                  </div>
-                )}
               </div>
-
-              {/* Error */}
-              {error && (
-                <div className="swap-error">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="error-icon">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z" />
-                  </svg>
-                  {error}
+              {fromToken && fromAmount && (
+                <div className="swap-input-footer">
+                  <span className="swap-usd-value">{formatUsd(fromAmount, resolveTokenPrice(fromToken))}</span>
                 </div>
               )}
+            </div>
 
-              {/* Swap Button */}
-              <button
-                className={`swap-execute-btn ${buttonState.disabled ? "disabled" : ""}`}
-                onClick={handleSwap}
-                disabled={buttonState.disabled}
-              >
-                {swapping && <span className="spinner" />}
-                {buttonState.text}
+            {/* Swap Direction Button */}
+            <div className="swap-switch-container">
+              <button className="swap-switch-btn" onClick={handleSwapTokens} title="Switch tokens">
+                <span className="swap-switch-icon">⇅</span>
               </button>
+            </div>
 
-              {/* Swap Details */}
-              {fromToken && toToken && fromAmount && toAmount && !error && (
-                <div className="swap-info">
-                  <div className="swap-info-row">
-                    <span>{t(lang, 'swapRate')}</span>
-                    <span>
-                      1 {fromToken.symbol} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(6)} {toToken.symbol}
-                    </span>
-                  </div>
-                  <div className="swap-info-row">
-                    <span>{t(lang, 'swapPriceImpact')}</span>
-                    <span className={priceImpact > 3 ? "warning" : ""}>~{priceImpact.toFixed(2)}%</span>
-                  </div>
-                  <div className="swap-info-row">
-                    <span>{t(lang, 'swapMinReceived')}</span>
-                    <span>{minReceived} {toToken.symbol}</span>
-                  </div>
-                  <div className="swap-info-row">
-                    <span>{t(lang, 'swapSlippage')}</span>
-                    <span>{slippage}%</span>
-                  </div>
-                  <div className="swap-info-row">
-                    <span>{t(lang, 'swapNetworkFee')}</span>
-                    <span>~0.001 MOVE</span>
-                  </div>
-                  <div className="swap-info-row highlight">
-                    <span>{t(lang, 'swapRoute')}</span>
-                    <span className="mosaic-router">
-                      {bestProvider}
-                    </span>
-                  </div>
+            {/* To Token Input */}
+            <div className="swap-input-group">
+              <div className="swap-input-label">
+                <span>{t(lang, 'swapTo')}</span>
+                {toToken && <span className="swap-balance">{t(lang, 'swapBalance', { amount: toToken.amount })}</span>}
+              </div>
+              <div className="swap-input-container">
+                <input
+                  type="text"
+                  className="swap-input"
+                  placeholder="0.0"
+                  value={isQuoting ? "..." : toAmount}
+                  readOnly
+                />
+                <div className="swap-input-right">
+                  <button className="swap-token-selector" onClick={() => setShowToSelector(true)}>
+                    <TokenBadge token={toToken} getTokenLogo={getTokenLogo} />
+                  </button>
+                </div>
+              </div>
+              {toToken && toAmount && (
+                <div className="swap-input-footer">
+                  <span className="swap-usd-value">{formatUsd(toAmount, resolveTokenPrice(toToken))}</span>
                 </div>
               )}
-            </>
-          )}
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="swap-error">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="error-icon">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z" />
+                </svg>
+                {error}
+              </div>
+            )}
+
+            {/* Swap Button */}
+            <button
+              className={`swap-execute-btn ${buttonState.disabled ? "disabled" : ""}`}
+              onClick={handleSwap}
+              disabled={buttonState.disabled}
+            >
+              {swapping && <span className="spinner" />}
+              {buttonState.text}
+            </button>
+
+            {/* Swap Details */}
+            {fromToken && toToken && fromAmount && toAmount && !error && (
+              <div className="swap-info">
+                <div className="swap-info-row">
+                  <span>{t(lang, 'swapRate')}</span>
+                  <span>
+                    1 {fromToken.symbol} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(6)} {toToken.symbol}
+                  </span>
+                </div>
+                <div className="swap-info-row">
+                  <span>{t(lang, 'swapPriceImpact')}</span>
+                  <span className={priceImpact > 3 ? "warning" : ""}>~{priceImpact.toFixed(2)}%</span>
+                </div>
+                <div className="swap-info-row">
+                  <span>{t(lang, 'swapMinReceived')}</span>
+                  <span>{minReceived} {toToken.symbol}</span>
+                </div>
+                <div className="swap-info-row">
+                  <span>{t(lang, 'swapSlippage')}</span>
+                  <span>{slippage}%</span>
+                </div>
+                <div className="swap-info-row">
+                  <span>{t(lang, 'swapNetworkFee')}</span>
+                  <span>~0.001 MOVE</span>
+                </div>
+                <div className="swap-info-row highlight">
+                  <span>{t(lang, 'swapRoute')}</span>
+                  <span className="mosaic-router">
+                    {bestProvider}
+                  </span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Token Selectors */}
