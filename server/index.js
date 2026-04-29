@@ -1122,9 +1122,10 @@ app.delete('/api/entities/:id', async (req, res) => {
   }
 });
 
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`[Server] Running on port ${PORT}`);
+if (!process.env.VERCEL) {
+  const host = '0.0.0.0';
+  app.listen(PORT, host, () => {
+    console.log(`[Server] Running on http://${host}:${PORT}`);
   });
 }
 
