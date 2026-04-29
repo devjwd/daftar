@@ -521,9 +521,6 @@ app.post('/api/badges/sync', async (req, res) => {
   }
 });
 
-  return res.status(200).json({ ok: true, walletAddress, badgeId, awardedAt });
-});
-
 // GET /api/badges/eligibility
 app.get('/api/badges/eligibility', generalLimiter, async (req, res) => {
   const wallet = normalizeAddress(req.query.wallet || req.query.wallet_address);
