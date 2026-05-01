@@ -1,5 +1,6 @@
 import nacl from 'tweetnacl';
-import { sha3_256 } from 'js-sha3';
+import sha3 from 'js-sha3';
+const { sha3_256 } = sha3;
 import { createHash } from 'crypto';
 
 const ADMIN_SIGNATURE_TTL_MS = 5 * 60 * 1000;

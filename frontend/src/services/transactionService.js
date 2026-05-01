@@ -39,33 +39,24 @@ const ENTITY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const resolveEnv = () => {
   const env = (typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env : {};
-  const processEnv = (typeof globalThis !== "undefined" && globalThis.process?.env) ? globalThis.process.env : {};
 
   return {
     rpcUrl: String(
       env.VITE_MOVEMENT_RPC_URL ||
-      processEnv.VITE_MOVEMENT_RPC_URL ||
-      processEnv.MOVEMENT_RPC_URL ||
       DEFAULT_NETWORK.rpc ||
       ""
     ).trim() || null,
     indexerUrl: String(
       env.VITE_MOVEMENT_INDEXER_URL ||
-      processEnv.VITE_MOVEMENT_INDEXER_URL ||
-      processEnv.MOVEMENT_INDEXER_URL ||
       DEFAULT_NETWORK.indexer ||
       ""
     ).trim() || null,
     supabaseUrl: String(
       env.VITE_SUPABASE_URL ||
-      processEnv.VITE_SUPABASE_URL ||
-      processEnv.SUPABASE_URL ||
       ""
     ).trim() || null,
     supabaseAnonKey: String(
       env.VITE_SUPABASE_ANON_KEY ||
-      processEnv.VITE_SUPABASE_ANON_KEY ||
-      processEnv.SUPABASE_ANON_KEY ||
       ""
     ).trim() || null,
     // NOTE: Service role key intentionally excluded from frontend — server-only secret

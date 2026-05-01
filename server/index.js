@@ -18,7 +18,14 @@ app.use(express.json({ limit: '1mb' }));
 
 app.use(
   cors({
-    origin: process.env.BADGE_CORS_ORIGIN ? process.env.BADGE_CORS_ORIGIN.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'https://www.daftar.fi', 'https://daftar.fi'],
+    origin: function (origin, callback) {
+      const allowedOrigins = process.env.BADGE_CORS_ORIGIN ? process.env.BADGE_CORS_ORIGIN.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'https://www.daftar.fi', 'https://daftar.fi'];
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   })
 );
@@ -275,6 +282,12 @@ const FALLBACK_PRICES = {
   '0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d': 1.0,
   '0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39': 1.0,
   '0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650': 1.0,
+};
+
+let cachedSnapshot = {
+  prices: { ...FALLBACK_PRICES },
+  priceChanges: {},
+  updatedAt: 0,
 };
 
 const getCoinGeckoApiUrl = () => {
@@ -1118,6 +1131,60 @@ app.delete('/api/entities/:id', async (req, res) => {
     return res.status(500).json({ error: err.message || 'Failed to delete entity' });
   }
 });
+
+/**
+ * POST /api/storage/pin
+ * Handles IPFS pinning of JSON metadata (e.g. for NFT badges).
+ * This protects Pinata/IPFS API keys by keeping them server-side.
+ */
+app.post('/api/storage/pin', async (req, res) => {
+  const PINATA_JWT = process.env.PINATA_JWT;
+  
+  if (!PINATA_JWT) {
+    console.error('[Storage] PINATA_JWT not configured in environment');
+    return res.status(503).json({ error: 'Storage service unconfigured' });
+  }
+
+  try {
+    const metadata = req.body;
+    if (!metadata || typeof metadata !== 'object') {
+      return res.status(400).json({ error: 'Valid JSON metadata required' });
+    }
+
+    const response = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PINATA_JWT}`
+      },
+      body: JSON.stringify({
+        pinataContent: metadata,
+        pinataMetadata: {
+          name: `daftar_badge_${Date.now()}`
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[Storage] Pinata error:', errorData);
+      return res.status(response.status).json({ error: 'Failed to pin to IPFS' });
+    }
+
+    const result = await response.json();
+    console.log('[Storage] Metadata pinned:', result.IpfsHash);
+
+    return res.status(200).json({ 
+      success: true, 
+      ipfsHash: result.IpfsHash,
+      uri: `ipfs://${result.IpfsHash}`
+    });
+  } catch (err) {
+    console.error('[Storage] Critical pinning error:', err);
+    return res.status(500).json({ error: 'Internal storage error' });
+  }
+});
+
 
 if (!process.env.VERCEL) {
   const host = '0.0.0.0';

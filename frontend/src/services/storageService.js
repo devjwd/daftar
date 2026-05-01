@@ -18,7 +18,8 @@ export const pinMetadataToIPFS = async (metadata) => {
   try {
     // In a production environment, this calls a Supabase Edge Function
     // which holds the Pinata JWT. 
-    const response = await fetch('/api/storage/pin', {
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${baseUrl}/api/storage/pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(metadata)

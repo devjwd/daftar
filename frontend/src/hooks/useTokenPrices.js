@@ -141,7 +141,9 @@ export const useTokenPrices = () => {
 
 
   const fetchFromServerPricesApi = useCallback(async () => {
-    const response = await fetchWithTimeout(PRICE_API_ENDPOINT, SERVER_PRICE_TIMEOUT_MS);
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const url = PRICE_API_ENDPOINT.startsWith('http') ? PRICE_API_ENDPOINT : `${baseUrl}${PRICE_API_ENDPOINT}`;
+    const response = await fetchWithTimeout(url, SERVER_PRICE_TIMEOUT_MS);
 
     if (!response.ok) {
       throw new Error(`Price API error: ${response.status} ${response.statusText}`);
@@ -173,25 +175,25 @@ export const useTokenPrices = () => {
           throw serverError;
         }
 
-        let mergedPrices = null;
-        let mergedChanges = null;
-        setPrices((prev) => {
-          const aliasedSnapshot = applyPriceAliases(
-            {
-              ...FALLBACK_PRICES,
-              ...prev,
-              ...(nextSnapshot?.prices || {}),
-            },
-            nextSnapshot?.priceChanges || {},
-          );
-          mergedPrices = aliasedSnapshot.prices;
-          mergedChanges = aliasedSnapshot.priceChanges;
-          return mergedPrices;
-        });
-        setPriceChanges(mergedChanges || {});
-        if (mergedPrices) {
-          persistCachedPrices(mergedPrices, mergedChanges || {});
-        }
+        const currentCache = loadCachedPrices();
+        const prevPrices = currentCache?.prices || FALLBACK_PRICES;
+        const prevChanges = currentCache?.priceChanges || {};
+
+        const incomingChanges = nextSnapshot?.priceChanges || {};
+        const resolvedChanges = Object.keys(incomingChanges).length > 0 ? incomingChanges : prevChanges;
+
+        const aliasedSnapshot = applyPriceAliases(
+          {
+            ...FALLBACK_PRICES,
+            ...prevPrices,
+            ...(nextSnapshot?.prices || {}),
+          },
+          resolvedChanges
+        );
+
+        setPrices(aliasedSnapshot.prices);
+        setPriceChanges(aliasedSnapshot.priceChanges);
+        persistCachedPrices(aliasedSnapshot.prices, aliasedSnapshot.priceChanges);
 
         setLoading(false);
         return;
