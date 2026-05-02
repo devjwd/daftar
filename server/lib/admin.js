@@ -65,7 +65,7 @@ export const verifyAdminRequest = (
 ) => {
   const allowedAddress = normalizeAddress(process.env.ADMIN_WALLET_ADDRESS);
   if (!allowedAddress) {
-    throw new Error('ADMIN_WALLET_ADDRESS secret is not configured');
+    return { ok: false, error: 'ADMIN_WALLET_ADDRESS secret is not configured', status: 500 };
   }
 
   const claimedAddress = normalizeAddress(req.headers['x-admin-address']);

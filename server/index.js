@@ -738,7 +738,7 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
     let sigData = null;
     let proofHash = evaluation.proof_hash || attestation?.proof_hash;
 
-    const privateKey = process.env.BADGE_SIGNER_PRIVATE_KEY;
+    const privateKey = process.env.BADGE_ATTESTOR_PRIVATE_KEY || process.env.BADGE_SIGNER_PRIVATE_KEY;
     const moduleAddress = process.env.BADGE_MODULE_ADDRESS;
 
     if (isSignatureRequest) {
