@@ -845,10 +845,13 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
         return res.status(500).json({ error: 'Server configuration error (missing signer keys)' });
       }
 
-      // Fetch signer_epoch (simplified for now, ideally from chain)
-      const signerEpoch = 0; // Can be enhanced later
-      const validUntil = Math.floor(Date.now() / 1000) + (30 * 60); // 30 mins
+      // Signer epoch management
+      // TODO: Fetch from registry info if epoch > 0. For now we use 0 as default.
+      const signerEpoch = 0; 
+      const validUntil = Math.floor(Date.now() / 1000) + 240; // 4 minutes (Contract limit is 300s)
       
+      console.log(`[Award] Signing mint auth: User=${walletAddress}, BadgeID=${badge.on_chain_badge_id}, Epoch=${signerEpoch}, ValidUntil=${validUntil}`);
+
       sigData = await signMintAuthorization(
         privateKey,
         moduleAddress,

@@ -26,6 +26,7 @@ import { devLog } from "../utils/devLogger";
 import { getTokenDecimals, isValidAddress, parseCoinType } from "../utils/tokenUtils";
 import ProfileCard from "../components/ProfileCard";
 import { ALL_ADAPTERS } from "../config/adapters/index";
+import { resolveEntityBranding } from "../services/entityStore";
 
 const TrxHistory = lazy(() => import("../components/TrxHistory"));
 const PORTFOLIO_TABS = {
@@ -1091,9 +1092,15 @@ const Dashboard = () => {
 
   const visibleLiquidityPositions = useMemo(() => {
     if (!Array.isArray(liquidityPositions)) return [];
-    return liquidityPositions.filter(pos =>
-      shouldDisplayPosition(getLiquidityPositionUsdValue(pos, priceMap), hidePositionThreshold)
-    );
+    return liquidityPositions
+      .filter(pos =>
+        shouldDisplayPosition(getLiquidityPositionUsdValue(pos, priceMap), hidePositionThreshold)
+      )
+      .sort((a, b) => {
+        const valA = getLiquidityPositionUsdValue(a, priceMap) ?? 0;
+        const valB = getLiquidityPositionUsdValue(b, priceMap) ?? 0;
+        return valB - valA;
+      });
   }, [liquidityPositions, priceMap, hidePositionThreshold]);
 
   const { profile: userProfile } = useProfile(viewingAddress);
@@ -1101,7 +1108,9 @@ const Dashboard = () => {
 
   const modalProfileAddress = showProfileModal ? viewingAddress : null;
   const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(modalProfileAddress);
-  const userAvatarSrc = getLevelBasedPfp({
+  const entityBranding = useMemo(() => resolveEntityBranding(viewingAddress), [viewingAddress]);
+
+  const userAvatarSrc = entityBranding?.logo || getLevelBasedPfp({
     level: viewingLevel,
     address: viewingAddress,
     preferredPfp: userProfile?.avatar_url || userProfile?.pfp,
@@ -2412,11 +2421,12 @@ const Dashboard = () => {
             <div className="hero-profile-section">
               <div className="hero-profile-card">
                 <div
-                  className="hero-profile-avatar"
-                  onClick={() => setShowProfileModal(true)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyPress={(e) => e.key === 'Enter' && setShowProfileModal(true)}
+                  className={`hero-profile-avatar ${entityBranding ? 'non-interactive' : ''}`}
+                  onClick={() => !entityBranding && setShowProfileModal(true)}
+                  role={entityBranding ? "img" : "button"}
+                  tabIndex={entityBranding ? -1 : 0}
+                  onKeyPress={(e) => !entityBranding && e.key === 'Enter' && setShowProfileModal(true)}
+                  style={{ cursor: entityBranding ? 'default' : 'pointer' }}
                 >
                   <img
                     src={userAvatarSrc}
@@ -2425,13 +2435,13 @@ const Dashboard = () => {
                   />
                 </div>
                 <div className="hero-profile-socials-grid">
-                  {userProfile?.twitter ? (
+                  {(entityBranding?.twitter || userProfile?.twitter) ? (
                     <a
-                      href={`https://twitter.com/${userProfile.twitter.replace('@', '')}`}
+                      href={entityBranding?.twitter ? entityBranding.twitter : `https://twitter.com/${userProfile.twitter.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hero-social-link"
-                      title={`Twitter: @${userProfile.twitter.replace('@', '')}`}
+                      title={entityBranding?.twitter ? "Twitter" : `Twitter: @${userProfile.twitter.replace('@', '')}`}
                     >
                       <span className="hero-social-icon">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -2440,13 +2450,13 @@ const Dashboard = () => {
                       </span>
                     </a>
                   ) : null}
-                  {userProfile?.telegram ? (
+                  {(entityBranding?.website || userProfile?.telegram) ? (
                     <a
-                      href={userProfile.telegram.startsWith('http') ? userProfile.telegram : `https://${userProfile.telegram}`}
+                      href={entityBranding?.website ? (entityBranding.website.startsWith('http') ? entityBranding.website : `https://${entityBranding.website}`) : (userProfile.telegram.startsWith('http') ? userProfile.telegram : `https://${userProfile.telegram}`)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hero-social-link"
-                      title="Link"
+                      title={entityBranding?.website ? "Website" : "Link"}
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="hero-social-icon">
                         <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
@@ -2508,8 +2518,16 @@ const Dashboard = () => {
             </div>
 
             <span className="hero-v3-title">
-              {userProfile?.username ? (
-                t(language, 'dashNetWorthUser', { username: userProfile.username })
+              {entityBranding?.name ? (
+                <>
+                  <span className="hero-v3-entity-name-highlight">{entityBranding.name}</span>
+                  <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth').toLowerCase()}</span>
+                </>
+              ) : userProfile?.username ? (
+                <>
+                  <span className="hero-v3-entity-name-highlight">{userProfile.username}</span>
+                  <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth').toLowerCase()}</span>
+                </>
               ) : t(language, 'dashNetWorth')}
             </span>
 

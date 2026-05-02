@@ -6,6 +6,7 @@
 
 import { createProfileMigrationProofHeaders } from './profileProof';
 import { devLog } from '../utils/devLogger.js';
+import { normalizeAddress } from '../utils/address.js';
 
 const PROFILE_PREFIX = 'move_profile_';
 const PROFILES_INDEX = 'move_profiles_index';

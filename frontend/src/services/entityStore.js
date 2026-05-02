@@ -89,6 +89,7 @@ export const resolveEntityBranding = (address) => {
     name: entity.name,
     logo: entity.logo_url,
     website: entity.website_url,
+    twitter: entity.twitter_url,
     is_verified: entity.is_verified,
     category: entity.category
   };

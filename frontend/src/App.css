@@ -1418,6 +1418,15 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   border-color: rgba(205, 161, 105, 0.4);
 }
 
+.hero-profile-avatar.non-interactive {
+  cursor: default !important;
+}
+
+.hero-profile-avatar.non-interactive .hero-avatar-image:hover {
+  box-shadow: 0 8px 24px rgba(205, 161, 105, 0.3);
+  border-color: rgba(205, 161, 105, 0.4);
+}
+
 .hero-avatar-image {
   object-fit: cover;
 }
@@ -1523,15 +1532,18 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 }
 
 .hero-profile-socials-grid {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0;
-  background: transparent;
-  backdrop-filter: none;
-  border: none;
-  box-shadow: none;
-  margin-top: 14px;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 30px;
+  margin-top: 16px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 
@@ -1539,23 +1551,18 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: rgba(205, 161, 105, 0.04);
-  border: 1px solid rgba(205, 161, 105, 0.15);
+  background: none;
+  border: none;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
   text-decoration: none;
-  color: #cda169;
+  color: #9ca3af;
+  padding: 4px;
 }
 
 .hero-social-link:hover {
-  border-color: #deb884;
-  background: rgba(205, 161, 105, 0.12);
   transform: translateY(-2px);
-  color: #deb884;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  color: #fff;
 }
 
 .hero-social-link::after {
@@ -1567,13 +1574,12 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 }
 
 .hero-social-icon {
-  font-size: 13px;
-  filter: none;
-  color: #cda169;
+  font-size: 14px;
+  color: inherit;
 }
 
 .hero-social-link:hover .hero-social-icon {
-  color: #deb884;
+  color: inherit;
 }
 
 /* Legacy social styles for backwards compatibility */
@@ -1631,6 +1637,21 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   color: #deb884;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.hero-v3-entity-name-highlight {
+  color: #deb884;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 14px;
+  margin-right: 6px;
+  display: inline-block;
+}
+
+.hero-v3-title-suffix {
+  opacity: 0.8;
+  font-size: 12px;
 }
 
 /* Profile Modal */
