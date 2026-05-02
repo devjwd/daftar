@@ -423,27 +423,94 @@ app.get('/api/badges/config', async (req, res) => {
 
 // GET /api/leaderboard - Get top users sorted by XP
 app.get('/api/leaderboard', async (req, res) => {
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+  try {
+    if (!supabaseAdmin) {
+      console.warn('[Server] Leaderboard requested but Supabase admin not initialized');
+      return res.status(503).json({ error: 'Service unavailable' });
+    }
 
-  const limit = Math.min(parseInt(req.query.limit || '100'), 100);
+    const limit = Math.min(parseInt(req.query.limit || '100'), 100);
 
-  const { data, error } = await supabaseAdmin
-    .from('profiles')
-    .select('wallet_address, username, avatar_url, xp')
-    .order('xp', { ascending: false })
-    .limit(limit);
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('wallet_address, username, avatar_url, xp')
+      .order('xp', { ascending: false })
+      .limit(limit);
 
-  if (error) {
-    console.error('[Server] Leaderboard fetch error:', error);
-    return res.status(500).json({ error: 'Failed to fetch leaderboard' });
+    if (error) {
+      console.error('[Server] Leaderboard fetch error:', error);
+      return res.status(500).json({ 
+        error: 'Failed to fetch leaderboard',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+
+    // Ensure data is an array before mapping
+    const leaderboardData = Array.isArray(data) ? data : [];
+
+    return res.status(200).json({
+      leaderboard: leaderboardData.map(d => ({
+        ...d,
+        address: d.wallet_address || '', // Match frontend camelCase
+        walletAddress: d.wallet_address || '', // Explicit camelCase
+      }))
+    });
+  } catch (err) {
+    console.error('[Server] Critical error in leaderboard route:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- MOSAIC SWAP PROXY ---
+
+app.get('/api/swap/tokens', generalLimiter, async (req, res) => {
+  const MOSAIC_API_KEY = process.env.MOSAIC_API_KEY;
+  if (!MOSAIC_API_KEY) {
+    return res.status(503).json({ error: 'Mosaic API not configured' });
   }
 
-  return res.status(200).json({
-    leaderboard: data.map(d => ({
-      ...d,
-      address: d.wallet_address // Match frontend camelCase
-    }))
-  });
+  try {
+    const response = await fetch('https://api.mosaic.ag/v1/tokens', {
+      headers: { 'X-API-KEY': MOSAIC_API_KEY, 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) throw new Error(`Mosaic API error: ${response.status}`);
+    
+    const data = await response.json();
+    // Mosaic returns { tokenById: { ... } }. The frontend expects an array.
+    const tokens = data.tokenById ? Object.values(data.tokenById) : (data.data || data);
+    
+    return res.json(Array.isArray(tokens) ? tokens : []);
+  } catch (err) {
+    console.error('[Mosaic] Tokens error:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch tokens from Mosaic' });
+  }
+});
+
+app.get('/api/swap/quote', generalLimiter, async (req, res) => {
+  const MOSAIC_API_KEY = process.env.MOSAIC_API_KEY;
+  if (!MOSAIC_API_KEY) {
+    return res.status(503).json({ error: 'Mosaic API not configured' });
+  }
+
+  const params = new URLSearchParams(req.query);
+  try {
+    const response = await fetch(`https://api.mosaic.ag/v1/quote?${params.toString()}`, {
+      headers: { 'X-API-KEY': MOSAIC_API_KEY, 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[Mosaic] Quote error:', response.status, errText);
+      return res.status(response.status).json({ error: 'Mosaic API error' });
+    }
+
+    const data = await response.json();
+    return res.json(data);
+  } catch (err) {
+    console.error('[Mosaic] Quote fetch failure:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch quote from Mosaic' });
+  }
 });
 
 app.post('/api/badges/track', async (req, res) => {

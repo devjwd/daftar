@@ -97,7 +97,8 @@ export default function Leaderboard() {
       currentController = new AbortController();
 
       try {
-        const response = await fetch('/api/leaderboard', {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${baseUrl}/api/leaderboard`, {
           method: 'GET',
           signal: currentController.signal,
         });

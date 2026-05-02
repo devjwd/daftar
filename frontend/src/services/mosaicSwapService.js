@@ -18,14 +18,15 @@ const MAX_FEE_BPS = 500; // 5% max protocol fee
 const QUOTE_TIMEOUT_MS = 8000;
 const VALID_ROUTING_MODES = ["mosaic"];
 const DEFAULT_ENABLED_LIQUIDITY_SOURCES = ["mosaic_amm"];
-const SWAP_PROXY_BASE = "/api/swap";
+const API_BASE = import.meta.env.VITE_API_URL || "";
+const SWAP_PROXY_BASE = `${API_BASE}/api/swap`;
 
 const KNOWN_MOSAIC_ASSETS = {
-  MOVE: "0xa",
-  USDC: "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39",
-  USDT: "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d",
-  WETH: "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376",
-  WBTC: "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c",
+  MOVE: "0x1::aptos_coin::AptosCoin",
+  USDC: "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39::asset::USDC",
+  USDT: "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d::asset::USDT",
+  WETH: "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376::asset::WETH",
+  WBTC: "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c::asset::WBTC",
 };
 
 const SYMBOL_ALIASES = {
@@ -134,7 +135,8 @@ const normalizeSymbol = (symbol) => {
 const normalizeAddress = (address) => {
   const raw = String(address || "").trim().toLowerCase();
   if (!raw) return "";
-  return raw.includes("::") ? raw.split("::")[0] : raw;
+  // For Mosaic, we want to keep the full type if it contains ::
+  return raw;
 };
 
 const normalizeAmountString = (value) => {
@@ -211,10 +213,10 @@ async function fetchTokenRegistry() {
 
   for (const token of tokens) {
     const symbol = normalizeSymbol(token.symbol);
-    const address = normalizeAddress(token.address || token.id);
-    if (!address) continue;
-    if (symbol && !bySymbol.has(symbol)) bySymbol.set(symbol, address);
-    byAddress.set(address, address);
+    const id = String(token.id || token.address || "").trim();
+    if (!id) continue;
+    if (symbol && !bySymbol.has(symbol)) bySymbol.set(symbol, id);
+    byAddress.set(id.toLowerCase(), id);
   }
 
   registryCache = { bySymbol, byAddress };

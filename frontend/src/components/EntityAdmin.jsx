@@ -65,7 +65,8 @@ export default function EntityAdmin() {
         payload.id = editingId;
       }
 
-      const response = await fetch('/api/entities', {
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${baseUrl}/api/entities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -123,7 +124,8 @@ export default function EntityAdmin() {
     if (!window.confirm('Are you sure you want to delete this entity mapping?')) return;
 
     try {
-       const response = await fetch(`/api/entities/${id}`, {
+       const baseUrl = import.meta.env.VITE_API_URL || '';
+       const response = await fetch(`${baseUrl}/api/entities/${id}`, {
          method: 'DELETE'
        });
        

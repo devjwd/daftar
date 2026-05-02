@@ -695,7 +695,8 @@ const Swap = ({ balances, onSwapSuccess }) => {
           try {
             const fromPrice = resolveTokenPrice(fromToken);
             const toPrice = resolveTokenPrice(toToken);
-            fetch("/api/swap/record", {
+            const baseUrl = import.meta.env.VITE_API_URL || '';
+            fetch(`${baseUrl}/api/swap/record`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

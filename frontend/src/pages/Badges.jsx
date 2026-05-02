@@ -228,7 +228,8 @@ export default function Badges() {
   }, [address, visibleBadges]);
 
   const syncBadgeMint = useCallback(async ({ senderAddress, badge, txHash, attempt = 0 }) => {
-    const response = await fetch('/api/badges/sync', {
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${baseUrl}/api/badges/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -507,9 +508,9 @@ export default function Badges() {
 
             {/* Refresh button */}
             <div className="badges-toolbar">
-              <button 
-                className={`badges-scan-btn ${isScanning ? 'is-scanning' : ''}`} 
-                onClick={handleDeepScan} 
+              <button
+                className={`badges-scan-btn ${isScanning ? 'is-scanning' : ''}`}
+                onClick={handleDeepScan}
                 disabled={loading || isScanning}
               >
                 {isScanning ? t(language, 'badgesScanning') : t(language, 'badgesDeepScan')}

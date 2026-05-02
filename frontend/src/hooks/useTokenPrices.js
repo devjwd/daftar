@@ -16,7 +16,7 @@ const COINGECKO_IDS = {
   "0xa": "movement",
   "0x1": "movement",
   [GMOVE_ADDRESS]: "movement",
-  
+
   // Stablecoins (real addresses on Movement Network)
   // USDT - long address on Movement
   "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d": "tether",
@@ -28,7 +28,7 @@ const COINGECKO_IDS = {
   "0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650": "usd-coin", // Use USDC as proxy for stablecoin
   // USDe - Ethena USD
   "0x9d146a4c9472a7e7b0dbc72da0eafb02b54173a956ef22a9fba29756f8661c6c": "ethena-usde",
-  
+
   // WETH on Movement Network
   "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376": "ethereum",
   // weETH - Wrapped eETH
@@ -37,7 +37,7 @@ const COINGECKO_IDS = {
   "0x2f6af255328fe11b88d840d1e367e946ccd16bd7ebddd6ee7e2ef9f7ae0c53ef": "renzo-restaked-eth",
   // rsETH - Kelp Restaked ETH
   "0x51ffc9885233adf3dd411078cad57535ed1982013dc82d9d6c433a55f2e0035d": "kelp-dao-restaked-eth",
-  
+
   // WBTC on Movement Network
   "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c": "bitcoin",
   // LBTC - Lombard BTC
@@ -218,8 +218,8 @@ export const useTokenPrices = () => {
       : "Failed to fetch prices. Using fallback values.";
     setError(errorMsg);
     setPrices((prev) => applyPriceAliases({
-            ...FALLBACK_PRICES,
-            ...prev,
+      ...FALLBACK_PRICES,
+      ...prev,
     }).prices);
     setPriceChanges((prev) => applyPriceAliases({}, prev).priceChanges);
     setLoading(false);

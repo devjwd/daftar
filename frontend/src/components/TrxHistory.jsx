@@ -73,7 +73,8 @@ const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal
 
   try {
     // Attempt 1: Backend Database (Fastest for Profile Users)
-    const response = await fetch(`/api/transactions?${params.toString()}`, {
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${baseUrl}/api/transactions?${params.toString()}`, {
       signal,
     });
 
