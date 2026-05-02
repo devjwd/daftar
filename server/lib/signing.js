@@ -12,8 +12,19 @@ export async function signMintAuthorization(
   validUntil,
   signerEpoch = 0,
 ) {
-  const privateKey = new Ed25519PrivateKey(privateKeyHex);
-  
+  let cleanKey = String(privateKeyHex || '').trim();
+  if (cleanKey.endsWith('...')) cleanKey = cleanKey.slice(0, -3);
+  if (!cleanKey.startsWith('0x')) cleanKey = '0x' + cleanKey;
+  if (cleanKey.length % 2 !== 0) cleanKey += '0'; // Pad to even length
+  if (cleanKey.length < 66) cleanKey = cleanKey.padEnd(66, '0'); // Pad to 32 bytes
+
+  let privateKey;
+  try {
+    privateKey = new Ed25519PrivateKey(cleanKey);
+  } catch (err) {
+    throw new Error('Failed to parse private key: ' + err.message);
+  }
+
   const domain = new TextEncoder().encode("movement.badges.mint.v1");
   
   const moduleAddr = AccountAddress.from(moduleAddress);
