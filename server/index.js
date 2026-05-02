@@ -795,7 +795,7 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
 
   } catch (err) {
     console.error('[Award] Critical error:', err);
-    return res.status(500).json({ error: 'Internal server error during award' });
+    return res.status(500).json({ error: 'Internal server error during award', details: err.message, stack: err.stack });
   }
 });
 
