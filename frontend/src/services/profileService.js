@@ -20,22 +20,7 @@ const PENDING_REQUESTS = new Map();
 const PROFILE_CACHE = new Map();
 const CLIENT_CACHE_TTL = 60000; // 1 minute
 
-/**
- * Normalize address to consistent format
- */
-export const normalizeAddress = (address) => {
-  if (!address) return null;
-
-  // Handle different address types from wallet adapters
-  const raw = (typeof address === 'string' ? address : String(address)).trim().toLowerCase();
-  if (!raw) return null;
-
-  // Strip 0x prefix, remove leading zeros, re-add prefix
-  const stripped = raw.startsWith('0x') ? raw.slice(2) : raw;
-  if (!/^[a-f0-9]+$/i.test(stripped)) return null;
-  const compact = stripped.replace(/^0+/, '') || '0';
-  return `0x${compact}`;
-};
+export { normalizeAddress } from '../utils/address.js';
 
 /**
  * Validate profile data

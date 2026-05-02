@@ -713,10 +713,6 @@ const Swap = ({ balances, onSwapSuccess }) => {
               .then(() => {
                 devLog("Swap record saved. Refreshing level...");
                 emit("awards:changed");
-                // Trigger auto-award check in background
-                import("../services/badges/AutoAwardService.js").then(module => {
-                  module.checkAndAwardBadges(account.address, { triggeredBy: 'swap' });
-                }).catch(err => console.warn("AutoAward trigger failed:", err));
               })
               .catch((recordErr) => devLog("Swap record failed (non-blocking):", recordErr));
           } catch (recordErr) {

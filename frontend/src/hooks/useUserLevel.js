@@ -1,13 +1,13 @@
 /**
- * useUserLevel Hook
+ * useUserLevel Hook (v3) — Server-Centralized
  * 
- * Calculates user level based on earned badge XP.
+ * Centralizes XP and Level management by using the profile XP from the server.
+ * Local XP calculation is removed to ensure the server is the single source of truth.
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { getUserAwards, getBadgeById, subscribe, syncUserAwardsFromBackend } from '../services/badges/badgeStore.js';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getProfileAsync } from '../services/profileService.js';
+import { getUserAwards, getBadgeById, syncUserAwardsFromBackend } from '../services/badges/badgeStore.js';
 import {
-  calculateTotalXP,
   getLevelFromXP,
   getNextLevelXP,
   getLevelProgress,
@@ -17,16 +17,16 @@ import {
  * @param {string} address - User wallet address
  */
 export function useUserLevel(address) {
-  const [awardsVersion, setAwardsVersion] = useState(0);
   const [profileXP, setProfileXP] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState(0);
 
   const hydrate = useCallback(async () => {
     if (!address) return;
     setLoading(true);
     
-    // Sync badges & profile data
     try {
+      // Sync profile (XP source) and awards (for badge list)
       const [profile] = await Promise.all([
         getProfileAsync(address).catch(() => null),
         syncUserAwardsFromBackend(address).catch(() => null)
@@ -35,11 +35,11 @@ export function useUserLevel(address) {
       if (profile && typeof profile.xp === 'number') {
         setProfileXP(profile.xp);
       } else {
-        setProfileXP(0); // Default to 0 if profile doesn't exist or xp is missing
+        setProfileXP(0);
       }
-      setAwardsVersion((v) => v + 1);
+      setVersion(v => v + 1);
     } catch (err) {
-      console.warn('Level hydration error:', err);
+      console.warn('[useUserLevel] Hydration error:', err);
       setProfileXP(0);
     } finally {
       setLoading(false);
@@ -50,8 +50,15 @@ export function useUserLevel(address) {
     hydrate();
   }, [hydrate]);
 
+  // Derived data based on XP
+  const xp = profileXP ?? 0;
+  const level = getLevelFromXP(xp);
+  const nextLevelXP = getNextLevelXP(xp);
+  const progress = getLevelProgress(xp);
+
+  // Still fetch badge list for UI display if needed
   const badges = useMemo(() => {
-    void awardsVersion;
+    void version;
     if (!address) return [];
     const awards = getUserAwards(address);
     return awards
@@ -60,24 +67,17 @@ export function useUserLevel(address) {
         return badge ? { ...badge, earnedAt: award.awardedAt } : null;
       })
       .filter(Boolean);
-  }, [address, awardsVersion]);
-
-  const badgeXP = useMemo(() => calculateTotalXP(badges), [badges]);
-  const xp = Math.max(profileXP ?? 0, badgeXP);
-  
-  const level = xp !== null ? getLevelFromXP(xp) : 1;
-  const nextLevelXP = xp !== null ? getNextLevelXP(xp) : 100;
-  const progress = xp !== null ? getLevelProgress(xp) : { percentage: 0, progressXP: 0, requiredXP: 100 };
+  }, [address, version]);
 
   return {
     level,
-    xp: xp ?? 0,
+    xp,
     nextLevelXP,
     xpProgress: progress.percentage,
     progressXP: progress.progressXP,
     requiredXP: progress.requiredXP,
     badges,
-    loading: loading || xp === null,
+    loading: loading || profileXP === null,
     badgeCount: badges.length,
     refresh: hydrate,
   };

@@ -1,16 +1,9 @@
+import { normalizeAddress } from '../utils/address.js';
+
 const normalizeHex = (value = '') => {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return '';
   return raw.startsWith('0x') ? raw : `0x${raw}`;
-};
-
-const normalizeAddress = (value = '') => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  const prefixed = raw.startsWith('0x') ? raw.slice(2) : raw;
-  if (!/^[0-9a-f]+$/i.test(prefixed)) return '';
-  const compact = prefixed.replace(/^0+/, '') || '0';
-  return `0x${compact}`;
 };
 
 const encodeBase64 = (value) => {

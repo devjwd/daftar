@@ -1,10 +1,6 @@
 import { SWAP_ROUTER_ADDRESS } from '../config/network';
 
-const normalizeAddress = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw.startsWith('0x') ? raw : `0x${raw}`;
-};
+import { normalizeAddress } from '../utils/address.js';
 
 const normalizeChargeFeeBy = (value) => {
   const raw = String(value || '').trim().toLowerCase();

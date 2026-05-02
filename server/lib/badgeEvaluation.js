@@ -1,5 +1,6 @@
 import { BADGE_RULES, normalizeRuleType, validateRuleParams } from './badgeValidation.js';
 import fetch from 'node-fetch';
+import { normalizeAddress } from './utils.js';
 
 const VERIFIED_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -9,14 +10,6 @@ const NETWORKS = {
 };
 
 const asObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
-
-const normalizeAddress = (value) => {
-  const raw = String(value ?? '').trim().toLowerCase();
-  if (!raw) return '';
-  const withPrefix = raw.startsWith('0x') ? raw.slice(2) : raw;
-  if (!/^[0-9a-f]+$/i.test(withPrefix)) return '';
-  return `0x${withPrefix.padStart(64, '0')}`;
-};
 
 export const isFresh = (timestamp) => {
   if (!timestamp) return false;

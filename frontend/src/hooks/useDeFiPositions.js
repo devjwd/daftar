@@ -546,45 +546,11 @@ const sumNumericFields = (node, fields) => {
   return values.reduce((sum, value) => sum + value, 0);
 };
 
-// =============================================================================
-// MAIN HOOK - useDeFiPositions
-// =============================================================================
+import { normalizeAddress } from '../utils/address.js';
 
 export const useDeFiPositions = (searchAddress = null) => {
   const { account, connected } = useWallet();
   const { client, loading: clientLoading, error: clientError } = useMovementClient();
-
-  /**
-   * Normalize address from various wallet adapter formats
-   */
-  const normalizeAddress = useCallback((address) => {
-    if (!address) return null;
-
-    let normalized = address;
-
-    // Handle wallet adapter AccountAddress objects
-    if (typeof address === "object") {
-      if (typeof address.toString === "function") {
-        normalized = address.toString();
-      } else if (typeof address.hex === "function") {
-        normalized = address.hex();
-      } else if (address.data && typeof address.data === "object") {
-        const hex = Array.from(address.data)
-          .map(b => b.toString(16).padStart(2, "0"))
-          .join("");
-        normalized = `0x${hex}`;
-      }
-    }
-
-    normalized = String(normalized).trim();
-
-    // Ensure 0x prefix
-    if (!normalized.startsWith("0x") && /^[a-fA-F0-9]+$/.test(normalized)) {
-      normalized = `0x${normalized}`;
-    }
-
-    return normalized.toLowerCase();
-  }, []);
 
   /**
    * Target address: search address takes priority over connected wallet
@@ -597,7 +563,7 @@ export const useDeFiPositions = (searchAddress = null) => {
       return normalizeAddress(account.address);
     }
     return null;
-  }, [searchAddress, connected, account, normalizeAddress]);
+  }, [searchAddress, connected, account]);
 
   const [positions, setPositions] = useState(() => {
     // Initial hydration from cache for "Fast-Start" UX

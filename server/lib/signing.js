@@ -13,10 +13,21 @@ export async function signMintAuthorization(
   signerEpoch = 0,
 ) {
   let cleanKey = String(privateKeyHex || '').trim();
-  if (cleanKey.endsWith('...')) cleanKey = cleanKey.slice(0, -3);
+  if (!cleanKey) {
+    throw new Error('BADGE_ATTESTOR_PRIVATE_KEY is empty or not configured');
+  }
+  if (cleanKey.endsWith('...') || cleanKey.includes('...')) {
+    throw new Error('BADGE_ATTESTOR_PRIVATE_KEY appears to be truncated (contains "..."). Please set the full 32-byte hex key.');
+  }
   if (!cleanKey.startsWith('0x')) cleanKey = '0x' + cleanKey;
-  if (cleanKey.length % 2 !== 0) cleanKey += '0'; // Pad to even length
-  if (cleanKey.length < 66) cleanKey = cleanKey.padEnd(66, '0'); // Pad to 32 bytes
+  // Validate key is exactly 32 bytes (64 hex chars + "0x" prefix = 66 chars)
+  const hexPart = cleanKey.slice(2);
+  if (!/^[0-9a-fA-F]+$/.test(hexPart)) {
+    throw new Error('BADGE_ATTESTOR_PRIVATE_KEY contains invalid hex characters');
+  }
+  if (hexPart.length !== 64) {
+    throw new Error(`BADGE_ATTESTOR_PRIVATE_KEY must be exactly 32 bytes (64 hex chars), got ${hexPart.length} chars`);
+  }
 
   let privateKey;
   try {
@@ -30,8 +41,6 @@ export async function signMintAuthorization(
   const moduleAddr = AccountAddress.from(moduleAddress);
   const userAddr = AccountAddress.from(userAddress);
   
-  const serializer = new Serializer();
-  // Manual concatenation to match Move's vector::append + bcs::to_bytes logic
   // Addresses in BCS are just the 32 bytes
   const moduleBytes = moduleAddr.toUint8Array();
   const userBytes = userAddr.toUint8Array();
@@ -49,23 +58,7 @@ export async function signMintAuthorization(
   sEpoch.serializeU64(BigInt(signerEpoch));
   const signerEpochBytes = sEpoch.toUint8Array();
   
-  // Combine all parts
-  const payload = new Uint8Array(
-    domain.length + 
-    moduleBytes.length + 
-    userBytes.length + 
-    badgeIdBytes.length + 
-    validUntilBytes.length + 
-    signerEpochBytes.length
-  );
-  
-  let offset = 0;
-  payload.set(domain, offset); offset += domain.length;
-  payload.set(moduleBytes, offset); offset += moduleBytes.length;
-  payload.set(userBytes, offset); offset += userAddr.toUint8Array().length; // Fix: ensure userBytes length is used
-  // Wait, I used userAddr.toUint8Array() directly above, let's be consistent.
-  
-  // Refined payload assembly
+  // Assemble the message payload matching the Move contract's expected format
   const finalPayload = new Uint8Array(
     domain.length + 32 + 32 + 8 + 8 + 8
   );

@@ -87,11 +87,7 @@ const getSupabaseClient = () => {
   }
 };
 
-const normalizeAddress = (walletAddress) => {
-  const raw = String(walletAddress || "").trim().toLowerCase();
-  if (!raw) return "";
-  return raw.startsWith("0x") ? raw : `0x${raw}`;
-};
+import { normalizeAddress } from '../utils/address.js';
 
 const normalizeLimit = (limit) => {
   const value = Number(limit);
@@ -1219,44 +1215,28 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
     return [];
   }
 
-  const persist = options.persist !== false;
-  const allowCachedRead = options.allowCachedRead !== false;
   const limit = normalizeLimit(options.limit ?? DEFAULT_LIMIT);
+  const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
-  // Safety: If running in browser and we don't have a service role key, 
-  // we usually disable persistence. However, for the platform owner (Admin) on localhost,
-  // we allow direct persistence so they can verify history and rewards populate.
-  const isBrowser = typeof window !== 'undefined';
-  const { supabaseServiceRoleKey } = resolveEnv();
-  const isAdminConnected = normalizedAddress === '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69';
-
-  const effectivePersist = persist && (
-    (!isBrowser || !!supabaseServiceRoleKey)
-  );
-
-  const supabase = effectivePersist || allowCachedRead ? getSupabaseClient() : null;
-
-  let cachedRows = [];
   try {
-    if (supabase) {
-      const { data, error: cacheError } = await supabase
-        .from("transaction_history")
-        .select("*")
-        .eq("wallet_address", normalizedAddress)
-        .order("tx_timestamp", { ascending: false })
-        .limit(limit);
-
-      if (cacheError) {
-        devLog("Failed to read transaction metadata:", cacheError);
-      } else if (Array.isArray(data)) {
-        cachedRows = data;
-        if (cachedRows.length > limit && allowCachedRead) {
-          await pruneStoredTransactions(supabase, normalizedAddress, limit);
+    // 1. Try to fetch from our Backend API first
+    try {
+      const apiResponse = await fetch(`${apiBase}/api/transactions?wallet=${normalizedAddress}&limit=${limit}`);
+      if (apiResponse.ok) {
+        const result = await apiResponse.json();
+        if (result.transactions && result.transactions.length > 0) {
+          // Success! Return branding-applied results from our database
+          return trimTransactions(applyProjectBranding(result.transactions), limit);
         }
       }
+    } catch (apiError) {
+      devLog("Backend API fetch failed, falling back to Indexer:", apiError);
     }
 
+    // 2. Fallback: Fetch from Indexer
     const rawTransactions = await fetchTransactions(normalizedAddress, limit);
+    if (rawTransactions.length === 0) return [];
+
     const parsedTransactions = (await Promise.all(
       rawTransactions.map(async (row) => await parseTransaction(row, normalizedAddress))
     )).filter((row) => row.tx_hash);
@@ -1266,55 +1246,19 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
       limit
     );
 
-    // MERGE: Apply metadata (like 'source') from database to the full Indexer history
-    const finalResults = enrichedTransactions.map(row => {
-      // If we have a cached version of this same TX, merge its metadata
-      const cached = cachedRows?.find(r => r.tx_hash === row.tx_hash);
-      if (cached) {
-        return {
-          ...row,
-          source: cached.source || row.source,
-          dapp_name: cached.dapp_name || row.dapp_name,
-          dapp_key: cached.dapp_key || row.dapp_key,
-          dapp_logo: cached.dapp_logo || row.dapp_logo
-        };
-      }
-      return row;
-    });
-
-    if (effectivePersist && supabase && finalResults.length > 0) {
-      try {
-        // Don't overwrite rows already recorded by Daftar swap
-        const enrichedHashes = enrichedTransactions.map((row) => row.tx_hash).filter(Boolean);
-        const { data: daftarRows } = await supabase
-          .from('transaction_history')
-          .select('tx_hash')
-          .eq('wallet_address', normalizedAddress)
-          .eq('source', 'daftar_swap')
-          .in('tx_hash', enrichedHashes);
-
-        const daftarHashes = new Set((daftarRows || []).map((r) => r.tx_hash));
-        const rowsToUpsert = enrichedTransactions
-          .filter((row) => !daftarHashes.has(row.tx_hash))
-          .map(toPersistedTransactionRow);
-
-        if (rowsToUpsert.length > 0) {
-          const { error } = await supabase
-            .from('transaction_history')
-            .upsert(rowsToUpsert, { onConflict: 'tx_hash' });
-
-          if (error) {
-            devLog('Failed to upsert transaction history:', error);
-          }
-        }
-
-        await pruneStoredTransactions(supabase, normalizedAddress, limit);
-      } catch (error) {
-        devLog('Failed to save transaction history:', error);
-      }
+    // 3. Sync to Backend in background
+    if (enrichedTransactions.length > 0) {
+      void fetch(`${apiBase}/api/transactions/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          walletAddress: normalizedAddress,
+          transactions: enrichedTransactions
+        })
+      }).catch(err => devLog("Background sync failed:", err));
     }
 
-    return trimTransactions(applyProjectBranding(finalResults), limit);
+    return trimTransactions(applyProjectBranding(enrichedTransactions), limit);
   } catch (error) {
     console.error("getOrFetchTransactions failed:", error);
     return [];

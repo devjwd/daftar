@@ -1,10 +1,6 @@
 import { getBadgeFunction, getBadgeModuleAddress, BADGE_RULES, BADGE_STATUS, getRuleLabel } from "../config/badges";
 
-const normalizeAddress = (value) => {
-  const raw = String(value || "").trim().toLowerCase();
-  if (!raw) return "";
-  return raw.startsWith("0x") ? raw : `0x${raw}`;
-};
+import { normalizeAddress } from '../utils/address.js';
 
 const getRegistryResourceType = () => {
   const moduleAddress = normalizeAddress(getBadgeModuleAddress());

@@ -27,11 +27,7 @@ const resolveEnv = () => {
   return { rpcUrl, indexerUrl, mosaicApiUrl };
 };
 
-const normalizeAddress = (walletAddress) => {
-  const raw = String(walletAddress || "").trim().toLowerCase();
-  if (!raw) return "";
-  return raw.startsWith("0x") ? raw : `0x${raw}`;
-};
+import { normalizeAddress } from '../utils/address.js';
 
 const isValidAddress = (walletAddress) => /^0x[a-f0-9]{1,128}$/i.test(String(walletAddress || "").trim());
 

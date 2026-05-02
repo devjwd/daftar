@@ -1,4 +1,3 @@
-import { supabase } from '../config/supabase.js';
 import { BADGE_RULES, CRITERIA_TYPES, criteriaToRuleType } from '../config/badges.js';
 import { devLog } from '../utils/devLogger.js';
 
@@ -39,11 +38,7 @@ const callLocalBadgeApi = async ({ path, method = 'GET', body, headers = {} }) =
   }
 };
 
-const normalizeAddress = (address) => {
-  const value = String(address || '').trim().toLowerCase();
-  if (!value) return '';
-  return value.startsWith('0x') ? value : `0x${value}`;
-};
+import { normalizeAddress } from '../utils/address.js';
 
 const normalizeInteger = (value, fallback = 0) => {
   const normalized = Number(value);

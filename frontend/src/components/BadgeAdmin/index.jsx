@@ -30,7 +30,7 @@ import BadgeManager from './BadgeManager.jsx';
 import BadgeDefinitionForm from './BadgeDefinitionForm.jsx';
 import OnChainBadgeList from './OnChainBadgeList.jsx';
 import AllowlistEditor from './AllowlistEditor.jsx';
-import { getAggregatedStats } from '../../services/badges/engineService.js';
+// Removed getAggregatedStats import - client-side stats are no longer used in the simplified architecture
 
 import '../BadgeAdmin.css';
 
@@ -101,17 +101,9 @@ export default function BadgeAdmin() {
   }, []);
 
   const refreshStats = useCallback(async () => {
-    if (!account) return;
-    setStatsLoading(true);
-    try {
-      const stats = await getAggregatedStats(account.address.toString());
-      setAdminStats(stats);
-    } catch (err) {
-      console.warn('[BadgeAdmin] Stats fetch failed', err);
-    } finally {
-      setStatsLoading(false);
-    }
-  }, [account]);
+    // refreshStats is now a no-op as server handles aggregation
+    console.log('[BadgeAdmin] Stats refresh is now handled by the server');
+  }, []);
 
   useEffect(() => { 
     loadBadges(); 
@@ -272,22 +264,7 @@ export default function BadgeAdmin() {
         <button className={`ba-subtab ${subTab === 'onchain' ? 'active' : ''}`} onClick={() => setSubTab('onchain')}>⛓️ On-Chain</button>
       </div>
 
-      {adminStats && (
-        <div className="ba-engine-status-bar">
-          <div className="ba-status-item">
-            <span className="ba-status-dot green" />
-            <span>Engine v2 Online</span>
-          </div>
-          <div className="ba-status-meta">
-             <span>Your Txs: <strong>{adminStats.txCount}</strong></span>
-             <span>|</span>
-             <span>Balances: <strong>{adminStats.balances?.length || 0} Assets</strong></span>
-             <button className="ba-link-btn" onClick={refreshStats} disabled={statsLoading}>
-               {statsLoading ? '...' : '🔄 Sync'}
-             </button>
-          </div>
-        </div>
-      )}
+      {/* adminStats status bar removed - server-side evaluation is the source of truth */}
 
       <div className="ba-content">
         {subTab === 'manage' && (

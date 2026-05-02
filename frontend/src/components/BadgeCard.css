@@ -9,14 +9,15 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  background: var(--rbg, linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%));
-  border: 2px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background: var(--rbg, linear-gradient(135deg, rgba(20, 20, 20, 0.8) 0%, rgba(10, 10, 10, 0.9) 100%));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   height: 100%;
 }
 .bc-card:hover {
   transform: translateY(-4px) scale(1.015);
-  box-shadow: 0 8px 24px var(--rg, rgba(16, 185, 129, 0.3));
+  box-shadow: 0 12px 32px var(--rg, rgba(16, 185, 129, 0.25));
   border-color: var(--rc, #10b981);
 }
 .bc-card[role="button"] {
@@ -36,8 +37,14 @@
   box-shadow: 0 6px 20px var(--rg), inset 0 0 20px rgba(255, 255, 255, 0.03);
 }
 .bc-eligible {
-  border-color: rgba(251, 191, 36, 0.4);
-  animation: bc-pulse-border 2.5s ease-in-out infinite;
+  border-color: rgba(205, 161, 105, 0.6);
+  box-shadow: 0 0 15px rgba(205, 161, 105, 0.2);
+  animation: bc-eligible-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes bc-eligible-pulse {
+  0%, 100% { border-color: rgba(205, 161, 105, 0.4); box-shadow: 0 0 10px rgba(205, 161, 105, 0.1); }
+  50%      { border-color: rgba(205, 161, 105, 0.8); box-shadow: 0 0 20px rgba(205, 161, 105, 0.3); }
 }
 .bc-locked {
   opacity: 0.72;

@@ -1,68 +1,62 @@
 /**
- * useUserBadges Hook
+ * useUserBadges Hook (v3) — Server-Centralized
  * 
- * Simple hook to get a user's earned badges and awards.
+ * Fetches and maintains a list of earned badges for a specific user.
+ * Relies on badgeStore's in-memory cache populated from the server.
  */
 import { useState, useEffect, useMemo } from 'react';
 import { getUserAwards, getBadgeById, subscribe, syncUserAwardsFromBackend } from '../services/badges/badgeStore.js';
 
+/**
+ * @param {string} address - User wallet address
+ */
 export default function useUserBadges(address) {
-  const [awardsVersion, setAwardsVersion] = useState(0);
+  const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Subscribe to reactive award changes
   useEffect(() => {
     if (!address) return undefined;
-
-    // Re-load when awards change
     const unsub = subscribe('awards:changed', () => {
-      setAwardsVersion((v) => v + 1);
+      setVersion(v => v + 1);
     });
     return unsub;
   }, [address]);
 
+  // Sync awards from backend on mount/address change
   useEffect(() => {
     if (!address) return undefined;
 
     let active = true;
-
-    const waitForRetry = () =>
-      new Promise((resolve) => {
-        window.setTimeout(resolve, 2000);
-      });
-
     const hydrate = async () => {
       setLoading(true);
       setError(null);
 
-      let result = await syncUserAwardsFromBackend(address);
-      if (!result.ok) {
-        await waitForRetry();
-        if (!active) return;
-        result = await syncUserAwardsFromBackend(address);
-      }
-
-      if (active) {
-        if (!result.ok) {
-          setError('Failed to load user badges.');
+      try {
+        const result = await syncUserAwardsFromBackend(address);
+        if (active) {
+          if (!result.ok) {
+            setError('Failed to load user badges.');
+          }
+          setVersion(v => v + 1);
         }
-        setAwardsVersion((v) => v + 1);
-        setLoading(false);
+      } catch (err) {
+        if (active) setError('Network error loading badges.');
+      } finally {
+        if (active) setLoading(false);
       }
     };
 
     hydrate();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [address]);
 
   const awards = useMemo(() => {
-    void awardsVersion;
+    void version;
     if (!address) return [];
     return getUserAwards(address);
-  }, [address, awardsVersion]);
+  }, [address, version]);
 
   const earnedBadges = useMemo(() => {
     return awards

@@ -1,10 +1,5 @@
-/**
- * BadgeCard Component
- * 
- * Displays a single SBT badge with rarity styling, progress tracking,
- * criteria breakdown, and earned/eligible/locked states.
- */
 import React, { useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getRarityInfo, CRITERIA_LABELS } from '../config/badges.js';
 import './BadgeCard.css';
 
@@ -26,7 +21,14 @@ const BadgeCard = ({
   const locked = !earned && !eligible;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      whileHover={{ 
+        scale: 1.02, 
+        y: -5,
+        transition: { duration: 0.2 }
+      }}
       className={`bc-card ${earned ? 'bc-earned' : eligible ? 'bc-eligible' : 'bc-locked'} bc-rarity-${(badge.rarity || 'COMMON').toLowerCase()}`}
       style={{
         '--rc': rarity.color,
@@ -38,17 +40,50 @@ const BadgeCard = ({
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
-      {/* Glow layer for earned badges */}
-      {earned && <div className="bc-glow" />}
+      {/* Glow layer for earned or eligible badges */}
+      {(earned || eligible) && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ 
+            opacity: [0.3, 0.6, 0.3],
+            scale: [1, 1.05, 1]
+          }}
+          transition={{ 
+            duration: 3, 
+            repeat: Infinity, 
+            ease: "easeInOut" 
+          }}
+          className="bc-glow" 
+        />
+      )}
 
       {/* Status indicator */}
-      {earned && <div className="bc-status bc-status-earned">Earned</div>}
-      {eligible && !earned && <div className="bc-status bc-status-eligible">Eligible</div>}
+      <AnimatePresence>
+        {earned && (
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bc-status bc-status-earned"
+          >
+            Earned
+          </motion.div>
+        )}
+        {eligible && !earned && (
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bc-status bc-status-eligible"
+          >
+            Eligible
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Badge Image */}
       <div className="bc-image-wrap">
         {badge.imageUrl ? (
-          <img
+          <motion.img
+            layoutId={`badge-img-${badge.id}`}
             src={badge.imageUrl}
             alt={badge.name}
             className="bc-image"
@@ -80,11 +115,17 @@ const BadgeCard = ({
         {!compact && criteriaResults.length > 0 && (
           <div className="bc-criteria-list">
             {criteriaResults.map((cr, i) => (
-              <div key={i} className={`bc-criterion ${cr.eligible ? 'bc-criterion-met' : 'bc-criterion-unmet'}`}>
+              <motion.div 
+                key={i} 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className={`bc-criterion ${cr.eligible ? 'bc-criterion-met' : 'bc-criterion-unmet'}`}
+              >
                 <span className="bc-criterion-icon">{cr.eligible ? '✓' : '○'}</span>
                 <span className="bc-criterion-label">{CRITERIA_LABELS[cr.type] || cr.type}</span>
                 <span className="bc-criterion-value">{cr.label || `${cr.current}/${cr.required}`}</span>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
@@ -97,9 +138,14 @@ const BadgeCard = ({
               <span className="bc-progress-pct">{Math.round(progressClamped)}%</span>
             </div>
             <div className="bc-progress-track">
-              <div className="bc-progress-fill" style={{ width: `${progressClamped}%` }}>
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${progressClamped}%` }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                className="bc-progress-fill"
+              >
                 <div className="bc-progress-shimmer" />
-              </div>
+              </motion.div>
             </div>
           </div>
         )}
@@ -113,13 +159,15 @@ const BadgeCard = ({
 
         {/* Mint button */}
         {eligible && !earned && onMint && (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             className="bc-mint-btn"
             onClick={(e) => { e.stopPropagation(); onMint(badge); }}
             disabled={minting}
           >
             {minting ? 'Minting...' : 'Claim Badge'}
-          </button>
+          </motion.button>
         )}
 
         {/* Locked state */}
@@ -133,8 +181,10 @@ const BadgeCard = ({
 
       {/* Shimmer animation for earned */}
       {earned && <div className="bc-shimmer" />}
-    </div>
+    </motion.div>
   );
 };
+
+export default BadgeCard;
 
 export default BadgeCard;

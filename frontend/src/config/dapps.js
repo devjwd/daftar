@@ -1,13 +1,7 @@
 import { CANOPY_CONFIG, YUZU_CONFIG } from "./network.js";
 import { DEFI_PROTOCOLS } from "./protocols.js";
 
-const normalizeAddress = (value) => {
-  const raw = String(value || "").trim().toLowerCase();
-  if (!raw) return null;
-  const stripped = raw.startsWith("0x") ? raw.slice(2) : raw;
-  const compact = stripped.replace(/^0+/, "") || "0";
-  return `0x${compact}`;
-};
+import { normalizeAddress } from '../utils/address.js';
 
 const normalizeModulePrefix = (value) => {
   const parts = String(value || "").split("::");

@@ -1,63 +1,85 @@
-import { fetchCoreEligibilityStats } from './dataCoordination.js';
-import { evaluateCriterion } from './criteriaRegistry.js';
-
 /**
- * High-Speed Evaluation Engine (v2)
+ * Engine Service (v3) — Server-Delegated
  * 
- * Orchestrates lightweight data fetching and modular evaluation.
+ * All eligibility evaluation is now done server-side.
+ * This module is a thin API client that preserves the same export signatures
+ * so existing consumers (useBadges, useBadgeEligibility, Badges.jsx) don't break.
  */
 
-const STATS_CACHE = new Map();
-const CACHE_TTL = 30_000; // 30 seconds cache for stats
+const API_URL = import.meta.env.VITE_API_URL || '';
+const CACHE = new Map();
+const CACHE_TTL = 30_000; // 30 seconds
 
-export async function getAggregatedStats(address) {
-  const now = Date.now();
-  const cached = STATS_CACHE.get(address.toLowerCase());
+import { normalizeAddress } from '../../utils/address.js';
 
-  if (cached && (now - cached.timestamp < CACHE_TTL)) {
+/**
+ * Fetch bulk eligibility results from the server.
+ * Returns a Map of badge_id → { eligible, reason, progress }
+ */
+async function fetchServerEligibility(address) {
+  const normalized = normalizeAddress(address);
+  const cacheKey = `bulk:${normalized}`;
+  const cached = CACHE.get(cacheKey);
+
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
     return cached.data;
   }
 
-  const stats = await fetchCoreEligibilityStats(address);
-  STATS_CACHE.set(address.toLowerCase(), { data: stats, timestamp: now });
-  return stats;
-}
+  try {
+    const response = await fetch(`${API_URL}/api/badges/eligibility/bulk?wallet=${normalized}`);
+    if (!response.ok) {
+      console.warn('[EngineService] Server eligibility check failed:', response.status);
+      return new Map();
+    }
 
-export const evaluateBadge = checkBadgeEligibility;
+    const json = await response.json();
+    const resultMap = new Map();
+    (json.results || []).forEach(r => {
+      resultMap.set(r.badge_id, {
+        eligible: r.eligible,
+        reason: r.reason || '',
+        progress: r.progress || 0,
+        fromCache: r.fromCache || false,
+      });
+    });
+
+    CACHE.set(cacheKey, { data: resultMap, timestamp: Date.now() });
+    return resultMap;
+  } catch (err) {
+    console.error('[EngineService] Fetch failed:', err);
+    return new Map();
+  }
+}
 
 /**
  * Check eligibility for a single badge against a wallet.
- * Uses lightweight aggregate data and evaluates ALL criteria.
+ * Delegates to the server's bulk endpoint (cached).
  */
 export async function checkBadgeEligibility(address, badge) {
   try {
-    const stats = await getAggregatedStats(address);
-    const criteria = Array.isArray(badge.criteria) ? badge.criteria : [];
+    const resultMap = await fetchServerEligibility(address);
+    const badgeId = badge?.badge_id || badge?.id || '';
+    const result = resultMap.get(badgeId);
 
-    if (criteria.length === 0) {
-      return { eligible: true, results: [], reason: 'Manual/Attestation badge', progress: 100 };
+    if (result) {
+      return {
+        eligible: result.eligible,
+        reason: result.reason,
+        progress: result.progress,
+        results: [],
+        current: result.eligible ? 1 : 0,
+        required: 1,
+      };
     }
 
-    const results = criteria.map(c => {
-      const res = evaluateCriterion(c.type, stats, c.params);
-      return { ...res, type: c.type };
-    });
-
-    const eligible = results.every(r => r.eligible);
-    const progress = results.length > 0
-      ? Math.round(results.reduce((acc, r) => acc + (r.progress || 0), 0) / results.length)
-      : 0;
-
-    const failed = results.find(r => !r.eligible);
-
+    // Badge not found in server results — might be a manual/attestation badge
     return {
-      eligible,
-      current: eligible ? 1 : 0,
+      eligible: false,
+      reason: 'Not evaluated by server',
+      progress: 0,
+      results: [],
+      current: 0,
       required: 1,
-      progress,
-      results,
-      reason: eligible ? 'All criteria met' : (failed?.label || failed?.error || 'Criteria not met'),
-      stats
     };
   } catch (error) {
     console.error('[EngineService] Check failed:', error);
@@ -65,35 +87,57 @@ export async function checkBadgeEligibility(address, badge) {
   }
 }
 
+// Alias for backward compatibility
+export const evaluateBadge = checkBadgeEligibility;
+
 /**
  * Bulk check eligibility for multiple badges.
- * Fetches stats ONCE and evaluates all badges instantly.
+ * Fetches from server ONCE and maps results.
  */
 export async function bulkCheckEligibility(address, badges) {
   try {
-    const stats = await getAggregatedStats(address);
-    return badges.map(badge => {
-      const criteria = Array.isArray(badge.criteria) ? badge.criteria : [];
-      if (criteria.length === 0) return { id: badge.id, eligible: true, reason: 'Manual', progress: 100 };
+    const resultMap = await fetchServerEligibility(address);
 
-      const results = criteria.map(c => evaluateCriterion(c.type, stats, c.params));
-      const eligible = results.every(r => r.eligible);
-      const progress = results.length > 0
-        ? Math.round(results.reduce((acc, r) => acc + (r.progress || 0), 0) / results.length)
-        : 0;
-      
-      const failed = results.find(r => !r.eligible);
+    return (badges || []).map(badge => {
+      const badgeId = badge?.badge_id || badge?.id || '';
+      const result = resultMap.get(badgeId);
+
+      if (result) {
+        return {
+          id: badgeId,
+          eligible: result.eligible,
+          reason: result.reason,
+          progress: result.progress,
+          results: [],
+        };
+      }
 
       return {
-        id: badge.id,
-        eligible,
-        progress,
-        results,
-        reason: eligible ? 'Criteria met' : (failed?.label || failed?.error || 'Criteria not met')
+        id: badgeId,
+        eligible: false,
+        reason: 'Not evaluated',
+        progress: 0,
+        results: [],
       };
     });
   } catch (error) {
     console.error('[EngineService] Bulk check failed:', error);
-    return badges.map(b => ({ id: b.id, eligible: false, reason: 'Fetch error', progress: 0 }));
+    return (badges || []).map(b => ({
+      id: b?.badge_id || b?.id || '',
+      eligible: false,
+      reason: 'Fetch error',
+      progress: 0,
+    }));
+  }
+}
+
+/**
+ * Clear the eligibility cache (e.g., after a mint).
+ */
+export function clearEligibilityCache(address) {
+  if (address) {
+    CACHE.delete(`bulk:${normalizeAddress(address)}`);
+  } else {
+    CACHE.clear();
   }
 }

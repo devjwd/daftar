@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 
 import "../App.css";
@@ -2663,119 +2664,134 @@ const Dashboard = () => {
         </button>
       </section>
 
-      <div className="portfolio-content-panel fade-in" key={activeTab}>
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={activeTab}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="portfolio-content-panel"
+        >
+          {activeTab === PORTFOLIO_TABS.OVERVIEW && (
+            <>
+              <section className="grid-section">
+                <h3 className="section-title">{t(language, 'dashWalletBalance')}</h3>
+                <div className="grid-container">
+                  {assetsLoading && (
+                    <>
+                      <SkeletonCard delay={0} />
+                      <SkeletonCard delay={50} />
+                      <SkeletonCard delay={100} />
+                      <SkeletonCard delay={150} />
+                    </>
+                  )}
 
-        {activeTab === PORTFOLIO_TABS.OVERVIEW && (
+                  {!assetsLoading && !error && balances.length === 0 && !viewingAddress && (
+                    <div className="empty-state">{t(language, 'dashConnectPortfolio')}</div>
+                  )}
 
-          <>
+                  {!assetsLoading && !error && balances.length === 0 && viewingAddress && (
+                    <div className="empty-state">{t(language, 'dashNoTokens')}</div>
+                  )}
 
-            <section className="grid-section">
+                  {!assetsLoading && balances.map((token, index) => (
+                    <TokenCard
+                      key={token.id}
+                      token={token}
+                      delay={index * ANIMATION_DELAYS.TOKEN_CARD}
+                      convertUSD={convertUSD}
+                      formatCurrencyValue={formatCurrencyValue}
+                      language={language}
+                      hideValues={hideValues}
+                    />
+                  ))}
+                </div>
+              </section>
 
-              <h3 className="section-title">{t(language, 'dashWalletBalance')}</h3>
+              <section className="grid-section">
+                <h3 className="section-title">{t(language, 'dashDefiPositions')}</h3>
+                <div className="grid-container">
+                  {(defiLoading || assetsLoading) && visibleDeFiPositions.length === 0 && (
+                    <>
+                      <DeFiSkeleton delay={0} />
+                      <DeFiSkeleton delay={50} />
+                      <DeFiSkeleton delay={100} />
+                      <DeFiSkeleton delay={150} />
+                    </>
+                  )}
 
-              <div className="grid-container">
+                  {!defiLoading && !assetsLoading && visibleDeFiPositions.length === 0 && viewingAddress && (
+                    <div className="empty-state">{t(language, 'dashNoDefi')}</div>
+                  )}
 
-                {assetsLoading && (
+                  {!defiLoading && !assetsLoading && visibleDeFiPositions.length === 0 && !viewingAddress && (
+                    <div className="empty-state">{t(language, 'dashConnectDefi')}</div>
+                  )}
 
-                  <>
+                  {visibleDeFiPositions.length > 0 && (() => {
+                    const groupedByProtocol = visibleDeFiPositions.reduce((acc, pos) => {
+                      const key = pos.protocolName || 'Unknown';
+                      if (!acc[key]) acc[key] = [];
+                      acc[key].push(pos);
+                      return acc;
+                    }, {});
 
-                    <SkeletonCard delay={0} />
+                    const sortedProtocolEntries = Object.entries(groupedByProtocol)
+                      .map(([protocolName, protocolPositions]) => {
+                        const netUsd = protocolPositions.reduce((sum, pos) => {
+                          const usdValue = getDeFiPositionUsdValue(pos, priceMap) ?? 0;
+                          const isDebt = pos.type === 'Debt';
+                          return sum + (isDebt ? -usdValue : usdValue);
+                        }, 0);
 
-                    <SkeletonCard delay={50} />
+                        return { protocolName, protocolPositions, netUsd };
+                      })
+                      .sort((a, b) => b.netUsd - a.netUsd);
 
-                    <SkeletonCard delay={100} />
+                    return sortedProtocolEntries.map(({ protocolName, protocolPositions }, index) => (
+                      <DeFiPositionCard
+                        key={protocolName}
+                        protocolPositions={protocolPositions}
+                        delay={index * ANIMATION_DELAYS.TOKEN_CARD}
+                        priceMap={priceMap}
+                        convertUSD={convertUSD}
+                        formatCurrencyValue={formatCurrencyValue}
+                        currencySymbol={currencySymbol}
+                        language={language}
+                        hideValues={hideValues}
+                      />
+                    ));
+                  })()}
+                </div>
+              </section>
 
-                    <SkeletonCard delay={150} />
+              <section className="grid-section">
+                <h3 className="section-title">
+                  {t(language, 'dashLiquidityPositions')}
+                </h3>
+                <div className="grid-container lp-grid">
+                  {(lpLoading || indexerLoading) && visibleLiquidityPositions.length === 0 && (
+                    <>
+                      <LiquiditySkeleton delay={0} />
+                      <LiquiditySkeleton delay={50} />
+                      <LiquiditySkeleton delay={100} />
+                      <LiquiditySkeleton delay={150} />
+                    </>
+                  )}
 
-                  </>
+                  {!lpLoading && !indexerLoading && visibleLiquidityPositions.length === 0 && viewingAddress && (
+                    <div className="empty-state">{t(language, 'dashNoLiquidity')}</div>
+                  )}
 
-                )}
+                  {!lpLoading && !indexerLoading && visibleLiquidityPositions.length === 0 && !viewingAddress && (
+                    <div className="empty-state">{t(language, 'dashConnectLiquidity')}</div>
+                  )}
 
-
-
-                {!assetsLoading && !error && balances.length === 0 && !viewingAddress && (
-                  <div className="empty-state">{t(language, 'dashConnectPortfolio')}</div>
-                )}
-
-
-                {!assetsLoading && !error && balances.length === 0 && viewingAddress && (
-                  <div className="empty-state">{t(language, 'dashNoTokens')}</div>
-                )}
-
-
-
-                {!assetsLoading && balances.map((token, index) => (
-
-                  <TokenCard
-
-                    key={token.id}
-
-                    token={token}
-
-                    delay={index * ANIMATION_DELAYS.TOKEN_CARD}
-                    convertUSD={convertUSD}
-                    formatCurrencyValue={formatCurrencyValue}
-                    language={language}
-                    hideValues={hideValues}
-                  />
-
-                ))}
-
-              </div>
-
-            </section>
-
-            <section className="grid-section">
-
-              <h3 className="section-title">{t(language, 'dashDefiPositions')}</h3>
-
-              <div className="grid-container">
-
-                {(defiLoading || assetsLoading) && visibleDeFiPositions.length === 0 && (
-                  <>
-                    <DeFiSkeleton delay={0} />
-                    <DeFiSkeleton delay={50} />
-                    <DeFiSkeleton delay={100} />
-                    <DeFiSkeleton delay={150} />
-                  </>
-                )}
-
-
-
-                {!defiLoading && !assetsLoading && visibleDeFiPositions.length === 0 && viewingAddress && (
-                  <div className="empty-state">{t(language, 'dashNoDefi')}</div>
-                )}
-
-                {!defiLoading && !assetsLoading && visibleDeFiPositions.length === 0 && !viewingAddress && (
-                  <div className="empty-state">{t(language, 'dashConnectDefi')}</div>
-                )}
-
-
-
-                {visibleDeFiPositions.length > 0 && (() => {
-                  const groupedByProtocol = visibleDeFiPositions.reduce((acc, pos) => {
-                    const key = pos.protocolName || 'Unknown';
-                    if (!acc[key]) acc[key] = [];
-                    acc[key].push(pos);
-                    return acc;
-                  }, {});
-
-                  const sortedProtocolEntries = Object.entries(groupedByProtocol)
-                    .map(([protocolName, protocolPositions]) => {
-                      const netUsd = protocolPositions.reduce((sum, pos) => {
-                        const usdValue = getDeFiPositionUsdValue(pos, priceMap) ?? 0;
-                        const isDebt = pos.type === 'Debt';
-                        return sum + (isDebt ? -usdValue : usdValue);
-                      }, 0);
-
-                      return { protocolName, protocolPositions, netUsd };
-                    })
-                    .sort((a, b) => b.netUsd - a.netUsd);
-
-                  return sortedProtocolEntries.map(({ protocolName, protocolPositions }, index) => (
-                    <DeFiPositionCard
-                      key={protocolName}
-                      protocolPositions={protocolPositions}
+                  {!indexerLoading && visibleLiquidityPositions.length > 0 && visibleLiquidityPositions.map((position, index) => (
+                    <LiquidityCard
+                      key={position.id}
+                      position={position}
                       delay={index * ANIMATION_DELAYS.TOKEN_CARD}
                       priceMap={priceMap}
                       convertUSD={convertUSD}
@@ -2784,63 +2800,23 @@ const Dashboard = () => {
                       language={language}
                       hideValues={hideValues}
                     />
-                  ));
-                })()}
+                  ))}
+                </div>
+              </section>
+            </>
+          )}
 
-              </div>
-
-            </section>
-
+          {activeTab === PORTFOLIO_TABS.TRX && (
             <section className="grid-section">
-              <h3 className="section-title">
-                {t(language, 'dashLiquidityPositions')}
-              </h3>
-              <div className="grid-container lp-grid">
-                {(lpLoading || indexerLoading) && visibleLiquidityPositions.length === 0 && (
-                  <>
-                    <LiquiditySkeleton delay={0} />
-                    <LiquiditySkeleton delay={50} />
-                    <LiquiditySkeleton delay={100} />
-                    <LiquiditySkeleton delay={150} />
-                  </>
-                )}
-
-                {!lpLoading && !indexerLoading && visibleLiquidityPositions.length === 0 && viewingAddress && (
-                  <div className="empty-state">{t(language, 'dashNoLiquidity')}</div>
-                )}
-
-                {!lpLoading && !indexerLoading && visibleLiquidityPositions.length === 0 && !viewingAddress && (
-                  <div className="empty-state">{t(language, 'dashConnectLiquidity')}</div>
-                )}
-
-                {!indexerLoading && visibleLiquidityPositions.length > 0 && visibleLiquidityPositions.map((position, index) => (
-                  <LiquidityCard
-                    key={position.id}
-                    position={position}
-                    delay={index * ANIMATION_DELAYS.TOKEN_CARD}
-                    priceMap={priceMap}
-                    convertUSD={convertUSD}
-                    formatCurrencyValue={formatCurrencyValue}
-                    currencySymbol={currencySymbol}
-                    language={language}
-                    hideValues={hideValues}
-                  />
-                ))}
-              </div>
+              <h3 className="section-title">{t(language, 'portfolioTransactionHistory')}</h3>
+              <Suspense fallback={<RouteFallback />}>
+                <TrxHistory walletAddress={viewingAddress} />
+              </Suspense>
             </section>
-          </>
-        )}
+          )}
+        </motion.div>
+      </AnimatePresence>
 
-        {activeTab === PORTFOLIO_TABS.TRX && (
-          <section className="grid-section">
-            <h3 className="section-title">{t(language, 'portfolioTransactionHistory')}</h3>
-            <Suspense fallback={<RouteFallback />}>
-              <TrxHistory walletAddress={viewingAddress} />
-            </Suspense>
-          </section>
-        )}
-
-      </div>
       {showProfileModal && (
         <div className="profile-modal-overlay" onClick={() => setShowProfileModal(false)}>
           <div className="profile-modal" onClick={(e) => e.stopPropagation()}>

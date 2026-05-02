@@ -10,6 +10,7 @@ import { BADGE_RULES, validateBadgeDefinitionPayload } from './lib/badgeValidati
 import { evaluateRule } from './lib/badgeEvaluation.js';
 import { signMintAuthorization } from './lib/signing.js';
 import { verifyAdminRequest } from './lib/admin.js';
+import { normalizeAddress } from './lib/utils.js';
 
 dotenv.config();
 
@@ -48,15 +49,6 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
   console.error('[Server] CRITICAL: Supabase credentials (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY) are missing!');
   console.log('[Server] Current ENV keys:', Object.keys(process.env).filter(k => k.includes('SUPABASE')));
 }
-
-const normalizeAddress = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  const stripped = raw.startsWith('0x') ? raw.slice(2) : raw;
-  if (!/^[a-f0-9]+$/i.test(stripped)) return '';
-  // Use padStart(64, '0') to ensure 32-byte consistency for Movement/Aptos
-  return `0x${stripped.padStart(64, '0')}`;
-};
 
 const parseSignaturePayload = (signature) => {
   if (signature && typeof signature === 'object') return signature;
@@ -345,20 +337,7 @@ app.get('/api/prices', generalLimiter, async (req, res) => {
   return res.json({ ...cachedSnapshot, source: 'stale-cache', warning: 'Live refresh failed' });
 });
 
-app.get('/api/transactions', generalLimiter, async (req, res) => {
-  const address = normalizeAddress(req.query.address);
-  if (!address) return res.status(400).json({ error: 'Address required' });
-
-  const rpcUrl = process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1';
-  try {
-    const response = await fetch(`${rpcUrl}/accounts/${address}/transactions?limit=25`);
-    if (!response.ok) throw new Error(`RPC error: ${response.status}`);
-    const data = await response.json();
-    return res.json(Array.isArray(data) ? data : []);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
+// Primary transactions route is defined later (line 1014) with database support.
 
 app.use('/api/badges', badgeLimiter);
 
@@ -388,16 +367,15 @@ app.get('/api/badges/user/:walletAddress', async (req, res) => {
   }
 
   // Filter: Only return badges that have been actually earned/minted,
-  // not just badges the user is currently "eligible" for.
+  // not just badges the user is currently "eligible" for or has a pre-mint signature for.
+  // A `sig:` proof_hash only means a mint signature was issued — NOT that the mint completed.
+  // We require a txHash in metadata as proof the on-chain transaction actually happened.
   const awards = (data || []).filter(att => {
     const meta = att.metadata || {};
-    // It's an "Award" if:
-    // 1. It has a transaction hash (synced after mint)
-    // 2. It has a cryptographic signature (claim process started)
-    // 3. It was manually awarded by an admin
-    return meta.txHash || 
-           meta.source === 'admin_award' || 
-           (att.proof_hash && att.proof_hash.startsWith('sig:'));
+    // It's a confirmed "Award" if:
+    // 1. It has a transaction hash (synced after successful on-chain mint)
+    // 2. It was manually awarded by an admin
+    return meta.txHash || meta.source === 'admin_award';
   });
 
   return res.status(200).json({ awards });
@@ -579,6 +557,43 @@ app.post('/api/badges/sync', async (req, res) => {
     return res.status(503).json({ error: 'Database unavailable' });
   }
 
+  // 1. HARDENING: Verify txHash on-chain if provided
+  if (txHash) {
+    try {
+      const rpcUrl = process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1';
+      const response = await fetch(`${rpcUrl}/transactions/by_hash/${txHash}`);
+      
+      if (!response.ok) {
+        console.warn(`[Sync] Transaction not found: ${txHash}`);
+        return res.status(400).json({ error: 'Transaction not found on-chain' });
+      }
+
+      const txData = await response.json();
+      
+      // Verify transaction was successful
+      if (!txData.success) {
+        return res.status(400).json({ error: 'Transaction failed on-chain' });
+      }
+
+      // Verify sender matches the wallet address
+      const txSender = normalizeAddress(txData.sender);
+      if (txSender !== walletAddress) {
+        console.warn(`[Sync] Sender mismatch. TX Sender: ${txSender}, Request Wallet: ${walletAddress}`);
+        return res.status(403).json({ error: 'Transaction sender mismatch' });
+      }
+
+      // Optional: Verify it was actually a mint call to our module
+      // This is a deeper check but txData.success + sender + txHash is usually enough for sync
+    } catch (err) {
+      console.error('[Sync] On-chain verification failed:', err.message);
+      // We fail closed: if we can't verify, we don't sync
+      return res.status(502).json({ error: 'Failed to verify transaction on-chain' });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    // In production, we require a txHash for sync
+    return res.status(400).json({ error: 'txHash is required for synchronization' });
+  }
+
   try {
     // Ensure profile exists (ghost profile)
     await supabaseAdmin.from('profiles').upsert(
@@ -689,6 +704,77 @@ app.get('/api/badges/eligibility', generalLimiter, async (req, res) => {
   } catch (err) {
     console.error('[Eligibility] Error:', err);
     return res.status(500).json({ error: 'Failed to verify eligibility' });
+  }
+});
+
+// GET /api/badges/eligibility/bulk - Evaluate ALL badges for a wallet in one request
+app.get('/api/badges/eligibility/bulk', generalLimiter, async (req, res) => {
+  const wallet = normalizeAddress(req.query.wallet || req.query.wallet_address);
+  if (!wallet) {
+    return res.status(400).json({ error: 'wallet is required' });
+  }
+
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Service unavailable' });
+  }
+
+  try {
+    // 1. Fetch all active badge definitions
+    const { data: badges, error: badgesError } = await supabaseAdmin
+      .from('badge_definitions')
+      .select('*')
+      .eq('enabled', true)
+      .eq('is_active', true);
+
+    if (badgesError) throw badgesError;
+
+    // 2. Fetch all existing attestations for this wallet
+    const { data: attestations, error: attError } = await supabaseAdmin
+      .from('badge_attestations')
+      .select('*')
+      .eq('wallet_address', wallet);
+
+    if (attError) throw attError;
+
+    const attestationMap = new Map();
+    (attestations || []).forEach(a => attestationMap.set(a.badge_id, a));
+
+    // 3. Evaluate each badge concurrently (with concurrency limit)
+    const CONCURRENCY = 5;
+    const results = [];
+    const badgeList = badges || [];
+
+    for (let i = 0; i < badgeList.length; i += CONCURRENCY) {
+      const batch = badgeList.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.all(batch.map(async (badge) => {
+        try {
+          const attestation = attestationMap.get(badge.badge_id) || null;
+          const evaluation = await evaluateRule(supabaseAdmin, wallet, badge, attestation);
+          return {
+            badge_id: badge.badge_id,
+            eligible: evaluation.eligible,
+            reason: evaluation.reason || '',
+            progress: evaluation.progress || (evaluation.eligible ? 100 : 0),
+            fromCache: evaluation.fromCache || false,
+          };
+        } catch (err) {
+          console.warn(`[BulkEligibility] Failed for ${badge.badge_id}:`, err.message);
+          return {
+            badge_id: badge.badge_id,
+            eligible: false,
+            reason: 'evaluation-error',
+            progress: 0,
+            fromCache: false,
+          };
+        }
+      }));
+      results.push(...batchResults);
+    }
+
+    return res.status(200).json({ results, wallet_address: wallet });
+  } catch (err) {
+    console.error('[BulkEligibility] Error:', err);
+    return res.status(500).json({ error: 'Failed to evaluate badges' });
   }
 });
 
@@ -966,6 +1052,89 @@ app.get('/api/transactions', generalLimiter, async (req, res) => {
       hasMore: false,
       error: 'database_unavailable_falling_back'
     });
+  }
+});
+
+// POST /api/transactions/sync - Sync indexer history to DB
+app.post('/api/transactions/sync', generalLimiter, async (req, res) => {
+  const wallet = normalizeAddress(req.body.walletAddress);
+  const transactions = req.body.transactions;
+
+  if (!wallet) return res.status(400).json({ error: 'walletAddress is required' });
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    return res.status(200).json({ success: true, count: 0 });
+  }
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database service unavailable' });
+
+  try {
+    // 1. Filter out existing 'daftar_swap' records to prevent overwriting high-integrity local data
+    const hashes = transactions.map(t => t.tx_hash).filter(Boolean);
+    const { data: existingDaftar } = await supabaseAdmin
+      .from('transaction_history')
+      .select('tx_hash')
+      .eq('wallet_address', wallet)
+      .eq('source', 'daftar_swap')
+      .in('tx_hash', hashes);
+
+    const daftarHashes = new Set((existingDaftar || []).map(r => r.tx_hash));
+    
+    // 2. Prepare payload
+    const rowsToUpsert = transactions
+      .filter(t => !daftarHashes.has(t.tx_hash))
+      .map(t => ({
+        wallet_address: wallet,
+        tx_hash: t.tx_hash,
+        tx_type: t.tx_type || 'other',
+        dapp_key: t.dapp_key || null,
+        dapp_name: t.dapp_name || null,
+        dapp_logo: t.dapp_logo || null,
+        dapp_website: t.dapp_website || null,
+        dapp_contract: t.dapp_contract || null,
+        token_in: t.token_in || null,
+        token_out: t.token_out || null,
+        amount_in: t.amount_in || 0,
+        amount_out: t.amount_out || 0,
+        amount_in_usd: t.amount_in_usd || 0,
+        amount_out_usd: t.amount_out_usd || 0,
+        pnl_usd: t.pnl_usd || 0,
+        gas_fee: t.gas_fee || 0,
+        status: t.status || 'success',
+        source: t.source || 'indexer',
+        tx_timestamp: t.tx_timestamp,
+        fetched_at: new Date().toISOString()
+      }));
+
+    if (rowsToUpsert.length > 0) {
+      const { error: upsertError } = await supabaseAdmin
+        .from('transaction_history')
+        .upsert(rowsToUpsert, { onConflict: 'tx_hash' });
+
+      if (upsertError) throw upsertError;
+    }
+
+    // 3. Pruning: Keep only top 100 per wallet
+    // In a production app, this would be a background job or a Postgres trigger, 
+    // but for Daftar's simplified architecture, we prune on sync.
+    const { data: toPrune } = await supabaseAdmin
+      .from('transaction_history')
+      .select('tx_hash')
+      .eq('wallet_address', wallet)
+      .order('tx_timestamp', { ascending: false })
+      .range(100, 200); // Prune up to 100 extra rows
+
+    if (toPrune && toPrune.length > 0) {
+      const hashesToDelete = toPrune.map(r => r.tx_hash);
+      await supabaseAdmin
+        .from('transaction_history')
+        .delete()
+        .in('tx_hash', hashesToDelete);
+    }
+
+    return res.status(200).json({ success: true, count: rowsToUpsert.length });
+  } catch (error) {
+    console.error('[Server] Sync error:', error.message);
+    return res.status(500).json({ error: 'Failed to sync history' });
   }
 });
 

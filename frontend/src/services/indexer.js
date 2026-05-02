@@ -49,32 +49,7 @@ export const queryIndexer = async (query, variables = {}) => {
 /**
  * Normalize address for GraphQL queries (lowercase, ensure 0x prefix)
  */
-const normalizeAddress = (address) => {
-  if (!address) return "";
-  
-  let normalized = String(address).trim();
-  
-  // Handle AccountAddress objects from SDK
-  if (normalized.startsWith("0x") || /^[a-fA-F0-9]+$/.test(normalized)) {
-    // Already looks like hex
-  } else if (typeof normalized === "string" && normalized.length > 0) {
-    // Try to extract hex from object string representation
-    const hexMatch = normalized.match(/0x[a-fA-F0-9]+/i);
-    if (hexMatch) {
-      normalized = hexMatch[0];
-    }
-  }
-  
-  // Ensure 0x prefix
-  if (!normalized.startsWith("0x")) {
-    normalized = `0x${normalized}`;
-  }
-  
-  // Lowercase for consistency (GraphQL is case-sensitive)
-  normalized = normalized.toLowerCase();
-  
-  return normalized;
-};
+import { normalizeAddress } from '../utils/address.js';
 
 /**
  * Check if an account exists on chain (has any transactions or balances)

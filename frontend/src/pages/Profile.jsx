@@ -114,11 +114,6 @@ export default function Profile() {
 
       setShowSuccess(true);
 
-      // Trigger auto-award check in background (check for Profile Complete etc)
-      import('../services/badges/AutoAwardService.js').then(module => {
-        module.checkAndAwardBadges(address, { triggeredBy: 'profile_update' });
-      }).catch(err => console.warn('AutoAward trigger failed:', err));
-
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       console.error('Error saving profile:', err);

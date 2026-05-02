@@ -132,11 +132,14 @@ const normalizeSymbol = (symbol) => {
   return SYMBOL_ALIASES[raw] || raw;
 };
 
+import { normalizeAddress as baseNormalizeAddress } from '../utils/address.js';
+
 const normalizeAddress = (address) => {
   const raw = String(address || "").trim().toLowerCase();
   if (!raw) return "";
   // For Mosaic, we want to keep the full type if it contains ::
-  return raw;
+  if (raw.includes("::")) return raw;
+  return baseNormalizeAddress(raw);
 };
 
 const normalizeAmountString = (value) => {

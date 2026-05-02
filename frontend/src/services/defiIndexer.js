@@ -23,21 +23,7 @@ const getIndexerEndpoint = () => {
 /**
  * Normalize address for GraphQL (lowercase, with 0x prefix)
  */
-const normalizeAddress = (address) => {
-  if (!address) return "";
-  let normalized = String(address).trim();
-  
-  // Handle AccountAddress objects
-  if (typeof normalized === "object" && normalized.toString) {
-    normalized = normalized.toString();
-  }
-  
-  if (!normalized.startsWith("0x")) {
-    normalized = `0x${normalized}`;
-  }
-  
-  return normalized.toLowerCase();
-};
+import { normalizeAddress } from '../utils/address.js';
 
 /**
  * Execute GraphQL query against Movement Indexer

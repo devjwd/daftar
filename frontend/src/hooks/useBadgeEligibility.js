@@ -4,11 +4,7 @@ import { evaluateBadge } from '../services/badges/engineService.js';
 import { fetchBadge } from '../services/badgeService.js';
 import { useMovementClient } from './useMovementClient.js';
 
-const normalizeAddress = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw.startsWith('0x') ? raw : `0x${raw}`;
-};
+import { normalizeAddress } from '../utils/address.js';
 
 const getWalletAddress = (account) => {
   if (!account?.address) return '';
@@ -137,6 +133,14 @@ export default function useBadgeEligibility(badgeOrId) {
       setIsLoading(false);
     }
   }, [applyResult, badgeOrId, walletAddress]);
+
+  // Auto-trigger eligibility check when wallet and badge are both available
+  useEffect(() => {
+    const resolvedBadgeId = resolveEligibilityBadgeId(badgeOrId);
+    if (walletAddress && resolvedBadgeId && status === 'idle') {
+      checkEligibility();
+    }
+  }, [walletAddress, badgeOrId, status, checkEligibility]);
 
   return {
     status,

@@ -314,12 +314,13 @@ BEGIN
   -- Get Badge XP Value
   SELECT xp_value INTO v_xp_val FROM public.badge_definitions WHERE badge_id = NEW.badge_id;
 
-  -- Handle State Transitions
-  IF (TG_OP = 'INSERT' AND NEW.eligible = true) OR (TG_OP = 'UPDATE' AND OLD.eligible = false AND NEW.eligible = true) THEN
+  -- Award XP only if eligible AND has a confirmed transaction (metadata->'txHash' is not null)
+  IF (TG_OP = 'INSERT' AND NEW.eligible = true AND (NEW.metadata->>'txHash') IS NOT NULL) OR 
+     (TG_OP = 'UPDATE' AND (OLD.metadata->>'txHash') IS NULL AND (NEW.metadata->>'txHash') IS NOT NULL AND NEW.eligible = true) THEN
     -- Award XP
     UPDATE public.profiles SET xp = xp + COALESCE(v_xp_val, 0), updated_at = now() WHERE wallet_address = NEW.wallet_address;
-  ELSIF (TG_OP = 'UPDATE' AND OLD.eligible = true AND NEW.eligible = false) THEN
-    -- Revoke XP
+  ELSIF (TG_OP = 'UPDATE' AND (OLD.metadata->>'txHash') IS NOT NULL AND NEW.eligible = false) THEN
+    -- Revoke XP only if it was previously awarded (had txHash)
     UPDATE public.profiles SET xp = GREATEST(0, xp - COALESCE(v_xp_val, 0)), updated_at = now() WHERE wallet_address = NEW.wallet_address;
   END IF;
 
@@ -411,14 +412,20 @@ END $$;
 -- Base PostgreSQL permissions are required BEFORE RLS policies are evaluated.
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+-- Restricted anon: SELECT only
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO authenticated, service_role;
+
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO anon;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO authenticated, service_role;
+
+GRANT ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA public TO authenticated, service_role;
 
 -- Make sure future tables automatically get these grants
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
 -- 9. SEED DATA (Starter Badges)

@@ -1,13 +1,9 @@
+import { normalizeAddress } from '../utils/address.js';
+
 const normalizeHex = (value = '') => {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return '';
   return raw.startsWith('0x') ? raw : `0x${raw}`;
-};
-
-const normalizeAddress = (value = '') => {
-  const normalized = normalizeHex(value);
-  if (!normalized) return '';
-  return `0x${normalized.slice(2).padStart(64, '0')}`;
 };
 
 const encodeBase64 = (value) => {

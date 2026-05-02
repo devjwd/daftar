@@ -30,6 +30,7 @@
     "@nightlylabs/wallet-adapter-core": "^5.0.2",
     "@okwallet/aptos-wallet-adapter": "^0.0.7",
     "@supabase/supabase-js": "^2.49.8",
+    "framer-motion": "^12.38.0",
     "petra-plugin-wallet-adapter": "^0.4.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

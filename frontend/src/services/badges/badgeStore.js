@@ -1,7 +1,10 @@
 /**
- * Badge Store
+ * Badge Store (v3) — Server-Optimized
  * 
  * CRUD for badge definitions with localStorage persistence and server sync.
+ * User awards (who owns what) are NO LONGER stored in localStorage.
+ * They are fetched from the server and kept in a reactive in-memory cache.
+ * 
  * Emits events so UI can react to changes in real-time.
  */
 import {
@@ -13,13 +16,15 @@ import {
 import { awardBadgeToUser, fetchAllBadges, fetchUserBadges, saveBadgeDefinitions } from '../badgeApi.js';
 
 const BADGE_STORE_KEY = 'movement_badges_v3';
-const BADGE_AWARDS_KEY = 'movement_badge_awards_v3';
 const BADGE_STORE_META_KEY = 'movement_badges_meta_v3';
 const STORE_SCHEMA_VERSION = 3;
 
+// In-memory cache for user awards (Source of truth is now the Server)
+const AWARDS_CACHE = new Map(); // walletAddress -> Array of awards
+
 // Throttling for background syncs
 const LAST_SYNC_TIMES = new Map();
-const SYNC_COOLDOWN_MS = 60000; // 1 minute
+const SYNC_COOLDOWN_MS = 5000; // Reduced to 5 seconds for snappier UI
 
 function normalizeBadgeId(value) {
   const normalized = String(value || '')
@@ -166,15 +171,14 @@ function replaceAwardsForAddress(address, nextAwards) {
   const normalizedAddress = String(address || '').trim().toLowerCase();
   if (!normalizedAddress) return [];
 
-  const awards = readStore(BADGE_AWARDS_KEY, []);
-  const preserved = awards.filter((award) => award.address !== normalizedAddress);
   const normalizedAwards = Array.isArray(nextAwards)
     ? nextAwards.map((award) => normalizeAward(normalizedAddress, award)).filter(Boolean)
     : [];
 
-  const merged = [...preserved, ...normalizedAwards];
-  writeStore(BADGE_AWARDS_KEY, merged);
-  emit('awards:changed', merged);
+  // Update In-Memory Cache (NOT localStorage)
+  AWARDS_CACHE.set(normalizedAddress, normalizedAwards);
+  
+  emit('awards:changed', normalizedAwards);
   return normalizedAwards;
 }
 
@@ -214,19 +218,21 @@ export async function syncBadgesFromBackend() {
 export async function syncUserAwardsFromBackend(address, force = false) {
   if (!address) return { ok: true, awards: [] };
 
+  const normalized = address.toLowerCase();
   const now = Date.now();
-  const lastSync = LAST_SYNC_TIMES.get(address) || 0;
+  const lastSync = LAST_SYNC_TIMES.get(normalized) || 0;
+  
   if (!force && (now - lastSync < SYNC_COOLDOWN_MS)) {
-    return { ok: true, awards: getUserAwards(address), throttled: true };
+    return { ok: true, awards: getUserAwards(normalized), throttled: true };
   }
 
-  LAST_SYNC_TIMES.set(address, now);
-  const response = await fetchUserBadges(address);
+  LAST_SYNC_TIMES.set(normalized, now);
+  const response = await fetchUserBadges(normalized);
   if (!response.ok) {
-    return { ok: false, awards: getUserAwards(address) };
+    return { ok: false, awards: getUserAwards(normalized) };
   }
 
-  const awards = replaceAwardsForAddress(address, response.awards || []);
+  const awards = replaceAwardsForAddress(normalized, response.awards || []);
   return { ok: true, awards };
 }
 
@@ -350,10 +356,13 @@ export async function deleteBadge(id, options = {}) {
   const persistResult = await persistBadgeList(filtered, options.adminAuth);
   if (!persistResult.success) return persistResult;
 
-  // Also clean up awards for this badge
-  const awards = readStore(BADGE_AWARDS_KEY, []);
-  const cleanedAwards = awards.filter(a => a.badgeId !== id);
-  writeStore(BADGE_AWARDS_KEY, cleanedAwards);
+  // Cleanup awards from cache for this badge
+  AWARDS_CACHE.forEach((awards, address) => {
+    const cleaned = awards.filter(a => a.badgeId !== id);
+    if (cleaned.length !== awards.length) {
+      AWARDS_CACHE.set(address, cleaned);
+    }
+  });
 
   emit('badge:deleted', { id });
 
@@ -412,20 +421,11 @@ export async function awardBadge(address, badgeId, extra = {}) {
     return { success: false, errors: ['Badge definition not found'] };
   }
 
-  const awards = readStore(BADGE_AWARDS_KEY, []);
-
-  // Prevent duplicate awards
-  if (awards.some(a => a.address === normalized && a.badgeId === badgeId)) {
+  // Prevent duplicate awards (check cache)
+  const currentAwards = getUserAwards(normalized);
+  if (currentAwards.some(a => a.badgeId === badgeId)) {
     return { success: false, errors: ['Badge already awarded'] };
   }
-
-  const award = {
-    address: normalized,
-    badgeId,
-    awardedAt: Date.now(),
-    txHash: extra.txHash || null,
-    metadata: extra.metadata || {},
-  };
 
   const remoteResult = extra?.adminAuth
     ? await awardBadgeToUser(
@@ -441,26 +441,28 @@ export async function awardBadge(address, badgeId, extra = {}) {
     : { ok: false };
 
   if (remoteResult.ok && remoteResult.data) {
-    const cachedAwards = getUserAwards(normalized);
-    replaceAwardsForAddress(normalized, [...cachedAwards, remoteResult.data]);
+    const nextAwards = [...currentAwards, remoteResult.data];
+    replaceAwardsForAddress(normalized, nextAwards);
     return { success: true, award: normalizeAward(normalized, remoteResult.data) };
   }
 
-  awards.push(award);
-  writeStore(BADGE_AWARDS_KEY, awards);
-  emit('awards:changed', awards);
-
-  return { success: true, award };
+  // If not admin-authorized, we can't record the award ourselves in the new architecture.
+  // The user must mint on-chain, and then we sync from the backend.
+  return { 
+    success: false, 
+    errors: ['Award failed. Only admin or on-chain mints are supported in the simplified architecture.'] 
+  };
 }
 
 /**
- * Get all awards for a user.
+ * Get all awards for a user from the reactive cache.
  * @param {string} address
  * @returns {Array}
  */
 export function getUserAwards(address) {
+  if (!address) return [];
   const normalized = String(address).toLowerCase();
-  return readStore(BADGE_AWARDS_KEY, []).filter(a => a.address === normalized);
+  return AWARDS_CACHE.get(normalized) || [];
 }
 
 /**
@@ -470,10 +472,7 @@ export function getUserAwards(address) {
  * @returns {boolean}
  */
 export function hasEarnedBadge(address, badgeId) {
-  const normalized = String(address).toLowerCase();
-  return readStore(BADGE_AWARDS_KEY, []).some(
-    a => a.address === normalized && a.badgeId === badgeId
-  );
+  return getUserAwards(address).some(a => a.badgeId === badgeId);
 }
 
 /**
@@ -487,16 +486,19 @@ export function getEarnedBadgeIds(address) {
 }
 
 /**
- * Revoke a badge award.
+ * Revoke a badge award (Admin only).
  * @param {string} address
  * @param {string} badgeId
  */
 export function revokeBadge(address, badgeId) {
   const normalized = String(address).toLowerCase();
-  const awards = readStore(BADGE_AWARDS_KEY, []);
-  const filtered = awards.filter(a => !(a.address === normalized && a.badgeId === badgeId));
-  writeStore(BADGE_AWARDS_KEY, filtered);
-  emit('awards:changed', filtered);
+  const current = getUserAwards(normalized);
+  const filtered = current.filter(a => a.badgeId !== badgeId);
+  
+  if (filtered.length !== current.length) {
+    AWARDS_CACHE.set(normalized, filtered);
+    emit('awards:changed', filtered);
+  }
   return { success: true };
 }
 
@@ -597,7 +599,7 @@ export async function clearAllBadgeData(options = {}) {
   }
 
   replaceBadges([]);
-  writeStore(BADGE_AWARDS_KEY, []);
+  AWARDS_CACHE.clear();
   writeStore(BADGE_STORE_META_KEY, {});
   emit('awards:changed', []);
   return { success: true };

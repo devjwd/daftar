@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { normalizeAddress } from '../utils/address.js';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import './Admin.css';
 import BadgeAdmin from '../components/BadgeAdmin';
@@ -123,11 +124,7 @@ export default function Admin() {
         throw new Error('Connect admin wallet to submit router updates');
       }
 
-      const normalizeAddress = (value) => {
-        const raw = String(value || '').trim().toLowerCase();
-        if (!raw) return '';
-        return raw.startsWith('0x') ? raw : `0x${raw}`;
-      };
+      // normalizeAddress is now imported from src/utils/address.js
 
       const normalized = {
         feeInBps: Math.max(0, Math.min(500, Number(swapSettings.feeInBps) || 0)),
