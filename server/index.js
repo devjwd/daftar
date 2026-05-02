@@ -997,20 +997,6 @@ app.post('/api/admin/import-allowlist', async (req, res) => {
 // NOTE: Duplicate POST /api/badges/track handler was removed.
 // The primary handler is defined above (line 351) using req.body.walletAddress.
 
-// GET /api/transactions
-app.get('/api/transactions', generalLimiter, async (req, res) => {
-  const wallet = normalizeAddress(req.query.wallet);
-  if (!wallet) return res.status(400).json({ error: 'wallet address is required' });
-
-  const page = Math.max(1, parseInt(req.query.page || '1'));
-  const type = req.query.type || 'all';
-  const cacheKey = `tx:${wallet}:${page}:${type}`;
-
-  const cached = getCached(cacheKey);
-  if (cached) return res.status(200).json(cached);
-
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Database service unavailable' });
-
 // GET /api/transactions - Real-time proxy to RPC (No DB storage)
 app.get('/api/transactions', generalLimiter, async (req, res) => {
   const address = normalizeAddress(req.query.wallet || req.query.address);
