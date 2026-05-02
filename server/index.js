@@ -387,7 +387,20 @@ app.get('/api/badges/user/:walletAddress', async (req, res) => {
     return res.status(500).json({ error: error.message || 'Failed to fetch badges' });
   }
 
-  return res.status(200).json({ awards: Array.isArray(data) ? data : [] });
+  // Filter: Only return badges that have been actually earned/minted,
+  // not just badges the user is currently "eligible" for.
+  const awards = (data || []).filter(att => {
+    const meta = att.metadata || {};
+    // It's an "Award" if:
+    // 1. It has a transaction hash (synced after mint)
+    // 2. It has a cryptographic signature (claim process started)
+    // 3. It was manually awarded by an admin
+    return meta.txHash || 
+           meta.source === 'admin_award' || 
+           (att.proof_hash && att.proof_hash.startsWith('sig:'));
+  });
+
+  return res.status(200).json({ awards });
 });
 
 // GET /api/badges/definitions - Get all available badges
@@ -768,6 +781,11 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
       proofHash = createHash('sha256').update(`${walletAddress}:${badge.badge_id}:${Date.now()}`).digest('hex');
     }
 
+    const awardMetadata = {
+      ...metadata,
+      ...(sigData ? { sig_valid_until: sigData.validUntil } : { source: 'admin_award' })
+    };
+
     // 5. Update Attestation
     const awardedAt = new Date().toISOString();
     const { error: upsertError } = await supabaseAdmin.from('badge_attestations').upsert({
@@ -776,7 +794,7 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
       eligible: true,
       verified_at: awardedAt,
       proof_hash: proofHash,
-      metadata: { ...metadata, ...(sigData ? { sig_valid_until: sigData.validUntil } : {}) }
+      metadata: awardMetadata
     }, { onConflict: 'wallet_address,badge_id' });
 
     if (upsertError) {
