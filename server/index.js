@@ -45,7 +45,8 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
     console.error('[Server] Failed to initialize Supabase:', err.message);
   }
 } else {
-  console.warn('[Server] Supabase credentials missing - Badge management will be disabled');
+  console.error('[Server] CRITICAL: Supabase credentials (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY) are missing!');
+  console.log('[Server] Current ENV keys:', Object.keys(process.env).filter(k => k.includes('SUPABASE')));
 }
 
 const normalizeAddress = (value) => {
@@ -380,7 +381,7 @@ app.get('/api/badges/user/:walletAddress', async (req, res) => {
     .select('*, badge_definitions(*)')
     .eq('wallet_address', walletAddress)
     .eq('eligible', true)
-    .order('awarded_at', { ascending: false });
+    .order('verified_at', { ascending: false });
 
   if (error) {
     return res.status(500).json({ error: error.message || 'Failed to fetch badges' });
@@ -474,7 +475,11 @@ app.get('/api/swap/tokens', generalLimiter, async (req, res) => {
       headers: { 'X-API-KEY': MOSAIC_API_KEY, 'Accept': 'application/json' }
     });
 
-    if (!response.ok) throw new Error(`Mosaic API error: ${response.status}`);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[Mosaic] Tokens fetch error:', response.status, errText);
+      return res.status(response.status).json({ error: 'Mosaic API error', status: response.status, details: errText });
+    }
     
     const data = await response.json();
     // Mosaic returns { tokenById: { ... } }. The frontend expects an array.
@@ -482,8 +487,8 @@ app.get('/api/swap/tokens', generalLimiter, async (req, res) => {
     
     return res.json(Array.isArray(tokens) ? tokens : []);
   } catch (err) {
-    console.error('[Mosaic] Tokens error:', err.message);
-    return res.status(500).json({ error: 'Failed to fetch tokens from Mosaic' });
+    console.error('[Mosaic] Tokens fetch failure:', err.message);
+    return res.status(502).json({ error: 'Failed to fetch tokens from Mosaic', message: err.message });
   }
 });
 
@@ -502,14 +507,17 @@ app.get('/api/swap/quote', generalLimiter, async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('[Mosaic] Quote error:', response.status, errText);
-      return res.status(response.status).json({ error: 'Mosaic API error' });
+      // Pass through the error from Mosaic
+      let errJson;
+      try { errJson = JSON.parse(errText); } catch { errJson = { error: errText }; }
+      return res.status(response.status).json(errJson);
     }
 
     const data = await response.json();
     return res.json(data);
   } catch (err) {
     console.error('[Mosaic] Quote fetch failure:', err.message);
-    return res.status(500).json({ error: 'Failed to fetch quote from Mosaic' });
+    return res.status(502).json({ error: 'Gateway failure when calling Mosaic', message: err.message });
   }
 });
 
@@ -767,7 +775,6 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
       badge_id: badge.badge_id,
       eligible: true,
       verified_at: awardedAt,
-      awarded_at: awardedAt,
       proof_hash: proofHash,
       metadata: { ...metadata, ...(sigData ? { sig_valid_until: sigData.validUntil } : {}) }
     }, { onConflict: 'wallet_address,badge_id' });
@@ -782,7 +789,7 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
       eligible: true,
       wallet_address: walletAddress,
       badge_id: badge.badge_id,
-      awarded_at: awardedAt,
+      verified_at: awardedAt,
       ...(sigData || {})
     });
 
@@ -1159,9 +1166,9 @@ app.post('/api/entities', async (req, res) => {
     const payload = req.body;
     let result;
     if (payload.id) {
-      result = await supabaseAdmin.from('tracked_entities').update(payload).eq('id', payload.id);
+      result = await supabaseAdmin.from('tracked_entities').update(payload).eq('id', payload.id).select();
     } else {
-      result = await supabaseAdmin.from('tracked_entities').insert([payload]);
+      result = await supabaseAdmin.from('tracked_entities').insert([payload]).select();
     }
 
     if (result.error) throw result.error;
@@ -1181,7 +1188,11 @@ app.post('/api/entities', async (req, res) => {
       }
     }
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ 
+      ok: true, 
+      id: result.data?.[0]?.id || (payload && payload.id),
+      entity: result.data?.[0]
+    });
   } catch (err) {
     console.error('[Entities API] Error saving entity:', err);
     return res.status(500).json({ error: err.message || 'Failed to save entity' });
@@ -1252,6 +1263,17 @@ app.post('/api/storage/pin', async (req, res) => {
   }
 });
 
+
+// --- 404 Handler ---
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found', path: req.path });
+});
+
+// --- Global Error Handler ---
+app.use((err, req, res, next) => {
+  console.error('[Global Error]', err);
+  res.status(500).json({ error: 'Internal server error', message: err.message });
+});
 
 if (!process.env.VERCEL) {
   const host = '0.0.0.0';

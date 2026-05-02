@@ -209,9 +209,17 @@
 
 /* Scanning Pulse Animation */
 @keyframes scanning-glow {
-  0% { box-shadow: 0 0 10px rgba(205, 161, 105, 0.2); }
-  50% { box-shadow: 0 0 25px rgba(205, 161, 105, 0.5); }
-  100% { box-shadow: 0 0 10px rgba(205, 161, 105, 0.2); }
+  0% {
+    box-shadow: 0 0 10px rgba(205, 161, 105, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 25px rgba(205, 161, 105, 0.5);
+  }
+
+  100% {
+    box-shadow: 0 0 10px rgba(205, 161, 105, 0.2);
+  }
 }
 
 .is-scanning {
@@ -669,11 +677,13 @@
 }
 
 @keyframes badges-pulse {
+
   0%,
   100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.45;
     transform: scale(0.8);
@@ -685,6 +695,7 @@
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -696,10 +707,12 @@
     transform: scale(1);
     box-shadow: 0 8px 20px rgba(2, 6, 17, 0.28);
   }
+
   32% {
     transform: scale(1.015);
     box-shadow: 0 0 0 1px rgba(127, 182, 133, 0.45), 0 0 24px rgba(127, 182, 133, 0.35);
   }
+
   100% {
     transform: scale(1);
     box-shadow: 0 8px 20px rgba(2, 6, 17, 0.28);
@@ -711,6 +724,7 @@
     opacity: 0;
     transform: translateY(8px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);

@@ -77,6 +77,14 @@ export default function EntityAdmin() {
         throw new Error(result.error || 'Failed to save entity');
       }
 
+      // Update local state immediately for better UX
+      const savedEntity = result.entity || { ...payload, id: result.id || editingId };
+      if (editingId) {
+        setEntities(prev => prev.map(e => e.id === editingId ? savedEntity : e));
+      } else {
+        setEntities(prev => [...prev, savedEntity].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+
       // Refresh dynamic entity cache
       await syncEntities(true);
 
@@ -93,6 +101,7 @@ export default function EntityAdmin() {
         badge_color: '#9ca3af',
         is_verified: true 
       });
+      // Optionally still fetch to be safe
       fetchEntities();
     } catch (err) {
       console.error('Error saving entity:', err);
@@ -118,15 +127,22 @@ export default function EntityAdmin() {
     });
     setEditingId(entity.id);
     setIsAdding(true);
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
+    // Basic confirmation
     if (!window.confirm('Are you sure you want to delete this entity mapping?')) return;
 
+    setMessage({ text: 'Deleting...', type: 'info' });
     try {
        const baseUrl = import.meta.env.VITE_API_URL || '';
+       console.log(`[EntityAdmin] Deleting entity ${id} at ${baseUrl}/api/entities/${id}`);
+       
        const response = await fetch(`${baseUrl}/api/entities/${id}`, {
-         method: 'DELETE'
+         method: 'DELETE',
+         headers: { 'Accept': 'application/json' }
        });
        
        const result = await response.json();
@@ -134,13 +150,16 @@ export default function EntityAdmin() {
          throw new Error(result.error || 'Failed to delete entity');
        }
 
+       // Update local state immediately
+       setEntities(prev => prev.filter(e => e.id !== id));
+
        // Refresh dynamic entity cache
        await syncEntities(true);
 
-       setMessage({ text: 'Entity deleted', type: 'success' });
-       fetchEntities();
+       setMessage({ text: 'Entity deleted successfully', type: 'success' });
     } catch (err) {
-      setMessage({ text: 'Failed to delete', type: 'error' });
+      console.error('[EntityAdmin] Delete failed:', err);
+      setMessage({ text: `Delete failed: ${err.message}`, type: 'error' });
     }
   };
 

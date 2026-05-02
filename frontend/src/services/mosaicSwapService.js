@@ -18,15 +18,15 @@ const MAX_FEE_BPS = 500; // 5% max protocol fee
 const QUOTE_TIMEOUT_MS = 8000;
 const VALID_ROUTING_MODES = ["mosaic"];
 const DEFAULT_ENABLED_LIQUIDITY_SOURCES = ["mosaic_amm"];
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 const SWAP_PROXY_BASE = `${API_BASE}/api/swap`;
 
 const KNOWN_MOSAIC_ASSETS = {
-  MOVE: "0x1::aptos_coin::AptosCoin",
-  USDC: "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39::asset::USDC",
-  USDT: "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d::asset::USDT",
-  WETH: "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376::asset::WETH",
-  WBTC: "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c::asset::WBTC",
+  MOVE: "0xa",
+  USDC: "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39",
+  USDT: "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d",
+  WETH: "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376",
+  WBTC: "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c",
 };
 
 const SYMBOL_ALIASES = {
