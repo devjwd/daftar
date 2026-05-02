@@ -103,7 +103,7 @@ export const evaluateRule = async (
   if (criteria.length > 0) {
     const results = await Promise.all(criteria.map(async (c) => {
       if (!c.type) return { eligible: false, reason: 'missing type in criterion' };
-      const mockBadge = { ...badge, rule_type: c.type, rule_params: c.params || {} };
+      const mockBadge = { ...badge, criteria: [], rule_type: c.type, rule_params: c.params || {} };
       return await evaluateRule(supabase, walletAddress, mockBadge, null);
     }));
 
