@@ -1011,130 +1011,30 @@ app.get('/api/transactions', generalLimiter, async (req, res) => {
 
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database service unavailable' });
 
+// GET /api/transactions - Real-time proxy to RPC (No DB storage)
+app.get('/api/transactions', generalLimiter, async (req, res) => {
+  const address = normalizeAddress(req.query.wallet || req.query.address);
+  if (!address) return res.status(400).json({ error: 'wallet address is required' });
+
+  const rpcUrl = process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1';
   try {
-    let query = supabaseAdmin
-      .from('transaction_history')
-      .select('*', { count: 'exact' })
-      .eq('wallet_address', wallet)
-      .order('tx_timestamp', { ascending: false });
-
-    if (type !== 'all') {
-      // Basic type filtering
-      if (type === 'transfers') {
-        query = query.in('tx_type', ['transfer', 'received']);
-      } else {
-        query = query.eq('tx_type', type);
-      }
-    }
-
-    const { data, count, error } = await query
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
-
-    if (error) throw error;
-
-    const result = {
-      transactions: data || [],
-      total: count || 0,
-      page,
-      hasMore: (count || 0) > page * PAGE_SIZE,
-    };
-    setCached(cacheKey, result);
-    return res.status(200).json(result);
+    const response = await fetch(`${rpcUrl}/accounts/${address}/transactions?limit=25`);
+    if (!response.ok) throw new Error(`RPC error: ${response.status}`);
+    const data = await response.json();
+    
+    // Return real-time data from RPC
+    return res.status(200).json({
+      transactions: Array.isArray(data) ? data : [],
+      source: 'rpc_realtime',
+      total: Array.isArray(data) ? data.length : 0
+    });
   } catch (error) {
     console.error('[Server] Transactions fetch error:', error.message || error);
-
-    // GRACEFUL DEGRADATION: 
-    // Instead of a 500 error, return an empty result so the frontend can fallback to Indexer
     return res.status(200).json({
       transactions: [],
-      total: 0,
-      page: Number(req.query.page || 1),
-      hasMore: false,
-      error: 'database_unavailable_falling_back'
+      source: 'fallback_empty',
+      error: 'rpc_unavailable'
     });
-  }
-});
-
-// POST /api/transactions/sync - Sync indexer history to DB
-app.post('/api/transactions/sync', generalLimiter, async (req, res) => {
-  const wallet = normalizeAddress(req.body.walletAddress);
-  const transactions = req.body.transactions;
-
-  if (!wallet) return res.status(400).json({ error: 'walletAddress is required' });
-  if (!Array.isArray(transactions) || transactions.length === 0) {
-    return res.status(200).json({ success: true, count: 0 });
-  }
-
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Database service unavailable' });
-
-  try {
-    // 1. Filter out existing 'daftar_swap' records to prevent overwriting high-integrity local data
-    const hashes = transactions.map(t => t.tx_hash).filter(Boolean);
-    const { data: existingDaftar } = await supabaseAdmin
-      .from('transaction_history')
-      .select('tx_hash')
-      .eq('wallet_address', wallet)
-      .eq('source', 'daftar_swap')
-      .in('tx_hash', hashes);
-
-    const daftarHashes = new Set((existingDaftar || []).map(r => r.tx_hash));
-    
-    // 2. Prepare payload
-    const rowsToUpsert = transactions
-      .filter(t => !daftarHashes.has(t.tx_hash))
-      .map(t => ({
-        wallet_address: wallet,
-        tx_hash: t.tx_hash,
-        tx_type: t.tx_type || 'other',
-        dapp_key: t.dapp_key || null,
-        dapp_name: t.dapp_name || null,
-        dapp_logo: t.dapp_logo || null,
-        dapp_website: t.dapp_website || null,
-        dapp_contract: t.dapp_contract || null,
-        token_in: t.token_in || null,
-        token_out: t.token_out || null,
-        amount_in: t.amount_in || 0,
-        amount_out: t.amount_out || 0,
-        amount_in_usd: t.amount_in_usd || 0,
-        amount_out_usd: t.amount_out_usd || 0,
-        pnl_usd: t.pnl_usd || 0,
-        gas_fee: t.gas_fee || 0,
-        status: t.status || 'success',
-        source: t.source || 'indexer',
-        tx_timestamp: t.tx_timestamp,
-        fetched_at: new Date().toISOString()
-      }));
-
-    if (rowsToUpsert.length > 0) {
-      const { error: upsertError } = await supabaseAdmin
-        .from('transaction_history')
-        .upsert(rowsToUpsert, { onConflict: 'tx_hash' });
-
-      if (upsertError) throw upsertError;
-    }
-
-    // 3. Pruning: Keep only top 100 per wallet
-    // In a production app, this would be a background job or a Postgres trigger, 
-    // but for Daftar's simplified architecture, we prune on sync.
-    const { data: toPrune } = await supabaseAdmin
-      .from('transaction_history')
-      .select('tx_hash')
-      .eq('wallet_address', wallet)
-      .order('tx_timestamp', { ascending: false })
-      .range(100, 200); // Prune up to 100 extra rows
-
-    if (toPrune && toPrune.length > 0) {
-      const hashesToDelete = toPrune.map(r => r.tx_hash);
-      await supabaseAdmin
-        .from('transaction_history')
-        .delete()
-        .in('tx_hash', hashesToDelete);
-    }
-
-    return res.status(200).json({ success: true, count: rowsToUpsert.length });
-  } catch (error) {
-    console.error('[Server] Sync error:', error.message);
-    return res.status(500).json({ error: 'Failed to sync history' });
   }
 });
 

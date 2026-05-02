@@ -1219,21 +1219,7 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
   const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
   try {
-    // 1. Try to fetch from our Backend API first
-    try {
-      const apiResponse = await fetch(`${apiBase}/api/transactions?wallet=${normalizedAddress}&limit=${limit}`);
-      if (apiResponse.ok) {
-        const result = await apiResponse.json();
-        if (result.transactions && result.transactions.length > 0) {
-          // Success! Return branding-applied results from our database
-          return trimTransactions(applyProjectBranding(result.transactions), limit);
-        }
-      }
-    } catch (apiError) {
-      devLog("Backend API fetch failed, falling back to Indexer:", apiError);
-    }
-
-    // 2. Fallback: Fetch from Indexer
+    // 1. Fetch directly from Indexer for real-time history (Saves Hobby Plan resources)
     const rawTransactions = await fetchTransactions(normalizedAddress, limit);
     if (rawTransactions.length === 0) return [];
 
@@ -1246,18 +1232,7 @@ export const getOrFetchTransactions = async (walletAddress, options = {}) => {
       limit
     );
 
-    // 3. Sync to Backend in background
-    if (enrichedTransactions.length > 0) {
-      void fetch(`${apiBase}/api/transactions/sync`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          walletAddress: normalizedAddress,
-          transactions: enrichedTransactions
-        })
-      }).catch(err => devLog("Background sync failed:", err));
-    }
-
+    // 2. Return branding-applied results (No sync to DB)
     return trimTransactions(applyProjectBranding(enrichedTransactions), limit);
   } catch (error) {
     console.error("getOrFetchTransactions failed:", error);
