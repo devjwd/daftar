@@ -5,6 +5,7 @@ import { useTransactionTracker } from '../../hooks/useTransactionTracker.js';
 
 import { 
   fetchAllBadges, 
+  fetchAdminBadges,
   saveBadgeDefinitions,
   manageBadgeDefinition 
 } from '../../services/badgeApi.js';
@@ -59,6 +60,7 @@ export default function BadgeAdminRoot() {
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const showMessage = useCallback((type, text) => {
     setMessage({ type, text });
@@ -68,14 +70,21 @@ export default function BadgeAdminRoot() {
   const loadBadges = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await fetchAllBadges({ includePrivate: true });
+      let result;
+      if (account) {
+        const auth = await createAdminProofHeaders({ account, signMessage: window.aptos?.signMessage, action: 'list-all-badges', body: {} });
+        result = await fetchAdminBadges(auth);
+      } else {
+        result = await fetchAllBadges({ includePrivate: true });
+      }
+      
       if (result.ok) setBadges(result.badges || []);
     } catch (err) {
       console.error('[BadgeAdmin] Load failed', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [account]);
 
   useEffect(() => { loadBadges(); }, [loadBadges]);
 
@@ -154,14 +163,25 @@ export default function BadgeAdminRoot() {
 
   const handleDelete = async (id) => {
     try {
-       const badge = badges.find(b => b.id === id);
        const auth = await createManageBadgeAuth({ action: 'delete', badge: { badge_id: id } });
        const res = await manageBadgeDefinition('delete', { badge_id: id }, auth);
        if (res.error) throw res.error;
-       showMessage('success', 'Badge definition deleted');
+       showMessage('success', 'Badge definition moved to trash');
        loadBadges();
     } catch (err) {
        showMessage('error', err.message || 'Delete failed');
+    }
+  };
+
+  const handleRestore = async (id) => {
+    try {
+       const auth = await createManageBadgeAuth({ action: 'restore', badge: { badge_id: id } });
+       const res = await manageBadgeDefinition('restore', { badge_id: id }, auth);
+       if (res.error) throw res.error;
+       showMessage('success', 'Badge definition restored');
+       loadBadges();
+    } catch (err) {
+       showMessage('error', err.message || 'Restore failed');
     }
   };
 
@@ -195,9 +215,12 @@ export default function BadgeAdminRoot() {
              badges={badges} 
              handleEdit={(b) => { setForm(b); setEditingId(b.id); setSubTab('create'); }}
              handleDelete={handleDelete}
+             handleRestore={handleRestore}
              handleToggle={() => {}} 
              handleTogglePublic={() => {}}
              setSubTab={setSubTab}
+             showDeleted={showDeleted}
+             setShowDeleted={setShowDeleted}
           />
         )}
         {subTab === 'create' && (

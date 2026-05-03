@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS public.badge_definitions (
   is_public           boolean      NOT NULL DEFAULT true,
   enabled             boolean      NOT NULL DEFAULT true,
   is_active           boolean      NOT NULL DEFAULT true,
+  is_deleted          boolean      NOT NULL DEFAULT false,
   rule_type           text         DEFAULT 'manual',
   rule_params         jsonb        NOT NULL DEFAULT '{}',
   on_chain_badge_id   integer,

@@ -367,6 +367,29 @@ export const awardBadge = async (wallet_address, badge_id, adminAuth = null, sig
   return { data: response.data, error: response.ok ? null : new Error(response.data?.error || 'Award failed') };
 };
 
+export const fetchAdminBadges = async (adminAuth) => {
+  const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
+  const response = await callLocalBadgeApi({
+    path: '/api/admin/badges',
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    devLog('[badges] fetchAdminBadges failed:', response.data?.error);
+    return { ok: false, badges: [] };
+  }
+
+  const remoteBadges = Array.isArray(response.data?.badges) ? response.data.badges : [];
+  return {
+    ok: true,
+    badges: remoteBadges.map(mapBadgeDefinitionRow).map(b => ({
+      ...b,
+      isDeleted: remoteBadges.find(r => (r.badge_id || r.id) === b.id)?.is_deleted || false
+    })),
+  };
+};
+
 export const manageBadgeDefinition = async (action, badge, adminAuth = null) => {
   const body = { action, badge };
   const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};

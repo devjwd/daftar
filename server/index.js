@@ -408,7 +408,8 @@ app.get('/api/badges/definitions', async (req, res) => {
     .from('badge_definitions')
     .select('*')
     .eq('enabled', true)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .eq('is_deleted', false);
 
   if (error) return res.status(500).json({ error: error.message });
   return res.status(200).json({ badges: data || [] });
@@ -961,9 +962,25 @@ app.post('/api/admin/manage-badge', async (req, res) => {
     if (action === 'delete') {
       const badgeId = badge?.badge_id || badge?.id;
       if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
-      const { error } = await supabaseAdmin.from('badge_definitions').delete().eq('badge_id', badgeId);
+      // Soft Delete: Set is_deleted = true
+      const { error } = await supabaseAdmin
+        .from('badge_definitions')
+        .update({ is_deleted: true, updated_at: new Date().toISOString() })
+        .eq('badge_id', badgeId);
       if (error) throw error;
-      return res.json({ success: true, action, badge_id: badgeId });
+      return res.json({ success: true, action, badge_id: badgeId, soft_deleted: true });
+    }
+
+    if (action === 'restore') {
+      const badgeId = badge?.badge_id || badge?.id;
+      if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
+      // Restore: Set is_deleted = false
+      const { error } = await supabaseAdmin
+        .from('badge_definitions')
+        .update({ is_deleted: false, updated_at: new Date().toISOString() })
+        .eq('badge_id', badgeId);
+      if (error) throw error;
+      return res.json({ success: true, action, badge_id: badgeId, restored: true });
     }
 
     // Create/Update
@@ -978,6 +995,24 @@ app.post('/api/admin/manage-badge', async (req, res) => {
     console.error('[Admin] Manage badge error:', err.message);
     return res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/admin/badges', async (req, res) => {
+  // Use query params for GET auth verification if needed, 
+  // but verifyAdminRequest usually expects headers/body.
+  // For GET, we'll check the headers.
+  const auth = verifyAdminRequest(req, {}, 'list-all-badges');
+  if (!auth.ok) return res.status(auth.status || 401).json({ error: auth.error });
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
+
+  const { data, error } = await supabaseAdmin
+    .from('badge_definitions')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ badges: data || [] });
 });
 
 app.post('/api/admin/import-allowlist', async (req, res) => {

@@ -6,16 +6,130 @@ export default function BadgeManager({
   badges, 
   handleEdit, 
   handleDelete, 
+  handleRestore,
   handleToggle, 
   handleTogglePublic, 
   handleManageAllowlist,
-  setSubTab 
+  setSubTab,
+  showDeleted,
+  setShowDeleted
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [exporting, setExporting] = useState(false);
 
+  const filteredBadges = badges.filter(b => !!b.isDeleted === showDeleted);
+
   const hasAllowlist = (badge) => badge.criteria.some(c => c.type === 'allowlist');
   const hasRewards = (badge) => badge.metadata?.special?.rewards?.enabled;
+
+  // ... (handleExportWinners stays same)
+
+  return (
+    <div className="ba-manage">
+      <div className="ba-manage-header">
+        <div className="ba-manage-title-group">
+          <h3>{filteredBadges.length} Badge{filteredBadges.length !== 1 ? 's' : ''} {showDeleted ? 'in Trash' : 'Defined'}</h3>
+          <div className="ba-filter-group">
+            <button 
+              className={`ba-filter-btn ${!showDeleted ? 'active' : ''}`}
+              onClick={() => setShowDeleted(false)}
+            >
+              Active
+            </button>
+            <button 
+              className={`ba-filter-btn ${showDeleted ? 'active' : ''}`}
+              onClick={() => setShowDeleted(true)}
+            >
+              Trash
+            </button>
+          </div>
+        </div>
+        <button className="ba-btn ba-btn-primary" onClick={() => setSubTab('create')}>
+          + New Badge
+        </button>
+      </div>
+
+      {filteredBadges.length === 0 && (
+        <div className="ba-empty-state">
+          <h3>No {showDeleted ? 'deleted ' : ''}badges found.</h3>
+          <p>{showDeleted ? 'Your trash is empty.' : "You haven't created any custom badges for the platform yet. Click the button above to get started!"}</p>
+        </div>
+      )}
+
+      <div className="ba-badge-list">
+        {filteredBadges.map(badge => (
+          <div key={badge.id} className={`ba-badge-item ${!badge.enabled || badge.isDeleted ? 'disabled' : ''}`}>
+            <div className="ba-badge-preview">
+              {badge.imageUrl ? (
+                <img src={badge.imageUrl} alt={badge.name} className="ba-badge-thumb" />
+              ) : (
+                <div className="ba-badge-placeholder">🏅</div>
+              )}
+            </div>
+            <div className="ba-badge-info">
+              <div className="ba-badge-title-row">
+                <h4>{badge.name}</h4>
+                <span className="ba-xp-pill">+{badge.xp} XP</span>
+              </div>
+              <p className="ba-badge-desc">{badge.description}</p>
+              <div className="ba-badge-criteria-tags">
+                {badge.criteria.map((c, i) => (
+                  <span key={i} className="ba-criteria-tag">
+                    {CRITERIA_LABELS[c.type] || c.type}
+                  </span>
+                ))}
+                <span className="ba-criteria-tag">{badge.isPublic === false ? 'Private' : 'Public'}</span>
+                {badge.isDeleted && <span className="ba-criteria-tag" style={{ color: '#ef4444', borderColor: '#ef4444' }}>🗑️ Deleted</span>}
+                {badge.metadata?.special?.isSpecial && <span className="ba-criteria-tag">✨ Special</span>}
+              </div>
+            </div>
+            <div className="ba-badge-actions">
+              {badge.isDeleted ? (
+                <>
+                  <button className="ba-btn-icon" onClick={() => handleRestore(badge.id)} title="Restore">
+                    🔄 Restore
+                  </button>
+                </>
+              ) : (
+                <>
+                  {hasRewards(badge) && (
+                    <button 
+                      className="ba-btn-icon" 
+                      onClick={() => handleExportWinners(badge)} 
+                      title="Export Winners"
+                      disabled={exporting}
+                      style={{ color: '#f59e0b' }}
+                    >
+                      {exporting ? '...' : '🏆'}
+                    </button>
+                  )}
+                  <button className="ba-btn-icon" onClick={() => handleTogglePublic(badge.id)} title="Visibility">
+                    {badge.isPublic === false ? '🔒' : '🌍'}
+                  </button>
+                  <button className="ba-btn-icon" onClick={() => handleToggle(badge.id)} title="Enable/Disable">
+                    {badge.enabled ? '🟢' : '🔴'}
+                  </button>
+                  {hasAllowlist(badge) && (
+                    <button className="ba-btn-icon" onClick={() => handleManageAllowlist(badge)} title="Manage Allowlist">📋</button>
+                  )}
+                  <button className="ba-btn-icon" onClick={() => handleEdit(badge)} title="Edit">✏️</button>
+                  {deleteConfirm === badge.id ? (
+                    <div className="ba-delete-confirm">
+                      <button className="ba-btn ba-btn-danger ba-btn-sm" onClick={() => handleDelete(badge.id)}>Trash</button>
+                      <button className="ba-btn ba-btn-sm" onClick={() => setDeleteConfirm(null)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button className="ba-btn-icon" onClick={() => setDeleteConfirm(badge.id)} title="Delete">🗑️</button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
   const handleExportWinners = async (badge) => {
     if (exporting) return;

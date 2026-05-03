@@ -370,6 +370,22 @@ export async function deleteBadge(id, options = {}) {
 }
 
 /**
+ * Restore a soft-deleted badge definition.
+ * @param {string} id
+ * @returns {{ success: boolean }}
+ */
+export async function restoreBadge(id, options = {}) {
+  const result = await manageBadgeDefinition('restore', { badge_id: id }, options.adminAuth);
+  if (result.error) {
+    return { success: false, errors: [result.error.message] };
+  }
+
+  // Refresh from backend to get the restored state
+  await syncBadgesFromBackend();
+  return { success: true };
+}
+
+/**
  * Toggle badge enabled/disabled.
  * @param {string} id
  * @returns {{ success: boolean, badge?: object }}
@@ -614,6 +630,7 @@ export default {
   createBadge,
   updateBadge,
   deleteBadge,
+  restoreBadge,
   toggleBadge,
   reorderBadges,
   awardBadge,

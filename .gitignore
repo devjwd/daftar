@@ -101,5 +101,3 @@ logs/
 supabase/.temp/
 .vercel
 scratch/
-badge_architecture_audit.md
-implementation_plan.md
