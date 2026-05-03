@@ -1071,25 +1071,50 @@ app.get('/api/transactions', generalLimiter, async (req, res) => {
   const address = normalizeAddress(req.query.wallet || req.query.address);
   if (!address) return res.status(400).json({ error: 'wallet address is required' });
 
-  const rpcUrl = process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1';
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Database unavailable' });
+  }
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
   try {
-    const response = await fetch(`${rpcUrl}/accounts/${address}/transactions?limit=25`);
-    if (!response.ok) throw new Error(`RPC error: ${response.status}`);
-    const data = await response.json();
-    
-    // Return real-time data from RPC
+    let query = supabaseAdmin
+      .from('transaction_history')
+      .select('*', { count: 'exact' })
+      .eq('wallet_address', address)
+      .order('tx_timestamp', { ascending: false })
+      .range(from, to);
+
+    const typeFilter = req.query.type;
+    if (typeFilter && typeFilter !== 'all') {
+      if (typeFilter === 'transfers') {
+        query = query.in('tx_type', ['transfer', 'received', 'send']);
+      } else if (typeFilter === 'lending') {
+        query = query.in('tx_type', ['lend', 'borrow', 'repay', 'deposit', 'withdraw', 'liquidity']);
+      } else if (typeFilter === 'staking') {
+        query = query.in('tx_type', ['stake', 'unstake', 'claim']);
+      } else {
+        query = query.eq('tx_type', typeFilter);
+      }
+    }
+
+    const { data, count, error } = await query;
+
+    if (error) throw error;
+
     return res.status(200).json({
-      transactions: Array.isArray(data) ? data : [],
-      source: 'rpc_realtime',
-      total: Array.isArray(data) ? data.length : 0
+      transactions: data || [],
+      total: count || 0,
+      page,
+      hasMore: (count || 0) > (to + 1),
+      source: 'database'
     });
   } catch (error) {
-    console.error('[Server] Transactions fetch error:', error.message || error);
-    return res.status(200).json({
-      transactions: [],
-      source: 'fallback_empty',
-      error: 'rpc_unavailable'
-    });
+    console.error('[Server] Database transactions fetch error:', error.message || error);
+    return res.status(500).json({ error: 'Failed to fetch transaction history' });
   }
 });
 
