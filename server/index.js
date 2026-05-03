@@ -848,9 +848,21 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
       // Signer epoch management
       // TODO: Fetch from registry info if epoch > 0. For now we use 0 as default.
       const signerEpoch = 0; 
-      const validUntil = Math.floor(Date.now() / 1000) + 240; // 4 minutes (Contract limit is 300s)
+      // Use a slightly tighter window (180s = 3 mins) to stay well within contract's 300s limit
+      // even if there is significant clock drift between server and blockchain.
+      const validUntil = Math.floor(Date.now() / 1000) + 180; 
+
       
-      console.log(`[Award] Signing mint auth: User=${walletAddress}, BadgeID=${badge.on_chain_badge_id}, Epoch=${signerEpoch}, ValidUntil=${validUntil}`);
+      const serverTime = Math.floor(Date.now() / 1000);
+      let chainTime = "unknown";
+      try {
+        const timeResult = await movementClient.view({
+          payload: { function: "0x1::timestamp::now_seconds", typeArguments: [], functionArguments: [] }
+        });
+        chainTime = timeResult[0];
+      } catch (e) {}
+
+      console.log(`[Award] Signing mint auth: User=${walletAddress}, BadgeID=${badge.on_chain_badge_id}, Epoch=${signerEpoch}, ValidUntil=${validUntil} (ServerTime=${serverTime}, ChainTime=${chainTime})`);
 
       sigData = await signMintAuthorization(
         privateKey,

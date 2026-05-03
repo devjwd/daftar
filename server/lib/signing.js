@@ -70,6 +70,8 @@ export async function signMintAuthorization(
   finalPayload.set(validUntilBytes, pos); pos += 8;
   finalPayload.set(signerEpochBytes, pos); pos += 8;
   
+  console.log(`[Signing] Final Payload (Hex): ${Buffer.from(finalPayload).toString('hex')}`);
+  
   const signature = privateKey.sign(finalPayload);
   
   return {

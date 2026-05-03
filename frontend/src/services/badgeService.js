@@ -528,7 +528,7 @@ export const mintBadge = async ({
       function: fn,
       typeArguments: [],
       // Contract: mint(user, badge_id: u64, valid_until: u64, signature_bytes: vector<u8>)
-      functionArguments: [badgeId, validUntil, new Uint8Array(signatureBytes)],
+      functionArguments: [String(badgeId), String(validUntil), new Uint8Array(signatureBytes)],
     },
   });
 

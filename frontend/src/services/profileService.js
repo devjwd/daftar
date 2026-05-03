@@ -402,6 +402,7 @@ const storeEditKey = (address, editKey) => {
 const shouldFallbackToLocalProfileStore = (status) => status === 404 || status === 405;
 
 const isLegacyProfileMigrationError = (status, message) =>
+  (status === 401) || // New requirement: Signature required
   (status === 409 && /missing an edit key/i.test(String(message || ''))) ||
   (status === 403 && /invalid profile edit key/i.test(String(message || '')));
 
@@ -503,22 +504,25 @@ export const saveProfileAsync = async (profileData, migrationAuth = null) => {
   validateProfile(profile);
   const editKey = getStoredEditKey(normalizedAddress);
 
-  let res;
-  try {
-    res = await fetch(`${API_BASE}/api/profiles`, {
+  // Helper to perform the actual fetch
+  const doSave = async (auth = null) => {
+    const body = { 
+      ...profile, 
+      ...(editKey ? { editKey } : {}),
+      ...(auth || {})
+    };
+
+    return await fetch(`${API_BASE}/api/profiles`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(editKey ? { 'x-profile-edit-key': editKey } : {}),
       },
-      body: JSON.stringify({ ...profile, ...(editKey ? { editKey } : {}) }),
+      body: JSON.stringify(body),
     });
-  } catch (error) {
-    devLog('saveProfileAsync remote save failed, falling back to local storage:', error);
-    const localProfile = await saveProfile(profile);
-    cacheProfile(localProfile);
-    return localProfile;
-  }
+  };
+
+  let res = await doSave();
 
   if (shouldFallbackToLocalProfileStore(res.status)) {
     const localProfile = await saveProfile(profile);
@@ -529,22 +533,25 @@ export const saveProfileAsync = async (profileData, migrationAuth = null) => {
   if (!res.ok) {
     const message = await readErrorPayload(res, `Profile save failed (HTTP ${res.status})`);
 
-    if (isLegacyProfileMigrationError(res.status, message)) {
-      const migrationHeaders = await createMigrationHeaders({
+    if (isLegacyProfileMigrationError(res.status, message) && migrationAuth) {
+      const headers = await createMigrationHeaders({
         migrationAuth,
-        action: 'profile-migrate-save',
+        action: 'profile-save',
         body: profile,
         address: normalizedAddress,
       });
 
-      const retry = await fetch(`${API_BASE}/api/profiles`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...migrationHeaders,
+      // Map headers to body for the new backend expectation
+      const auth = {
+        signature: {
+          publicKey: headers['x-profile-public-key'],
+          signature: headers['x-profile-signature'],
         },
-        body: JSON.stringify(profile),
-      });
+        signedMessage: atob(headers['x-profile-message-b64']),
+        nonce: JSON.parse(atob(headers['x-profile-message-b64'])).nonce,
+      };
+
+      const retry = await doSave(auth);
 
       if (!retry.ok) {
         throw new Error(await readErrorPayload(retry, `Profile save failed (HTTP ${retry.status})`));
@@ -577,7 +584,6 @@ export const saveProfileAsync = async (profileData, migrationAuth = null) => {
   }
 
   const { editKey: _editKey, ...publicProfile } = remote;
-
   cacheProfile(publicProfile);
   return publicProfile;
 };
@@ -587,20 +593,21 @@ export const deleteProfileAsync = async (address, migrationAuth = null) => {
   if (!normalizedAddress) return false;
   const editKey = getStoredEditKey(normalizedAddress);
 
-  let res;
-  try {
-    res = await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(normalizedAddress)}`, {
+  const doDelete = async (auth = null) => {
+    return await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(normalizedAddress)}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
         ...(editKey ? { 'x-profile-edit-key': editKey } : {}),
       },
-      body: JSON.stringify({ ...(editKey ? { editKey } : {}) }),
+      body: JSON.stringify({ 
+        ...(editKey ? { editKey } : {}),
+        ...(auth || {})
+      }),
     });
-  } catch (error) {
-    devLog('deleteProfileAsync remote delete failed, falling back to local storage:', error);
-    return deleteProfile(normalizedAddress);
-  }
+  };
+
+  let res = await doDelete();
 
   if (shouldFallbackToLocalProfileStore(res.status)) {
     return deleteProfile(normalizedAddress);
@@ -609,22 +616,24 @@ export const deleteProfileAsync = async (address, migrationAuth = null) => {
   if (!res.ok) {
     const message = await readErrorPayload(res, `Profile delete failed (HTTP ${res.status})`);
 
-    if (isLegacyProfileMigrationError(res.status, message)) {
-      const migrationHeaders = await createMigrationHeaders({
+    if (isLegacyProfileMigrationError(res.status, message) && migrationAuth) {
+      const headers = await createMigrationHeaders({
         migrationAuth,
-        action: 'profile-migrate-delete',
+        action: 'profile-delete',
         body: {},
         address: normalizedAddress,
       });
 
-      const retry = await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(normalizedAddress)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...migrationHeaders,
+      const auth = {
+        signature: {
+          publicKey: headers['x-profile-public-key'],
+          signature: headers['x-profile-signature'],
         },
-        body: JSON.stringify({}),
-      });
+        signedMessage: atob(headers['x-profile-message-b64']),
+        nonce: JSON.parse(atob(headers['x-profile-message-b64'])).nonce,
+      };
+
+      const retry = await doDelete(auth);
 
       if (!retry.ok) {
         throw new Error(await readErrorPayload(retry, `Profile delete failed (HTTP ${retry.status})`));
