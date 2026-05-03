@@ -430,14 +430,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO authenticated
 -- ----------------------------------------------------------------------------
 -- 9. SEED DATA (Starter Badges)
 -- ----------------------------------------------------------------------------
-INSERT INTO public.badge_definitions (badge_id, name, description, image_url, xp_value, category)
-VALUES 
-  ('early_adopter', 'Early Adopter', 'Joined Daftar during the Movement Network Testnet phase.', 'https://pzbtcftikbspixhcegfl.supabase.co/storage/v1/object/public/badges/early-adopter.png', 500, 'Activity'),
-  ('movement_native', 'Movement Native', 'Interacted with native delegation and staking pools.', 'https://pzbtcftikbspixhcegfl.supabase.co/storage/v1/object/public/badges/movement-native.png', 1000, 'Staking'),
-  ('portfolio_pro', 'Portfolio Pro', 'Maintained a net worth of over 10,000 MOVE.', 'https://pzbtcftikbspixhcegfl.supabase.co/storage/v1/object/public/badges/portfolio-pro.png', 2500, 'Wealth')
-ON CONFLICT (badge_id) DO UPDATE SET
-  category = EXCLUDED.category,
-  xp_value = EXCLUDED.xp_value;
+-- No starter badges are hardcoded. Use the admin interface to create badges.
 
 -- =============================================================================
 -- 10. RETROACTIVE XP MIGRATION
