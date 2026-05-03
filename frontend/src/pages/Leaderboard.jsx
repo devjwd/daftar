@@ -176,8 +176,7 @@ export default function Leaderboard() {
               <span>{t(language, 'leaderRank')}</span>
               <span>{t(language, 'leaderUser')}</span>
               <span>{t(language, 'leaderAddress')}</span>
-              <span>{t(language, 'leaderXP')}</span>
-              <span>{t(language, 'leaderLevel')}</span>
+              <span className="col-stats-header">{t(language, 'leaderXP')} & {t(language, 'leaderLevel')}</span>
             </div>
 
             {entries.map((entry, index) => {
@@ -191,10 +190,8 @@ export default function Leaderboard() {
                   </div>
 
                   <div className="col-user">
-                    <span className={`user-badge ${rank <= 3 ? `user-badge--${rank}` : ''}`.trim()} aria-hidden="true" />
                     <div className="leaderboard-user-meta">
                       <span className="username">{entry.username || t(language, 'leaderAnonymous')}</span>
-                      <span className="leaderboard-user-subtitle">{entry.username ? t(language, 'leaderProfileSet') : t(language, 'leaderNoUsername')}</span>
                     </div>
                   </div>
 
@@ -202,12 +199,11 @@ export default function Leaderboard() {
                     <span className="address">{truncateAddress(entry.walletAddress)}</span>
                   </div>
 
-                  <div className="col-xp">
-                    <span className="worth">{entry.xp.toLocaleString()}</span>
-                  </div>
-
-                  <div className="col-level">
-                    <span className="leaderboard-level">{t(language, 'leaderLevel')} {entry.level}</span>
+                  <div className="col-stats">
+                    <div className="stats-row">
+                      <span className="worth">{entry.xp.toLocaleString()} XP</span>
+                      <span className="leaderboard-level">{t(language, 'leaderLevel')} {entry.level}</span>
+                    </div>
                   </div>
                 </div>
               );

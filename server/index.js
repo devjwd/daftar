@@ -443,28 +443,35 @@ app.get('/api/leaderboard', async (req, res) => {
 
     const limit = Math.min(parseInt(req.query.limit || '100'), 100);
 
-    const { data, error } = await supabaseAdmin
+    // 1. Fetch all entity addresses to exclude
+    const { data: entities } = await supabaseAdmin.from('tracked_entities').select('address');
+    const entityAddresses = (entities || []).map(e => e.address.toLowerCase());
+
+    // 2. Fetch profiles excluding these addresses
+    let query = supabaseAdmin
       .from('profiles')
       .select('wallet_address, username, avatar_url, xp')
-      .order('xp', { ascending: false })
-      .limit(limit);
+      .order('xp', { ascending: false });
+
+    if (entityAddresses.length > 0) {
+      // Supabase .not('col', 'in', '(val1,val2)') format
+      query = query.not('wallet_address', 'in', `(${entityAddresses.join(',')})`);
+    }
+
+    const { data, error } = await query.limit(limit);
 
     if (error) {
       console.error('[Server] Leaderboard fetch error:', error);
-      return res.status(500).json({ 
-        error: 'Failed to fetch leaderboard',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+      return res.status(500).json({ error: 'Failed to fetch leaderboard' });
     }
 
-    // Ensure data is an array before mapping
     const leaderboardData = Array.isArray(data) ? data : [];
 
     return res.status(200).json({
       leaderboard: leaderboardData.map(d => ({
         ...d,
-        address: d.wallet_address || '', // Match frontend camelCase
-        walletAddress: d.wallet_address || '', // Explicit camelCase
+        address: d.wallet_address || '',
+        walletAddress: d.wallet_address || '',
       }))
     });
   } catch (err) {
