@@ -542,13 +542,14 @@ export const saveProfileAsync = async (profileData, migrationAuth = null) => {
       });
 
       // Map headers to body for the new backend expectation
+      const signedMessage = atob(headers['x-profile-full-message-b64'] || headers['x-profile-message-b64']);
       const auth = {
         signature: {
           publicKey: headers['x-profile-public-key'],
           signature: headers['x-profile-signature'],
         },
-        signedMessage: atob(headers['x-profile-message-b64']),
-        nonce: JSON.parse(atob(headers['x-profile-message-b64'])).nonce,
+        signedMessage,
+        nonce: headers['x-profile-nonce'],
       };
 
       const retry = await doSave(auth);
@@ -624,13 +625,14 @@ export const deleteProfileAsync = async (address, migrationAuth = null) => {
         address: normalizedAddress,
       });
 
+      const signedMessage = atob(headers['x-profile-full-message-b64'] || headers['x-profile-message-b64']);
       const auth = {
         signature: {
           publicKey: headers['x-profile-public-key'],
           signature: headers['x-profile-signature'],
         },
-        signedMessage: atob(headers['x-profile-message-b64']),
-        nonce: JSON.parse(atob(headers['x-profile-message-b64'])).nonce,
+        signedMessage,
+        nonce: headers['x-profile-nonce'],
       };
 
       const retry = await doDelete(auth);

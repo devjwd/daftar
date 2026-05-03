@@ -87,5 +87,6 @@ export const createProfileMigrationProofHeaders = async ({ account, signMessage,
     'x-profile-signature': normalizeHex(response.signature),
     'x-profile-message-b64': encodeBase64(response.message || message),
     'x-profile-full-message-b64': encodeBase64(response.fullMessage || ''),
+    'x-profile-nonce': nonce,
   };
 };

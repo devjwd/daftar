@@ -82,10 +82,18 @@ export const verifyWalletSignature = (walletAddress, message, signature, maxAgeM
 
   // Strict Timestamp Check (Replay Protection Layer 1)
   if (maxAgeMinutes && signedAt) {
-    const ageMs = Date.now() - signedAt;
-    if (ageMs < 0 || ageMs > maxAgeMinutes * 60 * 1000) {
-      return false; // Message expired or from the future
+    const now = Date.now();
+    const ageMs = now - signedAt;
+    
+    console.log(`[Verification] Message timestamp: ${new Date(signedAt).toISOString()}, Server time: ${new Date(now).toISOString()}, Age: ${ageMs}ms`);
+
+    // Allow 1 minute buffer for clock drift (negative age)
+    if (ageMs < -60000 || ageMs > maxAgeMinutes * 60 * 1000) {
+      console.warn(`[Verification] Timestamp expired or too far in future: ageMs=${ageMs}`);
+      return false; 
     }
+  } else if (maxAgeMinutes) {
+    console.warn('[Verification] No timestamp found in message for expiry check');
   }
 
   try {
@@ -96,11 +104,22 @@ export const verifyWalletSignature = (walletAddress, message, signature, maxAgeM
       signature: aptosSignature,
     });
 
-    if (!verified) return false;
+    if (!verified) {
+      console.warn('[Verification] Ed25519 verifySignature returned false');
+      return false;
+    }
 
     const derivedAddress = normalizeAddress(String(publicKey.authKey().derivedAddress()));
-    return derivedAddress === normalizeAddress(walletAddress);
-  } catch {
+    const normalizedWalletAddr = normalizeAddress(walletAddress);
+    
+    const match = derivedAddress === normalizedWalletAddr;
+    if (!match) {
+      console.warn(`[Verification] Address mismatch: Derived=${derivedAddress}, Requested=${normalizedWalletAddr}`);
+    }
+    
+    return match;
+  } catch (err) {
+    console.error('[Verification] Crypto error:', err.message);
     return false;
   }
 };
