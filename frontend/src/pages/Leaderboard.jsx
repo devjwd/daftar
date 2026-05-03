@@ -46,7 +46,7 @@ function LeaderboardSkeleton() {
         <span>{t(getStoredLanguagePreference(), 'leaderLevel')}</span>
       </div>
 
-      {Array.from({ length: 8 }).map((_, index) => (
+      {Array.from({ length: 15 }).map((_, index) => (
         <div key={index} className="leaderboard-row leaderboard-row--skeleton">
           <span className="leaderboard-skeleton leaderboard-skeleton--rank" />
           <span className="leaderboard-skeleton leaderboard-skeleton--user" />
@@ -64,6 +64,8 @@ export default function Leaderboard() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [limit, setLimit] = useState(100);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     const syncLanguage = () => setLanguage(getStoredLanguagePreference());
@@ -98,7 +100,7 @@ export default function Leaderboard() {
 
       try {
         const baseUrl = import.meta.env.VITE_API_URL || '';
-        const response = await fetch(`${baseUrl}/api/leaderboard`, {
+        const response = await fetch(`${baseUrl}/api/leaderboard?limit=${limit}`, {
           method: 'GET',
           signal: currentController.signal,
         });
@@ -110,7 +112,9 @@ export default function Leaderboard() {
         const payload = await response.json();
         if (!active) return;
 
-        setEntries(normalizeEntries(payload));
+        const normalized = normalizeEntries(payload);
+        setEntries(normalized);
+        setHasMore(normalized.length === limit);
       } catch (fetchError) {
         if (fetchError?.name === 'AbortError') {
           return;
@@ -139,7 +143,11 @@ export default function Leaderboard() {
       window.clearInterval(intervalId);
       currentController?.abort();
     };
-  }, []);
+  }, [limit]);
+
+  const handleLoadMore = () => {
+    setLimit(prev => prev + 100);
+  };
 
   return (
     <div className="leaderboard-page">
@@ -148,7 +156,7 @@ export default function Leaderboard() {
           <h1>{t(language, 'leaderboardTitle')}</h1>
         </div>
 
-        {loading ? <LeaderboardSkeleton /> : null}
+        {loading && entries.length === 0 ? <LeaderboardSkeleton /> : null}
 
         {!loading && error ? (
           <div className="leaderboard-empty">
@@ -162,7 +170,7 @@ export default function Leaderboard() {
           </div>
         ) : null}
 
-        {!loading && !error && entries.length > 0 ? (
+        {entries.length > 0 ? (
           <div className="leaderboard-table">
             <div className="leaderboard-header-row">
               <span>{t(language, 'leaderRank')}</span>
@@ -204,6 +212,18 @@ export default function Leaderboard() {
                 </div>
               );
             })}
+
+            {hasMore && (
+              <div className="leaderboard-load-more">
+                <button 
+                  className="load-more-btn" 
+                  onClick={handleLoadMore}
+                  disabled={loading}
+                >
+                  {loading ? '...' : t(language, 'leaderLoadMore') || 'Load More'}
+                </button>
+              </div>
+            )}
           </div>
         ) : null}
       </div>
