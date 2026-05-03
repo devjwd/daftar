@@ -266,15 +266,9 @@ body[data-theme='light'] .empty-message {
   width: 130px;
 }
 
-.leaderboard-skeleton--xp {
-  width: 90px;
-  justify-self: end;
-}
-
-.leaderboard-skeleton--level {
-  width: 88px;
-  height: 34px;
-  justify-self: end;
+.leaderboard-skeleton--stats {
+  width: 180px;
+  height: 24px;
 }
 
 @keyframes leaderboard-shimmer {

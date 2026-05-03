@@ -42,8 +42,7 @@ function LeaderboardSkeleton() {
         <span>{t(getStoredLanguagePreference(), 'leaderRank')}</span>
         <span>{t(getStoredLanguagePreference(), 'leaderUser')}</span>
         <span>{t(getStoredLanguagePreference(), 'leaderAddress')}</span>
-        <span>{t(getStoredLanguagePreference(), 'leaderXP')}</span>
-        <span>{t(getStoredLanguagePreference(), 'leaderLevel')}</span>
+        <span className="col-stats-header">{t(getStoredLanguagePreference(), 'leaderXP')} & {t(getStoredLanguagePreference(), 'leaderLevel')}</span>
       </div>
 
       {Array.from({ length: 15 }).map((_, index) => (
@@ -51,8 +50,9 @@ function LeaderboardSkeleton() {
           <span className="leaderboard-skeleton leaderboard-skeleton--rank" />
           <span className="leaderboard-skeleton leaderboard-skeleton--user" />
           <span className="leaderboard-skeleton leaderboard-skeleton--address" />
-          <span className="leaderboard-skeleton leaderboard-skeleton--xp" />
-          <span className="leaderboard-skeleton leaderboard-skeleton--level" />
+          <div className="col-stats" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+             <span className="leaderboard-skeleton leaderboard-skeleton--stats" />
+          </div>
         </div>
       ))}
     </div>
