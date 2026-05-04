@@ -480,7 +480,25 @@ module swap_router::badges {
     }
 
     #[view]
-    public fun get_badge_info(badge_id: u64): (vector<u8>, vector<u8>, u8, u64, u64, u64, u64, u64, u64, vector<u8>, vector<u8>, vector<u8>, u8) acquires BadgeRegistry {
+    public fun get_badge_info(badge_id: u64): (vector<u8>, vector<u8>, u8, u64, u64, u64, u64, u64, u64) acquires BadgeRegistry {
+        let registry = borrow_global<BadgeRegistry>(@swap_router);
+        assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
+        let badge = table::borrow(&registry.badges, badge_id);
+        (
+            *&badge.metadata.name,
+            *&badge.metadata.category,
+            badge.status,
+            badge.mint_fee,
+            badge.total_minted,
+            badge.max_supply,
+            badge.metadata.xp_value,
+            badge.starts_at,
+            badge.ends_at,
+        )
+    }
+
+    #[view]
+    public fun get_badge_info_v2(badge_id: u64): (vector<u8>, vector<u8>, u8, u64, u64, u64, u64, u64, u64, vector<u8>, vector<u8>, vector<u8>, u8) acquires BadgeRegistry {
         let registry = borrow_global<BadgeRegistry>(@swap_router);
         assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
         let badge = table::borrow(&registry.badges, badge_id);

@@ -112,8 +112,8 @@ export const fetchActiveBadgeIds = async (client) => {
 
 export const fetchBadge = async (client, badgeId) => {
   try {
-    const fn = getBadgeFunction("get_badge_info");
-    if (!fn) return null;
+    const fn = getBadgeFunction("get_badge_info_v2");
+    if (!fn) throw new Error("Badge module address not configured");
 
     const result = await client.view({
       payload: {
@@ -123,10 +123,62 @@ export const fetchBadge = async (client, badgeId) => {
       },
     });
 
+    if (!result || !Array.isArray(result) || result.length < 13) {
+      return await fetchBadgeV1(client, badgeId);
+    }
+
+    const [
+      name, category, status, mintFee, totalMinted, maxSupply, xpValue, startsAt, endsAt,
+      description, imageUri, metadataUri, rarity
+    ] = result;
+
+    return {
+      id: Number(badgeId),
+      name: decodeBytes(name),
+      description: decodeBytes(description),
+      imageUri: decodeBytes(imageUri),
+      metadataUri: decodeBytes(metadataUri),
+      metadataHash: '',
+      category: decodeBytes(category),
+      rarity: Number(rarity),
+      xpValue: Number(xpValue),
+      ruleType: BADGE_RULES.ATTESTATION,
+      ruleNote: 'offchain_signature',
+      minValue: 0,
+      coinTypeStr: '',
+      dappAddress: '',
+      status: Number(status),
+      startsAt: Number(startsAt),
+      endsAt: Number(endsAt),
+      createdAt: 0,
+      updatedAt: 0,
+      mintFee: Number(mintFee),
+      totalMinted: Number(totalMinted),
+      maxSupply: Number(maxSupply),
+      isActive: Number(status) === BADGE_STATUS.ACTIVE,
+      isPaused: Number(status) === BADGE_STATUS.PAUSED,
+      isDiscontinued: Number(status) === BADGE_STATUS.DISCONTINUED,
+      isTimeLimited: Number(startsAt) > 0 || Number(endsAt) > 0,
+      hasMaxSupply: Number(maxSupply) > 0,
+    };
+  } catch (error) {
+    console.error('[badgeService] fetchBadge failed:', error.message);
+    return null;
+  }
+};
+
+const fetchBadgeV1 = async (client, badgeId) => {
+  try {
+    const fn = getBadgeFunction("get_badge_info");
+    const result = await client.view({
+      payload: {
+        function: fn,
+        typeArguments: [],
+        functionArguments: [badgeId],
+      },
+    });
     if (!result) return null;
-
     const [name, category, status, mintFee, totalMinted, maxSupply, xpValue, startsAt, endsAt] = result;
-
     return {
       id: Number(badgeId),
       name: decodeBytes(name),
@@ -150,15 +202,13 @@ export const fetchBadge = async (client, badgeId) => {
       mintFee: Number(mintFee),
       totalMinted: Number(totalMinted),
       maxSupply: Number(maxSupply),
-      // Computed
       isActive: Number(status) === BADGE_STATUS.ACTIVE,
       isPaused: Number(status) === BADGE_STATUS.PAUSED,
       isDiscontinued: Number(status) === BADGE_STATUS.DISCONTINUED,
       isTimeLimited: Number(startsAt) > 0 || Number(endsAt) > 0,
       hasMaxSupply: Number(maxSupply) > 0,
     };
-  } catch (error) {
-    console.error('[badgeService] fetchBadge failed:', error.message);
+  } catch (e) {
     return null;
   }
 };
