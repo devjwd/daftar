@@ -11,6 +11,7 @@ import { evaluateRule } from './lib/badgeEvaluation.js';
 import { signMintAuthorization } from './lib/signing.js';
 import { verifyAdminRequest } from './lib/admin.js';
 import { normalizeAddress } from './lib/utils.js';
+import { syncUserTransactions } from './lib/historySync.js';
 
 dotenv.config();
 
@@ -664,6 +665,22 @@ app.post('/api/badges/sync', async (req, res) => {
   }
 });
 
+// GET /api/transactions/sync - Force sync a wallet's history from indexer
+app.get('/api/transactions/sync', generalLimiter, async (req, res) => {
+  const wallet = normalizeAddress(req.query.wallet || req.query.address);
+  if (!wallet) return res.status(400).json({ error: 'wallet is required' });
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  try {
+    const result = await syncUserTransactions(supabaseAdmin, wallet, 100);
+    return res.status(200).json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[Transactions/Sync] Error:', err);
+    return res.status(500).json({ error: err.message || 'Sync failed' });
+  }
+});
+
 // GET /api/badges/eligibility
 app.get('/api/badges/eligibility', generalLimiter, async (req, res) => {
   const wallet = normalizeAddress(req.query.wallet || req.query.wallet_address);
@@ -746,6 +763,17 @@ app.get('/api/badges/eligibility/bulk', generalLimiter, async (req, res) => {
   }
 
   try {
+    // 0. Auto-sync if DB is empty for this user (minimal impact, improves UX for new users)
+    const { count: existingCount } = await supabaseAdmin
+      .from('transaction_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('wallet_address', wallet);
+    
+    if (!existingCount) {
+      console.log(`[Eligibility] DB empty for ${wallet}, triggering auto-sync...`);
+      await syncUserTransactions(supabaseAdmin, wallet, 50).catch(err => console.warn('[AutoSync] Failed:', err.message));
+    }
+
     // 1. Fetch all active badge definitions
     const { data: badges, error: badgesError } = await supabaseAdmin
       .from('badge_definitions')

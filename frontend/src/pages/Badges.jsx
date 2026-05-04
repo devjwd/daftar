@@ -215,6 +215,11 @@ export default function Badges() {
     if (!address || !visibleBadges.length) return;
     setIsScanning(true);
     try {
+      // 1. Force sync history to DB first
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      await fetch(`${baseUrl}/api/transactions/sync?wallet=${address}`).catch(err => console.warn('Sync failed:', err));
+      
+      // 2. Perform bulk eligibility check
       const results = await bulkCheckEligibility(address, visibleBadges);
       setScanResults(results);
       const eligibleCount = Object.values(results).filter(r => r.eligible).length;
