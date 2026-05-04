@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "test:badges": "node scripts/testBadgeSystem.js",
-    "start": "node apps/server/index.js",
-    "dev:server": "node apps/server/index.js",
+    "start": "npm start --workspace=apps/server",
+    "dev:server": "npm run dev --workspace=apps/server",
     "dev:frontend": "npm run dev --workspace=apps/frontend"
   },
   "workspaces": [
