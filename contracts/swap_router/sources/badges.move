@@ -36,6 +36,7 @@ module swap_router::badges {
     const E_TOO_MANY_BADGES_PER_USER: u64 = 23;
     const E_SIGNATURE_WINDOW_TOO_LARGE: u64 = 24;
     const E_BADGE_ALREADY_DISCONTINUED: u64 = 25;
+    const E_BADGE_DISCONTINUED: u64         = 26;
 
     // --- CONSTANTS ---
     const STATUS_ACTIVE: u8       = 1;
@@ -46,7 +47,7 @@ module swap_router::badges {
     const SIG_LEN: u64       = 64;
     const MAX_FIELD_LEN: u64 = 1024;
     const MAX_RARITY: u8     = 5;
-    const MAX_BADGES_GLOBAL: u64 = 100_000;
+    const MAX_BADGE_DEFINITIONS: u64 = 100_000;
     const MAX_BADGES_PER_USER: u64 = 10_000;
     const MAX_SIG_VALIDITY_SECS: u64 = 300;
     const MINT_DOMAIN_SEPARATOR: vector<u8> = b"movement.badges.mint.v1";
@@ -217,13 +218,16 @@ module swap_router::badges {
         if (starts_at > 0 && ends_at > 0) {
             assert!(ends_at > starts_at, E_INVALID_TIME_RANGE);
         };
+        if (starts_at > 0) {
+            assert!(starts_at > now, E_INVALID_TIME_RANGE);
+        };
         if (ends_at > 0) {
             assert!(ends_at > now, E_INVALID_TIME_RANGE);
         };
 
         let badge_id = registry.next_id;
         registry.next_id = registry.next_id + 1;
-        assert!(vector::length(&registry.badge_ids) < MAX_BADGES_GLOBAL, E_TOO_MANY_BADGES_GLOBAL);
+        assert!(vector::length(&registry.badge_ids) < MAX_BADGE_DEFINITIONS, E_TOO_MANY_BADGES_GLOBAL);
         vector::push_back(&mut registry.badge_ids, badge_id);
 
         let metadata = BadgeMetadata {
@@ -289,6 +293,7 @@ module swap_router::badges {
         assert!(ed25519::signature_verify_strict(&signature, &pub_key, message), E_INVALID_SIGNATURE);
 
         let badge_mut = table::borrow_mut(&mut registry.badges, badge_id);
+        assert!(badge_mut.status != STATUS_DISCONTINUED, E_BADGE_DISCONTINUED);
         assert!(badge_mut.status == STATUS_ACTIVE, E_BADGE_PAUSED);
         if (badge_mut.starts_at > 0) assert!(now >= badge_mut.starts_at, E_BADGE_NOT_STARTED);
         if (badge_mut.ends_at > 0)   assert!(now <= badge_mut.ends_at,   E_BADGE_EXPIRED);
@@ -475,7 +480,7 @@ module swap_router::badges {
     }
 
     #[view]
-    public fun get_badge_info(badge_id: u64): (vector<u8>, vector<u8>, u8, u64, u64, u64, u64, u64, u64) acquires BadgeRegistry {
+    public fun get_badge_info(badge_id: u64): (vector<u8>, vector<u8>, u8, u64, u64, u64, u64, u64, u64, vector<u8>, vector<u8>, vector<u8>, u8) acquires BadgeRegistry {
         let registry = borrow_global<BadgeRegistry>(@swap_router);
         assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
         let badge = table::borrow(&registry.badges, badge_id);
@@ -489,6 +494,10 @@ module swap_router::badges {
             badge.metadata.xp_value,
             badge.starts_at,
             badge.ends_at,
+            *&badge.metadata.description,
+            *&badge.metadata.image_uri,
+            *&badge.metadata.metadata_uri,
+            badge.metadata.rarity,
         )
     }
 

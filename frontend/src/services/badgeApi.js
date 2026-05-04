@@ -347,13 +347,9 @@ export const verifyBadge = async (wallet_address, badge_id) => {
 };
 
 export const awardBadge = async (wallet_address, badge_id, adminAuth = null, signatureProof = null) => {
-  const body = {
-    walletAddress: normalizeAddress(wallet_address),
-    badgeId: badge_id,
-    signedMessage: String(signatureProof?.signedMessage || ''),
-    signature: signatureProof?.signature || null,
-    nonce: signatureProof?.nonce,
-  };
+  if (!adminAuth && !signatureProof) {
+    throw new Error('Admin auth or signature proof required');
+  }
 
   const headers = adminAuth && typeof adminAuth === 'object' ? adminAuth : {};
 
@@ -381,12 +377,19 @@ export const fetchAdminBadges = async (adminAuth) => {
   }
 
   const remoteBadges = Array.isArray(response.data?.badges) ? response.data.badges : [];
+  
+  // 3rd party audit fix: O(n) join using a Map
+  const remoteMap = new Map(remoteBadges.map(r => [r.badge_id || r.id, r]));
+
   return {
     ok: true,
-    badges: remoteBadges.map(mapBadgeDefinitionRow).map(b => ({
-      ...b,
-      isDeleted: remoteBadges.find(r => (r.badge_id || r.id) === b.id)?.is_deleted || false
-    })),
+    badges: remoteBadges.map(mapBadgeDefinitionRow).map(b => {
+      const remote = remoteMap.get(b.id);
+      return {
+        ...b,
+        isDeleted: remote?.is_deleted || false
+      };
+    }),
   };
 };
 

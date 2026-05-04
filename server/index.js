@@ -995,9 +995,11 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
         signerEpoch
       );
 
-      // Link DB record to crypto claim
-      const signatureHex = Buffer.from(sigData.signatureBytes).toString('hex');
-      proofHash = `sig:${signatureHex.slice(0, 32)}`;
+      // proofHash: A verifiable link between the DB record and the on-chain mint.
+      // 3rd party audit fix: Use proper cryptographic hash instead of a slice.
+      const crypto = await import('crypto');
+      const hash = crypto.createHash('sha256').update(signatureHex).digest('hex');
+      proofHash = `sha256:${hash}`;
     }
 
     if (!proofHash) {

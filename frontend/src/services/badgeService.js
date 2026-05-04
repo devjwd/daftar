@@ -1,5 +1,5 @@
 import { getBadgeFunction, getBadgeModuleAddress, BADGE_RULES, BADGE_STATUS, getRuleLabel } from "../config/badges";
-
+import { clearEligibilityCache } from './badges/engineService.js';
 import { normalizeAddress } from '../utils/address.js';
 
 const getRegistryResourceType = () => {
@@ -182,15 +182,9 @@ export const fetchBadges = async (client) => {
 
 export const fetchActiveBadges = async (client) => {
   try {
-    const ids = await fetchActiveBadgeIds(client);
-
-    const results = await Promise.all(
-      ids.map((badgeId) =>
-        fetchBadge(client, badgeId).catch(() => null)
-      )
-    );
-
-    return results.filter(Boolean);
+    // 3rd party audit fix: Avoid N+1 fetching. Fetch all and filter once.
+    const all = await fetchBadges(client);
+    return all.filter(b => b && b.status === 1); // 1 = STATUS_ACTIVE
   } catch (error) {
     console.error('[badgeService] fetchActiveBadges failed:', error.message);
     return [];
@@ -406,7 +400,9 @@ export const waitForTxAndGetId = async (client, txHash) => {
       
       // Verify this badge exists and belongs to us (extra safety)
       const badgeDetails = await fetchBadge(client, suspectedId);
-      if (badgeDetails) {
+      
+      // 3rd party audit fix: Verify creator address to prevent race conditions or admin confusion
+      if (badgeDetails && options.creator && normalizeAddress(badgeDetails.creator) === normalizeAddress(options.creator)) {
         console.log('[badgeService] Successfully recovered badge ID via registry poll:', suspectedId);
         return suspectedId;
       }
@@ -528,9 +524,13 @@ export const mintBadge = async ({
       function: fn,
       typeArguments: [],
       // Contract: mint(user, badge_id: u64, valid_until: u64, signature_bytes: vector<u8>)
-      functionArguments: [String(badgeId), String(validUntil), Array.from(signatureBytes)],
+      // 3rd party audit fix: Use BigInt for u64 to ensure precision
+      functionArguments: [BigInt(badgeId).toString(), BigInt(validUntil).toString(), Array.from(signatureBytes)],
     },
   });
+
+  // 3rd party audit fix: Clear eligibility cache after mint so UI updates immediately
+  try { clearEligibilityCache(sender); } catch (e) { console.warn('Cache clear failed', e); }
 
   return result;
 };
