@@ -522,15 +522,13 @@ export const mintBadge = async ({
     if (alreadyOwned) throw new Error("You already own this badge");
   }
 
-  const hexSignature = '0x' + signatureBytes.map(b => b.toString(16).padStart(2, '0')).join('');
-
   const result = await signAndSubmitTransaction({
     sender,
     data: {
       function: fn,
       typeArguments: [],
       // Contract: mint(user, badge_id: u64, valid_until: u64, signature_bytes: vector<u8>)
-      functionArguments: [String(badgeId), String(validUntil), hexSignature],
+      functionArguments: [String(badgeId), String(validUntil), Array.from(signatureBytes)],
     },
   });
 
