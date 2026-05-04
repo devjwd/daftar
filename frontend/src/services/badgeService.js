@@ -388,7 +388,7 @@ export const waitForTxAndGetId = async (client, txHash) => {
 
     // 2. Attempt to find the ID in events (Fastest)
     const moduleAddress = normalizeAddress(getBadgeModuleAddress());
-    const eventType = `${moduleAddress}::badges::BadgeCreatedEvent`;
+    const eventType = `${moduleAddress}::badges::BadgeCreated`;
     const event = tx.events?.find(e => e.type === eventType);
     
     if (event) {
@@ -522,13 +522,15 @@ export const mintBadge = async ({
     if (alreadyOwned) throw new Error("You already own this badge");
   }
 
+  const hexSignature = '0x' + signatureBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+
   const result = await signAndSubmitTransaction({
     sender,
     data: {
       function: fn,
       typeArguments: [],
       // Contract: mint(user, badge_id: u64, valid_until: u64, signature_bytes: vector<u8>)
-      functionArguments: [String(badgeId), String(validUntil), new Uint8Array(signatureBytes)],
+      functionArguments: [String(badgeId), String(validUntil), hexSignature],
     },
   });
 

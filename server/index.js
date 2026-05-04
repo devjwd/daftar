@@ -164,6 +164,7 @@ const generalLimiter = rateLimit({
  */
 const MEMORY_CACHE = new Map();
 const CACHE_TTL_MS = 30000; // 30 seconds
+const CACHE_MAX_SIZE = 1000;
 
 const getCached = (key) => {
   const entry = MEMORY_CACHE.get(key);
@@ -177,10 +178,22 @@ const getCached = (key) => {
 
 const setCached = (key, data) => {
   MEMORY_CACHE.set(key, { data, timestamp: Date.now() });
-  // Periodic cleanup
-  if (MEMORY_CACHE.size > 1000) {
-    const oldestKey = MEMORY_CACHE.keys().next().value;
-    MEMORY_CACHE.delete(oldestKey);
+  // Batch eviction: remove all stale entries when cache exceeds threshold
+  if (MEMORY_CACHE.size > CACHE_MAX_SIZE) {
+    const now = Date.now();
+    for (const [k, v] of MEMORY_CACHE) {
+      if (now - v.timestamp > CACHE_TTL_MS) MEMORY_CACHE.delete(k);
+    }
+    // If still over limit after stale cleanup, drop oldest 20%
+    if (MEMORY_CACHE.size > CACHE_MAX_SIZE) {
+      const toDrop = Math.floor(MEMORY_CACHE.size * 0.2);
+      let dropped = 0;
+      for (const k of MEMORY_CACHE.keys()) {
+        if (dropped >= toDrop) break;
+        MEMORY_CACHE.delete(k);
+        dropped++;
+      }
+    }
   }
 };
 
@@ -658,6 +671,26 @@ app.post('/api/badges/sync', async (req, res) => {
       return res.status(500).json({ error: error.message || 'Sync failed' });
     }
 
+    // Increment user XP if badge has xp value
+    if (xpValue > 0) {
+      try {
+        // Atomic increment: read current xp, add, write back
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('xp')
+          .eq('wallet_address', walletAddress)
+          .maybeSingle();
+        const currentXp = Number(profile?.xp || 0);
+        await supabaseAdmin
+          .from('profiles')
+          .update({ xp: currentXp + xpValue, updated_at: new Date().toISOString() })
+          .eq('wallet_address', walletAddress);
+        console.log(`[badges/sync] XP incremented by ${xpValue} for ${walletAddress} (${currentXp} -> ${currentXp + xpValue})`);
+      } catch (xpErr) {
+        console.warn('[badges/sync] XP increment failed (non-fatal):', xpErr.message);
+      }
+    }
+
     return res.status(200).json({ ok: true, badgeId, walletAddress });
   } catch (err) {
     console.error('[badges/sync] Error:', err);
@@ -866,8 +899,11 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
     const isSignatureRequest = onChainBadgeId !== null;
     if (!isSignatureRequest) {
       // Manual award requires admin auth
-      const auth = verifyAdminRequest(req, body, 'award-badge');
-      if (!auth.ok) return res.status(auth.status || 401).json({ error: auth.error });
+      try {
+        await verifyAdminRequest(req);
+      } catch (authErr) {
+        return res.status(403).json({ error: authErr.message || 'Admin authentication failed' });
+      }
     }
 
     // 3. Evaluate Eligibility
@@ -900,24 +936,55 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
         return res.status(500).json({ error: 'Server configuration error (missing signer keys)' });
       }
 
-      // Signer epoch management
-      // TODO: Fetch from registry info if epoch > 0. For now we use 0 as default.
-      const signerEpoch = 0; 
-      // Use a slightly tighter window (180s = 3 mins) to stay well within contract's 300s limit
-      // even if there is significant clock drift between server and blockchain.
-      const validUntil = Math.floor(Date.now() / 1000) + 180; 
-
-      
+      const rpcUrl = process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1';
       const serverTime = Math.floor(Date.now() / 1000);
-      let chainTime = "unknown";
-      try {
-        const timeResult = await movementClient.view({
-          payload: { function: "0x1::timestamp::now_seconds", typeArguments: [], functionArguments: [] }
-        });
-        chainTime = timeResult[0];
-      } catch (e) {}
 
-      console.log(`[Award] Signing mint auth: User=${walletAddress}, BadgeID=${badge.on_chain_badge_id}, Epoch=${signerEpoch}, ValidUntil=${validUntil} (ServerTime=${serverTime}, ChainTime=${chainTime})`);
+      // Fetch chain timestamp for accurate validUntil calculation
+      let chainTime = serverTime; // fallback to server time
+      try {
+        const timeResp = await fetch(`${rpcUrl}/view`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            function: '0x1::timestamp::now_seconds',
+            type_arguments: [],
+            arguments: [],
+          }),
+        });
+        if (timeResp.ok) {
+          const timeData = await timeResp.json();
+          const parsed = Number(Array.isArray(timeData) ? timeData[0] : 0);
+          if (Number.isFinite(parsed) && parsed > 0) chainTime = parsed;
+        }
+      } catch (e) {
+        console.warn('[Award] Chain time fetch failed, using server time:', e.message);
+      }
+
+      // Fetch signer epoch from on-chain registry (critical for signature verification)
+      let signerEpoch = 0;
+      try {
+        const epochResp = await fetch(`${rpcUrl}/view`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            function: `${moduleAddress}::badges::get_signer_epoch`,
+            type_arguments: [],
+            arguments: [],
+          }),
+        });
+        if (epochResp.ok) {
+          const epochData = await epochResp.json();
+          const parsed = Number(Array.isArray(epochData) ? epochData[0] : 0);
+          if (Number.isFinite(parsed)) signerEpoch = parsed;
+        }
+      } catch (e) {
+        console.warn('[Award] Signer epoch fetch failed, using 0:', e.message);
+      }
+
+      // Use chain time as base for validUntil (180s = 3 mins, within contract's 300s max)
+      const validUntil = chainTime + 180;
+
+      console.log(`[Award] Signing mint auth: User=${walletAddress}, BadgeID=${badge.on_chain_badge_id}, Epoch=${signerEpoch}, ValidUntil=${validUntil} (ServerTime=${serverTime}, ChainTime=${chainTime}, Drift=${serverTime - chainTime}s)`);
 
       sigData = await signMintAuthorization(
         privateKey,
@@ -976,8 +1043,11 @@ app.post('/api/badges/award', awardLimiter, async (req, res) => {
 // --- ADMIN MANAGEMENT ROUTES ---
 
 app.post('/api/admin/manage-badge', async (req, res) => {
-  const auth = verifyAdminRequest(req, req.body, 'manage-badge-definition');
-  if (!auth.ok) return res.status(auth.status || 401).json({ error: auth.error });
+  try {
+    await verifyAdminRequest(req);
+  } catch (authErr) {
+    return res.status(403).json({ error: authErr.message || 'Admin authentication failed' });
+  }
 
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
@@ -1036,8 +1106,11 @@ app.get('/api/admin/badges', async (req, res) => {
   // Use query params for GET auth verification if needed, 
   // but verifyAdminRequest usually expects headers/body.
   // For GET, we'll check the headers.
-  const auth = verifyAdminRequest(req, {}, 'list-all-badges');
-  if (!auth.ok) return res.status(auth.status || 401).json({ error: auth.error });
+  try {
+    await verifyAdminRequest(req);
+  } catch (authErr) {
+    return res.status(403).json({ error: authErr.message || 'Admin authentication failed' });
+  }
 
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
@@ -1051,8 +1124,11 @@ app.get('/api/admin/badges', async (req, res) => {
 });
 
 app.post('/api/admin/import-allowlist', async (req, res) => {
-  const auth = verifyAdminRequest(req, req.body, 'import-allowlist');
-  if (!auth.ok) return res.status(auth.status || 401).json({ error: auth.error });
+  try {
+    await verifyAdminRequest(req);
+  } catch (authErr) {
+    return res.status(403).json({ error: authErr.message || 'Admin authentication failed' });
+  }
 
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 

@@ -438,25 +438,15 @@ export const clearAllowlist = async (badgeId, adminAuth = null) => {
 };
 
 export const getUserBadges = async (wallet_address) => {
-  if (!supabase) return [];
-  const { data } = await supabase
-    .from('badge_attestations')
-    .select('*, badge_definitions(*)')
-    .eq('wallet_address', normalizeAddress(wallet_address))
-    .eq('eligible', true);
-
-  return Array.isArray(data) ? data : [];
+  // Migrated to server-side: use fetchUserBadges instead
+  const result = await fetchUserBadges(wallet_address);
+  return result.ok ? result.awards : [];
 };
 
 export const fetchBadgeHolders = async (badgeId) => {
-  if (!supabase) return { ok: false, error: 'Supabase not configured' };
-  const { data, error } = await supabase
-    .from('badge_attestations')
-    .select('wallet_address, created_at')
-    .eq('badge_id', badgeId)
-    .eq('eligible', true);
-  
-  return { ok: !error, data: data || [], error: error?.message };
+  // Badge holders lookup is now server-only (no direct Supabase from frontend)
+  console.warn('[badgeApi] fetchBadgeHolders requires server-side implementation');
+  return { ok: false, data: [], error: 'Server-side only' };
 };
 
 export const awardBadgeToUser = async (address, badgeId, payload = {}, options = {}) => {
@@ -591,19 +581,16 @@ export const fetchUserProfile = async (address) => {
   if (!walletAddress) {
     return { ok: false, profile: null, error: 'address is required' };
   }
-  if (!supabase) return { ok: false, profile: null, error: 'Supabase not configured' };
+  const response = await callLocalBadgeApi({
+    path: `/api/profiles/${encodeURIComponent(normalizeAddress(walletAddress))}`,
+  });
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, wallet_address, username, avatar_url, xp, created_at')
-    .eq('wallet_address', walletAddress)
-    .maybeSingle();
-
-  if (error) {
-    devLog('fetchUserProfile failed', error);
-    return { ok: false, profile: null, error: error.message || 'Failed to fetch profile' };
+  if (!response.ok) {
+    devLog('fetchUserProfile failed', response.data?.error);
+    return { ok: false, profile: null, error: response.data?.error || 'Failed to fetch profile' };
   }
 
+  const data = response.data;
   return {
     ok: true,
     profile: data ? mapProfileRow(data) : null,
@@ -649,54 +636,22 @@ export const updateUserProfile = async (address, { username, avatarUrl, bio, twi
 export const searchProfiles = async (query, maxResults = 10) => {
   const term = String(query || '').trim();
   if (!term) return { ok: true, profiles: [] };
-  if (!supabase) return { ok: true, profiles: [] };
 
   const limit = Math.min(Math.max(Number(maxResults) || 10, 1), 10);
-  const walletTerm = normalizeAddress(term);
 
-  const selectFields = 'id, wallet_address, username, avatar_url, xp, created_at';
+  const response = await callLocalBadgeApi({
+    path: `/api/profiles/search?q=${encodeURIComponent(term)}&limit=${limit}`,
+  });
 
-  const [walletResult, usernameResult] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select(selectFields)
-      .like('wallet_address', `${walletTerm}%`) // Performance: prefix match uses GIN/Btree indexes better
-      .limit(limit),
-    supabase
-      .from('profiles')
-      .select(selectFields)
-      .like('username', `${term}%`)
-      .limit(limit),
-  ]);
-
-  if (walletResult.error && usernameResult.error) {
-    devLog('searchProfiles failed', walletResult.error, usernameResult.error);
+  if (!response.ok) {
+    devLog('searchProfiles failed', response.data?.error);
     return { ok: false, profiles: [] };
   }
 
-  if (walletResult.error) {
-    devLog('searchProfiles wallet query failed', walletResult.error);
-  }
-  if (usernameResult.error) {
-    devLog('searchProfiles username query failed', usernameResult.error);
-  }
-
-  const deduped = new Map();
-  const mergedRows = [
-    ...(Array.isArray(walletResult.data) ? walletResult.data : []),
-    ...(Array.isArray(usernameResult.data) ? usernameResult.data : []),
-  ];
-
-  for (const row of mergedRows) {
-    const key = row?.id || row?.wallet_address;
-    if (!key || deduped.has(key)) continue;
-    deduped.set(key, mapProfileRow(row));
-    if (deduped.size >= limit) break;
-  }
-
+  const results = Array.isArray(response.data?.profiles) ? response.data.profiles : [];
   return {
     ok: true,
-    profiles: Array.from(deduped.values()),
+    profiles: results.map(mapProfileRow),
   };
 };
 

@@ -13,7 +13,7 @@ import {
   createBadgeDefinition,
   validateBadgeDefinition,
 } from '../../config/badges.js';
-import { awardBadgeToUser, fetchAllBadges, fetchUserBadges, saveBadgeDefinitions } from '../badgeApi.js';
+import { awardBadgeToUser, fetchAllBadges, fetchUserBadges, saveBadgeDefinitions, manageBadgeDefinition } from '../badgeApi.js';
 
 const BADGE_STORE_KEY = 'movement_badges_v3';
 const BADGE_STORE_META_KEY = 'movement_badges_meta_v3';
@@ -85,6 +85,9 @@ function mapCriterionToRule(criterionType) {
   if (criterionType === CRITERIA_TYPES.PROTOCOL_COUNT) return BADGE_RULES.PROTOCOL_COUNT;
   if (criterionType === CRITERIA_TYPES.PROTOCOL_USAGE || criterionType === CRITERIA_TYPES.DAPP_USAGE) return BADGE_RULES.DAPP_USAGE;
   if (criterionType === CRITERIA_TYPES.ALLOWLIST) return BADGE_RULES.ALLOWLIST;
+  if (criterionType === CRITERIA_TYPES.DAFTAR_PROFILE_COMPLETE) return BADGE_RULES.DAFTAR_PROFILE_COMPLETE;
+  if (criterionType === CRITERIA_TYPES.DAFTAR_SWAP_COUNT) return BADGE_RULES.DAFTAR_SWAP_COUNT;
+  if (criterionType === CRITERIA_TYPES.DAFTAR_VOLUME_USD) return BADGE_RULES.DAFTAR_VOLUME_USD;
   return null;
 }
 

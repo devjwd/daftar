@@ -209,6 +209,9 @@ export const BADGE_RULES = {
   HOLDING_PERIOD: 8,    // Hold tokens for duration
   NFT_HOLDER: 9,        // Must hold specific NFT
   COMPOSITE: 10,        // Multiple rules (AND logic)
+  DAFTAR_PROFILE_COMPLETE: 11, // Daftar profile with username/pfp/bio
+  DAFTAR_SWAP_COUNT: 12,       // Minimum swaps on Daftar
+  DAFTAR_VOLUME_USD: 13,       // Minimum trade volume on Daftar
   // Legacy aliases
   OFFCHAIN_ALLOWLIST: 3,
   TRANSACTION_COUNT: 4,
@@ -443,6 +446,10 @@ export const criteriaToRuleType = (criteriaType) => {
     [CRITERIA_TYPES.NFT_HOLDER]: BADGE_RULES.NFT_HOLDER,
     [CRITERIA_TYPES.HOLDING_PERIOD]: BADGE_RULES.HOLDING_PERIOD,
     [CRITERIA_TYPES.COMPOSITE]: BADGE_RULES.COMPOSITE,
+    // Daftar-specific criteria
+    [CRITERIA_TYPES.DAFTAR_PROFILE_COMPLETE]: BADGE_RULES.DAFTAR_PROFILE_COMPLETE,
+    [CRITERIA_TYPES.DAFTAR_SWAP_COUNT]: BADGE_RULES.DAFTAR_SWAP_COUNT,
+    [CRITERIA_TYPES.DAFTAR_VOLUME_USD]: BADGE_RULES.DAFTAR_VOLUME_USD,
     // Default to attestation for complex off-chain rules
     [CRITERIA_TYPES.TOKEN_HOLDER]: BADGE_RULES.ATTESTATION,
     [CRITERIA_TYPES.PROTOCOL_LEND_AMOUNT]: BADGE_RULES.ATTESTATION,
