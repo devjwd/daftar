@@ -21,7 +21,7 @@ const REQUIRED_ENV_VARS = [
 ];
 
 dotenv.config({ path: path.join(PROJECT_ROOT, '.env') });
-dotenv.config({ path: path.join(PROJECT_ROOT, 'frontend', '.env'), override: false });
+dotenv.config({ path: path.join(PROJECT_ROOT, 'apps', 'frontend', '.env'), override: false });
 
 const walletAddressArg = String(process.argv[2] || '').trim();
 

@@ -1,0 +1,278 @@
+/// <reference types="vite/client" />
+import { BadgeDefinition, Profile, EligibilityResult, LeaderboardEntry } from '@daftar/types';
+import { normalizeAddress } from '../utils/address';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
+interface ApiResponse<T> {
+  ok: boolean;
+  status: number;
+  data: T | null;
+  error?: string;
+}
+
+const callApi = async <T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> => {
+  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    const data = await response.json().catch(() => null);
+    return {
+      ok: response.ok,
+      status: response.status,
+      data,
+      error: response.ok ? undefined : (data?.error || 'Unknown error'),
+    };
+  } catch (error: any) {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: error.message || 'Network error',
+    };
+  }
+};
+
+export const getProfile = async (address: string): Promise<Profile | null> => {
+  const normalized = normalizeAddress(address);
+  const response = await callApi<Profile>(`/api/profiles/${encodeURIComponent(normalized)}`);
+  return response.ok ? response.data : null;
+};
+
+export const updateProfile = async (address: string, profile: Partial<Profile>, signature?: string): Promise<Profile> => {
+  const response = await callApi<Profile>(`/api/profiles`, {
+    method: 'POST',
+    body: JSON.stringify({
+      walletAddress: normalizeAddress(address),
+      ...profile,
+      signature
+    }),
+  });
+
+  if (!response.ok || !response.data) {
+    throw new Error(response.error || 'Failed to update profile');
+  }
+
+  return response.data;
+};
+
+export const getNonce = async (address: string): Promise<number | null> => {
+  const response = await callApi<{ nonce: number }>(`/api/profiles/nonce?address=${encodeURIComponent(normalizeAddress(address))}`);
+  return response.ok ? response.data?.nonce ?? null : null;
+};
+
+export const getBadges = async (): Promise<BadgeDefinition[]> => {
+  const response = await callApi<BadgeDefinition[]>('/api/badges');
+  return response.ok ? (response.data || []) : [];
+};
+
+export const checkBadgeEligibility = async (badgeId: string, wallet: string): Promise<EligibilityResult | null> => {
+  const response = await callApi<EligibilityResult>(
+    `/api/badges/eligibility?wallet=${encodeURIComponent(normalizeAddress(wallet))}&badgeId=${encodeURIComponent(badgeId)}`
+  );
+  return response.ok ? response.data : null;
+};
+
+export const awardBadge = async (walletAddress: string, badgeId: string, signature?: string): Promise<any> => {
+  const response = await callApi('/api/badges/award', {
+    method: 'POST',
+    body: JSON.stringify({
+      walletAddress: normalizeAddress(walletAddress),
+      badgeId,
+      signature
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(response.error || 'Award failed');
+  }
+
+  return response.data;
+};
+
+export const getLeaderboard = async (limit: number = 100): Promise<LeaderboardEntry[]> => {
+  const response = await callApi<{ leaderboard: LeaderboardEntry[] }>(`/api/leaderboard?limit=${limit}`);
+  return response.ok ? (response.data?.leaderboard || []) : [];
+};
+
+export const searchProfiles = async (query: string, limit: number = 10): Promise<Profile[]> => {
+  const response = await callApi<{ profiles: Profile[] }>(
+    `/api/profiles/search?q=${encodeURIComponent(query)}&limit=${limit}`
+  );
+  return response.ok ? (response.data?.profiles || []) : [];
+};
+
+export const fetchUserBadges = async (address: string) => {
+  const normalized = normalizeAddress(address);
+  const response = await callApi<{ awards: any[] }>(`/api/badges/user/${encodeURIComponent(normalized)}`);
+  return { ok: response.ok, awards: response.data?.awards || [], status: response.status, data: response.data };
+};
+
+export const fetchAllBadges = async (options: any = {}) => {
+  const response = await callApi<BadgeDefinition[]>('/api/badges');
+  return { ok: response.ok, badges: response.data || [], status: response.status, data: response.data };
+};
+
+export const saveBadgeDefinitions = async (payload: { badges: any[], adminAuth: any }) => {
+  const response = await callApi<{ badges: BadgeDefinition[] }>('/api/admin/manage-badge', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'batch_sync', ...payload }),
+    headers: payload.adminAuth || {}
+  });
+  return response;
+};
+
+export const manageBadgeDefinition = async (action: string, badge: any, adminAuth: any) => {
+  const response = await callApi<any>('/api/admin/manage-badge', {
+    method: 'POST',
+    body: JSON.stringify({ action, badge }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export const awardBadgeToUser = async (address: string, badgeId: string, metadata: any, options: { adminAuth: any }) => {
+  const response = await callApi<any>('/api/badges/award', {
+    method: 'POST',
+    body: JSON.stringify({ 
+      walletAddress: normalizeAddress(address), 
+      badgeId, 
+      metadata,
+      ...options
+    }),
+    headers: options?.adminAuth || {}
+  });
+  return response;
+};
+
+export const requestMintSignature = async (walletAddress: string, onChainBadgeId: number | string) => {
+  const response = await callApi<{ signatureBytes: number[], validUntil: number }>('/api/badges/award', {
+    method: 'POST',
+    body: JSON.stringify({ walletAddress, onChainBadgeId }),
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      error: response.error || 'Failed to obtain mint signature',
+    };
+  }
+
+  const data = response.data;
+  const signatureBytes = data?.signatureBytes;
+  if (!Array.isArray(signatureBytes) || signatureBytes.length !== 64) {
+    return { ok: false, error: 'Invalid signature returned from server' };
+  }
+
+  const validUntil = data?.validUntil;
+  if (typeof validUntil !== 'number' || validUntil <= 0) {
+    return { ok: false, error: 'Missing expiry timestamp in server response' };
+  }
+
+  return { ok: true, signatureBytes, validUntil };
+};
+
+export const importAllowlist = async (badgeId: string, addresses: string[], adminAuth: any) => {
+  const response = await callApi('/api/admin/import-allowlist', {
+    method: 'POST',
+    body: JSON.stringify({ badge_id: badgeId, addresses, action: 'import' }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export const getAllowlistStats = async (badgeId: string, adminAuth: any) => {
+  const response = await callApi('/api/admin/import-allowlist', {
+    method: 'POST',
+    body: JSON.stringify({ badge_id: badgeId, action: 'stats' }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export const searchAllowlist = async (badgeId: string, walletAddress: string, adminAuth: any) => {
+  const response = await callApi('/api/admin/import-allowlist', {
+    method: 'POST',
+    body: JSON.stringify({ badge_id: badgeId, wallet_address: walletAddress, action: 'search' }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export const removeFromAllowlist = async (badgeId: string, walletAddress: string, adminAuth: any) => {
+  const response = await callApi('/api/admin/import-allowlist', {
+    method: 'POST',
+    body: JSON.stringify({ badge_id: badgeId, wallet_address: walletAddress, action: 'remove' }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export const clearAllowlist = async (badgeId: string, adminAuth: any) => {
+  const response = await callApi('/api/admin/import-allowlist', {
+    method: 'POST',
+    body: JSON.stringify({ badge_id: badgeId, action: 'clear' }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export const fetchBadgeHolders = async (badgeId: string) => {
+  const response = await callApi<{ holders: any[] }>(`/api/badges/holders/${encodeURIComponent(badgeId)}`);
+  return { ok: response.ok, data: response.data?.holders || [], status: response.status, error: response.error };
+};
+
+export const fetchAdminBadges = async (adminAuth: any) => {
+  const response = await callApi<{ badges: BadgeDefinition[] }>('/api/admin/manage-badge', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'list-all-badges' }),
+    headers: adminAuth || {}
+  });
+  return { ok: response.ok, badges: response.data?.badges || [], status: response.status, error: response.error };
+};
+
+export const getSystemConfig = async (): Promise<Record<string, any>> => {
+  const response = await callApi<Record<string, any>>('/api/config');
+  return response.ok ? (response.data || {}) : {};
+};
+
+export const updateSystemConfig = async (settings: Record<string, any>, adminAuth: any) => {
+  const response = await callApi<any>('/api/config', {
+    method: 'POST',
+    body: JSON.stringify({ settings }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export default {
+  getProfile,
+  updateProfile,
+  getNonce,
+  getBadges,
+  checkBadgeEligibility,
+  awardBadge,
+  getLeaderboard,
+  searchProfiles,
+  fetchUserBadges,
+  fetchAllBadges,
+  saveBadgeDefinitions,
+  manageBadgeDefinition,
+  awardBadgeToUser,
+  requestMintSignature,
+  importAllowlist,
+  getAllowlistStats,
+  searchAllowlist,
+  removeFromAllowlist,
+  clearAllowlist,
+  fetchBadgeHolders,
+  fetchAdminBadges,
+  getSystemConfig,
+  updateSystemConfig
+};

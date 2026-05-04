@@ -17,8 +17,8 @@ const __dirname = path.dirname(__filename);
     }
 
     const { pathToFileURL } = await import('url');
-    const adaptersPath = path.resolve(__dirname, '../frontend/src/services/badgeAdapters/index.js');
-    const apiPath = path.resolve(__dirname, '../frontend/src/services/badgeApi.js');
+    const adaptersPath = path.resolve(__dirname, '../apps/frontend/src/services/badgeAdapters/index.js');
+    const apiPath = path.resolve(__dirname, '../apps/frontend/src/services/badgeApi.js');
     const { runAdaptersForAddress } = await import(pathToFileURL(adaptersPath).href);
     const badgeApi = await import(pathToFileURL(apiPath).href);
 

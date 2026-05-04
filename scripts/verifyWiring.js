@@ -9,7 +9,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 // Load environment
 dotenv.config({ path: path.join(PROJECT_ROOT, '.env') });
-dotenv.config({ path: path.join(PROJECT_ROOT, 'frontend', '.env'), override: false });
+dotenv.config({ path: path.join(PROJECT_ROOT, 'apps', 'frontend', '.env'), override: false });
 
 const colors = {
   reset: "\x1b[0m",
