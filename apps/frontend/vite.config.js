@@ -13,31 +13,14 @@ export default defineConfig(({ command, mode }) => {
     plugins: [react()],
     build: {
       outDir: 'dist',
-      sourcemap: false,
-      minify: 'esbuild',
+      sourcemap: true,
+      minify: false,
       chunkSizeWarningLimit: 6000,
-      cssMinify: 'esbuild', // Use esbuild instead of lightningcss for CSS minification
       rollupOptions: {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
               return 'react-vendor';
-            }
-            if (id.includes('node_modules/@aptos-labs/ts-sdk')) {
-              return 'aptos-sdk';
-            }
-            if (id.includes('node_modules/@aptos-labs/wallet-adapter-react')) {
-              return 'aptos-wallet-react';
-            }
-            if (
-              id.includes('node_modules/petra-plugin-wallet-adapter') ||
-              id.includes('node_modules/@okwallet/aptos-wallet-adapter') ||
-              id.includes('node_modules/@nightlylabs/wallet-adapter-core')
-            ) {
-              return 'aptos-wallet-plugins';
-            }
-            if (id.includes('node_modules/@aptos-labs')) {
-              return 'aptos-vendor';
             }
           },
         },
