@@ -65,6 +65,19 @@
   box-shadow: 0 10px 20px rgba(205, 161, 105, 0.16);
 }
 
+.ba-sync-btn {
+  background: rgba(59, 130, 246, 0.1) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+  color: #60a5fa !important;
+  margin-left: auto;
+}
+
+.ba-sync-btn:hover {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  color: #93c5fd !important;
+}
+
 .ba-subtab-icon {
   width: 26px;
   height: 26px;

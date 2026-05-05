@@ -18,7 +18,7 @@ export const verifyWalletSignature = (
   maxAgeMinutes: number = 5
 ): boolean => {
   const parsed = parseSignaturePayload(signaturePayload);
-  
+
   // Extract values, handling potential nesting (e.g. from some wallets)
   let publicKeyInput = parsed?.publicKey || parsed?.public_key || parsed?.public_key_hex;
   let signatureInput = parsed?.signature || parsed?.sig || parsed?.sig_hex;
@@ -52,13 +52,13 @@ export const verifyWalletSignature = (
   if (maxAgeMinutes && signedAt) {
     const now = Date.now();
     const ageMs = now - signedAt;
-    
+
     console.log(`[Verification] Message timestamp: ${new Date(signedAt).toISOString()}, Server time: ${new Date(now).toISOString()}, Age: ${ageMs}ms`);
 
     // Allow 1 minute buffer for clock drift (negative age)
     if (ageMs < -60000 || ageMs > maxAgeMinutes * 60 * 1000) {
       console.warn(`[Verification] Timestamp expired or too far in future: ageMs=${ageMs}`);
-      return false; 
+      return false;
     }
   } else if (maxAgeMinutes) {
     console.warn('[Verification] No timestamp found in message for expiry check');
@@ -79,12 +79,12 @@ export const verifyWalletSignature = (
 
     const derivedAddress = normalizeAddress(String(publicKey.authKey().derivedAddress()));
     const normalizedWalletAddr = normalizeAddress(walletAddress);
-    
+
     const match = derivedAddress === normalizedWalletAddr;
     if (!match) {
       console.warn(`[Verification] Address mismatch: Derived=${derivedAddress}, Requested=${normalizedWalletAddr}`);
     }
-    
+
     return match;
   } catch (err: any) {
     console.error('[Verification] Crypto error:', err.message);

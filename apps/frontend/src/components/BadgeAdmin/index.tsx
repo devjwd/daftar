@@ -92,14 +92,27 @@ export default function BadgeAdmin() {
   const loadBadges = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await fetchAllBadges({ includePrivate: true });
-      if (result.ok) setBadges(result.badges || []);
+      // Use the dedicated admin fetcher which includes private/inactive badges
+      const auth = await createManageBadgeAuth({ action: 'list-all-badges' });
+      const { fetchAdminBadges } = await import('../../services/api');
+      const result = await fetchAdminBadges(auth);
+      
+      if (result.ok) {
+        setBadges(result.badges || []);
+      } else {
+        // Fallback to public list if admin fetch fails (e.g. signature rejected)
+        const publicResult = await fetchAllBadges();
+        if (publicResult.ok) setBadges(publicResult.badges || []);
+      }
     } catch (err) {
       console.error('[BadgeAdmin] Load failed', err);
+      // Final fallback
+      const publicResult = await fetchAllBadges();
+      if (publicResult.ok) setBadges(publicResult.badges || []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [createManageBadgeAuth]);
 
   const refreshStats = useCallback(async () => {
     // refreshStats is now a no-op as server handles aggregation
@@ -231,16 +244,30 @@ export default function BadgeAdmin() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleBulkSync = async () => {
+    if (!connected || !account) return;
+    setSubmitting(true);
     try {
-       const badge = badges.find(b => b.id === id);
-       const auth = await createManageBadgeAuth({ action: 'delete', badge: { badge_id: id } });
-       const res = await manageBadgeDefinition('delete', { badge_id: id }, auth);
-       if (res.error) throw res.error;
-       showMessage('success', 'Badge definition deleted');
-       loadBadges();
-    } catch (err) {
-       showMessage('error', err.message || 'Delete failed');
+      showMessage('info', `Syncing ${badges.length} badges to server...`);
+      const auth = await createManageBadgeAuth({ 
+        action: 'batch_sync', 
+        badges: badges.map(b => mapBadgeDefinitionToRow(b as any)) 
+      });
+      
+      const apiResult = await saveBadgeDefinitions({ 
+        badges: badges as any[], 
+        adminAuth: auth 
+      });
+
+      if (!apiResult.ok) throw new Error(apiResult.error || 'Sync failed');
+      
+      showMessage('success', `Successfully synced ${badges.length} badges to production!`);
+      loadBadges();
+    } catch (err: any) {
+      console.error('[BadgeAdmin] Bulk sync failed', err);
+      showMessage('error', err.message || 'Bulk sync failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -266,6 +293,17 @@ export default function BadgeAdmin() {
         <button className={`ba-subtab ${subTab === 'manage' ? 'active' : ''}`} onClick={() => setSubTab('manage')}>📋 Manage</button>
         <button className={`ba-subtab ${subTab === 'create' ? 'active' : ''}`} onClick={() => setSubTab('create')}>➕ Create</button>
         <button className={`ba-subtab ${subTab === 'onchain' ? 'active' : ''}`} onClick={() => setSubTab('onchain')}>⛓️ On-Chain</button>
+        
+        {badges.length > 0 && (
+          <button 
+            className="ba-subtab ba-sync-btn" 
+            onClick={handleBulkSync} 
+            disabled={submitting}
+            title="Push local definitions to production database"
+          >
+            ☁️ {submitting ? 'Syncing...' : 'Sync to Server'}
+          </button>
+        )}
       </div>
 
       {/* adminStats status bar removed - server-side evaluation is the source of truth */}

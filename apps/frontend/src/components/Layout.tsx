@@ -758,7 +758,7 @@ export default function Layout({ children }) {
             {connected && account ? (
               <div className="wallet-dropdown-container">
                 <button
-                  className="connect-btn connected"
+                  className={`connect-btn connected ${walletDropdownOpen ? 'active' : ''}`}
                   type="button"
                   onClick={handleWalletClick}
                 >
@@ -806,7 +806,7 @@ export default function Layout({ children }) {
               </div>
             ) : (
               <div className="wallet-picker-container">
-                <button className="connect-btn" type="button" onClick={handleConnect}>
+                <button className={`connect-btn ${walletPickerOpen ? 'active' : ''}`} type="button" onClick={handleConnect}>
                   {t(language, 'connectWallet')}
                 </button>
                 {walletPickerOpen && (

@@ -126,9 +126,20 @@ export const fetchUserBadges = async (address: string) => {
   return { ok: response.ok, awards: response.data?.awards || [], status: response.status, data: response.data };
 };
 
-export const fetchAllBadges = async (options: any = {}) => {
-  const response = await callApi<BadgeDefinition[]>('/api/badges');
-  return { ok: response.ok, badges: response.data || [], status: response.status, data: response.data };
+export const fetchAllBadges = async (options: { includePrivate?: boolean, includeInactive?: boolean } = {}) => {
+  const query = new URLSearchParams();
+  if (options.includePrivate) query.append('includePrivate', 'true');
+  if (options.includeInactive) query.append('includeInactive', 'true');
+  
+  const path = `/api/badges${query.toString() ? `?${query.toString()}` : ''}`;
+  const response = await callApi<BadgeDefinition[]>(path);
+  return { 
+    ok: response.ok, 
+    badges: response.data || [], 
+    status: response.status, 
+    data: response.data,
+    error: response.error
+  };
 };
 
 export const saveBadgeDefinitions = async (payload: { badges: any[], adminAuth: any, clearAwards?: boolean }) => {

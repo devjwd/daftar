@@ -35,6 +35,17 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       return res.json({ success: true, action, count: validated.length });
     }
 
+    if (action === 'list-all-badges') {
+      const { data, error } = await supabaseAdmin
+        .from('badge_definitions')
+        .select('*')
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return res.json({ success: true, action, badges: data });
+    }
+
     if (action === 'delete') {
       const badgeId = badge?.badge_id || badge?.id;
       if (!badgeId) return res.status(400).json({ error: 'badge_id required' });

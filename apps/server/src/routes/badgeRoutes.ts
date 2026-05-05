@@ -21,27 +21,40 @@ router.get('/', badgeLimiter, async (req: Request, res: Response) => {
   const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
-  // Check Cache
-  if (badgeCache && (Date.now() - badgeCache.timestamp < CACHE_TTL)) {
+  const includePrivate = req.query.includePrivate === 'true';
+  const includeInactive = req.query.includeInactive === 'true';
+
+  // Check Cache (only for public active badges)
+  if (!includePrivate && !includeInactive && badgeCache && (Date.now() - badgeCache.timestamp < CACHE_TTL)) {
     return res.status(200).json(badgeCache.data);
   }
 
   try {
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('badge_definitions')
       .select('*')
-      .eq('is_active', true)
-      .eq('is_public', true)
-      .eq('is_deleted', false)
-      .order('xp_value', { ascending: false });
+      .eq('is_deleted', false);
+
+    if (!includePrivate) {
+      query = query.eq('is_public', true);
+    }
+    
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query.order('xp_value', { ascending: false });
 
     if (error) throw error;
 
-    // Update Cache
-    badgeCache = { data, timestamp: Date.now() };
+    // Update Cache (only for public active badges)
+    if (!includePrivate && !includeInactive) {
+      badgeCache = { data, timestamp: Date.now() };
+    }
 
     return res.status(200).json(data);
   } catch (err) {
+    console.error('[Badges] Fetch error:', err);
     return res.status(500).json({ error: 'Failed to fetch badges' });
   }
 });
@@ -221,6 +234,56 @@ router.get('/eligibility', badgeLimiter, async (req: Request, res: Response) => 
   } catch (err: any) {
     console.error('[Badges/Eligibility] Error:', err);
     return res.status(500).json({ error: err.message || 'Evaluation failed' });
+  }
+});
+
+/**
+ * GET /api/badges/eligibility/bulk
+ * Bulk check eligibility for all active badges
+ */
+router.get('/eligibility/bulk', badgeLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const { wallet } = req.query;
+  const normalizedAddr = normalizeAddress(wallet as string);
+
+  if (!normalizedAddr) {
+    return res.status(400).json({ error: 'wallet address is required' });
+  }
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
+
+  try {
+    // 1. Fetch all active badges
+    const { data: badges, error: bError } = await supabaseAdmin
+      .from('badge_definitions')
+      .select('*')
+      .eq('is_active', true)
+      .eq('is_deleted', false);
+
+    if (bError) throw bError;
+
+    // 2. Fetch all existing attestations for this user
+    const { data: attestations } = await supabaseAdmin
+      .from('badge_attestations')
+      .select('*')
+      .eq('wallet_address', normalizedAddr);
+
+    const attestationMap = new Map((attestations || []).map(a => [a.badge_id, a]));
+
+    // 3. Evaluate each badge
+    const results = await Promise.all((badges || []).map(async (badge) => {
+      const attestation = attestationMap.get(badge.badge_id);
+      const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, attestation);
+      return {
+        badge_id: badge.badge_id,
+        ...evaluation
+      };
+    }));
+
+    return res.status(200).json({ results });
+  } catch (err: any) {
+    console.error('[Badges/Eligibility/Bulk] Error:', err);
+    return res.status(500).json({ error: err.message || 'Bulk evaluation failed' });
   }
 });
 

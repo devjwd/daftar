@@ -533,6 +533,24 @@ body[data-theme='light'] .nav-pass-pill.active {
   border-color: rgba(205, 161, 105, 0.72);
 }
 
+body[data-theme='light'] .connect-btn {
+  background: #ffffff;
+  color: #3f2f1f;
+  border-color: rgba(205, 161, 105, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(205, 161, 105, 0.12);
+}
+
+body[data-theme='light'] .connect-btn:hover {
+  background: #fffaf2;
+  border-color: rgba(205, 161, 105, 0.6);
+}
+
+body[data-theme='light'] .connect-btn.active,
+body[data-theme='light'] .connect-btn.connected.active {
+  background: #fff3e2;
+  border-color: rgba(205, 161, 105, 0.72);
+}
+
 body[data-theme='light'] .nav-links li:hover,
 body[data-theme='light'] .nav-links li.active,
 body[data-theme='light'] .nav-more-btn:hover,
@@ -966,13 +984,14 @@ body[data-theme='light'] .language-badge {
 
 /* Connect Button */
 .connect-btn {
-  background: linear-gradient(135deg, #cda169 0%, #deb884 100%);
-  color: #14110f;
-  border: none;
+  background: rgba(26, 22, 20, 0.82);
+  color: #deb884;
+  border: 1px solid rgba(205, 161, 105, 0.22);
   border-radius: 999px;
-  padding: 10px 22px;
+  padding: 0 20px;
+  height: 40px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
@@ -980,27 +999,38 @@ body[data-theme='light'] .language-badge {
   gap: 8px;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  box-shadow: none !important;
-  filter: none !important;
+  box-shadow: inset 0 0 0 1px rgba(205, 161, 105, 0.08);
 }
 
 .connect-btn:hover {
-  background: linear-gradient(135deg, #deb884 0%, #cda169 100%);
-  box-shadow: none !important;
-  filter: none !important;
+  background: rgba(26, 22, 20, 0.96);
+  border-color: rgba(205, 161, 105, 0.38);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(205, 161, 105, 0.16);
 }
 
 .connect-btn.connected {
-  background: rgba(205, 161, 105, 0.1);
+  background: rgba(26, 22, 20, 0.82);
   color: #deb884;
-  border: 1px solid rgba(205, 161, 105, 0.25);
+  border: 1px solid rgba(205, 161, 105, 0.22);
   text-transform: none;
   font-weight: 600;
   letter-spacing: 0.3px;
+  box-shadow: inset 0 0 0 1px rgba(205, 161, 105, 0.08);
 }
 
 .connect-btn.connected:hover {
+  background: rgba(26, 22, 20, 0.96);
+  border-color: rgba(205, 161, 105, 0.38);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(205, 161, 105, 0.16);
+}
+
+.connect-btn.active,
+.connect-btn.connected.active {
   background: rgba(205, 161, 105, 0.12);
+  border-color: rgba(205, 161, 105, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(205, 161, 105, 0.18), 0 8px 24px rgba(0, 0, 0, 0.32);
 }
 
 .wallet-status-dot {
