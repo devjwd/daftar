@@ -8,7 +8,7 @@ export const useBadgeEligibility = (badge: any) => {
     ? (typeof account.address === 'string' ? account.address : account.address.toString())
     : null;
 
-  const [status, setStatus] = useState<'idle' | 'loading' | 'eligible' | 'not_eligible' | 'error' | 'already_owned'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'eligible' | 'not_eligible' | 'error' | 'already_owned' | 'requires_admin'>('idle');
   const [progress, setProgress] = useState<any>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);

@@ -20,6 +20,8 @@ export const FALLBACK_PRICES: Record<string, number> = {
   '0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d': 1.0,
   '0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39': 1.0,
   '0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650': 1.0,
+  '0xa': 0.50,
+  '0x1': 0.50,
 };
 
 const getCoinGeckoApiUrl = (): string => {

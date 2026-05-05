@@ -15,6 +15,18 @@
   -webkit-backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   overflow: visible;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hide Navbar when specific modals or overlays are active */
+body:has(.settings-overlay) .navbar,
+body:has(.token-selector-overlay) .navbar,
+body:has(.profile-modal-overlay) .navbar,
+body:has(.badge-modal-backdrop) .navbar,
+body:has(.swap-complete-overlay) .navbar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-12px);
 }
 
 .navbar-inner {
@@ -954,37 +966,41 @@ body[data-theme='light'] .language-badge {
 
 /* Connect Button */
 .connect-btn {
-  background: rgba(26, 22, 20, 0.8);
-  color: #c8cdd8;
-  border: 1px solid rgba(205, 161, 105, 0.2);
+  background: linear-gradient(135deg, #cda169 0%, #deb884 100%);
+  color: #14110f;
+  border: none;
   border-radius: 999px;
-  padding: 10px 18px;
+  padding: 10px 22px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   gap: 8px;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  box-shadow: none !important;
+  filter: none !important;
 }
 
 .connect-btn:hover {
-  color: #deb884;
-  background: rgba(26, 22, 20, 1);
-  border-color: rgba(205, 161, 105, 0.3);
+  background: linear-gradient(135deg, #deb884 0%, #cda169 100%);
+  box-shadow: none !important;
+  filter: none !important;
 }
 
 .connect-btn.connected {
-  background: rgba(26, 22, 20, 0.8);
-  color: #c8cdd8;
-  border: 1px solid rgba(205, 161, 105, 0.2);
+  background: rgba(205, 161, 105, 0.1);
+  color: #deb884;
+  border: 1px solid rgba(205, 161, 105, 0.25);
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 
 .connect-btn.connected:hover {
-  background: rgba(26, 22, 20, 1);
-  border-color: rgba(205, 161, 105, 0.3);
-  color: #deb884;
+  background: rgba(205, 161, 105, 0.12);
 }
 
 .wallet-status-dot {
@@ -994,6 +1010,14 @@ body[data-theme='light'] .language-badge {
   background: #4ade80;
   box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
   animation: pulse 2s ease-in-out infinite;
+}
+
+.wallet-status-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 @keyframes pulse {

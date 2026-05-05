@@ -12,7 +12,7 @@ export default function Profile() {
   const { account, connected, signMessage } = useWallet();
   const navigate = useNavigate();
 
-  const address = normalizeAddress(account?.address);
+  const address = normalizeAddress(account?.address?.toString());
   const { profile, loading, saving, updateProfile, error } = useProfile(address, {
     account,
     connected,
@@ -67,7 +67,7 @@ export default function Profile() {
         getLevelBasedPfp({
           level,
           address,
-          preferredPfp: typeof (profile.avatar_url || profile.pfp) === 'string' ? (profile.avatar_url || profile.pfp) : null,
+          preferredPfp: typeof profile.avatar_url === 'string' ? profile.avatar_url : null,
         })
       );
     }
@@ -306,16 +306,16 @@ export default function Profile() {
           <div className="stat-card">
             <span className="stat-label">{t(language, 'profileProfileCreated')}</span>
             <span className="stat-value">
-              {profile?.createdAt
-                ? new Date(profile.createdAt).toLocaleDateString()
+              {profile?.created_at
+                ? new Date(profile.created_at).toLocaleDateString()
                 : t(language, 'profileToday')}
             </span>
           </div>
           <div className="stat-card">
             <span className="stat-label">{t(language, 'profileLastUpdated')}</span>
             <span className="stat-value">
-              {profile?.updatedAt
-                ? new Date(profile.updatedAt).toLocaleDateString()
+              {profile?.updated_at
+                ? new Date(profile.updated_at).toLocaleDateString()
                 : '-'}
             </span>
           </div>

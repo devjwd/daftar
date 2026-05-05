@@ -119,7 +119,7 @@ export const fetchAllBadges = async (options: any = {}) => {
   return { ok: response.ok, badges: response.data || [], status: response.status, data: response.data };
 };
 
-export const saveBadgeDefinitions = async (payload: { badges: any[], adminAuth: any }) => {
+export const saveBadgeDefinitions = async (payload: { badges: any[], adminAuth: any, clearAwards?: boolean }) => {
   const response = await callApi<{ badges: BadgeDefinition[] }>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'batch_sync', ...payload }),

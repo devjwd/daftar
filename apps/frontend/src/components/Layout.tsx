@@ -24,7 +24,19 @@ const RESOURCES_MANIFEST_URL = '/resources/manifest.json';
 export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { connect, disconnect, account, connected, wallets } = useWallet();
+  const { connect, disconnect, account, connected, wallets, wallet } = useWallet();
+
+  const getWalletLogo = (name) => {
+    if (!name) return null;
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('okx')) return '/okx.png';
+    if (lowerName.includes('leap')) return '/leap.png';
+    if (lowerName.includes('razor')) return '/razor.png';
+    if (lowerName.includes('nightly')) return '/nightly.png';
+    if (lowerName.includes('petra')) return '/logo.png';
+    if (lowerName.includes('motion')) return '/motion.png';
+    return null;
+  };
 
   const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
@@ -358,7 +370,7 @@ export default function Layout({ children }) {
 
     // If valid address, navigate directly
     if (isValidAddress(query)) {
-      goToWallet(query);
+      goToWallet(query, 'Wallet address');
       return;
     }
 
@@ -599,7 +611,7 @@ export default function Layout({ children }) {
                     }
                     if (e.key === "Escape") {
                       setShowSuggestions(false);
-                      e.target.blur();
+                      (e.target as HTMLElement).blur();
                     }
                   }}
                 />
@@ -750,7 +762,11 @@ export default function Layout({ children }) {
                   type="button"
                   onClick={handleWalletClick}
                 >
-                  <span className="wallet-status-dot"></span>
+                  {wallet?.name && getWalletLogo(wallet.name) ? (
+                    <img src={getWalletLogo(wallet.name)} alt={wallet.name} className="wallet-status-logo" />
+                  ) : (
+                    <span className="wallet-status-dot"></span>
+                  )}
                   {formatAddress(account.address) || "Connected"}
                 </button>
 
@@ -798,15 +814,6 @@ export default function Layout({ children }) {
                     {wallets
                       .filter((wallet) => !wallet.name.includes('Google') && !wallet.name.includes('Apple'))
                       .map((wallet) => {
-                        const getWalletLogo = (name) => {
-                          const lowerName = name.toLowerCase();
-                          if (lowerName.includes('okx')) return '/okx.png';
-                          if (lowerName.includes('leap')) return '/leap.png';
-                          if (lowerName.includes('razor')) return '/razor.png';
-                          if (lowerName.includes('nightly')) return '/nightly.png';
-                          if (lowerName.includes('petra')) return '/logo.png';
-                          return null;
-                        };
                         const logo = getWalletLogo(wallet.name);
                         return (
                           <button

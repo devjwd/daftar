@@ -56,6 +56,7 @@ export interface IndexerBalance {
   isKnown: boolean;
   metadata: any;
   isNative: boolean;
+  type: string;
 }
 
 interface UseIndexerBalancesResult {
@@ -164,6 +165,7 @@ export const useIndexerBalances = (address: string | null): UseIndexerBalancesRe
               isKnown: isKnown,
               metadata: item.metadata,
               isNative: Boolean(tokenInfo?.isNative || nativeMove),
+              type: assetType,
             };
           } catch {
             return null;

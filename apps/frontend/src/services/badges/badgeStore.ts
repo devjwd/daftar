@@ -18,6 +18,10 @@ import { awardBadgeToUser, fetchAllBadges, fetchUserBadges, saveBadgeDefinitions
 const BADGE_STORE_KEY = 'movement_badges_v3';
 const BADGE_STORE_META_KEY = 'movement_badges_meta_v3';
 const STORE_SCHEMA_VERSION = 3;
+interface BadgeStoreMeta {
+  schemaVersion?: number;
+  seededAt?: number;
+}
 
 // In-memory cache for user awards (Source of truth is now the Server)
 const AWARDS_CACHE = new Map(); // walletAddress -> Array of awards
@@ -52,7 +56,7 @@ function normalizeLoadedBadge(rawBadge) {
 
 function migrateAndSeedBadges() {
   const rawBadges = readStore(BADGE_STORE_KEY, []);
-  const storedMeta = readStore(BADGE_STORE_META_KEY, {});
+  const storedMeta = readStore<BadgeStoreMeta>(BADGE_STORE_META_KEY, {});
   if (Number(storedMeta?.schemaVersion || 0) < STORE_SCHEMA_VERSION) {
     writeStore(BADGE_STORE_KEY, []);
     writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
@@ -205,15 +209,15 @@ export async function syncBadgesFromBackend() {
   const response = await fetchAllBadges({
     includePrivate: false,
   });
+  
   if (!response.ok) {
+    console.warn('[badgeStore] sync failed, falling back to cache');
     return { ok: false, badges: cachedBadges };
   }
 
   const remoteBadges = Array.isArray(response.badges) ? response.badges : [];
-  if (remoteBadges.length === 0 && cachedBadges.length > 0) {
-    return { ok: true, badges: cachedBadges };
-  }
-
+  
+  // Overwrite local store with remote data to stay in sync (including empty list)
   const badges = replaceBadges(remoteBadges);
   return { ok: true, badges };
 }

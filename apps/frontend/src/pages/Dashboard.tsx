@@ -230,14 +230,18 @@ const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, form
   return (
     <div
       className={`defi-card-v2 ${isExpanded ? 'is-expanded' : 'is-compact'}`}
-      style={{ animationDelay: `${delay}ms`, '--protocol-color': protocol.color }}
+      style={{ animationDelay: `${delay}ms`, '--protocol-color': protocol.color } as React.CSSProperties}
     >
       <div className="defi-v2-header">
         <div className="defi-v2-logo">
           <img
             src={protocol.logo}
             alt={protocol.name}
-            onError={(e) => { e.target.onerror = null; e.target.src = '/movement-logo.svg'; }}
+            onError={(e) => { 
+              const target = e.target as HTMLImageElement;
+              target.onerror = null; 
+              target.src = '/movement-logo.svg'; 
+            }}
           />
         </div>
         <div className="defi-v2-title">
@@ -487,7 +491,7 @@ const TokenIcon = ({ symbol, size = 16 }) => {
         alt={symbol}
         className="token-mini-icon"
         style={{ width: size, height: size, borderRadius: '4px', marginRight: '6px', objectFit: 'contain' }}
-        onError={(e) => { e.target.style.display = 'none'; }}
+        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
       />
     );
   }
@@ -595,16 +599,16 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
     }
 
     if (position.symbol?.includes('cvWBTC') || position.symbol?.includes('WBTC') || position.symbol?.includes('BTC')) {
-      const btcPrice = Object.entries(priceMap).find(([addr]) =>
+      const btcPrice = (Object.entries(priceMap).find(([addr]) =>
         addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
-      )?.[1] || 95000;
+      )?.[1] || 95000) as number;
       return amount * btcPrice;
     }
 
     if (position.symbol?.includes('cvWETH') || position.symbol?.includes('WETH') || position.symbol?.includes('ETH')) {
-      const ethPrice = Object.entries(priceMap).find(([addr]) =>
+      const ethPrice = (Object.entries(priceMap).find(([addr]) =>
         addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
-      )?.[1] || 3500;
+      )?.[1] || 3500) as number;
       return amount * ethPrice;
     }
 
@@ -675,14 +679,18 @@ const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyVa
       style={{
         animationDelay: `${delay}ms`,
         '--lp-color': protocol.color
-      }}
+      } as React.CSSProperties}
     >
       <div className="lp-card-header">
         <div className="lp-card-logo">
           <img
             src={protocol.logo}
             alt={protocol.name}
-            onError={(e) => { e.target.onerror = null; e.target.src = '/movement-logo.svg'; }}
+            onError={(e) => { 
+              const target = e.target as HTMLImageElement;
+              target.onerror = null; 
+              target.src = '/movement-logo.svg'; 
+            }}
           />
         </div>
         <div className="lp-card-info">
@@ -800,7 +808,7 @@ const Dashboard = () => {
   const { convertUSD, formatValue: formatCurrencyValue, currencySymbol } = useCurrency();
 
   useEffect(() => {
-    localStorage.setItem('hideValues', hideValues);
+    localStorage.setItem('hideValues', hideValues.toString());
   }, [hideValues]);
 
   useEffect(() => {
@@ -893,12 +901,12 @@ const Dashboard = () => {
   const userAvatarSrc = entityBranding?.logo || getLevelBasedPfp({
     level: viewingLevel,
     address: viewingAddress,
-    preferredPfp: userProfile?.avatar_url || userProfile?.pfp,
+    preferredPfp: userProfile?.avatar_url,
   });
   const modalAvatarSrc = getLevelBasedPfp({
     level,
     address: viewingAddress,
-    preferredPfp: userProfile?.avatar_url || userProfile?.pfp,
+    preferredPfp: userProfile?.avatar_url,
   });
 
   useEffect(() => {
@@ -983,40 +991,75 @@ const Dashboard = () => {
     return wallet + defi + liquidity;
   }, [totalUsdValue, defiNetValue, liquidityTotalValue]);
   const portfolio24hChange = useMemo(() => {
-    if (!balances || balances.length === 0 || !priceChanges || combinedNetWorth === 0) {
+    // If combinedNetWorth is 0, we can't calculate a meaningful weighted change
+    if (!priceChanges || combinedNetWorth === 0) {
       return null;
     }
-    let weightedChange = 0;
-    let totalWeight = 0;
 
-    balances.forEach(token => {
-      const address = token.address;
-      const usdValue = token.usdValue || 0;
+    let weightedChangeSum = 0;
+    let totalWeightValue = 0;
 
-      // Try exact match, then normalized match, then MOVE fallback
+    // Helper to get change for an asset
+    const getAssetChange = (address, symbol) => {
       let change = priceChanges[address];
-
       if (change === undefined && address) {
-        // Simple normalization for 0x1 vs 0x0...1
         const normalized = address.toLowerCase().replace(/^0x0+/, "0x");
         change = priceChanges[normalized];
       }
-
-      if (change === undefined && (token.symbol === "MOVE" || token.symbol === "move")) {
+      if (change === undefined && (symbol === "MOVE" || symbol === "move" || String(symbol).includes('MOVE'))) {
         change = priceChanges["0xa"] || priceChanges["0x1"];
       }
+      return change;
+    };
 
-      if (change !== undefined && usdValue > 0) {
-        weightedChange += change * usdValue;
-        totalWeight += usdValue;
-      }
-    });
-    if (totalWeight > 0) {
-      return weightedChange / totalWeight;
+    // 1. Process Wallet Balances
+    if (balances && balances.length > 0) {
+      balances.forEach(token => {
+        const usdValue = token.usdValue || 0;
+        if (usdValue <= 0) return;
+
+        const change = getAssetChange(token.address, token.symbol);
+        if (change !== undefined) {
+          weightedChangeSum += change * usdValue;
+          totalWeightValue += usdValue;
+        }
+      });
+    }
+
+    // 2. Process DeFi Positions
+    if (visibleDeFiPositions && visibleDeFiPositions.length > 0) {
+      visibleDeFiPositions.forEach(pos => {
+        const usdValue = getDeFiPositionUsdValue(pos, priceMap) ?? 0;
+        if (usdValue <= 0) return;
+
+        const change = getAssetChange(pos.address, pos.symbol || pos.underlying);
+        if (change !== undefined) {
+          weightedChangeSum += change * usdValue;
+          totalWeightValue += usdValue;
+        }
+      });
+    }
+
+    // 3. Process Liquidity Positions
+    if (visibleLiquidityPositions && visibleLiquidityPositions.length > 0) {
+      visibleLiquidityPositions.forEach(pos => {
+        const usdValue = getLiquidityPositionUsdValue(pos, priceMap) ?? 0;
+        if (usdValue <= 0) return;
+
+        const change = getAssetChange(pos.address, pos.symbol || pos.underlying);
+        if (change !== undefined) {
+          weightedChangeSum += change * usdValue;
+          totalWeightValue += usdValue;
+        }
+      });
+    }
+
+    if (totalWeightValue > 0) {
+      return weightedChangeSum / totalWeightValue;
     }
 
     return null;
-  }, [balances, priceChanges, combinedNetWorth]);
+  }, [balances, visibleDeFiPositions, visibleLiquidityPositions, priceChanges, priceMap, combinedNetWorth]);
 
   const toRawCoinString = useCallback((value) => {
     if (value === null || value === undefined) return null;
@@ -1348,7 +1391,7 @@ const Dashboard = () => {
           normalizedAddress = address.hex();
         } else if (address.data && typeof address.data === "object") {
           const hex = Array.from(address.data)
-            .map(b => b.toString(16).padStart(2, "0"))
+            .map((b: any) => b.toString(16).padStart(2, "0"))
             .join("");
           normalizedAddress = `0x${hex}`;
         } else {
@@ -1742,18 +1785,18 @@ const Dashboard = () => {
                   } else if (underlyingAsset === 'USDC.e' || underlyingAsset === 'USDT.e') {
                     usdValue = amount;
                   } else if (underlyingAsset === 'WBTC.e') {
-                    const btcPrice = Object.entries(priceMap).find(([addr]) =>
+                    const btcPrice = (Object.entries(priceMap).find(([addr]) =>
                       addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
-                    )?.[1] || 95000;
+                    )?.[1] || 95000) as number;
                     usdValue = amount * btcPrice;
                   } else if (underlyingAsset === 'WETH.e') {
-                    const ethPrice = Object.entries(priceMap).find(([addr]) =>
+                    const ethPrice = (Object.entries(priceMap).find(([addr]) =>
                       addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
-                    )?.[1] || 3500;
+                    )?.[1] || 3500) as number;
                     usdValue = amount * ethPrice;
                   }
                 }
-                let meridianComposition = {};
+                let meridianComposition: any = {};
                 if (protocol === 'meridian' && meridianCompositions.length > 0) {
                   const compositionIndex = meridianLPIndex < meridianCompositions.length ? meridianLPIndex : 0;
                   meridianComposition = {
@@ -2173,7 +2216,7 @@ const Dashboard = () => {
 
     const firstDate = new Date(ageData.firstTxTimestamp);
     const now = new Date();
-    const diffMs = now - firstDate;
+    const diffMs = now.getTime() - firstDate.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
     if (diffDays < 1) return "< 1";
@@ -2536,8 +2579,8 @@ const Dashboard = () => {
                     }, {});
 
                     const sortedProtocolEntries = Object.entries(groupedByProtocol)
-                      .map(([protocolName, protocolPositions]) => {
-                        const netUsd = protocolPositions.reduce((sum, pos) => {
+                      .map(([protocolName, protocolPositions]: [string, any]) => {
+                        const netUsd = (protocolPositions as any[]).reduce((sum, pos) => {
                           const usdValue = getDeFiPositionUsdValue(pos, priceMap) ?? 0;
                           const isDebt = pos.type === 'Debt';
                           return sum + (isDebt ? -usdValue : usdValue);
@@ -2692,7 +2735,7 @@ const Dashboard = () => {
                         <div key={b.id} className="modal-onchain-badge owned" title={b.name}>
                           <div className="modal-onchain-badge-icon">
                             {b.imageUrl ? (
-                              <img src={b.imageUrl} alt={b.name} onError={(e) => { e.target.style.display = 'none' }} />
+                              <img src={b.imageUrl} alt={b.name} onError={(e) => { (e.target as HTMLElement).style.display = 'none' }} />
                             ) : (
                               <span className="badge-fallback-letter">{b.name ? b.name[0] : 'B'}</span>
                             )}

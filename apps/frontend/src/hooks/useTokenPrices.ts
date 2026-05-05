@@ -61,6 +61,10 @@ const FALLBACK_PRICES = {
   "0x967d9125a338c5b1e22b6aacaa8d14b2b8b785ca44b614803ecbcdb4898229f3": 0, // CAPY
   "0xf02c83698b28a544197858c4808b96ff740aa1c01b2f04ba33e80a485b4bf67a": 0, // MOVECAT
   [GMOVE_ADDRESS]: 0, // gMOVE
+
+  // MOVE Fallbacks (Aptos / Movement Native)
+  "0xa": 0.50,
+  "0x1": 0.50,
 };
 
 const applyPriceAliases = (prices = {}, priceChanges = {}) => {

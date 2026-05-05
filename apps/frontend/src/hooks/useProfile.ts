@@ -5,15 +5,18 @@ import { getProfile, updateProfile, getNonce } from '../services/api';
 interface UseProfileResult {
   profile: Profile | null;
   loading: boolean;
+  saving: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  updateProfile: (data: Partial<Profile>, signature?: string) => Promise<void>;
   update: (data: Partial<Profile>, signature?: string) => Promise<void>;
   getNonce: () => Promise<number | null>;
 }
 
-export const useProfile = (walletAddress: string | null): UseProfileResult => {
+export const useProfile = (walletAddress: string | null, options: any = {}): UseProfileResult => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProfile = useCallback(async () => {
@@ -37,11 +40,14 @@ export const useProfile = (walletAddress: string | null): UseProfileResult => {
 
   const handleUpdate = async (data: Partial<Profile>, signature?: string) => {
     if (!walletAddress) return;
+    setSaving(true);
     try {
       await updateProfile(walletAddress, data, signature);
       await fetchProfile();
     } catch (err: any) {
       throw new Error(err.message || 'Update failed');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -61,9 +67,14 @@ export const useProfile = (walletAddress: string | null): UseProfileResult => {
   return {
     profile,
     loading,
+    saving,
     error,
     refresh: fetchProfile,
+    updateProfile: handleUpdate,
     update: handleUpdate,
     getNonce: handleGetNonce
   };
 };
+
+export const useProfileByAddress = (address: string | null) => useProfile(address);
+

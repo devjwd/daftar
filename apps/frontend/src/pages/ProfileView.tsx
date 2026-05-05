@@ -63,20 +63,20 @@ export default function ProfileView() {
                     <code className="detail-value">{address}</code>
                   </div>
                   
-                  {profile.createdAt && (
+                  {profile.created_at && (
                     <div className="detail-item">
                       <span className="detail-label">{t(language, 'profileProfileCreated')}</span>
                       <span className="detail-value">
-                        {new Date(profile.createdAt).toLocaleDateString()}
+                        {new Date(profile.created_at).toLocaleDateString()}
                       </span>
                     </div>
                   )}
                   
-                  {profile.updatedAt && (
+                  {profile.updated_at && (
                     <div className="detail-item">
                       <span className="detail-label">{t(language, 'profileLastUpdated')}</span>
                       <span className="detail-value">
-                        {new Date(profile.updatedAt).toLocaleDateString()}
+                        {new Date(profile.updated_at).toLocaleDateString()}
                       </span>
                     </div>
                   )}

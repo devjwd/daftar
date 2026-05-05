@@ -183,6 +183,49 @@ router.get('/definitions', badgeLimiter, async (req: Request, res: Response) => 
 });
 
 /**
+ * GET /api/badges/eligibility
+ * Check if a user is eligible for a badge without generating a signature
+ */
+router.get('/eligibility', badgeLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const { badgeId, wallet } = req.query;
+  const normalizedAddr = normalizeAddress(wallet as string);
+
+  if (!badgeId || !normalizedAddr) {
+    return res.status(400).json({ error: 'badgeId and wallet are required' });
+  }
+
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
+
+  try {
+    // 1. Fetch badge definition
+    const { data: badge, error: bError } = await supabaseAdmin
+      .from('badge_definitions')
+      .select('*')
+      .eq('badge_id', badgeId)
+      .maybeSingle();
+
+    if (bError || !badge) return res.status(404).json({ error: 'Badge not found' });
+
+    // 2. Fetch existing attestation
+    const { data: attestation } = await supabaseAdmin
+      .from('badge_attestations')
+      .select('*')
+      .eq('badge_id', badge.badge_id)
+      .eq('wallet_address', normalizedAddr)
+      .maybeSingle();
+
+    // 3. Evaluate
+    const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, attestation);
+
+    return res.status(200).json(evaluation);
+  } catch (err: any) {
+    console.error('[Badges/Eligibility] Error:', err);
+    return res.status(500).json({ error: err.message || 'Evaluation failed' });
+  }
+});
+
+/**
  * GET /api/badges/user/:address
  * Get all badges earned by a user
  */
