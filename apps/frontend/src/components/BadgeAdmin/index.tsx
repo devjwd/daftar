@@ -103,37 +103,41 @@ export default function BadgeAdmin() {
   const loadBadges = useCallback(async () => {
     setLoading(true);
     try {
-      // Use the dedicated admin fetcher which includes private/inactive badges
-      const auth = await createManageBadgeAuth({ action: 'list-all-badges' });
-      const { fetchAdminBadges } = await import('../../services/api');
-      const result = await fetchAdminBadges(auth);
+      let remoteBadges: any[] = [];
       
-      if (result.ok && result.badges) {
-        // Merge strategy: Server is authoritative. 
-        // We keep local badges only if they have a different ID (un-synced)
-        const serverBadges = result.badges || [];
-        const localBadges = getAllBadges();
-        
-        const merged = [...serverBadges];
-        const serverIds = new Set(serverBadges.map(b => b.badge_id || b.id));
-        
-        localBadges.forEach(lb => {
-          if (!serverIds.has(lb.id) && !serverIds.has(lb.badge_id)) {
-            merged.push(lb);
-          }
-        });
-
-        setBadges(merged);
-      } else {
-        // Fallback to public list if admin fetch fails (e.g. signature rejected)
+      try {
+        // 1. Try secure admin fetch
+        const auth = await createManageBadgeAuth({ action: 'list-all-badges' });
+        const { fetchAdminBadges } = await import('../../services/api');
+        const result = await fetchAdminBadges(auth);
+        if (result.ok && result.badges) {
+          remoteBadges = result.badges;
+        } else {
+          throw new Error('Admin fetch failed');
+        }
+      } catch (adminErr) {
+        // 2. Fallback to public fetch
         const publicResult = await fetchAllBadges();
-        if (publicResult.ok) setBadges(publicResult.badges || []);
+        if (publicResult.ok) {
+          remoteBadges = publicResult.badges || [];
+        }
       }
+
+      // 3. Merge strategy: Server is authoritative. 
+      // We keep local badges only if they have a different ID (un-synced)
+      const localBadges = getAllBadges() || [];
+      const merged = [...remoteBadges];
+      const serverIds = new Set(remoteBadges.map(b => b.badge_id || b.id));
+      
+      localBadges.forEach(lb => {
+        if (!serverIds.has(lb.id) && !serverIds.has(lb.badge_id)) {
+          merged.push(lb);
+        }
+      });
+
+      setBadges(merged);
     } catch (err) {
       console.error('[BadgeAdmin] Load failed', err);
-      // Final fallback
-      const publicResult = await fetchAllBadges();
-      if (publicResult.ok) setBadges(publicResult.badges || []);
     } finally {
       setLoading(false);
     }
