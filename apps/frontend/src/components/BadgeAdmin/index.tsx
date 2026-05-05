@@ -3,8 +3,8 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useMovementClient } from '../../hooks/useMovementClient';
 import { useTransactionTracker } from '../../hooks/useTransactionTracker';
 
-import { 
-  fetchAllBadges, 
+import {
+  fetchAllBadges,
   saveBadgeDefinitions,
   manageBadgeDefinition,
   importAllowlist
@@ -13,15 +13,15 @@ import { mapBadgeDefinitionToRow } from '../../utils/badgeUtils';
 import { createAdminProofHeaders } from '../../services/adminProof';
 import { getAllBadges } from '../../services/badges/badgeStore';
 
-import { 
+import {
   createBadge as createOnChainBadge,
   waitForTxAndGetId,
   buildMetadataJson,
   buildMetadataDataUri
 } from '../../services/badgeService';
 
-import { 
-  BADGE_CATEGORIES, 
+import {
+  BADGE_CATEGORIES,
   CRITERIA_TYPES,
   getRarityInfo,
   createBadgeDefinition
@@ -36,6 +36,48 @@ import AllowlistEditor from './AllowlistEditor';
 
 import '../BadgeAdmin.css';
 
+const OFFICIAL_BADGES = [
+  {
+    name: 'Early Adopter',
+    description: 'One of the first users to explore the Movement Network via Daftar.',
+    imageUrl: 'https://gateway.pinata.cloud/ipfs/QmZ8v6G6J7N1m8XfX8z6Xy9hVv1n3V7fX8z6Xy9hVv1n3',
+    category: 'community',
+    rarity: 'rare',
+    xp: 100,
+    mintFee: 0,
+    isPublic: true,
+    enabled: true,
+    onChainBadgeId: 1,
+    criteria: [{ type: 'transaction_count', params: { min: 1 } }]
+  },
+  {
+    name: 'Transaction Master',
+    description: 'Achieve 50+ transactions on Movement Network.',
+    imageUrl: 'https://gateway.pinata.cloud/ipfs/QmZ8v6G6J7N1m8XfX8z6Xy9hVv1n3V7fX8z6Xy9hVv1n3',
+    category: 'activity',
+    rarity: 'epic',
+    xp: 500,
+    mintFee: 0,
+    isPublic: true,
+    enabled: true,
+    onChainBadgeId: 2,
+    criteria: [{ type: 'transaction_count', params: { min: 50 } }]
+  },
+  {
+    name: 'DeFi Explorer',
+    description: 'Interact with 5+ unique protocols on Movement.',
+    imageUrl: 'https://gateway.pinata.cloud/ipfs/QmZ8v6G6J7N1m8XfX8z6Xy9hVv1n3V7fX8z6Xy9hVv1n3',
+    category: 'defi',
+    rarity: 'legendary',
+    xp: 1000,
+    mintFee: 0,
+    isPublic: true,
+    enabled: true,
+    onChainBadgeId: 3,
+    criteria: [{ type: 'protocol_count', params: { min: 5 } }]
+  }
+];
+
 const EMPTY_FORM = {
   name: '',
   description: '',
@@ -48,8 +90,8 @@ const EMPTY_FORM = {
   criteria: [{ type: '', params: {} }],
   metadata: {
     externalUrl: '',
-    special: { 
-      isSpecial: false, 
+    special: {
+      isSpecial: false,
       timeLimited: { enabled: false, startsAt: '', endsAt: '' },
       rewards: { enabled: false, tokenAmount: '0', tokenSymbol: 'MOVE', strategy: 'first_come', limit: 100 }
     }
@@ -92,11 +134,11 @@ export default function BadgeAdmin() {
 
   const createManageBadgeAuth = useCallback(async (body) => {
     if (!account || !signMessage) throw new Error('Wallet not ready for signing');
-    return await createAdminProofHeaders({ 
-      account, 
-      signMessage, 
-      action: 'manage-badge-definition', 
-      body 
+    return await createAdminProofHeaders({
+      account,
+      signMessage,
+      action: 'manage-badge-definition',
+      body
     });
   }, [account, signMessage]);
 
@@ -104,7 +146,7 @@ export default function BadgeAdmin() {
     setLoading(true);
     try {
       let remoteBadges: any[] = [];
-      
+
       try {
         // 1. Try secure admin fetch
         const auth = await createManageBadgeAuth({ action: 'list-all-badges' });
@@ -128,7 +170,7 @@ export default function BadgeAdmin() {
       const localBadges = getAllBadges() || [];
       const merged = [...remoteBadges];
       const serverIds = new Set(remoteBadges.map(b => b.badge_id || b.id));
-      
+
       localBadges.forEach(lb => {
         if (!serverIds.has(lb.id) && !serverIds.has(lb.badge_id)) {
           merged.push(lb);
@@ -148,8 +190,8 @@ export default function BadgeAdmin() {
     console.log('[BadgeAdmin] Stats refresh is now handled by the server');
   }, []);
 
-  useEffect(() => { 
-    loadBadges(); 
+  useEffect(() => {
+    loadBadges();
     refreshStats();
   }, [loadBadges, refreshStats]);
 
@@ -167,14 +209,14 @@ export default function BadgeAdmin() {
 
     try {
       const metadataJson = buildMetadataJson({
-         name: form.name,
-         description: form.description,
-         imageUri: form.imageUrl,
-         externalUrl: form.metadata.externalUrl,
-         attributes: [
-           { trait_type: 'category', value: form.category },
-           { trait_type: 'xp', value: String(form.xp) }
-         ]
+        name: form.name,
+        description: form.description,
+        imageUri: form.imageUrl,
+        externalUrl: form.metadata.externalUrl,
+        attributes: [
+          { trait_type: 'category', value: form.category },
+          { trait_type: 'xp', value: String(form.xp) }
+        ]
       });
       const metadataUri = buildMetadataDataUri(metadataJson);
 
@@ -195,7 +237,7 @@ export default function BadgeAdmin() {
       });
 
       const txResult = await trackTransaction(`Creating On-Chain Badge: ${form.name}`, txPromise);
-      
+
       showMessage('info', 'Waiting for on-chain confirmation...');
       let onChainBadgeId;
       try {
@@ -205,13 +247,13 @@ export default function BadgeAdmin() {
         // Fallback or more descriptive error
         throw new Error(`Transaction succeeded but badge ID detection failed. Please check the explorer: ${txResult.hash}`);
       }
-      
+
       if (!onChainBadgeId) throw new Error('Failed to detect new badge ID from events. The transaction was successful, but the indexer may be lagging.');
 
       // 4. Handle Allowlist offboarding (extract addresses for dedicated table)
       const allowlistCriterion = form.criteria.find(c => c.type === 'allowlist');
       const allowlistAddresses = (allowlistCriterion?.params as any)?.addresses || [];
-      
+
       // Strip large addresses array from the definition to keep DB light
       const sanitizedForm = {
         ...form,
@@ -224,16 +266,16 @@ export default function BadgeAdmin() {
       };
 
       const badgePayload = { ...sanitizedForm, onChainBadgeId, id: `badge_${Date.now()}` };
-      
+
       // FIX: Sign the exact body that saveBadgeDefinitions will send (batch_sync)
-      const auth = await createManageBadgeAuth({ 
-        action: 'batch_sync', 
-        badges: [mapBadgeDefinitionToRow(badgePayload as any)] 
+      const auth = await createManageBadgeAuth({
+        action: 'batch_sync',
+        badges: [mapBadgeDefinitionToRow(badgePayload as any)]
       });
-      
-      const apiResult = await saveBadgeDefinitions({ 
-        badges: [badgePayload as any], 
-        adminAuth: auth 
+
+      const apiResult = await saveBadgeDefinitions({
+        badges: [badgePayload as any],
+        adminAuth: auth
       });
 
       if (!apiResult.ok) throw new Error(apiResult.error || 'Database save failed');
@@ -243,8 +285,8 @@ export default function BadgeAdmin() {
         showMessage('info', `Importing ${allowlistAddresses.length} allowlist addresses...`);
         const importResult = await importAllowlist(badgePayload.id, allowlistAddresses, auth);
         if (!importResult.ok) {
-           console.warn('[BadgeAdmin] Allowlist import partial failure', importResult.error);
-           showMessage('warning', `Badge created, but allowlist import had issues: ${importResult.error}`);
+          console.warn('[BadgeAdmin] Allowlist import partial failure', importResult.error);
+          showMessage('warning', `Badge created, but allowlist import had issues: ${importResult.error}`);
         }
       }
 
@@ -266,53 +308,80 @@ export default function BadgeAdmin() {
 
   const handleDelete = async (id) => {
     try {
-       const auth = await createManageBadgeAuth({ action: 'delete', badge: { badge_id: id } });
-       const res = await manageBadgeDefinition('delete', { badge_id: id }, auth);
-       if (!res.ok) throw new Error(res.error || 'Delete failed');
-       showMessage('success', 'Badge definition moved to trash');
-       loadBadges();
+      const auth = await createManageBadgeAuth({ action: 'delete', badge: { badge_id: id } });
+      const res = await manageBadgeDefinition('delete', { badge_id: id }, auth);
+      if (!res.ok) throw new Error(res.error || 'Delete failed');
+      showMessage('success', 'Badge definition moved to trash');
+      loadBadges();
     } catch (err: any) {
-       showMessage('error', err.message || 'Delete failed');
+      showMessage('error', err.message || 'Delete failed');
     }
   };
 
   const handleRestore = async (id) => {
     try {
-       const auth = await createManageBadgeAuth({ action: 'restore', badge: { badge_id: id } });
-       const res = await manageBadgeDefinition('restore', { badge_id: id }, auth);
-       if (!res.ok) throw new Error(res.error || 'Restore failed');
-       showMessage('success', 'Badge definition restored');
-       loadBadges();
+      const auth = await createManageBadgeAuth({ action: 'restore', badge: { badge_id: id } });
+      const res = await manageBadgeDefinition('restore', { badge_id: id }, auth);
+      if (!res.ok) throw new Error(res.error || 'Restore failed');
+      showMessage('success', 'Badge definition restored');
+      loadBadges();
     } catch (err: any) {
-       showMessage('error', err.message || 'Restore failed');
+      showMessage('error', err.message || 'Restore failed');
     }
   };
 
   const handleToggle = async (id) => {
     try {
-       const badge = badges.find(b => b.id === id);
-       const newStatus = !badge?.enabled;
-       const auth = await createManageBadgeAuth({ action: 'toggle-status', badge: { badge_id: id, enabled: newStatus } });
-       const res = await manageBadgeDefinition('toggle-status', { badge_id: id, enabled: newStatus }, auth);
-       if (!res.ok) throw new Error(res.error || 'Toggle failed');
-       showMessage('success', `Badge ${newStatus ? 'enabled' : 'disabled'}`);
-       loadBadges();
+      const badge = badges.find(b => b.id === id);
+      const newStatus = !badge?.enabled;
+      const auth = await createManageBadgeAuth({ action: 'toggle-status', badge: { badge_id: id, enabled: newStatus } });
+      const res = await manageBadgeDefinition('toggle-status', { badge_id: id, enabled: newStatus }, auth);
+      if (!res.ok) throw new Error(res.error || 'Toggle failed');
+      showMessage('success', `Badge ${newStatus ? 'enabled' : 'disabled'}`);
+      loadBadges();
     } catch (err: any) {
-       showMessage('error', err.message || 'Toggle failed');
+      showMessage('error', err.message || 'Toggle failed');
     }
   };
 
   const handleTogglePublic = async (id) => {
     try {
-       const badge = badges.find(b => b.id === id);
-       const newPublic = badge?.isPublic === false;
-       const auth = await createManageBadgeAuth({ action: 'toggle-public', badge: { badge_id: id, is_public: newPublic } });
-       const res = await manageBadgeDefinition('toggle-public', { badge_id: id, is_public: newPublic }, auth);
-       if (!res.ok) throw new Error(res.error || 'Visibility toggle failed');
-       showMessage('success', `Badge is now ${newPublic ? 'public' : 'private'}`);
-       loadBadges();
+      const badge = badges.find(b => b.id === id);
+      const newPublic = badge?.isPublic === false;
+      const auth = await createManageBadgeAuth({ action: 'toggle-public', badge: { badge_id: id, is_public: newPublic } });
+      const res = await manageBadgeDefinition('toggle-public', { badge_id: id, is_public: newPublic }, auth);
+      if (!res.ok) throw new Error(res.error || 'Visibility toggle failed');
+      showMessage('success', `Badge is now ${newPublic ? 'public' : 'private'}`);
+      loadBadges();
     } catch (err: any) {
-       showMessage('error', err.message || 'Visibility toggle failed');
+      showMessage('error', err.message || 'Visibility toggle failed');
+    }
+  };
+
+  const handleSeedOfficial = async () => {
+    if (!connected || !account) return;
+    setSubmitting(true);
+    try {
+      showMessage('info', 'Seeding official badges...');
+      const auth = await createManageBadgeAuth({ 
+        action: 'batch_sync', 
+        badges: OFFICIAL_BADGES.map(b => mapBadgeDefinitionToRow(createBadgeDefinition(b) as any)) 
+      });
+      
+      const apiResult = await saveBadgeDefinitions({ 
+        badges: OFFICIAL_BADGES.map(b => createBadgeDefinition(b)), 
+        adminAuth: auth 
+      });
+
+      if (!apiResult.ok) throw new Error(apiResult.error || 'Seed failed');
+      
+      showMessage('success', 'Official badges seeded successfully!');
+      loadBadges();
+    } catch (err: any) {
+      console.error('[BadgeAdmin] Seed failed', err);
+      showMessage('error', err.message || 'Seed failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -321,18 +390,18 @@ export default function BadgeAdmin() {
     setSubmitting(true);
     try {
       showMessage('info', `Syncing ${badges.length} badges to server...`);
-      const auth = await createManageBadgeAuth({ 
-        action: 'batch_sync', 
-        badges: badges.map(b => mapBadgeDefinitionToRow(b as any)) 
+      const auth = await createManageBadgeAuth({
+        action: 'batch_sync',
+        badges: badges.map(b => mapBadgeDefinitionToRow(b as any))
       });
-      
-      const apiResult = await saveBadgeDefinitions({ 
-        badges: badges as any[], 
-        adminAuth: auth 
+
+      const apiResult = await saveBadgeDefinitions({
+        badges: badges as any[],
+        adminAuth: auth
       });
 
       if (!apiResult.ok) throw new Error(apiResult.error || 'Sync failed');
-      
+
       showMessage('success', `Successfully synced ${badges.length} badges to production!`);
       loadBadges();
     } catch (err: any) {
@@ -353,7 +422,7 @@ export default function BadgeAdmin() {
           {message.text}
         </div>
       )}
-      
+
       {pendingTx && (
         <div className="ba-pending-tx-toast">
           <span className="ba-spinner">🔄</span>
@@ -365,15 +434,26 @@ export default function BadgeAdmin() {
         <button className={`ba-subtab ${subTab === 'manage' ? 'active' : ''}`} onClick={() => setSubTab('manage')}>📋 Manage</button>
         <button className={`ba-subtab ${subTab === 'create' ? 'active' : ''}`} onClick={() => setSubTab('create')}>➕ Create</button>
         <button className={`ba-subtab ${subTab === 'onchain' ? 'active' : ''}`} onClick={() => setSubTab('onchain')}>⛓️ On-Chain</button>
-        
+
         {badges.length > 0 && (
-          <button 
-            className="ba-subtab ba-sync-btn" 
-            onClick={handleBulkSync} 
+          <button
+            className="ba-subtab ba-sync-btn"
+            onClick={handleBulkSync}
             disabled={submitting}
             title="Push local definitions to production database"
           >
             ☁️ {submitting ? 'Syncing...' : 'Sync to Server'}
+          </button>
+        )}
+
+        {badges.length === 0 && (
+          <button 
+            className="ba-subtab ba-seed-btn" 
+            onClick={handleSeedOfficial} 
+            disabled={submitting}
+            title="Populate with official Daftar badges"
+          >
+            🌱 Seed Official Badges
           </button>
         )}
       </div>
@@ -382,21 +462,21 @@ export default function BadgeAdmin() {
 
       <div className="ba-content">
         {subTab === 'manage' && (
-          <BadgeManager 
-             badges={badges} 
-             handleEdit={(b) => { setForm(b); setEditingId(b.id); setSubTab('create'); }}
-             handleDelete={handleDelete}
-             handleRestore={handleRestore}
-             handleToggle={handleToggle} 
-             handleTogglePublic={handleTogglePublic}
-             handleManageAllowlist={(b) => setManagingAllowlist(b)}
-             setSubTab={setSubTab}
-             showDeleted={false}
-             setShowDeleted={() => {}}
+          <BadgeManager
+            badges={badges}
+            handleEdit={(b) => { setForm(b); setEditingId(b.id); setSubTab('create'); }}
+            handleDelete={handleDelete}
+            handleRestore={handleRestore}
+            handleToggle={handleToggle}
+            handleTogglePublic={handleTogglePublic}
+            handleManageAllowlist={(b) => setManagingAllowlist(b)}
+            setSubTab={setSubTab}
+            showDeleted={false}
+            setShowDeleted={() => { }}
           />
         )}
         {managingAllowlist && (
-          <AllowlistEditor 
+          <AllowlistEditor
             badge={managingAllowlist}
             account={account}
             onClose={() => setManagingAllowlist(null)}
@@ -404,23 +484,23 @@ export default function BadgeAdmin() {
           />
         )}
         {subTab === 'create' && (
-          <BadgeDefinitionForm 
-             form={form} setForm={setForm} editingId={editingId}
-             submitting={submitting} handleSubmit={handleSubmit} resetForm={resetForm}
-             protocolOptions={protocolOptions} criteriaOptions={criteriaOptions}
+          <BadgeDefinitionForm
+            form={form} setForm={setForm} editingId={editingId}
+            submitting={submitting} handleSubmit={handleSubmit} resetForm={resetForm}
+            protocolOptions={protocolOptions} criteriaOptions={criteriaOptions}
           />
         )}
         {subTab === 'onchain' && (
           <div className="ba-onchain-split">
-             <RegistryController 
-                movementClient={movementClient} account={account} connected={connected}
-                signAndSubmitTransaction={signAndSubmitTransaction} showMessage={showMessage}
-             />
-             <div className="ba-divider-v" />
-             <OnChainBadgeList 
-                movementClient={movementClient} account={account} connected={connected}
-                signAndSubmitTransaction={signAndSubmitTransaction} showMessage={showMessage}
-             />
+            <RegistryController
+              movementClient={movementClient} account={account} connected={connected}
+              signAndSubmitTransaction={signAndSubmitTransaction} showMessage={showMessage}
+            />
+            <div className="ba-divider-v" />
+            <OnChainBadgeList
+              movementClient={movementClient} account={account} connected={connected}
+              signAndSubmitTransaction={signAndSubmitTransaction} showMessage={showMessage}
+            />
           </div>
         )}
       </div>
