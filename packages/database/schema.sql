@@ -429,6 +429,34 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticate
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
+-- 8.6. RPC FUNCTIONS
+-- ----------------------------------------------------------------------------
+
+-- Function to count unique active days for a user
+CREATE OR REPLACE FUNCTION public.count_active_days(user_addr text)
+RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  RETURN (
+    SELECT count(DISTINCT tx_timestamp::date)
+    FROM public.transaction_history
+    WHERE wallet_address = lower(user_addr)
+  );
+END; $$;
+
+-- Function to safely increment user XP
+CREATE OR REPLACE FUNCTION public.increment_user_xp(user_addr text, amount bigint)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.profiles (wallet_address, xp)
+  VALUES (lower(user_addr), amount)
+  ON CONFLICT (wallet_address)
+  DO UPDATE SET xp = profiles.xp + amount, updated_at = now();
+END; $$;
+
+GRANT EXECUTE ON FUNCTION public.count_active_days TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.increment_user_xp TO anon, authenticated, service_role;
+
+-- ----------------------------------------------------------------------------
 -- 9. SEED DATA (Starter Badges)
 -- ----------------------------------------------------------------------------
 -- No starter badges are hardcoded. Use the admin interface to create badges.

@@ -84,6 +84,123 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
       eligible: current >= minCount,
       reason: current >= minCount ? 'transaction-threshold-met' : 'transaction-threshold-not-met'
     };
+  },
+
+  [BADGE_RULES.ACTIVE_DAYS]: async (supabase, wallet, badge, params) => {
+    const minDays = Math.max(1, Number(params.min_days ?? 1));
+    const { data } = await supabase.rpc('count_active_days', { user_addr: wallet });
+    const current = Number(data || 0);
+    return {
+      eligible: current >= minDays,
+      reason: current >= minDays ? 'active-days-threshold-met' : 'active-days-threshold-not-met'
+    };
+  },
+
+  [BADGE_RULES.DAFTAR_PROFILE_COMPLETE]: async (supabase, wallet) => {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username, bio, avatar_url')
+      .eq('wallet_address', wallet)
+      .maybeSingle();
+
+    const isComplete = !!(profile?.username && profile?.bio && profile?.avatar_url);
+    return {
+      eligible: isComplete,
+      reason: isComplete ? 'profile-complete' : 'profile-incomplete'
+    };
+  },
+
+  [BADGE_RULES.DAFTAR_SWAP_COUNT]: async (supabase, wallet, badge, params) => {
+    const min = Math.max(1, Number(params.min ?? 1));
+    const { data: stats } = await supabase
+      .from('dapp_swap_stats')
+      .select('total_swaps')
+      .eq('wallet_address', wallet)
+      .maybeSingle();
+
+    const current = stats?.total_swaps || 0;
+    return {
+      eligible: current >= min,
+      reason: current >= min ? 'swap-count-met' : 'swap-count-not-met'
+    };
+  },
+
+  [BADGE_RULES.DAFTAR_VOLUME_USD]: async (supabase, wallet, badge, params) => {
+    const min = Math.max(0, Number(params.min ?? 10));
+    const { data: stats } = await supabase
+      .from('dapp_swap_stats')
+      .select('total_volume_usd')
+      .eq('wallet_address', wallet)
+      .maybeSingle();
+
+    const current = Number(stats?.total_volume_usd || 0);
+    return {
+      eligible: current >= min,
+      reason: current >= min ? 'volume-threshold-met' : 'volume-threshold-not-met'
+    };
+  }
+};
+
+/**
+ * Fetches the current signer epoch from the badges smart contract.
+ */
+export const getSignerEpoch = async (): Promise<number> => {
+  const fullnodeUrl = getFullnodeUrl();
+  const moduleAddr = CONFIG.SIGNER.MODULE_ADDRESS;
+  if (!moduleAddr) return 0;
+
+  try {
+    const { parsed } = await fetchJson(`${fullnodeUrl}/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        function: `${moduleAddr}::badges::get_signer_epoch`,
+        type_arguments: [],
+        arguments: [],
+      }),
+    });
+
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return Number(parsed[0]);
+    }
+  } catch (err) {
+    console.error('[Evaluation] Failed to fetch signer epoch:', err);
+  }
+  return 0;
+};
+
+/**
+ * Verifies that a transaction hash actually represents a valid mint for a specific badge and user.
+ */
+export const verifyOnChainMint = async (
+  txHash: string,
+  walletAddress: string,
+  onChainBadgeId: number
+): Promise<boolean> => {
+  if (!txHash || !txHash.startsWith('0x')) return false;
+
+  const fullnodeUrl = getFullnodeUrl();
+  const moduleAddr = CONFIG.SIGNER.MODULE_ADDRESS;
+
+  try {
+    const { response, parsed } = await fetchJson(`${fullnodeUrl}/transactions/by_hash/${txHash}`);
+    if (!response.ok || !parsed) return false;
+
+    // Check if transaction was successful
+    if (parsed.success !== true) return false;
+
+    // Search through events for BadgeMinted
+    const events = Array.isArray(parsed.events) ? parsed.events : [];
+    const mintEvent = events.find((e: any) => 
+      e.type === `${moduleAddr}::badges::BadgeMinted` &&
+      normalizeAddress(e.data?.recipient) === normalizeAddress(walletAddress) &&
+      Number(e.data?.badge_id) === Number(onChainBadgeId)
+    );
+
+    return !!mintEvent;
+  } catch (err) {
+    console.error('[Evaluation] On-chain verification failed:', err);
+    return false;
   }
 };
 

@@ -78,6 +78,13 @@ export const useProfile = (walletAddress: string | null, options: any = {}): Use
                 signature: typeof signResult === 'object' ? (signResult.signature || signResult.sig) : signResult,
                 publicKey: options.account.publicKey?.toString() || options.account.publicKey
               };
+              
+              // If the wallet provided a fullMessage (prefixed), use that as it's what was actually signed
+              if (typeof signResult === 'object' && signResult.fullMessage) {
+                activeMessage = signResult.fullMessage;
+                console.log('[useProfile] Using fullMessage for verification:', activeMessage);
+              }
+              
               console.log('[useProfile] Final signature payload:', activeSignature);
             }
           } else {

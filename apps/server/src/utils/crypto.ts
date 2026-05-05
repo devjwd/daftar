@@ -14,16 +14,28 @@ export const parseSignaturePayload = (signature: any): any => {
 export const verifyWalletSignature = (
   walletAddress: string,
   message: string,
-  signature: any,
+  signaturePayload: any,
   maxAgeMinutes: number = 5
 ): boolean => {
-  const parsed = parseSignaturePayload(signature);
-  const publicKeyHex = String(parsed?.publicKey || parsed?.public_key || '').trim();
-  const signatureHex = String(parsed?.signature || parsed?.sig || '').trim();
+  const parsed = parseSignaturePayload(signaturePayload);
+  
+  // Extract values, handling potential nesting (e.g. from some wallets)
+  let publicKeyInput = parsed?.publicKey || parsed?.public_key || parsed?.public_key_hex;
+  let signatureInput = parsed?.signature || parsed?.sig || parsed?.sig_hex;
 
-  if (!publicKeyHex || !signatureHex || !message) {
+  // If we got an object that has 'signature' inside (double nesting)
+  if (signatureInput && typeof signatureInput === 'object' && signatureInput.signature) {
+    signatureInput = signatureInput.signature;
+  }
+
+  if (!publicKeyInput || !signatureInput || !message) {
+    console.warn('[Verification] Missing required signature components');
     return false;
   }
+
+  const publicKeyStr = typeof publicKeyInput === 'string' ? publicKeyInput.trim() : publicKeyInput;
+  const signatureStr = typeof signatureInput === 'string' ? signatureInput.trim() : signatureInput;
+
 
   // Parse message for timestamp/nonce if it's JSON
   let signedAt: number | null = null;
@@ -53,8 +65,8 @@ export const verifyWalletSignature = (
   }
 
   try {
-    const publicKey = new Ed25519PublicKey(publicKeyHex);
-    const aptosSignature = new Ed25519Signature(signatureHex);
+    const publicKey = new Ed25519PublicKey(publicKeyStr);
+    const aptosSignature = new Ed25519Signature(signatureStr);
     const verified = publicKey.verifySignature({
       message: new TextEncoder().encode(String(message)),
       signature: aptosSignature,

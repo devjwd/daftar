@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { badgeLimiter, awardLimiter } from '../middleware/rateLimit.ts';
-import { evaluateRule } from '../services/evaluationService.ts';
+import { evaluateRule, getSignerEpoch, verifyOnChainMint } from '../services/evaluationService.ts';
 import { signMintAuthorization } from '../services/signingService.ts';
 import { normalizeAddress } from '../utils/address.ts';
 import CONFIG from '../config/index.ts';
@@ -120,7 +120,7 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
 
     // 4. Generate Signature
     const validUntil = Math.floor(Date.now() / 1000) + (3 * 60); // 3 minutes
-    const signerEpoch = 0; 
+    const signerEpoch = await getSignerEpoch();
     const nonce = Date.now(); 
 
     const sigResult = await signMintAuthorization(
@@ -129,8 +129,7 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
       normalizedAddr,
       badgeDef.on_chain_badge_id,
       validUntil,
-      signerEpoch,
-      nonce
+      signerEpoch
     );
 
     // 5. Update or create attestation in DB
@@ -274,14 +273,22 @@ router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Missing required sync data' });
   }
 
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
-
-  try {
-    // 1. Ensure profile exists to hold XP
-    await supabaseAdmin.from('profiles').upsert({
-      wallet_address: normalizedAddr,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'wallet_address' });
+    if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+  
+    // 0. Verify on-chain if possible
+    if (txHash && txHash.startsWith('0x') && onChainBadgeId) {
+      const isValid = await verifyOnChainMint(txHash, normalizedAddr, onChainBadgeId);
+      if (!isValid) {
+        return res.status(400).json({ error: 'Invalid transaction hash. On-chain verification failed.' });
+      }
+    }
+  
+    try {
+      // 1. Ensure profile exists to hold XP
+      await supabaseAdmin.from('profiles').upsert({
+        wallet_address: normalizedAddr,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'wallet_address' });
 
     // 2. Record attestation / ownership
     const { error } = await supabaseAdmin

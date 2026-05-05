@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { normalizeAddress } from '../utils/address.ts';
 import { profileLimiter, generalLimiter } from '../middleware/rateLimit.ts';
-import { checkRateLimit, checkAndBurnNonce } from '../services/dbService.ts';
+import { checkRateLimit, checkAndBurnNonce, getNextNonce } from '../services/dbService.ts';
 import { verifyWalletSignature } from '../utils/crypto.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -33,6 +33,25 @@ router.get('/:address', profileLimiter, async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+/**
+ * GET /api/profiles/nonce
+ * Get next nonce for a wallet
+ */
+router.get('/nonce', generalLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const address = normalizeAddress(req.query.address as string);
+
+  if (!address) return res.status(400).json({ error: 'Invalid address' });
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  try {
+    const nonce = await getNextNonce(supabaseAdmin, address);
+    return res.status(200).json({ nonce });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to generate nonce' });
   }
 });
 
