@@ -245,6 +245,58 @@ export default function BadgeAdmin() {
     }
   };
 
+  const handleDelete = async (id) => {
+    try {
+       const auth = await createManageBadgeAuth({ action: 'delete', badge: { badge_id: id } });
+       const res = await manageBadgeDefinition('delete', { badge_id: id }, auth);
+       if (!res.ok) throw new Error(res.error || 'Delete failed');
+       showMessage('success', 'Badge definition moved to trash');
+       loadBadges();
+    } catch (err: any) {
+       showMessage('error', err.message || 'Delete failed');
+    }
+  };
+
+  const handleRestore = async (id) => {
+    try {
+       const auth = await createManageBadgeAuth({ action: 'restore', badge: { badge_id: id } });
+       const res = await manageBadgeDefinition('restore', { badge_id: id }, auth);
+       if (!res.ok) throw new Error(res.error || 'Restore failed');
+       showMessage('success', 'Badge definition restored');
+       loadBadges();
+    } catch (err: any) {
+       showMessage('error', err.message || 'Restore failed');
+    }
+  };
+
+  const handleToggle = async (id) => {
+    try {
+       const badge = badges.find(b => b.id === id);
+       const newStatus = !badge?.enabled;
+       const auth = await createManageBadgeAuth({ action: 'toggle-status', badge: { badge_id: id, enabled: newStatus } });
+       const res = await manageBadgeDefinition('toggle-status', { badge_id: id, enabled: newStatus }, auth);
+       if (!res.ok) throw new Error(res.error || 'Toggle failed');
+       showMessage('success', `Badge ${newStatus ? 'enabled' : 'disabled'}`);
+       loadBadges();
+    } catch (err: any) {
+       showMessage('error', err.message || 'Toggle failed');
+    }
+  };
+
+  const handleTogglePublic = async (id) => {
+    try {
+       const badge = badges.find(b => b.id === id);
+       const newPublic = badge?.isPublic === false;
+       const auth = await createManageBadgeAuth({ action: 'toggle-public', badge: { badge_id: id, is_public: newPublic } });
+       const res = await manageBadgeDefinition('toggle-public', { badge_id: id, is_public: newPublic }, auth);
+       if (!res.ok) throw new Error(res.error || 'Visibility toggle failed');
+       showMessage('success', `Badge is now ${newPublic ? 'public' : 'private'}`);
+       loadBadges();
+    } catch (err: any) {
+       showMessage('error', err.message || 'Visibility toggle failed');
+    }
+  };
+
   const handleBulkSync = async () => {
     if (!connected || !account) return;
     setSubmitting(true);
@@ -315,9 +367,9 @@ export default function BadgeAdmin() {
              badges={badges} 
              handleEdit={(b) => { setForm(b); setEditingId(b.id); setSubTab('create'); }}
              handleDelete={handleDelete}
-             handleRestore={() => {}}
-             handleToggle={() => {}} 
-             handleTogglePublic={() => {}}
+             handleRestore={handleRestore}
+             handleToggle={handleToggle} 
+             handleTogglePublic={handleTogglePublic}
              handleManageAllowlist={(b) => setManagingAllowlist(b)}
              setSubTab={setSubTab}
              showDeleted={false}

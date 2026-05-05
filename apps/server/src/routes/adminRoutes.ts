@@ -68,6 +68,35 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       return res.json({ success: true, action, badge_id: badgeId, restored: true });
     }
 
+    if (action === 'toggle-status') {
+      const badgeId = badge?.badge_id || badge?.id;
+      if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
+      const { error } = await supabaseAdmin
+        .from('badge_definitions')
+        .update({ 
+          enabled: !!badge.enabled, 
+          is_active: !!badge.enabled,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('badge_id', badgeId);
+      if (error) throw error;
+      return res.json({ success: true, action, badge_id: badgeId });
+    }
+
+    if (action === 'toggle-public') {
+      const badgeId = badge?.badge_id || badge?.id;
+      if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
+      const { error } = await supabaseAdmin
+        .from('badge_definitions')
+        .update({ 
+          is_public: !!badge.is_public,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('badge_id', badgeId);
+      if (error) throw error;
+      return res.json({ success: true, action, badge_id: badgeId });
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
