@@ -11,6 +11,7 @@ import {
 } from '../../services/api';
 import { mapBadgeDefinitionToRow } from '../../utils/badgeUtils';
 import { createAdminProofHeaders } from '../../services/adminProof';
+import { getAllBadges } from '../../services/badges/badgeStore';
 
 import { 
   createBadge as createOnChainBadge,
@@ -73,7 +74,7 @@ export default function BadgeAdmin() {
   const { client: movementClient } = useMovementClient();
   const { pendingTx, trackTransaction } = useTransactionTracker();
 
-  const [badges, setBadges] = useState([]);
+  const [badges, setBadges] = useState(getAllBadges() || []);
   const [loading, setLoading] = useState(false);
   const [subTab, setSubTab] = useState('manage');
   const [form, setForm] = useState(EMPTY_FORM);
@@ -107,8 +108,22 @@ export default function BadgeAdmin() {
       const { fetchAdminBadges } = await import('../../services/api');
       const result = await fetchAdminBadges(auth);
       
-      if (result.ok) {
-        setBadges(result.badges || []);
+      if (result.ok && result.badges) {
+        // Merge strategy: Server is authoritative. 
+        // We keep local badges only if they have a different ID (un-synced)
+        const serverBadges = result.badges || [];
+        const localBadges = getAllBadges();
+        
+        const merged = [...serverBadges];
+        const serverIds = new Set(serverBadges.map(b => b.badge_id || b.id));
+        
+        localBadges.forEach(lb => {
+          if (!serverIds.has(lb.id) && !serverIds.has(lb.badge_id)) {
+            merged.push(lb);
+          }
+        });
+
+        setBadges(merged);
       } else {
         // Fallback to public list if admin fetch fails (e.g. signature rejected)
         const publicResult = await fetchAllBadges();
