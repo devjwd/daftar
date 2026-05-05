@@ -39,8 +39,15 @@ export const useProfile = (walletAddress: string | null, options: any = {}): Use
   }, [walletAddress]);
 
   const handleUpdate = async (data: Partial<Profile>, signature?: any, signedMessage?: string, nonce?: number) => {
-    if (!walletAddress) return;
+    if (!walletAddress) {
+      console.warn('[useProfile] No wallet address, cannot update');
+      return;
+    }
+    
     setSaving(true);
+    setError(null);
+    console.log('[useProfile] Starting handleUpdate for', walletAddress);
+    
     try {
       let activeSignature = signature;
       let activeMessage = signedMessage;
@@ -48,32 +55,58 @@ export const useProfile = (walletAddress: string | null, options: any = {}): Use
 
       // If no signature provided but we have signMessage option, let's try to get one automatically
       if (!activeSignature && options?.signMessage && options?.account) {
+        console.log('[useProfile] Signature required, triggering automated signing flow...');
         try {
           const fetchedNonce = await getNonce(walletAddress);
+          console.log('[useProfile] Fetched nonce:', fetchedNonce);
+          
           if (fetchedNonce !== null) {
             activeNonce = fetchedNonce;
             activeMessage = `Daftar Profile Update\nWallet: ${walletAddress}\nNonce: ${activeNonce}\nTimestamp: ${Date.now()}`;
             
+            console.log('[useProfile] Requesting signature for message:', activeMessage);
             const signResult = await options.signMessage({
               message: activeMessage,
               nonce: activeNonce.toString()
             });
             
+            console.log('[useProfile] Sign result received:', signResult);
+            
             if (signResult) {
-              activeSignature = signResult;
+              // Construct the payload the backend expects (publicKey + signature)
+              activeSignature = {
+                signature: typeof signResult === 'object' ? (signResult.signature || signResult.sig) : signResult,
+                publicKey: options.account.publicKey?.toString() || options.account.publicKey
+              };
+              console.log('[useProfile] Final signature payload:', activeSignature);
             }
+          } else {
+            console.warn('[useProfile] Failed to fetch nonce, proceeding without signature');
           }
-        } catch (signErr) {
-          console.error('[useProfile] Auto-sign failed:', signErr);
-          // Continue anyway, maybe the backend doesn't really need it for this specific user
+        } catch (signErr: any) {
+          console.error('[useProfile] Auto-sign failed or cancelled:', signErr);
+          // If user cancelled, we should probably stop here
+          if (signErr?.message?.includes('User rejected') || signErr?.name === 'UserRejectedError') {
+            throw new Error('Signature request was rejected');
+          }
         }
+      } else {
+        console.log('[useProfile] Skipping auto-sign. Status:', {
+          hasSignature: !!activeSignature,
+          hasSignMessage: !!options?.signMessage,
+          hasAccount: !!options?.account
+        });
       }
 
-      await updateProfile(walletAddress, data, activeSignature, activeMessage, activeNonce);
+      console.log('[useProfile] Calling api.updateProfile...');
+      const updated = await updateProfile(walletAddress, data, activeSignature, activeMessage, activeNonce);
+      console.log('[useProfile] Update successful:', updated);
       await fetchProfile();
     } catch (err: any) {
       console.error('[useProfile] Update failed:', err);
-      throw new Error(err.message || 'Update failed');
+      const msg = err.message || 'Update failed';
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setSaving(false);
     }
