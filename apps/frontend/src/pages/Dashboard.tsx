@@ -1001,14 +1001,24 @@ const Dashboard = () => {
 
     // Helper to get change for an asset
     const getAssetChange = (address, symbol) => {
-      let change = priceChanges[address];
-      if (change === undefined && address) {
-        const normalized = address.toLowerCase().replace(/^0x0+/, "0x");
-        change = priceChanges[normalized];
+      if (!priceChanges) return undefined;
+      
+      const normalizedInput = String(address || '').toLowerCase().replace(/^0x0+/, "0x");
+      let change = priceChanges[normalizedInput];
+      
+      if (change === undefined) {
+        // Try exact match
+        change = priceChanges[address];
       }
-      if (change === undefined && (symbol === "MOVE" || symbol === "move" || String(symbol).includes('MOVE'))) {
-        change = priceChanges["0xa"] || priceChanges["0x1"];
+
+      if (change === undefined) {
+        // Try by symbol if it's MOVE
+        const upperSymbol = String(symbol || '').toUpperCase();
+        if (upperSymbol.includes('MOVE')) {
+          change = priceChanges["0xa"] || priceChanges["0x1"];
+        }
       }
+      
       return change;
     };
 
@@ -1056,6 +1066,12 @@ const Dashboard = () => {
 
     if (totalWeightValue > 0) {
       return weightedChangeSum / totalWeightValue;
+    }
+
+    // Fallback: If we have net worth but no known changes, show 0 instead of null
+    // to prevent the PNL from disappearing entirely.
+    if (combinedNetWorth > 0) {
+      return 0;
     }
 
     return null;

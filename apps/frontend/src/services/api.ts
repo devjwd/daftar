@@ -45,13 +45,25 @@ export const getProfile = async (address: string): Promise<Profile | null> => {
   return response.ok ? response.data : null;
 };
 
-export const updateProfile = async (address: string, profile: Partial<Profile>, signature?: string): Promise<Profile> => {
+export const updateProfile = async (
+  address: string, 
+  profile: Partial<Profile>, 
+  signature?: any, 
+  signedMessage?: string, 
+  nonce?: number
+): Promise<Profile> => {
   const response = await callApi<Profile>(`/api/profiles`, {
     method: 'POST',
     body: JSON.stringify({
       walletAddress: normalizeAddress(address),
-      ...profile,
-      signature
+      username: profile.username,
+      bio: profile.bio,
+      twitter: profile.twitter,
+      telegram: profile.telegram,
+      avatarUrl: profile.avatar_url,
+      signature,
+      signedMessage,
+      nonce
     }),
   });
 

@@ -8,8 +8,8 @@ interface UseProfileResult {
   saving: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  updateProfile: (data: Partial<Profile>, signature?: string) => Promise<void>;
-  update: (data: Partial<Profile>, signature?: string) => Promise<void>;
+  updateProfile: (data: Partial<Profile>, signature?: any, signedMessage?: string, nonce?: number) => Promise<void>;
+  update: (data: Partial<Profile>, signature?: any, signedMessage?: string, nonce?: number) => Promise<void>;
   getNonce: () => Promise<number | null>;
 }
 
@@ -38,13 +38,41 @@ export const useProfile = (walletAddress: string | null, options: any = {}): Use
     }
   }, [walletAddress]);
 
-  const handleUpdate = async (data: Partial<Profile>, signature?: string) => {
+  const handleUpdate = async (data: Partial<Profile>, signature?: any, signedMessage?: string, nonce?: number) => {
     if (!walletAddress) return;
     setSaving(true);
     try {
-      await updateProfile(walletAddress, data, signature);
+      let activeSignature = signature;
+      let activeMessage = signedMessage;
+      let activeNonce = nonce;
+
+      // If no signature provided but we have signMessage option, let's try to get one automatically
+      if (!activeSignature && options?.signMessage && options?.account) {
+        try {
+          const fetchedNonce = await getNonce(walletAddress);
+          if (fetchedNonce !== null) {
+            activeNonce = fetchedNonce;
+            activeMessage = `Daftar Profile Update\nWallet: ${walletAddress}\nNonce: ${activeNonce}\nTimestamp: ${Date.now()}`;
+            
+            const signResult = await options.signMessage({
+              message: activeMessage,
+              nonce: activeNonce.toString()
+            });
+            
+            if (signResult) {
+              activeSignature = signResult;
+            }
+          }
+        } catch (signErr) {
+          console.error('[useProfile] Auto-sign failed:', signErr);
+          // Continue anyway, maybe the backend doesn't really need it for this specific user
+        }
+      }
+
+      await updateProfile(walletAddress, data, activeSignature, activeMessage, activeNonce);
       await fetchProfile();
     } catch (err: any) {
+      console.error('[useProfile] Update failed:', err);
       throw new Error(err.message || 'Update failed');
     } finally {
       setSaving(false);
