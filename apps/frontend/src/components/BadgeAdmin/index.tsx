@@ -89,6 +89,16 @@ export default function BadgeAdmin() {
     setTimeout(() => setMessage({ type: '', text: '' }), 6000);
   }, []);
 
+  const createManageBadgeAuth = useCallback(async (body) => {
+    if (!account || !signMessage) throw new Error('Wallet not ready for signing');
+    return await createAdminProofHeaders({ 
+      account, 
+      signMessage, 
+      action: 'manage-badge-definition', 
+      body 
+    });
+  }, [account, signMessage]);
+
   const loadBadges = useCallback(async () => {
     setLoading(true);
     try {
@@ -130,15 +140,6 @@ export default function BadgeAdmin() {
     setSubmitting(false);
   };
 
-  const createManageBadgeAuth = async (body) => {
-    if (!account || !signMessage) throw new Error('Wallet not ready for signing');
-    return await createAdminProofHeaders({ 
-      account, 
-      signMessage, 
-      action: 'manage-badge-definition', 
-      body 
-    });
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
