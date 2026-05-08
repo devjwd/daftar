@@ -1721,7 +1721,7 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 .hero-v3-title {
   font-size: 13px;
   font-weight: 600;
-  text-transform: lowercase;
+  text-transform: none;
   letter-spacing: 1.5px;
   color: var(--text-tertiary);
   margin-bottom: 8px;
@@ -1730,13 +1730,13 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 .hero-username-highlight {
   color: #deb884;
   font-weight: 700;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .hero-v3-entity-name-highlight {
   color: #deb884;
   font-weight: 800;
-  text-transform: uppercase;
+  text-transform: none;
   letter-spacing: 2px;
   font-size: 14px;
   margin-right: 6px;

@@ -570,12 +570,12 @@ const Dashboard = () => {
               {entityBranding?.name ? (
                 <>
                   <span className="hero-v3-entity-name-highlight">{entityBranding.name}</span>
-                  <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth').toLowerCase()}</span>
+                  <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth')}</span>
                 </>
               ) : userProfile?.username ? (
                 <>
                   <span className="hero-v3-entity-name-highlight">{userProfile.username}</span>
-                  <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth').toLowerCase()}</span>
+                  <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth')}</span>
                 </>
               ) : t(language, 'dashNetWorth')}
             </span>
@@ -597,7 +597,7 @@ const Dashboard = () => {
                     {hideValues ? '*****' : `${portfolio24hChange >= 0 ? '+' : '-'}${formatCurrencyValue(convertUSD(Math.abs(combinedNetWorth * (portfolio24hChange / 100))))}`}
                   </span>
                   <span className="change-percent">({hideValues ? '*****' : Math.abs(portfolio24hChange).toFixed(2)}%)</span>
-                  <span className="change-label">{t(language, 'profileToday').toLowerCase()}</span>
+                  <span className="change-label">{t(language, 'profileToday')}</span>
                 </div>
               )}
             </div>

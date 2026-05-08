@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "setup": "node scripts/setup.js",
+    "start": "npm run start --workspace=apps/server",
     "dev": "concurrently -n \"server,frontend\" -c \"magenta,cyan\" \"npm run dev:server\" \"npm run dev:frontend\"",
     "dev:server": "npm run dev --workspace=apps/server",
     "dev:frontend": "npm run dev --workspace=apps/frontend",
