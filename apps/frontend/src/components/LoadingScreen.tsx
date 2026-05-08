@@ -8,110 +8,67 @@ const LoadingScreen: React.FC = () => {
       alignItems: 'center', 
       height: '100vh',
       width: '100vw',
-      background: 'var(--bg-primary, #14110f)',
-      color: 'var(--text-primary, #f7f3ee)',
-      flexDirection: 'column',
+      background: 'var(--bg-primary, #0f0d0c)',
       position: 'fixed',
       top: 0,
       left: 0,
       zIndex: 9999,
       overflow: 'hidden'
     }}>
-      {/* Background Mesh Gradient */}
-      <div style={{
-        position: 'absolute',
-        top: '-10%',
-        right: '-10%',
-        width: '60%',
-        height: '60%',
-        background: 'radial-gradient(circle, rgba(205, 161, 105, 0.08) 0%, transparent 70%)',
-        filter: 'blur(80px)',
-        zIndex: -1
-      }}></div>
-      <div style={{
-        position: 'absolute',
-        bottom: '-10%',
-        left: '-10%',
-        width: '50%',
-        height: '50%',
-        background: 'radial-gradient(circle, rgba(167, 123, 67, 0.06) 0%, transparent 70%)',
-        filter: 'blur(100px)',
-        zIndex: -1
-      }}></div>
-
       <div style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '3rem',
-        borderRadius: 'var(--radius-2xl, 24px)',
-        background: 'var(--glass, rgba(205, 161, 105, 0.05))',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid var(--border-subtle, rgba(205, 161, 105, 0.1))',
-        boxShadow: 'var(--shadow-lg, 0 20px 60px rgba(0, 0, 0, 0.5))'
+        gap: '2rem'
       }}>
         <div style={{
           position: 'relative',
-          width: '80px',
-          height: '80px',
-          marginBottom: '2rem'
+          width: '100px',
+          height: '100px',
+          animation: 'breathing 2.5s ease-in-out infinite'
         }}>
-          {/* Inner Pulse */}
-          <div style={{
-            position: 'absolute',
-            top: '10px',
-            left: '10px',
-            right: '10px',
-            bottom: '10px',
-            borderRadius: '50%',
-            background: 'var(--gradient-primary, linear-gradient(135deg, #cda169 0%, #a77b43 100%))',
-            opacity: 0.15,
-            animation: 'pulse 2s ease-in-out infinite'
-          }}></div>
-          
-          {/* Main Spinner Ring */}
-          <div style={{
-            width: '100%',
-            height: '100%',
-            border: '3px solid rgba(205, 161, 105, 0.1)',
-            borderTop: '3px solid var(--primary, #cda169)',
-            borderRadius: '50%',
-            animation: 'spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite',
-            boxShadow: '0 0 15px rgba(205, 161, 105, 0.2)'
-          }}></div>
+          <img 
+            src="/daftar icon.png" 
+            alt="Daftar" 
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 0 20px rgba(205, 161, 105, 0.15))'
+            }} 
+          />
         </div>
 
-        <h2 style={{ 
-          fontSize: '1.25rem',
-          fontWeight: 600,
-          letterSpacing: '0.1em',
-          marginBottom: '0.5rem',
-          background: 'var(--gradient-accent, linear-gradient(135deg, #deb884 0%, #cda169 100%))',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          textTransform: 'uppercase'
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '0.5rem'
         }}>
-          DAFTAR
-        </h2>
-        <p style={{ 
-          fontSize: '0.875rem',
-          color: 'var(--text-secondary, #d6c6b3)',
-          opacity: 0.6,
-          fontWeight: 400
-        }}>
-          Connecting to Movement...
-        </p>
+          <span style={{
+            fontSize: '0.75rem',
+            fontWeight: 500,
+            color: 'var(--primary, #cda169)',
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            opacity: 0.8
+          }}>
+            Loading
+          </span>
+          <div style={{
+            width: '40px',
+            height: '1px',
+            background: 'linear-gradient(90deg, transparent, var(--primary, #cda169), transparent)',
+            opacity: 0.3
+          }} />
+        </div>
       </div>
 
       <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes pulse {
-          0% { transform: scale(0.9); opacity: 0.1; }
-          50% { transform: scale(1.1); opacity: 0.3; }
-          100% { transform: scale(0.9); opacity: 0.1; }
+        @keyframes breathing {
+          0% { transform: scale(0.95); opacity: 0.7; }
+          50% { transform: scale(1.05); opacity: 1; }
+          100% { transform: scale(0.95); opacity: 0.7; }
         }
       `}</style>
     </div>
@@ -119,3 +76,4 @@ const LoadingScreen: React.FC = () => {
 };
 
 export default LoadingScreen;
+

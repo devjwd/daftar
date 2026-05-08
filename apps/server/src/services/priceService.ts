@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export const TOKEN_COINGECKO_IDS: Record<string, string> = {
   '0xa': 'movement',
@@ -20,13 +21,17 @@ export const FALLBACK_PRICES: Record<string, number> = {
   '0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d': 1.0,
   '0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39': 1.0,
   '0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650': 1.0,
-  '0xa': 0.50,
-  '0x1': 0.50,
+  '0xa': 0.01806,
+  '0x1': 0.01806,
+  // BTC and ETH Fallbacks (May 2026)
+  '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376': 2331.60, // WETH
+  '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c': 81096.63, // WBTC
 };
 
-const getCoinGeckoApiUrl = (): string => {
+const getCoinGeckoApiUrl = (isDemo: boolean): string => {
   const ids = Array.from(new Set(Object.values(TOKEN_COINGECKO_IDS))).join(',');
-  return `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
+  const baseUrl = isDemo ? 'https://demo-api.coingecko.com' : 'https://api.coingecko.com';
+  return `${baseUrl}/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
 };
 
 export interface PriceSnapshot {
@@ -34,18 +39,44 @@ export interface PriceSnapshot {
   priceChanges: Record<string, number>;
 }
 
-export const fetchCoinGeckoPrices = async (): Promise<PriceSnapshot | null> => {
+export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Promise<PriceSnapshot | null> => {
   const headers: Record<string, string> = { Accept: 'application/json' };
   const apiKey = String(process.env.COINGECKO_API_KEY || '').trim();
-  if (apiKey) headers['x-cg-demo-api-key'] = apiKey;
+  const isDemoKey = apiKey.startsWith('CG-');
+
+  if (apiKey) {
+    if (isDemoKey) headers['x-cg-demo-api-key'] = apiKey;
+    else headers['x-cg-pro-api-key'] = apiKey;
+  }
 
   try {
-    const response = await fetch(getCoinGeckoApiUrl(), {
+    const response = await fetch(getCoinGeckoApiUrl(isDemoKey), {
       method: 'GET',
       headers
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // If API fails, try to return latest from DB
+      if (supabase) {
+        const { data } = await supabase
+          .from('price_cache')
+          .select('price_usd')
+          .eq('token', 'SNAPSHOT_LATEST')
+          .order('cached_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (data?.price_usd) {
+          try {
+            return JSON.parse(data.price_usd as string);
+          } catch {
+            return null;
+          }
+        }
+      }
+      return null;
+    }
+
     const data: any = await response.json();
 
     const prices: Record<string, number> = { ...FALLBACK_PRICES };
@@ -58,10 +89,49 @@ export const fetchCoinGeckoPrices = async (): Promise<PriceSnapshot | null> => {
       if (change != null) priceChanges[address] = change;
     });
 
-    return { prices, priceChanges };
+    const snapshot = { prices, priceChanges };
+
+    // Store in DB for "next price" and persistence
+    if (supabase) {
+      const today = new Date().toISOString().split('T')[0];
+
+      // Delete old "SNAPSHOT_LATEST" entries to keep storage free
+      await supabase
+        .from('price_cache')
+        .delete()
+        .eq('token', 'SNAPSHOT_LATEST');
+
+      // Insert new one
+      await supabase.from('price_cache').insert({
+        token: 'SNAPSHOT_LATEST',
+        date: today,
+        price_usd: JSON.stringify(snapshot),
+        cached_at: new Date().toISOString()
+      });
+    }
+
+    return snapshot;
   } catch (err: any) {
     console.error('[Prices] Fetch error:', err.message);
     return null;
   }
+};
+
+/**
+ * Starts a background interval to "pitch" (fetch and store) prices every 5 minutes.
+ * This ensures the database is always updated even without active requests.
+ */
+export const startPricePitcher = (supabase: SupabaseClient | null) => {
+  const INTERVAL = 300000; // 5 minutes
+
+  console.log('[Prices] Starting background price pitcher (5m interval)');
+
+  // Initial pitch
+  void fetchCoinGeckoPrices(supabase);
+
+  return setInterval(() => {
+    console.log('[Prices] Pitching new prices to database...');
+    void fetchCoinGeckoPrices(supabase);
+  }, INTERVAL);
 };
 

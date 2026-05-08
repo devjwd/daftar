@@ -1,217 +1,138 @@
-// src/config/adapters/meridian.js
-// Meridian - CDP & Stablecoin Protocol on Movement Network
-// Website: https://app.meridian.money/
-// Contract: 0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82
+// src/config/adapters/meridian.ts
+// Meridian Protocol - Lending & Liquidity on Movement Network
+// Website: https://meridian.money
 
-const toPositiveNumber = (value) => {
-  if (value === null || value === undefined) return 0;
+import { devLog } from "../../utils/devLogger";
+import { getUserTokenBalances } from "../../services/indexer";
+import { sharedPoolCache } from "../../utils/sharedPoolCache";
+import { resolveTokenPrice } from "../../utils/price";
 
-  if (typeof value === "bigint") {
-    const asNumber = Number(value);
-    return Number.isFinite(asNumber) && asNumber > 0 ? asNumber : 0;
+const CACHE_TTL = 90 * 1000;
+
+const normalizeAssetIdentifier = (value: string) => {
+  if (!value) return '';
+  let normalized = String(value).trim().toLowerCase();
+  const genericMatch = normalized.match(/<\s*([^>]+)\s*>/);
+  if (genericMatch?.[1]) {
+    normalized = genericMatch[1].trim().toLowerCase();
   }
-
-  if (typeof value === "number") {
-    return Number.isFinite(value) && value > 0 ? value : 0;
+  if (normalized.includes('::')) {
+    normalized = normalized.split('::')[0];
   }
-
-  if (typeof value === "string") {
-    if (!/^\d+(\.\d+)?$/.test(value)) return 0;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  if (normalized.startsWith('0x')) {
+    const compact = normalized.slice(2).replace(/^0+/, '') || '0';
+    normalized = `0x${compact}`;
   }
-
-  if (typeof value === "object") {
-    if (value.value !== undefined) return toPositiveNumber(value.value);
-    if (value.amount !== undefined) return toPositiveNumber(value.amount);
-    if (value.coin !== undefined) return toPositiveNumber(value.coin);
-  }
-
-  return 0;
+  return normalized;
 };
 
-const collectFields = (node, fieldNames, maxDepth = 8, depth = 0) => {
-  if (!node || depth > maxDepth) return [];
+const fetchMeridianPoolInfo = async (client: any, poolAddress: string) => {
+  const cacheKey = `meridian_pool:${poolAddress}`;
+  
+  return sharedPoolCache.fetch(cacheKey, async () => {
+    try {
+      const normalizedPool = poolAddress.trim().toLowerCase();
+      const resources = await client.getAccountResources({ accountAddress: normalizedPool });
 
-  if (Array.isArray(node)) {
-    return node.flatMap((item) => collectFields(item, fieldNames, maxDepth, depth + 1));
-  }
+      const poolResource = resources.find((resource: any) => resource.type.includes('::pool::Pool'));
+      const supplyResource = resources.find((resource: any) => resource.type === '0x1::fungible_asset::ConcurrentSupply');
 
-  if (typeof node !== "object") {
-    return [];
-  }
+      if (!poolResource || !supplyResource?.data?.current?.value) return null;
 
-  const found = [];
-  for (const [key, value] of Object.entries(node)) {
-    if (fieldNames.has(key)) {
-      const numeric = toPositiveNumber(value);
-      if (numeric > 0) {
-        found.push(numeric);
-      }
+      const poolBalances = await getUserTokenBalances(normalizedPool);
+      const tokens = poolBalances
+        .filter((item: any) => Number(item?.amount || 0) > 0)
+        .filter((item: any) => !/MER-LP|LP TOKEN|LPCOIN|MOVE Drops/i.test(String(item?.metadata?.symbol || item?.symbol || '')))
+        .map((item: any) => {
+          const decimals = Number(item?.metadata?.decimals ?? 8);
+          const amount = Number(item?.amount || 0) / Math.pow(10, decimals);
+          return {
+            symbol: item?.metadata?.symbol || 'Token',
+            decimals,
+            amount,
+            assetType: item?.asset_type
+          };
+        });
+
+      const totalSupplyRaw = Number(supplyResource.data.current.value || 0);
+      
+      return {
+        poolId: normalizedPool,
+        totalSupplyRaw,
+        tokens,
+      };
+    } catch (e) {
+      devLog("Meridian pool fetch error", e);
+      return null;
     }
-
-    if (value && typeof value === "object") {
-      found.push(...collectFields(value, fieldNames, maxDepth, depth + 1));
-    }
-  }
-
-  return found;
-};
-
-const sumFields = (data, fields) => {
-  const values = collectFields(data, new Set(fields));
-  if (!values.length) return 0;
-  return values.reduce((sum, current) => sum + current, 0);
-};
-
-const pickLargestField = (data, fields) => {
-  const values = collectFields(data, new Set(fields));
-  if (!values.length) return 0;
-  return Math.max(...values);
-};
-
-const formatByLikelyDecimals = (rawValue, preferredDecimals = [6, 8]) => {
-  if (!rawValue || rawValue <= 0) return "0";
-
-  for (const decimals of preferredDecimals) {
-    const normalized = rawValue / Math.pow(10, decimals);
-    if (normalized >= 0.0001 && normalized < 1_000_000_000) {
-      return normalized.toFixed(4);
-    }
-  }
-
-  return rawValue.toFixed(4);
+  }, CACHE_TTL);
 };
 
 export const meridianAdapter = [
-  // Generic Meridian Position/Pool Detection - Catches any Meridian swap resource
   {
-    id: "meridian_generic",
-    name: "Meridian LP",
-    type: "Liquidity",
-    
-    // Match ANY Meridian swap module resource
-    searchString: "0x8f396e4246b2ba87b51c0739ef5ea4f26480d2cf4e42c4ca7e86e98f1d5e3d82::swap::",
-    
-    parse: (data) => {
-      let totalValue = 0;
-      let tokenXAmount = 0;
-      let tokenYAmount = 0;
-      
-      tokenXAmount = sumFields(data, ["coin_x_amount", "liquidity_x", "token_x_amount", "x_amount"]);
-      tokenYAmount = sumFields(data, ["coin_y_amount", "liquidity_y", "token_y_amount", "y_amount"]);
-      
-      // Try all possible position fields
-      const fieldsToTry = [
-        "liquidity", "amount", "shares", "value", "balance",
-        "total_value", "position_value", "lp_amount", "staked", "staked_amount"
-      ];
-      
-      totalValue = pickLargestField(data, fieldsToTry);
-      
-      // If no direct field found, check nested structures
-      if (totalValue === 0) {
-        const findValue = (obj, depth = 0) => {
-          if (depth > 3) return 0;
-          if (typeof obj === "number" || (typeof obj === "string" && /^\d+$/.test(obj))) {
-            const num = Number(obj);
-            return num > 0 ? num : 0;
-          }
-          if (typeof obj === "object" && obj !== null) {
-            for (const field of fieldsToTry) {
-              if (obj[field] !== undefined) {
-                const val = findValue(obj[field], depth + 1);
-                if (val > 0) return val;
-              }
-            }
-            for (const key in obj) {
-              const val = findValue(obj[key], depth + 1);
-              if (val > 0) return val;
-            }
-          }
-          return 0;
-        };
-        totalValue = findValue(data);
-      }
-
-      if (totalValue === 0) {
-        totalValue = tokenXAmount + tokenYAmount;
-      }
-      
-      return formatByLikelyDecimals(totalValue, [6, 8]);
-    }
-  },
-
-  // User Pools Map - Stores user's LP positions
-  {
-    id: "meridian_userpools",
-    name: "Meridian Pools",
-    type: "Liquidity",
-    
-    searchString: "UserPoolsMap",
-    
-    parse: (data) => {
-      const totalLiquidity = sumFields(data, [
-        "liquidity", "amount", "value", "shares", "lp_amount", "coin_x_amount", "coin_y_amount"
-      ]);
-
-      return formatByLikelyDecimals(totalLiquidity, [6, 8]);
-    }
-  },
-
-  // User Positions Map - Individual LP position data with token breakdown
-  {
-    id: "meridian_userpositions",
-    name: "Meridian Positions",
-    type: "Liquidity",
-    
-    searchString: "UserPositionsMap",
-    
-    parse: (data) => {
-      const tokenXTotal = sumFields(data, ["liquidity_x", "coin_x_amount", "token_x_amount", "x_amount"]);
-      const tokenYTotal = sumFields(data, ["liquidity_y", "coin_y_amount", "token_y_amount", "y_amount"]);
-
-      let totalValue = sumFields(data, ["liquidity", "amount", "shares", "value", "lp_amount"]);
-      if (!totalValue) {
-        totalValue = tokenXTotal + tokenYTotal;
-      }
-
-      return formatByLikelyDecimals(totalValue, [6, 8]);
-    }
-  },
-
-  // User Position in Swap Pool - stores actual LP holdings with composition
-  {
-    id: "meridian_position",
+    id: "meridian_lending",
     name: "Meridian Position",
-    type: "Liquidity",
-    
-    searchString: "::ds::",
-    
-    parse: (data) => {
-      let balance = pickLargestField(data, ["liquidity", "amount", "shares", "value", "lp_amount"]);
-      let tokenXAmount = sumFields(data, ["liquidity_x", "coin_x_amount", "token_x_amount", "x_amount"]);
-      let tokenYAmount = sumFields(data, ["liquidity_y", "coin_y_amount", "token_y_amount", "y_amount"]);
-
-      if (!balance) {
-        balance = tokenXAmount + tokenYAmount;
-      }
-      
-      return formatByLikelyDecimals(balance, [6, 8]);
+    type: "Lending",
+    searchString: "::vault::Vault",
+    parse: (data: any) => {
+      const collateral = data.collateral_value || data.collateral || 0;
+      return (Number(collateral) / 1e8).toFixed(2);
     }
   },
-
-  // AMM Liquidity Positions - CoinStore<LPCoin>
   {
     id: "meridian_lp",
-    name: "Meridian LP Token",
+    name: "Meridian Liquidity Pool",
     type: "Liquidity",
-    
-    searchString: "::swap::LPCoin", 
-    
-    parse: (data) => {
-      const balance = pickLargestField(data, ["value", "amount", "coin", "balance", "liquidity", "shares"]);
-      return formatByLikelyDecimals(balance, [6, 8]);
+    searchString: "::pool::LPCoin", // Pattern to match in resources or indexer
+
+    discover: async ({ client, targetAddress, resources, priceMap }: any) => {
+      const balances = await getUserTokenBalances(targetAddress);
+      const lpBalances = balances.filter(b => {
+        const symbol = b.metadata?.symbol || b.symbol || '';
+        const name = b.metadata?.name || b.name || '';
+        return /MER-LP|Meridian LP/i.test(symbol) || /MER-LP|Meridian LP/i.test(name);
+      });
+      
+      const positions = (await Promise.all(lpBalances.map(async (balance) => {
+        const poolAddress = balance.address || balance.asset_type;
+        if (!poolAddress) return null;
+
+        const poolInfo = await fetchMeridianPoolInfo(client, poolAddress);
+        if (poolInfo) {
+          const userLpRaw = Number(balance.rawAmount || balance.amount || 0);
+          const userShare = userLpRaw / poolInfo.totalSupplyRaw;
+          const poolTokens = poolInfo.tokens.map(t => ({
+            symbol: t.symbol,
+            amount: t.amount * userShare,
+            decimals: t.decimals
+          }));
+
+          let usdValue = 0;
+          if (priceMap) {
+            usdValue = poolTokens.reduce((sum, t) => {
+              const price = resolveTokenPrice(priceMap, t.assetType, t.symbol);
+              return sum + (t.amount * price);
+            }, 0);
+          }
+
+          return {
+            id: `meridian_lp_${poolAddress}`,
+            protocol: "meridian",
+            protocolName: "Meridian",
+            symbol: balance.symbol || "MER-LP",
+            name: "Meridian Liquidity Pool",
+            amount: Number(balance.amount) / Math.pow(10, balance.decimals || 8),
+            underlying: poolTokens.map(t => t.symbol).join('/'),
+            usdValue,
+            numericValue: usdValue,
+            poolTokens,
+            isMeridianLP: true,
+            type: "Liquidity"
+          };
+        }
+        return null;
+      }))).filter(Boolean);
+      return positions;
     }
   }
 ];

@@ -32,6 +32,7 @@ const hexToBytes = (value: string): Uint8Array => {
 export async function verifyAdminRequest(req: Request): Promise<boolean> {
   const address = normalizeAddress((req.headers['x-admin-address'] as string) || '');
   const signature = String(req.headers['x-admin-signature'] || '');
+  const publicKey = normalizeHex((req.headers['x-admin-public-key'] as string) || '');
   const timestamp = Number(req.headers['x-admin-timestamp'] || 0);
   const action = String(req.headers['x-admin-action'] || '');
 
@@ -47,7 +48,7 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
 
   // 2. Check Timestamp (TTL)
   const now = Date.now();
-  if (Math.abs(now - timestamp) > ADMIN_SIGNATURE_TTL_MS) {
+  if (!timestamp || Math.abs(now - timestamp) > ADMIN_SIGNATURE_TTL_MS) {
     throw new Error('Request signature expired');
   }
 
@@ -55,13 +56,35 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
   // Message format: "daftar-admin:${action}:${timestamp}:${jsonBodyHash}"
   const bodyHash = createHash('sha256').update(JSON.stringify(req.body)).digest('hex');
   const messageStr = `daftar-admin:${action}:${timestamp}:${bodyHash}`;
-  const messageBytes = new TextEncoder().encode(messageStr);
-
+  
+  const fullMessageB64 = String(req.headers['x-admin-full-message-b64'] || '');
+  
   try {
     const signatureBytes = hexToBytes(signature);
-    const publicKeyBytes = hexToBytes(address);
+    // Use provided public key or fall back to address (backward compatibility/legacy scripts)
+    const publicKeyBytes = hexToBytes(publicKey || address);
 
-    const isValid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+    // If we have the full message (exactly as signed by the wallet), use it.
+    // Otherwise, construct the expected message string.
+    let messageBytes: Uint8Array;
+    if (fullMessageB64) {
+      messageBytes = new Uint8Array(Buffer.from(fullMessageB64, 'base64'));
+    } else {
+      messageBytes = new TextEncoder().encode(messageStr);
+    }
+
+    let isValid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+
+    // If verification fails and we didn't have a full message, try the legacy Aptos prefix
+    if (!isValid && !fullMessageB64) {
+      const aptosMessage = `APTOS\nmessage: ${messageStr}\nnonce: ${timestamp}`;
+      isValid = nacl.sign.detached.verify(
+        new TextEncoder().encode(aptosMessage),
+        signatureBytes,
+        publicKeyBytes
+      );
+    }
+
     if (!isValid) {
       throw new Error('Invalid administrator signature');
     }

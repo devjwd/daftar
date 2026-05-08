@@ -54,35 +54,40 @@ export const createAdminProofHeaders = async ({ account, signMessage, action, bo
   }
 
   const address = resolveAccountAddress(account);
-  const publicKey = resolveAccountPublicKey(account);
-
-  if (!address || !publicKey) {
-    throw new Error('Admin wallet address and public key are required');
+  if (!address) {
+    throw new Error('Admin wallet address is required');
   }
 
-  const nonce = randomNonce();
-  const issuedAt = new Date().toISOString();
+  const timestamp = Date.now();
   const bodyHash = await sha256Hex(stableStringify(body || {}));
-  const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'unknown';
-  const message = JSON.stringify({ action, bodyHash, issuedAt, nonce, origin });
+  
+  // Align with server/src/services/adminService.ts format:
+  // "daftar-admin:${action}:${timestamp}:${jsonBodyHash}"
+  const message = `daftar-admin:${action}:${timestamp}:${bodyHash}`;
 
   const response = await signMessage({
     address: true,
     application: true,
     chainId: true,
     message,
-    nonce,
+    nonce: String(timestamp),
   });
 
-  if (!response || Array.isArray(response.signature) || !response.signature) {
+  if (!response || !response.signature) {
     throw new Error('Wallet returned an unsupported signature format');
   }
+
+  // Handle both single signature and multi-sig array (take first)
+  const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+  const publicKey = resolveAccountPublicKey(account);
 
   return {
     'x-admin-address': address,
     'x-admin-public-key': publicKey,
-    'x-admin-signature': normalizeHex(response.signature),
-    'x-admin-message-b64': encodeBase64(response.message || message),
+    'x-admin-signature': normalizeHex(signature),
+    'x-admin-timestamp': String(timestamp),
+    'x-admin-action': action,
+    'x-admin-message-b64': encodeBase64(message),
     'x-admin-full-message-b64': encodeBase64(response.fullMessage || ''),
   };
 };

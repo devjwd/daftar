@@ -17,7 +17,11 @@ router.get('/', async (req: Request, res: Response) => {
       .from('system_config')
       .select('*');
 
-    if (error) throw error;
+    // If table doesn't exist or other error, return empty config instead of crashing
+    if (error) {
+      console.warn('[Config] Fetching system_config failed, returning default:', error.message);
+      return res.status(200).json({});
+    }
 
     // Convert array to key-value object
     const config = (data || []).reduce((acc: any, curr: any) => {
@@ -27,7 +31,8 @@ router.get('/', async (req: Request, res: Response) => {
 
     return res.status(200).json(config);
   } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to fetch config' });
+    console.error('[Config] Unexpected error:', err);
+    return res.status(200).json({});
   }
 });
 

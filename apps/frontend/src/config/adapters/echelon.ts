@@ -1,94 +1,117 @@
-// src/config/adapters/echelon.js
+// src/config/adapters/echelon.ts
 // Echelon Finance - Leading Lending Protocol on Movement Network
-// Website: https://echelon.finance
 // Contract: 0x6a01d5761d43a5b5a0ccbfc42edf2d02c0611464aae99a2ea0e0d4819f0550b5
 
-export const echelonAdapter = [
-  // ---------------------------------------------------------
-  // LENDING SUPPLY POSITIONS
-  // ---------------------------------------------------------
-  {
-    id: "echelon_supply",
-    name: "Echelon Supply",
-    type: "Lending",
-    
-    // Echelon stores user lending data in UserAccount resource
-    searchString: "::lending::UserAccount", 
+import { devLog } from "../../utils/devLogger";
+import { resolveTokenPrice } from "../../utils/price";
 
-    parse: (data) => {
-      let totalRaw = 0;
+const ECHELON_CONTRACT = "0x6a01d5761d43a5b5a0ccbfc42edf2d02c0611464aae99a2ea0e0d4819f0550b5";
 
-      // Echelon stores assets in collateral map
-      const collateralList = data.collateral?.data || data.deposits?.data || [];
-      const supplyList = data.supply_positions?.data || [];
-
-      // Parse collateral positions
-      if (Array.isArray(collateralList)) {
-        collateralList.forEach(item => {
-          const val = item.value?.amount || item.value?.value || item.amount || 0;
-          totalRaw += Number(val);
-        });
-      }
-
-      // Parse supply positions
-      if (Array.isArray(supplyList)) {
-        supplyList.forEach(item => {
-          const val = item.value?.amount || item.value?.value || item.amount || 0;
-          totalRaw += Number(val);
-        });
-      }
-
-      // Convert from 8 decimals (Movement standard)
-      return (totalRaw / 100000000).toFixed(4);
-    }
-  },
+const getAssetInfo = (assetName: string) => {
+  let name = String(assetName || "").trim().toUpperCase();
   
-  // ---------------------------------------------------------
-  // RECEIPT TOKENS (ecTokens like ecUSDC, ecMOVE)
-  // ---------------------------------------------------------
+  // Clean up common suffixes
+  name = name.replace(/COIN$/i, '').trim();
+  
+  if (name.includes("SUSDE") || name.includes("USDC") || name.includes("USDT")) {
+    return { 
+      symbol: name.includes("SUSDE") ? "sUSDe" : name.includes("USDC") ? "USDC" : "USDT", 
+      decimals: 6 
+    };
+  }
+  
+  // Default to MOVE if name is empty after stripping COIN or if it's exactly COIN
+  return { symbol: name || "MOVE", decimals: 8 };
+};
+
+export const echelonAdapter = [
   {
-    id: "echelon_receipt_tokens",
-    name: "Echelon Deposits",
+    id: "echelon_lending",
+    name: "Echelon Position",
     type: "Lending",
-    
-    searchString: "0x1::coin::CoinStore",
-    
-    // Filter for Echelon's receipt token prefix
-    filterType: (typeString) => {
-      return typeString.includes("echelon") || 
-             typeString.includes("::ec") ||
-             typeString.includes("EchelonCoin");
-    },
+    searchString: "::lending::Vault",
 
-    parse: (data) => {
-      const balance = Number(data.coin?.value || data.value || 0);
-      return (balance / 100000000).toFixed(4);
-    }
-  },
+    discover: async ({ client, targetAddress, resources, priceMap }) => {
+      const vault = resources.find(r => r.type.includes("::lending::Vault") && r.type.includes(ECHELON_CONTRACT));
+      if (!vault) return [];
 
-  // ---------------------------------------------------------
-  // BORROW POSITIONS (Debt)
-  // ---------------------------------------------------------
-  {
-    id: "echelon_borrow",
-    name: "Echelon Borrow",
-    type: "Debt",
-    searchString: "::lending::UserAccount",
-    
-    parse: (data) => {
-      let totalDebt = 0;
-      
-      // Parse borrow positions
-      const borrowList = data.borrows?.data || data.liabilities?.data || data.borrow_positions?.data || [];
+      const positions = [];
+      const collaterals = vault.data.collaterals?.data || [];
+      const liabilities = vault.data.liabilities?.data || [];
 
-      if (Array.isArray(borrowList)) {
-        borrowList.forEach(item => {
-          const val = item.value?.amount || item.value?.value || item.amount || 0;
-          totalDebt += Number(val);
-        });
-      }
+      // Process Collaterals
+      await Promise.all(collaterals.map(async (c) => {
+        const market = c.key?.inner;
+        if (!market || Number(c.value) <= 0) return;
 
-      return (totalDebt / 100000000).toFixed(4);
+        try {
+          const [nameRes, coinsRes] = await Promise.all([
+            client.view({ payload: { function: `${ECHELON_CONTRACT}::lending::market_asset_name`, typeArguments: [], functionArguments: [market] } }),
+            client.view({ payload: { function: `${ECHELON_CONTRACT}::lending::account_coins`, typeArguments: [], functionArguments: [targetAddress, market] } })
+          ]);
+
+          const { symbol, decimals } = getAssetInfo(nameRes[0]);
+          const displayAmount = Number(coinsRes[0]) / Math.pow(10, decimals);
+          if (displayAmount < 0.0001) return;
+
+          const price = resolveTokenPrice(priceMap, market, symbol);
+          const usdValue = displayAmount * price;
+
+          positions.push({
+            id: `echelon_supply_${symbol.toLowerCase()}`,
+            name: `Echelon Supply`,
+            type: "Lending",
+            value: displayAmount.toFixed(4),
+            numericValue: usdValue,
+            tokenSymbol: symbol,
+            protocol: "echelon",
+            protocolName: "Echelon",
+            protocolWebsite: "https://app.echelon.market",
+            source: "view",
+            underlying: symbol,
+            usdValue,
+            amount: displayAmount
+          });
+        } catch (e) { devLog("Echelon supply view error", e); }
+      }));
+
+      // Process Liabilities
+      await Promise.all(liabilities.map(async (l) => {
+        const market = l.key?.inner;
+        if (!market || Number(l.value?.principal) <= 0) return;
+
+        try {
+          const [nameRes, debtRes] = await Promise.all([
+            client.view({ payload: { function: `${ECHELON_CONTRACT}::lending::market_asset_name`, typeArguments: [], functionArguments: [market] } }),
+            client.view({ payload: { function: `${ECHELON_CONTRACT}::lending::account_liability`, typeArguments: [], functionArguments: [targetAddress, market] } })
+          ]);
+
+          const { symbol, decimals } = getAssetInfo(nameRes[0]);
+          const displayAmount = Number(debtRes[0]) / Math.pow(10, decimals);
+          if (displayAmount < 0.0001) return;
+
+          const price = resolveTokenPrice(priceMap, market, symbol);
+          const usdValue = displayAmount * price;
+
+          positions.push({
+            id: `echelon_debt_${symbol.toLowerCase()}`,
+            name: `Echelon Debt`,
+            type: "Debt",
+            value: displayAmount.toFixed(4),
+            numericValue: usdValue,
+            tokenSymbol: symbol,
+            protocol: "echelon",
+            protocolName: "Echelon",
+            protocolWebsite: "https://app.echelon.market",
+            source: "view",
+            underlying: symbol,
+            usdValue,
+            amount: displayAmount
+          });
+        } catch (e) { devLog("Echelon debt view error", e); }
+      }));
+
+      return positions;
     }
   }
 ];

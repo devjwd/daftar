@@ -262,11 +262,12 @@ export default function Profile() {
 
             <div className="form-group">
               <label>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="social-icon" style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }}>
-                  <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
-                  <line x1="8" y1="12" x2="16" y2="12"></line>
-                </svg>
-                Link
+                <span className="social-icon">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                  </svg>
+                </span> Link
               </label>
               <input
                 type="text"
@@ -279,19 +280,34 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="profile-actions">
+          <div className="profile-actions-minimal">
             <button
               onClick={handleSave}
-              className="save-btn"
+              className="save-btn-compact"
               disabled={saving}
             >
-              {saving ? t(language, 'profileSaving') : t(language, 'profileSave')}
+              <div className="save-btn-content">
+                <span className="save-btn-text">
+                  {saving ? t(language, 'profileSaving') : t(language, 'profileSave')}
+                </span>
+                {saving && <div className="btn-spinner" />}
+              </div>
             </button>
-          </div>
 
-          <p className="profile-migration-note">
-            {t(language, 'profileMigrationNote')}
-          </p>
+            <div className="profile-meta-minimal">
+              <span className="meta-compact">
+                {t(language, 'profileProfileCreated')}: <strong>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : t(language, 'profileToday')}</strong>
+              </span>
+              <span className="meta-dot">•</span>
+              <span className="meta-compact">
+                {t(language, 'profileLastUpdated')}: <strong>{profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : '-'}</strong>
+              </span>
+            </div>
+
+            <p className="profile-migration-note-minimal">
+              {t(language, 'profileMigrationNote')}
+            </p>
+          </div>
 
           {error && (
             <div className="error-message">{error}</div>
@@ -302,28 +318,6 @@ export default function Profile() {
           )}
         </div>
 
-        <div className="profile-stats">
-          <div className="stat-card">
-            <span className="stat-label">{t(language, 'profileProfileCreated')}</span>
-            <span className="stat-value">
-              {profile?.created_at
-                ? new Date(profile.created_at).toLocaleDateString()
-                : t(language, 'profileToday')}
-            </span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">{t(language, 'profileLastUpdated')}</span>
-            <span className="stat-value">
-              {profile?.updated_at
-                ? new Date(profile.updated_at).toLocaleDateString()
-                : '-'}
-            </span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">{t(language, 'profileProfileViews')}</span>
-            <span className="stat-value">{t(language, 'profileComingSoon')}</span>
-          </div>
-        </div>
       </div>
     </div>
   );

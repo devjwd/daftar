@@ -143,7 +143,15 @@ export default function BadgeAdminRoot() {
       if (!onChainBadgeId) throw new Error('Failed to detect new badge ID from events');
 
       // 4. Save to Database
-      const badgePayload = { ...form, onChainBadgeId, id: `badge_${Date.now()}` };
+      const firstCriterion = form.criteria[0] || { type: 'manual', params: {} };
+      const badgePayload = { 
+        ...form, 
+        badge_id: `badge_${Date.now()}`,
+        on_chain_badge_id: onChainBadgeId,
+        rule_type: firstCriterion.type || 'manual',
+        rule_params: firstCriterion.params || {}
+      };
+      
       const auth = await createManageBadgeAuth({ action: 'create', badge: badgePayload });
       const apiResult = await saveBadgeDefinitions({ 
         badges: [badgePayload], 

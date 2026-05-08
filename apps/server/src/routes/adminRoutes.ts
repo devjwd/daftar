@@ -27,7 +27,11 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
   try {
     if (action === 'batch_sync') {
       const list = Array.isArray(badges) ? badges : [];
-      const validated = list.map(b => validateBadgeDefinitionPayload(b)).filter(v => v.ok).map(v => v.badge);
+      const validated = list
+        .map(b => validateBadgeDefinitionPayload(b))
+        .filter(v => v.ok)
+        .map(v => v.badge);
+        
       if (validated.length === 0) return res.json({ success: true, count: 0 });
 
       const { error } = await supabaseAdmin.from('badge_definitions').upsert(validated, { onConflict: 'badge_id' });

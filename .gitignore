@@ -98,6 +98,7 @@ logs/
 .next/
 
 # Supabase local temp metadata
-supabase/.temp/
+**/supabase/.temp/
 .vercel
 scratch/
+apps/frontend/src/file_list.txt

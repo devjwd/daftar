@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { INTERVALS, API_CONFIG } from "../config/constants";
 
-const PRICE_CACHE_KEY = "movement_price_cache_v1";
+const PRICE_CACHE_KEY = "movement_price_cache_v2";
 const PRICE_API_ENDPOINT = "/api/prices";
 const SERVER_PRICE_TIMEOUT_MS = 3500;
 const DIRECT_PRICE_TIMEOUT_MS = Math.min(API_CONFIG.PRICE_FETCH_TIMEOUT, 5000);
@@ -63,22 +63,36 @@ const FALLBACK_PRICES = {
   [GMOVE_ADDRESS]: 0, // gMOVE
 
   // MOVE Fallbacks (Aptos / Movement Native)
-  "0xa": 0.50,
-  "0x1": 0.50,
+  "0xa": 0.01806,
+  "0x1": 0.01806,
+
+  // ETH and BTC Fallbacks (Updated for May 2026)
+  "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376": 2331.60, // WETH
+  "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c": 81096.63, // WBTC
+  "0x0658f4ef6f76c8eeffdc06a30946f3f06723a7f9532e2413312b2a612183759c": 81096.63, // LBTC
+  "0x2f6af255328fe11b88d840d1e367e946ccd16bd7ebddd6ee7e2ef9f7ae0c53ef": 2331.60, // ezETH
+  "0x51ffc9885233adf3dd411078cad57535ed1982013dc82d9d6c433a55f2e0035d": 2331.60, // rsETH
+  "0xe956f5062c3b9cba00e82dc775d29acf739ffa1e612e619062423b58afdbf035": 2331.60, // weETH
 };
 
 const applyPriceAliases = (prices = {}, priceChanges = {}) => {
   const nextPrices = { ...prices };
   const nextChanges = { ...priceChanges };
 
-  const movePriceKey = MOVE_PRICE_KEYS.find((key) => Number.isFinite(Number(nextPrices[key])));
+  // For MOVE token, ensure all aliases (0xa, 0x1, and the long GMOVE address)
+  // share the same price and change data.
+  const movePriceKey = MOVE_PRICE_KEYS.find((key) => Number.isFinite(Number(prices[key])));
   if (movePriceKey) {
-    nextPrices[GMOVE_ADDRESS] = Number(nextPrices[movePriceKey]) || 0;
+    const movePrice = Number(prices[movePriceKey]);
+    MOVE_PRICE_KEYS.forEach(key => { nextPrices[key] = movePrice; });
+    nextPrices[GMOVE_ADDRESS] = movePrice;
   }
 
-  const moveChangeKey = MOVE_PRICE_KEYS.find((key) => Number.isFinite(Number(nextChanges[key])));
+  const moveChangeKey = MOVE_PRICE_KEYS.find((key) => priceChanges[key] !== undefined);
   if (moveChangeKey) {
-    nextChanges[GMOVE_ADDRESS] = Number(nextChanges[moveChangeKey]) || 0;
+    const moveChange = Number(priceChanges[moveChangeKey]);
+    MOVE_PRICE_KEYS.forEach(key => { nextChanges[key] = moveChange; });
+    nextChanges[GMOVE_ADDRESS] = moveChange;
   }
 
   return { prices: nextPrices, priceChanges: nextChanges };
@@ -124,12 +138,15 @@ const persistCachedPrices = (prices, priceChanges) => {
   }
 };
 
-const fetchWithTimeout = async (url, timeoutMs) => {
+const fetchWithTimeout = async (url, timeoutMs, options = {}) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(url, { 
+      ...options,
+      signal: controller.signal 
+    });
   } finally {
     clearTimeout(timeoutId);
   }
@@ -143,6 +160,46 @@ export const useTokenPrices = () => {
   const [error, setError] = useState(null);
 
 
+
+  const fetchFromCoinGeckoDirectly = useCallback(async () => {
+    const ids = Array.from(new Set(Object.values(COINGECKO_IDS))).join(',');
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
+    const isDemoKey = apiKey?.startsWith('CG-');
+    const baseUrl = isDemoKey ? 'https://demo-api.coingecko.com' : 'https://api.coingecko.com';
+    
+    // Use /coins/markets for more reliable 24h change data
+    const url = `${baseUrl}/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h`;
+    
+    if (apiKey) {
+      if (isDemoKey) headers['x-cg-demo-api-key'] = apiKey;
+      else headers['x-cg-pro-api-key'] = apiKey;
+    }
+
+    const response = await fetchWithTimeout(url, DIRECT_PRICE_TIMEOUT_MS, { headers });
+    if (!response.ok) {
+      throw new Error(`CoinGecko markets error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const prices: Record<string, number> = { ...FALLBACK_PRICES };
+    const priceChanges: Record<string, number> = {};
+
+    if (Array.isArray(data)) {
+      data.forEach((coin) => {
+        const geckoId = coin.id;
+        // Map the data back to all addresses that use this geckoId
+        Object.entries(COINGECKO_IDS).forEach(([address, mappedId]) => {
+          if (mappedId === geckoId) {
+            if (coin.current_price != null) prices[address] = coin.current_price;
+            if (coin.price_change_percentage_24h != null) priceChanges[address] = coin.price_change_percentage_24h;
+          }
+        });
+      });
+    }
+
+    return applyPriceAliases(prices, priceChanges);
+  }, []);
 
   const fetchFromServerPricesApi = useCallback(async () => {
     const baseUrl = import.meta.env.VITE_API_URL || '';
@@ -164,19 +221,29 @@ export const useTokenPrices = () => {
   }, []);
 
   const fetchPrices = useCallback(async () => {
-    setLoading(true);
+    // Only show loading state if we have absolutely no prices (not even fallbacks)
+    // This is rare since we initialize with FALLBACK_PRICES, but safe.
+    if (Object.keys(prices).length === 0) {
+      setLoading(true);
+    }
+    
     setError(null);
-
     let lastError = null;
 
     for (let attempt = 0; attempt <= API_CONFIG.MAX_RETRIES; attempt += 1) {
       try {
         let nextSnapshot = null;
 
+        // Try server API first as it syncs with the database
         try {
           nextSnapshot = await fetchFromServerPricesApi();
         } catch (serverError) {
-          throw serverError;
+          if (import.meta.env.DEV) console.warn("Server price API failed, trying CoinGecko directly...", (serverError as Error).message);
+          try {
+            nextSnapshot = await fetchFromCoinGeckoDirectly();
+          } catch (geckoError) {
+            throw geckoError;
+          }
         }
 
         const currentCache = loadCachedPrices();

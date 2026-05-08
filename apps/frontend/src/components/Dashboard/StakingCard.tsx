@@ -20,4 +20,4 @@ const StakingCard: React.FC<StakingCardProps> = ({ name, value, type, delay }) =
   </div>
 );
 
-export default StakingCard;
+export default React.memo(StakingCard);

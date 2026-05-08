@@ -10,15 +10,15 @@ export const DECIMALS = {
 
 // Update Intervals (in milliseconds)
 export const INTERVALS = {
-  PRICE_UPDATE: 120000,      // 2 minutes
+  PRICE_UPDATE: 300000,      // 5 minutes (300,000ms) - Optimized for free tier API limits
   NETWORK_CHECK: 30000,      // 30 seconds
 };
 
 // API Configuration
 export const API_CONFIG = {
-  PRICE_FETCH_TIMEOUT: 10000,  // 10 seconds
-  MAX_RETRIES: 3,
-  RETRY_DELAY: 5000,           // 5 seconds (base delay)
+  PRICE_FETCH_TIMEOUT: 5000,   // 5 seconds
+  MAX_RETRIES: 2,
+  RETRY_DELAY: 2000,           // 2 seconds (base delay)
 };
 
 // Display Formatting

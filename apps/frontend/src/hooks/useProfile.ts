@@ -53,61 +53,78 @@ export const useProfile = (walletAddress: string | null, options: any = {}): Use
       let activeMessage = signedMessage;
       let activeNonce = nonce;
 
-      // If no signature provided but we have signMessage option, let's try to get one automatically
-      if (!activeSignature && options?.signMessage && options?.account) {
-        console.log('[useProfile] Signature required, triggering automated signing flow...');
-        try {
-          const fetchedNonce = await getNonce(walletAddress);
-          console.log('[useProfile] Fetched nonce:', fetchedNonce);
-          
-          if (fetchedNonce !== null) {
-            activeNonce = fetchedNonce;
-            activeMessage = `Daftar Profile Update\nWallet: ${walletAddress}\nNonce: ${activeNonce}\nTimestamp: ${Date.now()}`;
-            
-            console.log('[useProfile] Requesting signature for message:', activeMessage);
-            const signResult = await options.signMessage({
-              message: activeMessage,
-              nonce: activeNonce.toString()
-            });
-            
-            console.log('[useProfile] Sign result received:', signResult);
-            
-            if (signResult) {
-              // Construct the payload the backend expects (publicKey + signature)
-              activeSignature = {
-                signature: typeof signResult === 'object' ? (signResult.signature || signResult.sig) : signResult,
-                publicKey: options.account.publicKey?.toString() || options.account.publicKey
-              };
-              
-              // If the wallet provided a fullMessage (prefixed), use that as it's what was actually signed
-              if (typeof signResult === 'object' && signResult.fullMessage) {
-                activeMessage = signResult.fullMessage;
-                console.log('[useProfile] Using fullMessage for verification:', activeMessage);
-              }
-              
-              console.log('[useProfile] Final signature payload:', activeSignature);
-            }
-          } else {
-            console.warn('[useProfile] Failed to fetch nonce, proceeding without signature');
-          }
-        } catch (signErr: any) {
-          console.error('[useProfile] Auto-sign failed or cancelled:', signErr);
-          // If user cancelled, we should probably stop here
-          if (signErr?.message?.includes('User rejected') || signErr?.name === 'UserRejectedError') {
-            throw new Error('Signature request was rejected');
-          }
+      // 1. Mandatory Signing Flow
+      // If no signature provided, we MUST get one because the backend requires it
+      if (!activeSignature) {
+        if (!options?.signMessage || !options?.account) {
+          throw new Error('Wallet not fully connected. Please reconnect your wallet.');
         }
-      } else {
-        console.log('[useProfile] Skipping auto-sign. Status:', {
-          hasSignature: !!activeSignature,
-          hasSignMessage: !!options?.signMessage,
-          hasAccount: !!options?.account
-        });
+
+        console.log('[useProfile] Signature required, triggering automated signing flow...');
+        
+        // Fetch fresh nonce from backend
+        const fetchedNonce = await getNonce(walletAddress);
+        if (fetchedNonce === null) {
+          throw new Error('Failed to fetch security nonce from server. Please check your connection.');
+        }
+
+        activeNonce = fetchedNonce;
+        // Create a clear, user-friendly message for signing
+        const timestamp = new Date().toISOString();
+        activeMessage = `Daftar Profile Update\nWallet: ${walletAddress}\nNonce: ${activeNonce}\nTimestamp: ${timestamp}`;
+        
+        console.log('[useProfile] Requesting signature for message:', activeMessage);
+        
+        try {
+          const signResult = await options.signMessage({
+            message: activeMessage,
+            nonce: activeNonce.toString()
+          });
+          
+          console.log('[useProfile] Sign result received:', signResult);
+          
+          if (!signResult) {
+            throw new Error('Signature request was cancelled or failed.');
+          }
+
+          // Extract public key (Aptos standard)
+          const publicKey = options.account.publicKey?.toString() || options.account.publicKey;
+          
+          // Construct the payload the backend expects
+          // Some wallets return result directly, others return { signature, message, ... }
+          const rawSignature = typeof signResult === 'object' 
+            ? (signResult.signature || signResult.sig) 
+            : signResult;
+
+          if (!rawSignature) {
+            throw new Error('No signature returned from wallet.');
+          }
+
+          activeSignature = {
+            signature: rawSignature,
+            publicKey: publicKey
+          };
+          
+          // Use the fullMessage if provided by the wallet (Aptos standard for prefixed messages)
+          if (typeof signResult === 'object' && signResult.fullMessage) {
+            activeMessage = signResult.fullMessage;
+          }
+          
+          console.log('[useProfile] Signature successfully obtained');
+        } catch (signErr: any) {
+          console.error('[useProfile] Signing failed:', signErr);
+          if (signErr?.message?.includes('rejected') || signErr?.name === 'UserRejectedError') {
+            throw new Error('Signature request was rejected by user.');
+          }
+          throw new Error(`Signing failed: ${signErr.message || 'Unknown error'}`);
+        }
       }
 
-      console.log('[useProfile] Calling api.updateProfile...');
+      console.log('[useProfile] Calling api.updateProfile with signature...');
       const updated = await updateProfile(walletAddress, data, activeSignature, activeMessage, activeNonce);
+      
       console.log('[useProfile] Update successful:', updated);
+      setProfile(updated);
       await fetchProfile();
     } catch (err: any) {
       console.error('[useProfile] Update failed:', err);

@@ -18,13 +18,14 @@ let cachedSnapshot: PriceSnapshot = {
 
 router.get('/', generalLimiter, async (req: Request, res: Response) => {
   const now = Date.now();
-  const CACHE_TTL = 30000;
+  const CACHE_TTL = 300000;
 
   if (cachedSnapshot.updatedAt && now - cachedSnapshot.updatedAt < CACHE_TTL) {
     return res.json({ ...cachedSnapshot, source: 'cache' });
   }
 
-  const live = await fetchCoinGeckoPrices();
+  const supabaseAdmin = req.app.get('supabaseAdmin');
+  const live = await fetchCoinGeckoPrices(supabaseAdmin);
   if (live) {
     cachedSnapshot = { ...live, updatedAt: now };
     return res.json({ ...cachedSnapshot, source: 'coingecko' });

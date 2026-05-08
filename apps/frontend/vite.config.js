@@ -7,7 +7,7 @@ import react from '@vitejs/plugin-react'
  */
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, '.', '');
-  const vercelDevTarget = env.VITE_VERCEL_DEV_URL || 'http://localhost:3001';
+  const vercelDevTarget = env.VITE_VERCEL_DEV_URL || 'http://127.0.0.1:3001';
 
   return {
     plugins: [react()],

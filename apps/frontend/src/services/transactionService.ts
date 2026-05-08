@@ -19,9 +19,9 @@ const PRUNE_BATCH_SIZE = 250;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
 const COINGECKO_TOKEN_IDS = {
-  MOVE: "movement-2",
-  GMOVE: "movement-2",
-  gMOVE: "movement-2",
+  MOVE: "movement",
+  GMOVE: "movement",
+  gMOVE: "movement",
   USDC: "usd-coin",
   USDT: "tether",
   WETH: "ethereum",
@@ -38,7 +38,7 @@ let entityCacheExpiry = 0;
 const ENTITY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const resolveEnv = () => {
-  const env = (typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env : {};
+  const env = (typeof import.meta !== "undefined" && (import.meta as any).env) ? (import.meta as any).env : {};
 
   return {
     rpcUrl: String(
@@ -472,7 +472,7 @@ const buildStructuredTransaction = async (rawTx, activities, walletAddress = "")
   const marked = markTransaction(rawTx, walletAddress, entities || []);
 
   // Apply additional branding and refinement
-  const dapp = marked.dapp_key ? { key: marked.dapp_key, name: marked.dapp_name, logo: marked.dapp_logo } : null;
+  const dapp = marked.dapp_key ? { key: marked.dapp_key, name: marked.dapp_name, logo: marked.dapp_logo, website: marked.dapp_website } : null;
 
   const senderAddress = normalizeAddress(rawTx?.sender || "");
   const userAddress = normalizeAddress(walletAddress) || senderAddress;
@@ -1208,7 +1208,7 @@ export const calculatePNL = (transactions) => {
   }
 };
 
-export const getOrFetchTransactions = async (walletAddress, options = {}) => {
+export const getOrFetchTransactions = async (walletAddress, options: any = {}) => {
   const normalizedAddress = normalizeAddress(walletAddress);
   if (!isValidAddress(normalizedAddress)) {
     devLog("getOrFetchTransactions failed: invalid wallet address", walletAddress);

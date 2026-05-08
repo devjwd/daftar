@@ -57,20 +57,26 @@ body[data-theme='light'] .level-card-label {
 }
 
 .level-back-btn {
-  background: rgba(26, 22, 20, 0.8);
-  border: 1px solid rgba(205, 161, 105, 0.25);
+  background: rgba(205, 161, 105, 0.08);
+  border: 1px solid rgba(205, 161, 105, 0.2);
   border-radius: 12px;
   color: #cda169;
   width: 42px;
   height: 42px;
   font-size: 20px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .level-back-btn:hover {
-  background: rgba(205, 161, 105, 0.14);
-  border-color: rgba(205, 161, 105, 0.45);
+  background: rgba(205, 161, 105, 0.15);
+  border-color: #cda169;
+  color: #fff;
+  transform: translateX(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
 }
 
 .level-header h1 {
@@ -91,11 +97,16 @@ body[data-theme='light'] .level-card-label {
 .level-stats-card,
 .level-main-panel,
 .level-empty-card {
-  background: rgba(37, 34, 32, 0.9);
-  border: 1px solid rgba(205, 161, 105, 0.2);
-  border-radius: 22px;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  background: 
+    radial-gradient(circle at 80% -10%, rgba(205, 161, 105, 0.12), transparent 45%),
+    linear-gradient(180deg, rgba(31, 27, 24, 0.98) 0%, rgba(24, 21, 19, 0.98) 100%);
+  backdrop-filter: blur(25px) saturate(115%);
+  -webkit-backdrop-filter: blur(25px) saturate(115%);
+  border: 1px solid rgba(205, 161, 105, 0.3);
+  border-radius: 24px;
+  box-shadow: 
+    0 30px 80px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(205, 161, 105, 0.07) inset;
 }
 
 .level-identity-card {
@@ -179,13 +190,21 @@ body[data-theme='light'] .level-card-label {
 }
 
 .level-stat-box {
-  background: rgba(26, 22, 20, 0.55);
-  border: 1px solid rgba(205, 161, 105, 0.14);
-  border-radius: 12px;
-  padding: 12px;
+  background: rgba(37, 34, 32, 0.4);
+  border: 1px solid rgba(205, 161, 105, 0.15);
+  border-radius: 16px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.level-stat-box:hover {
+  background: rgba(45, 41, 38, 0.5);
+  border-color: rgba(205, 161, 105, 0.4);
+  transform: translateY(-2px);
 }
 
 .level-stat-key {
@@ -207,15 +226,18 @@ body[data-theme='light'] .level-card-label {
 
 .level-progress-track {
   width: 100%;
-  height: 8px;
+  height: 10px;
   border-radius: 999px;
-  background: rgba(205, 161, 105, 0.16);
+  background: rgba(26, 22, 20, 0.4);
   overflow: hidden;
+  border: 1px solid rgba(205, 161, 105, 0.1);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .level-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #cda169 0%, #deb884 100%);
+  box-shadow: 0 0 15px rgba(205, 161, 105, 0.4);
 }
 
 .level-progress-text {
@@ -224,21 +246,27 @@ body[data-theme='light'] .level-card-label {
 }
 
 .level-leaderboard-btn {
-  border: 1px solid rgba(205, 161, 105, 0.35);
+  background: rgba(205, 161, 105, 0.12);
+  border: 1px solid rgba(205, 161, 105, 0.25);
   border-radius: 999px;
-  background: rgba(205, 161, 105, 0.18);
   color: #cda169;
-  padding: 10px 14px;
+  padding: 10px 22px;
+  font-family: var(--font-display);
+  font-size: 13px;
   font-weight: 700;
-  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
   cursor: pointer;
-  transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(5px);
 }
 
 .level-leaderboard-btn:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.06);
-  border-color: rgba(205, 161, 105, 0.55);
+  background: rgba(205, 161, 105, 0.2);
+  border-color: #deb884;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
 }
 
 .level-main-panel {
@@ -272,14 +300,22 @@ body[data-theme='light'] .level-card-label {
 }
 
 .level-roadmap-card {
-  border-radius: 14px;
-  background: rgba(32, 29, 27, 0.9);
-  border: 1px solid rgba(205, 161, 105, 0.2);
-  padding: 14px;
+  border-radius: 18px;
+  background: rgba(37, 34, 32, 0.4);
+  border: 1px solid rgba(205, 161, 105, 0.15);
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+  gap: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.level-roadmap-card:hover:not(.is-locked) {
+  transform: translateY(-5px);
+  background: rgba(45, 41, 38, 0.6);
+  border-color: rgba(205, 161, 105, 0.5);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 0 20px rgba(0, 0, 0, 0.1);
 }
 
 .level-roadmap-card.is-unlocked {

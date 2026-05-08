@@ -4,10 +4,12 @@
   "description": "Repository utilities for the Movement badge app",
   "type": "module",
   "scripts": {
-    "test:badges": "node scripts/testBadgeSystem.js",
-    "start": "npm start --workspace=apps/server",
+    "setup": "node scripts/setup.js",
+    "dev": "concurrently -n \"server,frontend\" -c \"magenta,cyan\" \"npm run dev:server\" \"npm run dev:frontend\"",
     "dev:server": "npm run dev --workspace=apps/server",
-    "dev:frontend": "npm run dev --workspace=apps/frontend"
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "test": "node scripts/testBadgeSystem.js",
+    "test:badges": "node scripts/testBadgeSystem.js"
   },
   "workspaces": [
     "apps/*",
@@ -20,5 +22,8 @@
   "overrides": {
     "react": "18.3.1",
     "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

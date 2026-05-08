@@ -9,6 +9,7 @@ interface Token {
   amount: string;
   formattedValue?: string;
   numericAmount?: number;
+  price?: number;
 }
 
 interface TokenCardProps {
@@ -45,7 +46,14 @@ const TokenCard: React.FC<TokenCardProps> = ({
   const displayValue = hideValues ? '***' : (formatCurrencyValue ? formatCurrencyValue(convertedValue) : `$${usdValueNum.toFixed(2)}`);
 
   const HIGH_VALUE_COINS = ['ETH', 'WETH', 'BTC', 'WBTC', 'LBTC', 'EZETH', 'RSETH', 'SOLVBTC', 'WEETH'];
+  const STABLE_COINS = ['USDC', 'USDT', 'USDCX', 'USDA', 'USDE', 'SUSDE'];
+  const MAJOR_TOKENS = ['MOVE', 'APT', 'SOL'];
+  
   const isHighValueCoin = HIGH_VALUE_COINS.some(coin => baseSymbol.includes(coin));
+  const isStableCoin = STABLE_COINS.some(coin => baseSymbol.includes(coin));
+  const isMajorToken = MAJOR_TOKENS.some(coin => baseSymbol.includes(coin));
+  const shouldShowPrice = Boolean(isHighValueCoin || isStableCoin || isMajorToken || (token.price && token.price > 0));
+
   const formattedAmount = hideValues ? '*****' : (isHighValueCoin
     ? (token.numericAmount || parseFloat(token.amount) || 0).toFixed(7)
     : token.amount);
@@ -88,9 +96,16 @@ const TokenCard: React.FC<TokenCardProps> = ({
 
         <div className="token-card-right">
           <span className="token-balance">{formattedAmount}</span>
-          <span className={`token-value ${hasValue ? 'has-value' : ''}`}>
-            {displayValue}
-          </span>
+          <div className="token-value-row">
+            {!!(shouldShowPrice && token.price && token.price > 0) && (
+              <span className="token-unit-price">
+                {token.price > 1000 ? `$${Math.round(token.price).toLocaleString()}` : `$${token.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
+              </span>
+            )}
+            <span className={`token-value ${hasValue ? 'has-value' : ''}`}>
+              {displayValue}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -99,4 +114,4 @@ const TokenCard: React.FC<TokenCardProps> = ({
   );
 };
 
-export default TokenCard;
+export default React.memo(TokenCard);

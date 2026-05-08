@@ -9,19 +9,19 @@ import { getTokenInfo } from "../config/tokens";
 export function parseCoinType(coinType) {
   const match = coinType.match(/<(.+)>/);
   if (!match) return null;
-  
+
   const fullType = match[1];
   const parts = fullType.split("::");
   const address = parts[0];
   const module = parts[1] || "";
   const namePart = parts[2] || parts[parts.length - 1] || "";
-  
+
   // Check if this is a known token by address
   let tokenInfo = getTokenInfo(address);
-  
+
   // Special handling for native MOVE token (0x1::aptos_coin::AptosCoin or similar)
-  if (!tokenInfo && (address === "0x1" || address === "0xa") && 
-      (module.includes("coin") || namePart.includes("Aptos") || namePart.includes("Move"))) {
+  if (!tokenInfo && (address === "0x1" || address === "0xa") &&
+    (module.includes("coin") || namePart.includes("Aptos") || namePart.includes("Move"))) {
     tokenInfo = {
       symbol: "MOVE",
       name: "Movement",
@@ -30,7 +30,7 @@ export function parseCoinType(coinType) {
       isNative: true,
     };
   }
-  
+
   return {
     fullType,
     address: address,
@@ -53,7 +53,7 @@ export function getTokenDecimals(coinType, tokenMeta = null) {
   if (tokenMeta?.tokenInfo?.decimals) {
     return tokenMeta.tokenInfo.decimals;
   }
-  
+
   // Try to get from token registry by parsing the address
   const match = coinType.match(/<(.+)>/);
   if (match) {
@@ -65,7 +65,7 @@ export function getTokenDecimals(coinType, tokenMeta = null) {
       return tokenInfo.decimals;
     }
   }
-  
+
   // Default to 8 decimals for Movement tokens
   return 8;
 }
@@ -81,7 +81,7 @@ export function formatTokenAmount(rawValue, decimals = 8, displayDecimals = 2) {
   const value = typeof rawValue === "string" ? rawValue : String(rawValue);
   const divisor = Math.pow(10, decimals);
   const amount = Number(value) / divisor;
-  
+
   // Format with appropriate precision
   if (amount === 0) return "0.00";
   if (amount < 0.01) return amount.toFixed(displayDecimals + 2);

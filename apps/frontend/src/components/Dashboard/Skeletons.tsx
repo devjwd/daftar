@@ -2,16 +2,22 @@ import React from 'react';
 
 export const SkeletonCard: React.FC<{ delay?: number }> = ({ delay = 0 }) => (
   <div
-    className="card skeleton-card"
+    className="token-card-new skeleton-card"
     style={{ animationDelay: `${delay}ms`, cursor: 'default' }}
   >
-    <div className="skeleton skeleton-circle"></div>
-    <div className="skeleton-text" style={{ flex: 1 }}>
-      <div className="skeleton skeleton-line" style={{ width: '80px' }}></div>
-    </div>
-    <div className="skeleton-text" style={{ minWidth: '100px' }}>
-      <div className="skeleton skeleton-line" style={{ width: '80px' }}></div>
-      <div className="skeleton skeleton-line" style={{ width: '60px', height: '12px' }}></div>
+    <div className="token-card-glow" />
+    <div className="token-card-content">
+      <div className="token-card-left">
+        <div className="token-logo-wrapper skeleton skeleton-circle" style={{ width: '40px', height: '40px', background: 'rgba(255, 255, 255, 0.05)' }} />
+        <div className="token-info" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div className="skeleton skeleton-line" style={{ width: '60px', height: '12px' }} />
+          <div className="skeleton skeleton-line" style={{ width: '80px', height: '16px' }} />
+        </div>
+      </div>
+      <div className="token-card-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+        <div className="skeleton skeleton-line" style={{ width: '70px', height: '16px' }} />
+        <div className="skeleton skeleton-line" style={{ width: '50px', height: '12px' }} />
+      </div>
     </div>
   </div>
 );

@@ -431,6 +431,7 @@ export const markTransaction = (tx, walletAddress, dynamicEntities = []) => {
     dapp_key: dapp?.key || null,
     dapp_name: dappName,
     dapp_logo: dapp?.logo || null,
+    dapp_website: dapp?.website || null,
     ...metadata,
     status: (tx.success === false || tx.status === "failed") ? "failed" : "success",
   };

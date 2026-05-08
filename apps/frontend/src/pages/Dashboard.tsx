@@ -24,10 +24,13 @@ import { getStoredLanguagePreference, t } from "../utils/language";
 import { getSettingsStorageKey, getStoredHidePositionThreshold } from "../utils/settings";
 import { devLog } from "../utils/devLogger";
 import { getTokenDecimals, isValidAddress, parseCoinType } from "../utils/tokenUtils";
+import { resolveTokenPrice } from "../utils/price";
 import ProfileCard from "../components/ProfileCard";
 import { ALL_ADAPTERS } from "../config/adapters/index";
 import { resolveEntityBranding } from "../services/entityStore";
 
+import DeFiPositionCard from "../components/Dashboard/DeFiPositionCard";
+import LiquidityCard from "../components/Dashboard/LiquidityCard";
 import TokenCard from "../components/Dashboard/TokenCard";
 import StakingCard from "../components/Dashboard/StakingCard";
 import { 
@@ -35,9 +38,18 @@ import {
   LiquiditySkeleton, 
   DeFiSkeleton, 
   NetWorthValueSkeleton, 
-  NetWorthMetaSkeleton, 
-  NetWorthStatsSkeleton 
+  NetWorthMetaSkeleton,
+  NetWorthStatsSkeleton
 } from "../components/Dashboard/Skeletons";
+import { 
+  getDeFiPositionUsdValue, 
+  getLiquidityPositionUsdValue, 
+  humanizeAssetName, 
+  renderColoredTokenText, 
+  TokenIcon,
+  getAssetChange,
+  processBalances
+} from "../utils/dashboardUtils";
 
 const TrxHistory = lazy(() => import("../components/TrxHistory"));
 const PORTFOLIO_TABS = {
@@ -47,725 +59,17 @@ const PORTFOLIO_TABS = {
 
 const LP_DISCOVERY_CACHE_TTL_MS = 90 * 1000;
 
-const getTokenPriceFromMap = (symbol, priceMap) => {
-  if (!priceMap) return null;
-
-  const upperSymbol = (symbol || '').toUpperCase();
-  const address = getTokenAddressBySymbol(upperSymbol);
-
-  if (address && priceMap[address] !== undefined) {
-    return Number(priceMap[address]) || 0;
-  }
-
-  if (upperSymbol === 'USDC' || upperSymbol === 'USDCX' || upperSymbol === 'USDT' || upperSymbol === 'USDA' || upperSymbol === 'USDE' || upperSymbol === 'SUSDE') {
-    return 1;
-  }
-
-  return null;
-};
-
-const getDeFiPositionUsdValue = (position, priceMap) => {
-  if (!position) return null;
-
-  if (Number.isFinite(position.usdValue) && position.usdValue > 0) {
-    return position.usdValue;
-  }
-
-  const amount = parseFloat(position.value || 0);
-  if (!Number.isFinite(amount) || amount <= 0) return 0;
-
-  const tokenPrice = getTokenPriceFromMap(position.tokenSymbol, priceMap);
-  if (tokenPrice === null) return null;
-
-  return amount * tokenPrice;
-};
-
-const getLiquidityPositionUsdValue = (position, priceMap) => {
-  if (!position) return null;
-
-  if (Number.isFinite(position.usdValue) && position.usdValue > 0) {
-    return position.usdValue;
-  }
-
-  if (Number.isFinite(position.liquidityValue) && position.liquidityValue > 0) {
-    return position.liquidityValue;
-  }
-
-  if (!priceMap) return null;
-
-  const amount = parseFloat(position.amount) || 0;
-  if (amount === 0) return 0;
-
-  if (position.isNFT && position.protocol === 'yuzu') {
-    return null;
-  }
-
-  if (position.isMeridianLP) {
-    return null;
-  }
-
-  if (position.symbol?.includes('cvMOVE') || position.symbol?.includes('stMOVE') || position.symbol?.includes('MOVE') && position.protocol === 'canopy') {
-    const movePrice = Number(priceMap['0xa'] || priceMap['0x1'] || 0);
-    return movePrice > 0 ? amount * movePrice : null;
-  }
-
-  if (position.symbol?.includes('cvWBTC') || position.symbol?.includes('WBTC') || position.symbol?.includes('BTC')) {
-    const btcPrice = Object.entries(priceMap).find(([addr]) =>
-      addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
-    )?.[1];
-    return btcPrice ? amount * Number(btcPrice) : null;
-  }
-
-  if (position.symbol?.includes('cvWETH') || position.symbol?.includes('WETH') || position.symbol?.includes('ETH')) {
-    const ethPrice = Object.entries(priceMap).find(([addr]) =>
-      addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
-    )?.[1];
-    return ethPrice ? amount * Number(ethPrice) : null;
-  }
-
-  if (position.symbol?.includes('lMOVE')) {
-    const movePrice = Number(priceMap['0xa'] || priceMap['0x1'] || 0);
-    return movePrice > 0 ? amount * movePrice : null;
-  }
-
-  if (position.protocol === 'meridian' && position.symbol?.includes('MER-LP')) {
-    return null;
-  }
-
-  if (position.symbol?.includes('USDC') || position.symbol?.includes('USDT') || position.underlying?.includes('USDC') || position.underlying?.includes('USDT')) {
-    return amount;
-  }
-
-  return Number.isFinite(position.usdValue) ? position.usdValue : null;
-};
-
-const shouldDisplayPosition = (usdValue, threshold) => {
-  // Always display positions if price is unknown (null/undefined) to avoid data loss
+const shouldDisplayPosition = (usdValue: number | null | undefined, threshold: number) => {
   if (usdValue === null || usdValue === undefined) return true;
   if (!threshold || threshold <= 0) return true;
   return usdValue >= threshold;
 };
 
-// Skeletons and sub-components are now imported from ../components/Dashboard/
-
-const DeFiPositionCard = ({ protocolPositions, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language, hideValues }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const firstPos = protocolPositions[0];
-  const getProtocolKey = () => {
-    const searchText = `${firstPos.name} ${firstPos.protocolName || ''} ${firstPos.resourceType || ''}`.toLowerCase();
-    for (const key of Object.keys(DEFI_PROTOCOL_VISUALS)) {
-      if (searchText.includes(key)) return key;
-    }
-    return null;
-  };
-
-  const protocolKey = getProtocolKey();
-  const protocol = protocolKey
-    ? DEFI_PROTOCOL_VISUALS[protocolKey]
-    : { ...DEFAULT_PROTOCOL_VISUAL, name: firstPos.protocolName || DEFAULT_PROTOCOL_VISUAL.name };
-
-  const supplyPositions = protocolPositions.filter(p => p.type === 'Lending' || p.type === 'Staking' || p.type === 'Liquidity');
-  const debtPositions = protocolPositions.filter(p => p.type === 'Debt');
-
-  const formatValue = (val) => {
-    if (hideValues) return '*****';
-    const num = parseFloat(val);
-    if (isNaN(num)) return '0.00';
-    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(2)}K`;
-    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-  };
-
-  const formatUsdValue = (val) => {
-    if (hideValues) return '*****';
-    const num = parseFloat(val);
-    if (isNaN(num) || num === 0) return formatCurrencyValue(0);
-    const converted = convertUSD(num);
-    if (converted >= 1000000) return `${currencySymbol}${(converted / 1000000).toFixed(2)}M`;
-    if (converted >= 1000) return `${currencySymbol}${(converted / 1000).toFixed(2)}K`;
-    if (converted < 0.01) return formatCurrencyValue(converted, undefined, 4);
-    return formatCurrencyValue(converted);
-  };
-
-  const getPositionUsdValue = (pos) => {
-    return getDeFiPositionUsdValue(pos, priceMap) ?? 0;
-  };
-
-  const isMovementNativeStaking = (pos) => {
-    const protocolName = String(pos?.protocolName || "").toLowerCase();
-    const name = String(pos?.name || "").toLowerCase();
-    const source = String(pos?.source || "").toLowerCase();
-
-    return (
-      protocolName.includes("movement native staking") ||
-      name.includes("movement native staking") ||
-      source === "view"
-    );
-  };
-
-  const formatNativeStakingMeta = (pos) => {
-    if (!isMovementNativeStaking(pos)) return null;
-
-    const pool = String(pos?.poolAddress || "").toLowerCase();
-    const poolSuffix = pool.startsWith("0x") && pool.length > 10 ? `...${pool.slice(-6)}` : null;
-
-    const pendingStakeRaw = Number(pos?.pendingStakeAmount || 0);
-    const pendingWithdrawalRaw = Number(pos?.pendingWithdrawalAmount || 0);
-    const pendingMove = (pendingStakeRaw + pendingWithdrawalRaw) / 100000000;
-
-    const poolPart = poolSuffix ? `Pool ${poolSuffix}` : null;
-    const pendingPart = pendingMove > 0 ? `Pending ${formatValue(pendingMove)} MOVE` : null;
-
-    if (poolPart && pendingPart) return `${poolPart} - ${pendingPart}`;
-    return poolPart || pendingPart;
-  };
-
-  const totalSupplyUsd = supplyPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0);
-  const totalDebtUsd = debtPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0);
-  const netUsd = totalSupplyUsd - totalDebtUsd;
-  const positionTypeLabel = supplyPositions.length > 0 && debtPositions.length > 0
-    ? `${t(language, 'dashSupplied')} & ${t(language, 'dashBorrowed')}`
-    : supplyPositions.length > 0 ? t(language, 'dashSupplied') : t(language, 'dashBorrowed');
-
-  return (
-    <div
-      className={`defi-card-v2 ${isExpanded ? 'is-expanded' : 'is-compact'}`}
-      style={{ animationDelay: `${delay}ms`, '--protocol-color': protocol.color } as React.CSSProperties}
-    >
-      <div className="defi-v2-header">
-        <div className="defi-v2-logo">
-          <img
-            src={protocol.logo}
-            alt={protocol.name}
-            onError={(e) => { 
-              const target = e.target as HTMLImageElement;
-              target.onerror = null; 
-              target.src = '/movement-logo.svg'; 
-            }}
-          />
-        </div>
-        <div className="defi-v2-title">
-          <h3>{protocol.name}</h3>
-          {isExpanded && (
-            <span className="defi-v2-type">{positionTypeLabel}</span>
-          )}
-        </div>
-        <div className="defi-v2-actions">
-          <button
-            type="button"
-            className="defi-v2-toggle"
-            onClick={() => setIsExpanded((current) => !current)}
-            aria-expanded={isExpanded}
-            aria-label={isExpanded ? `Collapse ${protocol.name} details` : `Open full view for ${protocol.name}`}
-            title={isExpanded ? 'Minimize' : 'Full view'}
-          >
-            {isExpanded ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 15 3 21" />
-                <path d="M15 9 21 3" />
-                <path d="M3 16v5h5" />
-                <path d="M16 3h5v5" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M15 3h6v6" />
-                <path d="M9 21H3v-6" />
-                <path d="M21 3 14 10" />
-                <path d="M3 21 10 14" />
-              </svg>
-            )}
-          </button>
-          {firstPos.protocolWebsite && (
-            <a href={firstPos.protocolWebsite} target="_blank" rel="noopener noreferrer" className="defi-v2-link" aria-label={`Open ${protocol.name} website`} title="Open protocol website">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-            </a>
-          )}
-        </div>
-      </div>
-
-      {!isExpanded ? (
-        <div className="defi-v2-compact-body">
-          <div className="defi-v2-net">
-            <span className="defi-v2-net-label">{t(language, 'dashNetPosition')}</span>
-            <span className={`defi-v2-net-value ${netUsd >= 0 ? 'positive' : 'negative'}`}>
-              {netUsd >= 0 ? '+' : ''}{formatUsdValue(netUsd)}
-            </span>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="defi-v2-columns">
-            <div className="defi-v2-column supply">
-              <div className="defi-v2-column-header">
-                <span className="defi-v2-column-label">{t(language, 'dashSupplied')}</span>
-                <span className="defi-v2-column-total">{formatUsdValue(totalSupplyUsd)}</span>
-              </div>
-              <div className="defi-v2-column-items">
-                {supplyPositions.length > 0 ? supplyPositions.map((pos, idx) => (
-                  <div key={idx} className="defi-v2-item">
-                    <div className="defi-v2-item-token-wrap">
-                      <TokenIcon symbol={pos.tokenSymbol} />
-                      <span className="defi-v2-item-token">
-                        {renderColoredTokenText(pos.tokenSymbol || 'Token')}
-                      </span>
-                      {formatNativeStakingMeta(pos) && (
-                        <span className="defi-v2-item-meta">{formatNativeStakingMeta(pos)}</span>
-                      )}
-                    </div>
-                    <div className="defi-v2-item-values">
-                      <span className="defi-v2-item-amount supply">{formatValue(pos.value)}</span>
-                      <span className="defi-v2-item-usd">{formatUsdValue(getPositionUsdValue(pos))}</span>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="defi-v2-empty">{t(language, 'dashNoSupply')}</div>
-                )}
-              </div>
-            </div>
-
-            <div className="defi-v2-column borrow">
-              <div className="defi-v2-column-header">
-                <span className="defi-v2-column-label">{t(language, 'dashBorrowed')}</span>
-                <span className="defi-v2-column-total debt">{formatUsdValue(totalDebtUsd)}</span>
-              </div>
-              <div className="defi-v2-column-items">
-                {debtPositions.length > 0 ? debtPositions.map((pos, idx) => (
-                  <div key={idx} className="defi-v2-item">
-                    <div className="defi-v2-item-token-wrap">
-                      <TokenIcon symbol={pos.tokenSymbol} />
-                      <span className="defi-v2-item-token">
-                        {renderColoredTokenText(pos.tokenSymbol || 'Token')}
-                      </span>
-                    </div>
-                    <div className="defi-v2-item-values">
-                      <span className="defi-v2-item-amount debt">-{formatValue(pos.value)}</span>
-                      <span className="defi-v2-item-usd debt">-{formatUsdValue(getPositionUsdValue(pos))}</span>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="defi-v2-empty">{t(language, 'dashNoDebt')}</div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="defi-v2-footer">
-            <div className="defi-v2-net">
-              <span className="defi-v2-net-label">{t(language, 'dashNetPosition')}</span>
-              <span className={`defi-v2-net-value ${netUsd >= 0 ? 'positive' : 'negative'}`}>
-                {netUsd >= 0 ? '+' : ''}{formatUsdValue(netUsd)}
-              </span>
-            </div>
-            {debtPositions.length > 0 && totalSupplyUsd > 0 && (
-              <div className="defi-v2-health">
-                <span className="defi-v2-health-label">{t(language, 'dashHealth')}</span>
-                <div className="defi-v2-health-bar">
-                  <div
-                    className="defi-v2-health-fill"
-                    style={{
-                      width: `${Math.min(100, Math.max(10, 100 - (totalDebtUsd / totalSupplyUsd) * 100))}%`,
-                      background: protocol.gradient
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-const humanizeAssetName = (raw) => {
-  if (!raw || typeof raw !== 'string') return raw || 'Unknown';
-
-  const FRIENDLY_NAMES = {
-    'MERIDIAN_LP': 'Meridian LP Token',
-    'MER-LP': 'Meridian LP Token',
-    'MERIDIAN_POOL': 'Meridian Pool',
-    'CANOPY_STAKING': 'Canopy Staking',
-    'CANOPY_LP': 'Canopy LP',
-    'YUZU_LP': 'Yuzu LP Token',
-    'YUZ-LP': 'Yuzu LP Token',
-    'MOVEMENT_STAKING': 'Movement Staking',
-    'NATIVE_STAKING': 'Native Staking',
-  };
-
-  const upperRaw = raw.toUpperCase().trim();
-  if (FRIENDLY_NAMES[upperRaw]) return FRIENDLY_NAMES[upperRaw];
-
-  // Convert snake_case / SCREAMING_SNAKE to Title Case
-  if (raw.includes('_') || raw === raw.toUpperCase()) {
-    return raw
-      .split(/[_-]+/)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-  }
-
-  return raw;
-};
-
-const LP_TOKEN_COLORS = {
-  MOVE: '#cda169',
-  USDC: '#2775ca',
-  USDT: '#26a17b',
-  ETH: '#627eea',
-  WETH: '#627eea',
-  BTC: '#f7931a',
-  WBTC: '#f7931a',
-  CAPY: '#ff6b9d',
-  MOVECAT: '#9b59b6',
-  LBTC: '#f7931a',
-  EZETH: '#00d395',
-  RSETH: '#4caf50',
-  SOLVBTC: '#f7931a',
-  USDE: '#171717',
-  USDA: '#2196f3',
-  WEETH: '#7c3aed',
-  USDCX: '#2775ca',
-  SUSDE: '#ffffff',
-};
-
-const getTokenTextColor = (rawSymbol) => {
-  if (!rawSymbol) return null;
-  const normalized = rawSymbol
-    .toString()
-    .toUpperCase()
-    .replace(/[^A-Z0-9.]/g, '');
-
-  const withoutSuffix = normalized.replace(/\.E$/i, '');
-  const withoutCvPrefix = withoutSuffix.replace(/^CV/, '');
-  const withoutLPrefix = withoutCvPrefix.replace(/^L/, '');
-
-  return (
-    LP_TOKEN_COLORS[withoutLPrefix] ||
-    LP_TOKEN_COLORS[withoutCvPrefix] ||
-    LP_TOKEN_COLORS[withoutSuffix] ||
-    LP_TOKEN_COLORS[normalized] ||
-    null
-  );
-};
-
-const renderColoredTokenText = (value) => {
-  if (typeof value !== 'string' || !value) return value;
-
-  const pieces = value.split(/(\s+|\/|\+|,|:|\(|\))/g).filter((piece) => piece !== '');
-  const NON_TOKEN_WORDS = new Set(['LP', 'TOKEN', 'POSITION', 'NOT', 'AVAILABLE', 'ASSET']);
-
-  return pieces.map((piece, index) => {
-    const trimmed = piece.trim();
-    if (!trimmed) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
-
-    const normalized = trimmed.replace(/[^A-Za-z0-9.]/g, '');
-    const hasLetters = /[A-Za-z]/.test(normalized);
-    if (!hasLetters) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
-
-    const upper = normalized.toUpperCase();
-    if (NON_TOKEN_WORDS.has(upper)) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
-
-    const color = getTokenTextColor(upper);
-    if (!color) return <React.Fragment key={`lp-txt-${index}`}>{piece}</React.Fragment>;
-
-    return (
-      <span key={`lp-txt-${index}`} className="lp-token-colored" style={{ color }}>
-        {piece}
-      </span>
-    );
-  });
-};
-
-const TokenIcon = ({ symbol, size = 16 }) => {
-  const baseSymbol = String(symbol || '').toUpperCase().replace(/\.E$/i, '').replace(/^CV/, '').replace(/^L/, '');
-  const visual = TOKEN_VISUALS[baseSymbol] || TOKEN_VISUALS[symbol?.toUpperCase()] || null;
-  const logo = visual?.logo || null;
-
-  if (logo) {
-    return (
-      <img
-        src={logo}
-        alt={symbol}
-        className="token-mini-icon"
-        style={{ width: size, height: size, borderRadius: '4px', marginRight: '6px', objectFit: 'contain' }}
-        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-      />
-    );
-  }
-  return null;
-};
-
-const LiquidityCard = ({ position, delay, priceMap, convertUSD, formatCurrencyValue, currencySymbol, language, hideValues }) => {
-  const LP_PROTOCOLS = {
-    canopy: {
-      logo: '/canopy.png',
-      name: 'Canopy Finance',
-      color: '#22c55e',
-      gradient: 'linear-gradient(135deg, #22c55e, #4ade80)',
-      type: 'Liquid Staking',
-      website: 'https://app.canopyhub.xyz/'
-    },
-    meridian: {
-      logo: '/Meridian.png',
-      name: 'Meridian',
-      color: '#8b5cf6',
-      gradient: 'linear-gradient(135deg, #8b5cf6, #a78bfa)',
-      type: 'LP Token',
-      website: 'https://app.meridian.money/'
-    },
-    yuzu: {
-      logo: '/yuzu.png',
-      name: 'Yuzu Swap',
-      color: '#eab308',
-      gradient: 'linear-gradient(135deg, #eab308, #facc15)',
-      type: 'LP Token',
-      website: 'https://app.yuzu.finance/'
-    },
-  };
-
-  const protocol = LP_PROTOCOLS[position.protocol] || {
-    logo: '/movement-logo.svg',
-    name: position.protocolName || 'DeFi Protocol',
-    color: '#cda169',
-    gradient: 'linear-gradient(135deg, #cda169, #deb884)',
-    type: 'LP Token',
-    website: null
-  };
-
-  const renderColoredTokenTextLocal = (value) => {
-    return renderColoredTokenText(value);
-  };
-
-  const isCanopyDeposit = position.protocol === 'canopy' ||
-    position.symbol?.startsWith('cv') ||
-    position.symbol?.includes('stMOVE');
-
-  const formatValue = (val) => {
-    if (hideValues) return '*****';
-    const num = parseFloat(val);
-    if (isNaN(num)) return '0.00';
-    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(2)}K`;
-    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-  };
-
-  const formatUsd = (val) => {
-    if (hideValues) return '*****';
-    const num = parseFloat(val);
-    if (isNaN(num) || num === 0) return formatCurrencyValue(0);
-    const converted = convertUSD(num);
-    if (converted >= 1000000) return `${currencySymbol}${(converted / 1000000).toFixed(2)}M`;
-    if (converted >= 1000) return `${currencySymbol}${(converted / 1000).toFixed(2)}K`;
-    if (converted > 0 && converted < 0.01) return `< ${currencySymbol}0.01`;
-    if (converted < 1) return formatCurrencyValue(converted, undefined, 4);
-    return formatCurrencyValue(converted);
-  };
-
-  const getUnderlyingValue = () => {
-    if (position.usdValue && position.usdValue > 0) {
-      return position.usdValue;
-    }
-
-    if (position.liquidityValue && position.liquidityValue > 0) {
-      return position.liquidityValue;
-    }
-
-    if (!priceMap) return 0;
-
-    const amount = parseFloat(position.amount) || 0;
-    if (amount === 0) return 0;
-
-    if (position.isNFT && position.protocol === 'yuzu') {
-      if (position.usdValue && position.usdValue > 0) {
-        return position.usdValue;
-      }
-      if (position.liquidityValue) {
-        return position.liquidityValue;
-      }
-      return 0;
-    }
-
-    if (position.isMeridianLP) {
-      return 0;
-    }
-
-    if (position.symbol?.includes('cvMOVE') || position.symbol?.includes('stMOVE') ||
-      position.symbol?.includes('MOVE') && position.protocol === 'canopy') {
-      const movePrice = priceMap['0xa'] || priceMap['0x1'] || 0;
-      return amount * movePrice;
-    }
-
-    if (position.symbol?.includes('cvWBTC') || position.symbol?.includes('WBTC') || position.symbol?.includes('BTC')) {
-      const btcPrice = (Object.entries(priceMap).find(([addr]) =>
-        addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
-      )?.[1] || 95000) as number;
-      return amount * btcPrice;
-    }
-
-    if (position.symbol?.includes('cvWETH') || position.symbol?.includes('WETH') || position.symbol?.includes('ETH')) {
-      const ethPrice = (Object.entries(priceMap).find(([addr]) =>
-        addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
-      )?.[1] || 3500) as number;
-      return amount * ethPrice;
-    }
-
-    if (position.symbol?.includes('lMOVE')) {
-      const movePrice = priceMap['0xa'] || priceMap['0x1'] || 0;
-      return amount * movePrice;
-    }
-
-    if (position.protocol === 'meridian' && position.symbol?.includes('MER-LP')) {
-      return 0;
-    }
-
-    if (position.symbol?.includes('USDC') || position.symbol?.includes('USDT') ||
-      position.underlying?.includes('USDC') || position.underlying?.includes('USDT')) {
-      return amount;
-    }
-
-    return position.usdValue || 0;
-  };
-
-  const usdValue = getUnderlyingValue();
-  const meridianPoolLabel = position.protocol === 'meridian'
-    ? (
-      Array.isArray(position.poolTokens) && position.poolTokens.length > 0
-        ? position.poolTokens.map((token) => token.symbol).join(' / ')
-        : (position.tokenX && position.tokenY ? `${position.tokenX} / ${position.tokenY}` : 'MER-LP')
-    )
-    : '';
-
-  const isPoolStylePrimary = position.isNFT || position.protocol === 'meridian';
-  const primaryLabel = isPoolStylePrimary ? 'Pool' : t(language, 'dashBalance');
-  const primaryValue = position.isNFT
-    ? (position.name || 'LP Position')
-    : (position.protocol === 'meridian' ? meridianPoolLabel : formatValue(position.amount));
-  const secondaryLabel = position.isNFT ? 'Position' : 'Underlying Asset';
-  const secondaryValue = position.isNFT
-    ? `#${position.positionId || position.tokenDataId?.slice(-8) || 'NFT'}`
-    : humanizeAssetName(position.underlying || position.symbol?.replace('cv', '').replace('l', '') || 'MOVE');
-
-  let detailLabel = t(language, 'dashUnderlying');
-  let detailValue = humanizeAssetName(position.underlying || position.symbol?.replace('cv', '').replace('l', '') || t(language, 'dashNotAvailable'));
-
-  if (position.isNFT && position.protocol === 'yuzu' && (position.token0Amount > 0 || position.token1Amount > 0)) {
-    detailLabel = t(language, 'swapTokenAmounts');
-    detailValue = `${position.token0Amount > 0 ? `${formatValue(position.token0Amount)} ${position.name?.split(' / ')[0] || 'Token0'}` : ''}${position.token0Amount > 0 && position.token1Amount > 0 ? ' + ' : ''}${position.token1Amount > 0 ? `${formatValue(position.token1Amount)} ${position.name?.split(' / ')[1] || 'Token1'}` : ''}`;
-  } else if (position.protocol === 'meridian' && Array.isArray(position.poolTokens) && position.poolTokens.length > 0) {
-    detailLabel = t(language, 'dashTokenComposition');
-    detailValue = position.poolTokens
-      .map((token) => `${formatValue(token.amount)} ${token.symbol || 'Token'}`)
-      .join(' + ');
-  } else if (
-    position.protocol === 'meridian' &&
-    (!Array.isArray(position.poolTokens) || position.poolTokens.length === 0) &&
-    (position.liquidityX > 0 || position.liquidityY > 0)
-  ) {
-    detailLabel = 'Token Composition';
-    detailValue = `${position.liquidityX > 0 ? `${formatValue(position.liquidityX / 1000000)} ${position.tokenX || 'Token X'}` : ''}${position.liquidityX > 0 && position.liquidityY > 0 ? ' + ' : ''}${position.liquidityY > 0 ? `${formatValue(position.liquidityY / 1000000)} ${position.tokenY || 'Token Y'}` : ''}`;
-  }
-
-  const isLongDetailValue = detailLabel === 'Token Amounts' || detailLabel === 'Token Composition';
-  const colorizePrimaryValue = isPoolStylePrimary;
-  const colorizeDetailValue = detailLabel === 'Token Amounts' || detailLabel === 'Token Composition' || detailLabel === 'Underlying';
-  const colorizeSecondaryValue = secondaryLabel === 'Underlying Asset';
-
-  return (
-    <div
-      className="lp-card"
-      style={{
-        animationDelay: `${delay}ms`,
-        '--lp-color': protocol.color
-      } as React.CSSProperties}
-    >
-      <div className="lp-card-header">
-        <div className="lp-card-logo">
-          <img
-            src={protocol.logo}
-            alt={protocol.name}
-            onError={(e) => { 
-              const target = e.target as HTMLImageElement;
-              target.onerror = null; 
-              target.src = '/movement-logo.svg'; 
-            }}
-          />
-        </div>
-        <div className="lp-card-info">
-          <h4 className="lp-card-name" title={protocol.name}>{protocol.name}</h4>
-          <div className="lp-card-subline">
-            <span className="lp-card-type">{protocol.type}</span>
-            <span className="lp-card-dot">*</span>
-            <span className="lp-card-symbol" title={position.symbol}>{position.symbol}</span>
-          </div>
-          {(position.isNFT || (isCanopyDeposit && position.protocol !== 'canopy')) && (
-            <div className="lp-card-flags">
-              {position.isNFT && <span className="lp-card-flag">NFT</span>}
-              {isCanopyDeposit && position.protocol !== 'canopy' && <span className="lp-card-flag">via Canopy</span>}
-            </div>
-          )}
-        </div>
-        {protocol.website && (
-          <a
-            href={protocol.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="lp-card-link"
-            title={`Open ${protocol.name}`}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
-        )}
-      </div>
-
-      <div className="lp-card-body">
-        <div className="lp-card-stats-row">
-          <div className="lp-card-stat">
-            <span className="lp-card-stat-label">{primaryLabel}</span>
-            <span className={`lp-card-stat-value ${isPoolStylePrimary ? 'text' : ''}`} title={primaryValue}>
-              {colorizePrimaryValue ? renderColoredTokenText(primaryValue) : primaryValue}
-            </span>
-          </div>
-          <div className="lp-card-stat">
-            <span className="lp-card-stat-label">Liquidity</span>
-            <span className={`lp-card-stat-value highlight ${usdValue > 0 ? '' : 'na'}`}>
-              {usdValue > 0 ? formatUsd(usdValue) : 'Price N/A'}
-            </span>
-          </div>
-        </div>
-
-        <div className="lp-card-details">
-          <div className={`lp-card-detail-row ${isLongDetailValue ? 'long' : ''}`}>
-            <span className="lp-card-stat-label">{detailLabel}</span>
-            <span className={`lp-card-stat-value small ${detailValue === 'Not available' ? 'muted' : ''} ${isLongDetailValue ? 'wrap' : ''}`} title={detailValue}>
-              {colorizeDetailValue ? renderColoredTokenText(detailValue) : detailValue}
-            </span>
-          </div>
-          <div className="lp-card-detail-row">
-            <span className="lp-card-stat-label">{secondaryLabel}</span>
-            <span className="lp-card-stat-value small" title={secondaryValue}>
-              {colorizeSecondaryValue ? renderColoredTokenText(secondaryValue) : secondaryValue}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ErrorMessage = ({ message, onRetry }) => (
+const ErrorMessage = ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
   <div className="error-message">
     <p>{message}</p>
     {onRetry && <button onClick={onRetry} className="retry-btn">Retry</button>}
-
   </div>
-
 );
 
 const RouteFallback = () => (
@@ -779,31 +83,45 @@ const Dashboard = () => {
   const location = useLocation();
   const { address: urlAddress } = useParams();
 
-  const [balances, setBalances] = useState([]);
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
-
-  const [assetsLoading, setAssetsLoading] = useState(false);
-
   const [error, setError] = useState(null);
-
-  const [totalUsdValue, setTotalUsdValue] = useState(0);
-
   const [viewingAddress, setViewingAddress] = useState(null);
   const [activeTab, setActiveTab] = useState(PORTFOLIO_TABS.OVERVIEW);
 
   const [walletAge, setWalletAge] = useState(null);
-  const [liquidityPositions, setLiquidityPositions] = useState([]);
-  const [lpLoading, setLpLoading] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [hidePositionThreshold, setHidePositionThreshold] = useState(0);
   const meridianPoolInfoCacheRef = useRef(new Map());
   const yuzuDiscoveryCacheRef = useRef(new Map());
 
+  // 1. Pricing and Basic Data
+  const { prices: priceMap, priceChanges, loading: pricesLoading, error: pricesError } = useTokenPrices();
+
+  const {
+    balances: indexerBalances,
+    loading: indexerLoading,
+    error: indexerError,
+    refetch: refreshIndexer
+  } = useIndexerBalances(viewingAddress);
+
+  const { client, loading: clientLoading, error: clientError } = useMovementClient();
+
+  // 2. Discovery Engine (Depends on priceMap)
+  const {
+    positions: allPositions,
+    loading: defiLoading,
+    refresh: refreshDeFi
+  } = useDeFiPositions(viewingAddress, priceMap, indexerBalances);
+
   const settingsKey = useMemo(() => getSettingsStorageKey(account?.address), [account?.address]);
+  
 
   const [hideValues, setHideValues] = useState(() => localStorage.getItem('hideValues') === 'true');
+  const [viewMode, setViewMode] = useState('grid');
+  const [allDeFiExpanded, setAllDeFiExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(0);
+  const [showToast, setShowToast] = useState(false);
 
   const { convertUSD, formatValue: formatCurrencyValue, currencySymbol } = useCurrency();
 
@@ -828,68 +146,59 @@ const Dashboard = () => {
     return () => window.removeEventListener('storage', onStorage);
   }, [settingsKey]);
 
-  const {
-    balances: indexerBalances,
-    loading: indexerLoading,
-    error: indexerError,
-    refetch: refetchBalances
-  } = useIndexerBalances(viewingAddress);
-
-  const {
-    positions,
-    loading: defiLoading,
-    refetch: refetchPositions
-  } = useDeFiPositions(viewingAddress);
-
-  const handleRefresh = async () => {
-    const now = Date.now();
-    if (now - lastRefresh < 30000) return;
-
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    setLastRefresh(now);
     try {
-      if (viewingAddress) {
-        devLog("Refreshing assets for:", viewingAddress);
-        // Using existing logic + refetch hooks
-        fetchAssets && fetchAssets(viewingAddress);
-      }
       await Promise.all([
-        refetchBalances && refetchBalances(),
-        refetchPositions && refetchPositions()
+        refreshIndexer(),
+        refreshDeFi()
       ]);
-    } catch (e) {
-      console.error('Refresh failed:', e);
+      setLastRefresh(Date.now());
     } finally {
-      setTimeout(() => setIsRefreshing(false), 800);
+      setIsRefreshing(false);
     }
-  };
-  const { prices: priceMap, priceChanges } = useTokenPrices();
+  }, [refreshIndexer, refreshDeFi]);
 
-  // Legacy Memos for Filtering
-  const visibleDeFiPositions = useMemo(() => {
-    if (!Array.isArray(positions) || positions.length === 0) return [];
+  // 3. Derived States (Calculated from Discovery results)
+  const visibleLiquidityPositions = useMemo(() =>
+    allPositions.filter(p => p.type === "Liquidity" || p.type === "Staking"),
+    [allPositions]
+  );
 
-    return positions.filter((pos) => {
-      const protocolName = String(pos?.protocolName || "").toLowerCase();
-      // Meridian is handled specifically in the LP/Liquidity discovery below
-      if (protocolName === "meridian") return false;
+  const visibleDeFiPositions = useMemo(() =>
+    allPositions.filter(p => p.type !== "Liquidity" && p.type !== "Staking" && p.type !== "Asset"),
+    [allPositions]
+  );
 
-      return shouldDisplayPosition(getDeFiPositionUsdValue(pos, priceMap), hidePositionThreshold);
-    });
-  }, [hidePositionThreshold, positions, priceMap]);
+  const balances = useMemo(() => 
+    processBalances(indexerBalances, priceMap, allPositions),
+  [indexerBalances, priceMap, allPositions]);
 
-  const visibleLiquidityPositions = useMemo(() => {
-    if (!Array.isArray(liquidityPositions)) return [];
-    return liquidityPositions
-      .filter(pos =>
-        shouldDisplayPosition(getLiquidityPositionUsdValue(pos, priceMap), hidePositionThreshold)
-      )
-      .sort((a, b) => {
-        const valA = getLiquidityPositionUsdValue(a, priceMap) ?? 0;
-        const valB = getLiquidityPositionUsdValue(b, priceMap) ?? 0;
-        return valB - valA;
-      });
-  }, [liquidityPositions, priceMap, hidePositionThreshold]);
+  const totalUsdValue = useMemo(() =>
+    balances.reduce((sum, b) => sum + (b.usdValue || 0), 0),
+    [balances]
+  );
+
+  const defiNetValue = useMemo(() => {
+    const val = visibleDeFiPositions.reduce((sum, p) => {
+      const v = p.numericValue || 0;
+      return sum + (p.type === "Debt" ? -v : v);
+    }, 0);
+    // Round to 2 decimals to match display
+    return Math.round(val * 100) / 100;
+  }, [visibleDeFiPositions]);
+
+  const liquidityTotalValue = useMemo(() => {
+    const val = visibleLiquidityPositions.reduce((sum, p) => sum + (p.numericValue || 0), 0);
+    // Round to 2 decimals to match display
+    return Math.round(val * 100) / 100;
+  }, [visibleLiquidityPositions]);
+
+  const totalUsdValueRounded = useMemo(() => Math.round(totalUsdValue * 100) / 100, [totalUsdValue]);
+
+  const combinedNetWorth = totalUsdValueRounded + defiNetValue + liquidityTotalValue;
+  const assetsLoading = pricesLoading || indexerLoading || clientLoading;
+  const lpLoading = defiLoading;
 
   const { profile: userProfile } = useProfile(viewingAddress);
   const { level: viewingLevel } = useUserLevel(viewingAddress);
@@ -903,6 +212,7 @@ const Dashboard = () => {
     address: viewingAddress,
     preferredPfp: userProfile?.avatar_url,
   });
+
   const modalAvatarSrc = getLevelBasedPfp({
     level,
     address: viewingAddress,
@@ -950,7 +260,6 @@ const Dashboard = () => {
   const currentNetwork = DEFAULT_NETWORK;
   const { client: movementClient, loading: movementClientLoading } = useMovementClient(currentNetwork.rpc);
 
-
   const modalBadgeAddress = modalProfileAddress;
   const { badges: onchainBadges, loading: onchainBadgesLoading } = useBadges(modalBadgeAddress, {
     client: movementClient,
@@ -958,40 +267,8 @@ const Dashboard = () => {
     enablePolling: false,
   });
   const { earnedBadges: persistedBadges } = useUserBadges(modalBadgeAddress);
-  const defiNetValue = useMemo(() => {
-    if (!visibleDeFiPositions || visibleDeFiPositions.length === 0 || !priceMap) return 0;
 
-    let totalSupply = 0;
-    let totalDebt = 0;
-
-    visibleDeFiPositions.forEach(pos => {
-      const usdVal = getDeFiPositionUsdValue(pos, priceMap) ?? 0;
-      // If it's a debt/borrow type, subtract it
-      if (pos.type === 'Debt') {
-        totalDebt += usdVal;
-      } else {
-        totalSupply += usdVal;
-      }
-    });
-    return totalSupply - totalDebt;
-  }, [visibleDeFiPositions, priceMap]);
-  const liquidityTotalValue = useMemo(() => {
-    if (!liquidityPositions || liquidityPositions.length === 0) return 0;
-
-    return liquidityPositions.reduce((total, position) => {
-      const value = getLiquidityPositionUsdValue(position, priceMap) ?? 0;
-      return total + value;
-    }, 0);
-  }, [priceMap, liquidityPositions]);
-  const combinedNetWorth = useMemo(() => {
-    // Ensure all values are numeric and handle undefined/null
-    const wallet = Number(totalUsdValue) || 0;
-    const defi = Number(defiNetValue) || 0;
-    const liquidity = Number(liquidityTotalValue) || 0;
-    return wallet + defi + liquidity;
-  }, [totalUsdValue, defiNetValue, liquidityTotalValue]);
   const portfolio24hChange = useMemo(() => {
-    // If combinedNetWorth is 0, we can't calculate a meaningful weighted change
     if (!priceChanges || combinedNetWorth === 0) {
       return null;
     }
@@ -999,36 +276,13 @@ const Dashboard = () => {
     let weightedChangeSum = 0;
     let totalWeightValue = 0;
 
-    // Helper to get change for an asset
-    const getAssetChange = (address, symbol) => {
-      if (!priceChanges) return undefined;
-      
-      const normalizedInput = String(address || '').toLowerCase().replace(/^0x0+/, "0x");
-      let change = priceChanges[normalizedInput];
-      
-      if (change === undefined) {
-        // Try exact match
-        change = priceChanges[address];
-      }
 
-      if (change === undefined) {
-        // Try by symbol if it's MOVE
-        const upperSymbol = String(symbol || '').toUpperCase();
-        if (upperSymbol.includes('MOVE')) {
-          change = priceChanges["0xa"] || priceChanges["0x1"];
-        }
-      }
-      
-      return change;
-    };
-
-    // 1. Process Wallet Balances
     if (balances && balances.length > 0) {
       balances.forEach(token => {
         const usdValue = token.usdValue || 0;
         if (usdValue <= 0) return;
 
-        const change = getAssetChange(token.address, token.symbol);
+        const change = getAssetChange(token.address, token.symbol, priceChanges);
         if (change !== undefined) {
           weightedChangeSum += change * usdValue;
           totalWeightValue += usdValue;
@@ -1036,13 +290,12 @@ const Dashboard = () => {
       });
     }
 
-    // 2. Process DeFi Positions
     if (visibleDeFiPositions && visibleDeFiPositions.length > 0) {
       visibleDeFiPositions.forEach(pos => {
-        const usdValue = getDeFiPositionUsdValue(pos, priceMap) ?? 0;
+        const usdValue = pos.numericValue || 0;
         if (usdValue <= 0) return;
 
-        const change = getAssetChange(pos.address, pos.symbol || pos.underlying);
+        const change = getAssetChange(pos.address, pos.symbol || pos.underlying, priceChanges);
         if (change !== undefined) {
           weightedChangeSum += change * usdValue;
           totalWeightValue += usdValue;
@@ -1050,13 +303,12 @@ const Dashboard = () => {
       });
     }
 
-    // 3. Process Liquidity Positions
     if (visibleLiquidityPositions && visibleLiquidityPositions.length > 0) {
       visibleLiquidityPositions.forEach(pos => {
-        const usdValue = getLiquidityPositionUsdValue(pos, priceMap) ?? 0;
+        const usdValue = pos.numericValue || 0;
         if (usdValue <= 0) return;
 
-        const change = getAssetChange(pos.address, pos.symbol || pos.underlying);
+        const change = getAssetChange(pos.address, pos.symbol || pos.underlying, priceChanges);
         if (change !== undefined) {
           weightedChangeSum += change * usdValue;
           totalWeightValue += usdValue;
@@ -1068,554 +320,13 @@ const Dashboard = () => {
       return weightedChangeSum / totalWeightValue;
     }
 
-    // Fallback: If we have net worth but no known changes, show 0 instead of null
-    // to prevent the PNL from disappearing entirely.
     if (combinedNetWorth > 0) {
       return 0;
     }
 
     return null;
-  }, [balances, visibleDeFiPositions, visibleLiquidityPositions, priceChanges, priceMap, combinedNetWorth]);
+  }, [balances, visibleDeFiPositions, visibleLiquidityPositions, priceChanges, combinedNetWorth]);
 
-  const toRawCoinString = useCallback((value) => {
-    if (value === null || value === undefined) return null;
-
-    if (typeof value === "bigint") {
-      return value > 0n ? value.toString() : null;
-    }
-
-    if (typeof value === "number") {
-      if (!Number.isFinite(value) || value <= 0) return null;
-      return Number.isInteger(value) ? String(value) : String(Math.trunc(value));
-    }
-
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      return /^\d+$/.test(trimmed) && trimmed !== "0" ? trimmed : null;
-    }
-
-    if (typeof value === "object") {
-      return (
-        toRawCoinString(value.value) ||
-        toRawCoinString(value.amount) ||
-        toRawCoinString(value.balance) ||
-        toRawCoinString(value.coin)
-      );
-    }
-
-    return null;
-  }, []);
-
-  const extractRawCoinValue = useCallback((coinData) => {
-    if (!coinData) return null;
-
-    const direct =
-      toRawCoinString(coinData?.coin?.value) ||
-      toRawCoinString(coinData?.coin?.amount) ||
-      toRawCoinString(coinData?.coin) ||
-      toRawCoinString(coinData?.value) ||
-      toRawCoinString(coinData?.amount) ||
-      toRawCoinString(coinData?.balance);
-
-    if (direct) return direct;
-
-    const queue = [];
-    if (coinData?.coin && typeof coinData.coin === "object") {
-      queue.push(coinData.coin);
-    }
-    queue.push(coinData);
-
-    const seen = new Set();
-    const primaryKeys = ["value", "amount", "balance", "coin", "liquidity", "staked", "deposited"];
-    const relevantKeyRegex = /(coin|amount|balance|value|liquidity|staked|deposit|share|stake)/i;
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-
-      if (!current || typeof current !== "object") {
-        const primitiveCandidate = toRawCoinString(current);
-        if (primitiveCandidate) return primitiveCandidate;
-        continue;
-      }
-
-      if (seen.has(current)) continue;
-      seen.add(current);
-
-      if (Array.isArray(current)) {
-        for (const item of current) {
-          const candidate = toRawCoinString(item);
-          if (candidate) return candidate;
-          if (item && typeof item === "object") queue.push(item);
-        }
-        continue;
-      }
-
-      for (const key of primaryKeys) {
-        if (current[key] !== undefined) {
-          const candidate = toRawCoinString(current[key]);
-          if (candidate) return candidate;
-        }
-      }
-
-      const prioritized = [];
-      const secondary = [];
-      for (const [key, value] of Object.entries(current)) {
-        if (!value || typeof value !== "object") continue;
-        if (relevantKeyRegex.test(key)) {
-          prioritized.push(value);
-        } else {
-          secondary.push(value);
-        }
-      }
-
-      queue.unshift(...prioritized);
-      queue.push(...secondary);
-    }
-
-    return null;
-  }, [toRawCoinString]);
-
-  const fetchMeridianPoolInfo = useCallback(async (poolAddress) => {
-    if (!poolAddress || typeof poolAddress !== 'string') return null;
-
-    try {
-      const normalizeAssetIdentifier = (value) => {
-        if (!value) return '';
-
-        let normalized = String(value).trim().toLowerCase();
-        const genericMatch = normalized.match(/<\s*([^>]+)\s*>/);
-        if (genericMatch?.[1]) {
-          normalized = genericMatch[1].trim().toLowerCase();
-        }
-
-        if (normalized.includes('::')) {
-          normalized = normalized.split('::')[0];
-        }
-
-        if (normalized.startsWith('0x')) {
-          const compact = normalized.slice(2).replace(/^0+/, '') || '0';
-          normalized = `0x${compact}`;
-        }
-
-        return normalized;
-      };
-
-      const buildAssetAliases = (value) => {
-        const aliases = new Set();
-        const normalized = normalizeAssetIdentifier(value);
-        if (!normalized) return aliases;
-
-        aliases.add(normalized);
-
-        if (normalized === '0x1' || normalized === '0xa') {
-          aliases.add('0x1');
-          aliases.add('0xa');
-        }
-
-        return aliases;
-      };
-
-      const normalizedPool = poolAddress.trim().toLowerCase();
-      if (!movementClient) return null;
-      const resources = await movementClient.getAccountResources({ accountAddress: normalizedPool });
-
-      const poolResource = resources.find((resource) => resource.type.includes('::pool::Pool'));
-      const supplyResource = resources.find((resource) => resource.type === '0x1::fungible_asset::ConcurrentSupply');
-
-      if (!poolResource || !supplyResource?.data?.current?.value) return null;
-
-      const poolAssets = Array.isArray(poolResource.data?.assets_metadata)
-        ? poolResource.data.assets_metadata
-          .map((asset) => {
-            if (typeof asset === 'string') return asset;
-            if (asset?.inner) return asset.inner;
-            if (asset?.value) return asset.value;
-            if (asset?.metadata) return asset.metadata;
-            return null;
-          })
-          .map((asset) => normalizeAssetIdentifier(asset))
-          .filter(Boolean)
-        : [];
-
-      if (!poolAssets.length) return null;
-
-      const poolBalances = await getUserTokenBalances(normalizedPool);
-      const poolAssetAliasSet = new Set(
-        poolAssets.flatMap((asset) => Array.from(buildAssetAliases(asset)))
-      );
-
-      const filteredReserves = poolBalances.filter((item) => {
-        const itemAssetType = item?.asset_type;
-        const aliases = buildAssetAliases(itemAssetType);
-        if (!aliases.size) return false;
-
-        for (const alias of aliases) {
-          if (poolAssetAliasSet.has(alias)) {
-            return true;
-          }
-        }
-
-        return false;
-      });
-
-      const fallbackReserves = poolBalances
-        .filter((item) => Number(item?.amount || 0) > 0)
-        .filter((item) => !/MER-LP|LP TOKEN|LPCOIN/i.test(String(item?.metadata?.symbol || '')))
-        .sort((a, b) => Number(b?.amount || 0) - Number(a?.amount || 0));
-
-      const candidateReserves = filteredReserves.length >= 2
-        ? filteredReserves
-        : fallbackReserves.slice(0, 2);
-
-      if (!candidateReserves.length) return null;
-
-      const reserveByAsset = new Map();
-      candidateReserves.forEach((item) => {
-        const key = normalizeAssetIdentifier(item?.asset_type) || String(item?.asset_type || '').toLowerCase();
-        const amount = Number(item?.amount || 0);
-        const existing = reserveByAsset.get(key);
-        if (!existing || amount > Number(existing?.amount || 0)) {
-          reserveByAsset.set(key, item);
-        }
-      });
-
-      const reserves = Array.from(reserveByAsset.values());
-
-      const tokens = reserves.map((item) => {
-        const decimals = Number(item?.metadata?.decimals ?? 8);
-        const rawAmount = Number(item?.amount || 0);
-        const amount = rawAmount / Math.pow(10, decimals);
-
-        return {
-          assetType: String(item?.asset_type || '').toLowerCase(),
-          symbol: item?.metadata?.symbol || 'Token',
-          decimals,
-          rawAmount,
-          amount,
-        };
-      });
-
-      const totalSupplyRaw = Number(supplyResource.data.current.value || 0);
-      if (!totalSupplyRaw || totalSupplyRaw <= 0) return null;
-
-      return {
-        poolId: normalizedPool,
-        totalSupplyRaw,
-        tokens,
-      };
-    } catch {
-      return null;
-    }
-  }, [movementClient]);
-
-  const getCachedMeridianPoolInfo = useCallback(async (poolAddress) => {
-    if (!poolAddress || typeof poolAddress !== 'string') return null;
-
-    const normalizedPoolAddress = poolAddress.trim().toLowerCase();
-    const now = Date.now();
-    const cacheEntry = meridianPoolInfoCacheRef.current.get(normalizedPoolAddress);
-
-    if (cacheEntry?.value && (now - cacheEntry.cachedAt) < LP_DISCOVERY_CACHE_TTL_MS) {
-      return cacheEntry.value;
-    }
-
-    if (cacheEntry?.promise) {
-      return cacheEntry.promise;
-    }
-
-    const promise = fetchMeridianPoolInfo(normalizedPoolAddress)
-      .then((value) => {
-        meridianPoolInfoCacheRef.current.set(normalizedPoolAddress, {
-          value,
-          cachedAt: Date.now(),
-        });
-        return value;
-      })
-      .catch((error) => {
-        meridianPoolInfoCacheRef.current.delete(normalizedPoolAddress);
-        throw error;
-      });
-
-    meridianPoolInfoCacheRef.current.set(normalizedPoolAddress, {
-      promise,
-      cachedAt: now,
-    });
-
-    return promise;
-  }, [fetchMeridianPoolInfo]);
-
-  const getCachedYuzuDiscovery = useCallback(async (address) => {
-    if (!address || typeof address !== 'string') {
-      return {
-        nftHoldings: [],
-        yuzuEvents: [],
-      };
-    }
-
-    const normalizedAddress = address.trim().toLowerCase();
-    const now = Date.now();
-    const cacheEntry = yuzuDiscoveryCacheRef.current.get(normalizedAddress);
-
-    if (cacheEntry?.value && (now - cacheEntry.cachedAt) < LP_DISCOVERY_CACHE_TTL_MS) {
-      return cacheEntry.value;
-    }
-
-    if (cacheEntry?.promise) {
-      return cacheEntry.promise;
-    }
-
-    const promise = Promise.all([
-      getUserNFTHoldings(normalizedAddress),
-      getYuzuLiquidityPositions(normalizedAddress),
-    ]).then(([nftHoldings, yuzuEvents]) => {
-      const value = { nftHoldings, yuzuEvents };
-      yuzuDiscoveryCacheRef.current.set(normalizedAddress, {
-        value,
-        cachedAt: Date.now(),
-      });
-      return value;
-    }).catch((error) => {
-      yuzuDiscoveryCacheRef.current.delete(normalizedAddress);
-      throw error;
-    });
-
-    yuzuDiscoveryCacheRef.current.set(normalizedAddress, {
-      promise,
-      cachedAt: now,
-    });
-
-    return promise;
-  }, []);
-  const fetchAssets = useCallback(async (address) => {
-    if (!address) {
-      setBalances([]);
-      setTotalUsdValue(0);
-      return;
-    }
-
-    setAssetsLoading(true);
-    setError(null);
-
-    try {
-      let normalizedAddress;
-      if (typeof address === "string") {
-        normalizedAddress = address.trim();
-      } else if (address && typeof address === "object") {
-        if (address.toString) {
-          normalizedAddress = address.toString();
-        } else if (address.hex) {
-          normalizedAddress = address.hex();
-        } else if (address.data && typeof address.data === "object") {
-          const hex = Array.from(address.data)
-            .map((b: any) => b.toString(16).padStart(2, "0"))
-            .join("");
-          normalizedAddress = `0x${hex}`;
-        } else {
-          normalizedAddress = String(address);
-        }
-        normalizedAddress = normalizedAddress.trim();
-      } else {
-        normalizedAddress = String(address).trim();
-      }
-
-      devLog("Fetching assets for address:", normalizedAddress);
-      devLog("Original address type:", typeof address, address);
-      devLog("Using RPC endpoint:", currentNetwork.rpc);
-      if (!movementClient) {
-        return;
-      }
-      const resources = await movementClient.getAccountResources({
-        accountAddress: normalizedAddress
-      });
-
-      devLog("=== BALANCE DEBUG ===");
-      devLog("Normalized address:", normalizedAddress);
-      devLog("RPC endpoint:", currentNetwork.rpc);
-      devLog("RPC Resources fetched:", resources.length);
-      devLog("All resource types:", resources.map(r => r.type).join("\n"));
-      devLog("=== END DEBUG ===");
-      const coinResources = resources.filter((r) =>
-        r.type.includes("CoinStore") && r.type.includes("<")
-      );
-
-      devLog("Coin resources found:", coinResources.length);
-      if (coinResources.length === 0) {
-        console.warn("ERROR NO COINSTORES FOUND!");
-        console.warn("All resource types returned from RPC:");
-        resources.forEach((r, idx) => {
-          devLog(`  ${idx + 1}. ${r.type}`);
-        });
-        console.warn("This means either:");
-        console.warn("  1. The RPC endpoint isn't returning coin resources");
-        console.warn("  2. The wallet address is incorrect");
-        console.warn("  3. The wallet has no tokens on this network");
-        console.warn("  4. The wallet was just created and not indexed yet");
-        const potentialTokenResources = resources.filter(r =>
-          r.type.includes("CoinStore") ||
-          r.type.includes("coin") ||
-          r.type.includes("Coin") ||
-          r.type.includes("token") ||
-          r.type.includes("Token")
-        );
-
-        if (potentialTokenResources.length > 0) {
-          devLog("Found potential token-related resources:", potentialTokenResources.map(r => ({
-            type: r.type,
-            hasData: !!r.data,
-            dataKeys: r.data ? Object.keys(r.data) : []
-          })));
-          const coinStoreResources = potentialTokenResources.filter(r => r.type.includes("CoinStore"));
-          if (coinStoreResources.length > 0) {
-            devLog("Warning: Found CoinStore resources that should be processed:", coinStoreResources.map(r => ({
-              type: r.type,
-              data: r.data
-            })));
-          }
-        }
-      }
-      if (coinResources.length > 0) {
-        devLog("Sample coin resource:", {
-          type: coinResources[0].type,
-          data: coinResources[0].data,
-          dataKeys: coinResources[0].data ? Object.keys(coinResources[0].data) : []
-        });
-      }
-
-      let processed = coinResources
-        .map((coin) => {
-          try {
-            const tokenMeta = parseCoinType(coin.type);
-            if (!tokenMeta) {
-              console.warn("Could not parse coin type:", coin.type);
-              return null;
-            }
-
-            const decimals = getTokenDecimals(coin.type, tokenMeta);
-            let coinValue = extractRawCoinValue(coin.data) || "0";
-
-            if ((!coinValue || coinValue === "0") && coin.data) {
-              console.warn("Coin data structure:", {
-                type: coin.type,
-                data: coin.data,
-                dataKeys: Object.keys(coin.data || {}),
-                coinKeys: coin.data?.coin ? Object.keys(coin.data.coin) : null
-              });
-            }
-            if (!coinValue || coinValue === "0" || coinValue === "undefined" || coinValue === "null") {
-              console.warn("Could not extract coin value for:", coin.type);
-              console.warn("Full coin data:", JSON.stringify(coin.data, null, 2));
-              return null;
-            }
-
-            devLog(`Processing ${tokenMeta.symbol}: raw=${coinValue}, decimals=${decimals}`);
-
-            const numericValue = BigInt(coinValue);
-            const divisor = BigInt(10) ** BigInt(decimals);
-            const quantity = Number(numericValue) / Number(divisor);
-
-            if (quantity <= 0) {
-              return null;
-            }
-            let price = 0;
-            if (priceMap[tokenMeta.address]) {
-              price = priceMap[tokenMeta.address];
-            }
-            else if (tokenMeta.symbol === "USDT" || tokenMeta.symbol === "USDC") {
-              price = 1.0;
-            }
-            else {
-              price = priceMap[tokenMeta.fullType] ?? 0;
-            }
-
-            const usdValue = quantity * price;
-            const isHighValueToken = ['BTC', 'WBTC', 'ETH', 'WETH'].includes(tokenMeta.symbol);
-            let formattedAmount;
-            if (isHighValueToken && quantity < 0.01) {
-              formattedAmount = quantity.toLocaleString(undefined, {
-                minimumFractionDigits: 4,
-                maximumFractionDigits: 8,
-              });
-            } else if (isHighValueToken && quantity < 1) {
-              formattedAmount = quantity.toLocaleString(undefined, {
-                minimumFractionDigits: 4,
-                maximumFractionDigits: 6,
-              });
-            } else {
-              formattedAmount = quantity.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 4,
-              });
-            }
-            let formattedUsdValue;
-            if (usdValue > 0 && usdValue < 0.01) {
-              formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
-                minimumFractionDigits: 4,
-                maximumFractionDigits: 6,
-              })}`;
-            } else if (usdValue > 0 && usdValue < 1) {
-              formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 4,
-              })}`;
-            } else {
-              formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}`;
-            }
-
-            return {
-              id: coin.type,
-              fullType: tokenMeta.fullType,
-              address: tokenMeta.address,
-              name: tokenMeta.name,
-              symbol: tokenMeta.symbol,
-              amount: formattedAmount,
-              price,
-              usdValue,
-              formattedValue: formattedUsdValue,
-              numericAmount: quantity,
-              isKnown: tokenMeta.isKnown || false,
-            };
-          } catch (e) {
-            console.error("Error processing coin:", coin.type, e);
-            return null;
-          }
-        })
-        .filter(Boolean);
-      processed = processed.filter((t) => t && t.isKnown);
-
-      devLog("Processed verified tokens:", processed.length);
-      processed.sort((a, b) => b.usdValue - a.usdValue);
-      const totalUsd = processed.reduce((sum, token) => sum + token.usdValue, 0);
-
-      devLog("Total USD value (verified):", totalUsd);
-
-      setBalances(processed);
-      setTotalUsdValue(totalUsd);
-    } catch (fetchError) {
-      console.error("Fetch Error Details:", {
-        message: fetchError.message,
-        stack: fetchError.stack,
-        name: fetchError.name,
-        address: address,
-        rpc: currentNetwork.rpc
-      });
-      let errorMessage = "Failed to fetch assets.";
-      if (fetchError.message?.includes("network") || fetchError.message?.includes("fetch")) {
-        errorMessage = "Network error. Please check your connection and try again.";
-      } else if (fetchError.message?.includes("404") || fetchError.message?.includes("not found")) {
-        errorMessage = "Address not found or has no resources.";
-      } else {
-        errorMessage = `Error: ${fetchError.message || "Unknown error"}`;
-      }
-
-      setError(errorMessage);
-      setBalances([]);
-    } finally {
-      setAssetsLoading(false);
-    }
-  }, [movementClient, priceMap, currentNetwork, extractRawCoinValue]);
   const getAddressString = (accountObj) => {
     if (!accountObj || !accountObj.address) return null;
 
@@ -1673,25 +384,17 @@ const Dashboard = () => {
   useEffect(() => {
     if (account && connected) {
       const addressString = getAddressString(account);
-      devLog("=== WALLET CONNECTED ===");
-      devLog("Extracted address string:", addressString);
-      devLog("========================");
-
       if (addressString) {
         if (!urlAddress || urlAddress.toLowerCase() === addressString.toLowerCase()) {
           setViewingAddress(addressString);
           navigate(`/profile/${addressString}`, { replace: true });
-          devLog("Address set, indexer will fetch balances");
         }
       } else {
-        console.error("Could not extract address from account object:", account);
-        setError("Could not extract wallet address. Please try reconnecting.");
+        console.error("Could not extract wallet address. Please try reconnecting.");
       }
     } else if (!connected) {
       if (!urlAddress) {
         setViewingAddress(null);
-        setBalances([]);
-        setTotalUsdValue(0);
         navigate('/', { replace: true });
       }
     }
@@ -1702,510 +405,6 @@ const Dashboard = () => {
     }
   }, [viewingAddress, account]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const detectLPPositions = async () => {
-      setLpLoading(true);
-      try {
-        const lpPositions = [];
-        if (indexerBalances && indexerBalances.length > 0) {
-          const LP_PATTERNS = [
-            { pattern: /cvMOVE|cvUSDC|cvUSDT|cvWBTC|cvWETH/i, protocol: 'canopy', underlying: 'MOVE' },
-            { pattern: /stMOVE|StakedMove/i, protocol: 'canopy', underlying: 'MOVE' },
-            { pattern: /MER-LP|Meridian LP/i, protocol: 'meridian', underlying: 'MERIDIAN_LP' },
-            { pattern: /YuzuLP|Yuzu-LP/i, protocol: 'yuzu', underlying: 'LP' },
-          ];
-          let meridianCompositions = [];
-          if (positions && positions.length > 0) {
-            devLog('Meridian positions from hook:', positions.map(p => ({ id: p.id, protocolName: p.protocolName, type: p.type, liquidityX: p.liquidityX })));
-            meridianCompositions = positions.filter(pos =>
-              pos.protocolName === 'Meridian' &&
-              (pos.liquidityX !== undefined || pos.liquidityY !== undefined || pos.liquidityTokens !== undefined || pos.stakedAmount !== undefined)
-            );
-            devLog('Meridian positions with composition:', meridianCompositions.length,
-              meridianCompositions.map(p => ({ liquidityX: p.liquidityX, liquidityY: p.liquidityY, liquidityTokens: p.liquidityTokens, tokenX: p.tokenX, tokenY: p.tokenY })));
-          }
-          let meridianLPIndex = 0;
-
-          const normalizeMeridianSymbol = (value) => {
-            const symbol = String(value || '').trim().toUpperCase();
-            if (!symbol) return '';
-            if (symbol.includes('USDC')) return 'USDC';
-            if (symbol.includes('USDT')) return 'USDT';
-            if (symbol.includes('WBTC') || symbol === 'BTC') return 'WBTC';
-            if (symbol.includes('WETH') || symbol === 'ETH') return 'WETH';
-            if (symbol.includes('MOVE') && symbol.includes('DROP')) return 'MOVE_DROPS';
-            if (symbol.includes('MOVE')) return 'MOVE';
-            return symbol.replace(/[^A-Z0-9]/g, '');
-          };
-
-          const isMeridianPoolMatch = (tokenX, tokenY, poolTokens) => {
-            if (!Array.isArray(poolTokens) || poolTokens.length === 0) return false;
-
-            const expectedTokens = [tokenX, tokenY]
-              .map((token) => normalizeMeridianSymbol(token))
-              .filter(Boolean);
-
-            if (expectedTokens.length === 0) return true;
-
-            const poolTokenSet = new Set(
-              poolTokens
-                .map((token) => normalizeMeridianSymbol(token?.symbol))
-                .filter(Boolean)
-            );
-
-            if (!poolTokenSet.size) return false;
-
-            const matched = expectedTokens.filter((token) => poolTokenSet.has(token)).length;
-            return matched >= Math.min(2, expectedTokens.length);
-          };
-          const meridianPoolInfoByAddress = {};
-          const meridianPoolAddresses = Array.from(
-            new Set(
-              indexerBalances
-                .filter((balance) => {
-                  const symbol = balance.symbol || '';
-                  const name = balance.name || '';
-                  return /MER-LP|Meridian LP/i.test(symbol) || /MER-LP|Meridian LP/i.test(name);
-                })
-                .map((balance) => String(balance.address || balance.type || '').toLowerCase())
-                .filter(Boolean)
-            )
-          );
-
-          await Promise.all(
-            meridianPoolAddresses.map(async (poolAddress) => {
-              meridianPoolInfoByAddress[poolAddress] = await getCachedMeridianPoolInfo(poolAddress);
-            })
-          );
-
-          indexerBalances.forEach(balance => {
-            const symbol = balance.symbol || '';
-            const name = balance.name || '';
-
-            for (const { pattern, protocol, underlying } of LP_PATTERNS) {
-              if (pattern.test(symbol) || pattern.test(name)) {
-                let underlyingAsset = underlying;
-                if (symbol.includes('USDC')) underlyingAsset = 'USDC.e';
-                else if (symbol.includes('USDT')) underlyingAsset = 'USDT.e';
-                else if (symbol.includes('WBTC') || symbol.includes('BTC')) underlyingAsset = 'WBTC.e';
-                else if (symbol.includes('WETH') || symbol.includes('ETH')) underlyingAsset = 'WETH.e';
-                else if (symbol.includes('MOVE') || symbol === 'lMOVE') underlyingAsset = 'MOVE';
-                let usdValue = 0;
-                const amount = balance.numericAmount || 0;
-
-                if (priceMap && underlyingAsset !== 'MERIDIAN_LP') {
-                  if (underlyingAsset === 'MOVE' || symbol.includes('MOVE') || symbol.includes('stMOVE')) {
-                    const movePrice = priceMap['0xa'] || priceMap['0x1'] || 0;
-                    usdValue = amount * movePrice;
-                  } else if (underlyingAsset === 'USDC.e' || underlyingAsset === 'USDT.e') {
-                    usdValue = amount;
-                  } else if (underlyingAsset === 'WBTC.e') {
-                    const btcPrice = (Object.entries(priceMap).find(([addr]) =>
-                      addr.toLowerCase().includes('wbtc') || addr.toLowerCase().includes('btc')
-                    )?.[1] || 95000) as number;
-                    usdValue = amount * btcPrice;
-                  } else if (underlyingAsset === 'WETH.e') {
-                    const ethPrice = (Object.entries(priceMap).find(([addr]) =>
-                      addr.toLowerCase().includes('weth') || addr.toLowerCase().includes('eth')
-                    )?.[1] || 3500) as number;
-                    usdValue = amount * ethPrice;
-                  }
-                }
-                let meridianComposition: any = {};
-                if (protocol === 'meridian' && meridianCompositions.length > 0) {
-                  const compositionIndex = meridianLPIndex < meridianCompositions.length ? meridianLPIndex : 0;
-                  meridianComposition = {
-                    liquidityX: meridianCompositions[compositionIndex].liquidityX,
-                    liquidityY: meridianCompositions[compositionIndex].liquidityY,
-                    liquidityTokens: meridianCompositions[compositionIndex].liquidityTokens,
-                    stakedAmount: meridianCompositions[compositionIndex].stakedAmount,
-                    tokenX: meridianCompositions[compositionIndex].tokenX,
-                    tokenY: meridianCompositions[compositionIndex].tokenY,
-                    poolId: meridianCompositions[compositionIndex].poolId
-                  };
-
-                  if (!meridianComposition.liquidityTokens || meridianComposition.liquidityTokens <= 0) {
-                    meridianComposition.liquidityTokens = Math.round(amount * 1_000_000);
-                  }
-                  devLog('Adding Meridian LP #' + meridianLPIndex + ' with composition:', meridianComposition);
-                  meridianLPIndex++;
-                } else if (protocol === 'meridian') {
-                  meridianComposition = {
-                    liquidityTokens: Math.round(amount * 1_000_000),
-                  };
-                }
-
-                if (protocol === 'meridian') {
-                  const poolAddress = String(balance.address || balance.type || '').toLowerCase();
-                  const poolInfo = meridianPoolInfoByAddress[poolAddress];
-                  const userLpRaw = Number(balance.rawAmount || 0);
-
-                  if (poolInfo && poolInfo.totalSupplyRaw > 0 && userLpRaw > 0) {
-                    const userShare = userLpRaw / poolInfo.totalSupplyRaw;
-                    const poolTokens = poolInfo.tokens
-                      .map((token) => ({
-                        ...token,
-                        userAmount: token.amount * userShare,
-                      }))
-                      .filter((token) => token.userAmount > 0);
-
-                    if (poolTokens.length > 0) {
-                      const poolMatchesPosition = isMeridianPoolMatch(
-                        meridianComposition.tokenX,
-                        meridianComposition.tokenY,
-                        poolTokens
-                      );
-
-                      if (poolMatchesPosition || (!meridianComposition.tokenX && !meridianComposition.tokenY)) {
-                        meridianComposition.poolId = poolInfo.poolId;
-                        meridianComposition.poolTokens = poolTokens.map((token) => ({
-                          symbol: token.symbol,
-                          amount: token.userAmount,
-                          decimals: token.decimals,
-                          address: token.assetType,
-                        }));
-
-                        if (!meridianComposition.tokenX && poolTokens[0]) {
-                          meridianComposition.tokenX = poolTokens[0].symbol;
-                        }
-                        if (!meridianComposition.tokenY && poolTokens[1]) {
-                          meridianComposition.tokenY = poolTokens[1].symbol;
-                        }
-
-                        if (priceMap) {
-                          const stableSymbols = ['USDT', 'USDT.E', 'USDC', 'USDC.E', 'USDCX', 'USDA', 'USDE'];
-                          const meridianUsdValue = poolTokens.reduce((sum, token) => {
-                            const tokenAddress = String(token.assetType || '').toLowerCase();
-                            const tokenSymbol = String(token.symbol || '').toUpperCase();
-
-                            let tokenPrice = 0;
-                            if (tokenAddress && priceMap[tokenAddress] !== undefined) {
-                              tokenPrice = Number(priceMap[tokenAddress]) || 0;
-                            } else if (stableSymbols.includes(tokenSymbol)) {
-                              tokenPrice = 1;
-                            }
-
-                            return sum + (token.userAmount * tokenPrice);
-                          }, 0);
-
-                          if (meridianUsdValue > 0) {
-                            usdValue = meridianUsdValue;
-                          }
-                        }
-                      } else {
-                        console.warn('Warning: Meridian pool token mismatch, skipping pool override', {
-                          expected: [meridianComposition.tokenX, meridianComposition.tokenY],
-                          actual: poolTokens.map((token) => token.symbol),
-                          poolId: poolInfo.poolId,
-                        });
-                      }
-                    }
-                  }
-                }
-
-                lpPositions.push({
-                  id: `lp-${balance.type || balance.address}`,
-                  protocol,
-                  protocolName: protocol.charAt(0).toUpperCase() + protocol.slice(1),
-                  symbol: symbol,
-                  name: name || symbol,
-                  amount,
-                  decimals: balance.decimals || 8,
-                  address: balance.type || balance.address,
-                  underlying: underlyingAsset,
-                  usdValue,
-                  liquidityValue: usdValue,
-                  isMeridianLP: underlyingAsset === 'MERIDIAN_LP',
-                  ...meridianComposition
-                });
-                break;
-              }
-            }
-          });
-        }
-        if (viewingAddress) {
-          try {
-            const { nftHoldings, yuzuEvents } = await getCachedYuzuDiscovery(viewingAddress);
-            const yuzuLiquidityMap = {};
-            for (const event of yuzuEvents) {
-              try {
-                const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-                if (data && data.position_id) {
-                  const posId = String(data.position_id);
-                  if (!yuzuLiquidityMap[posId] || event.transaction_version > yuzuLiquidityMap[posId].version) {
-                    yuzuLiquidityMap[posId] = {
-                      version: event.transaction_version,
-                      liquidity: data.liquidity_delta || data.liquidity || 0,
-                      amount0: data.amount_0 || data.token_0_amount || 0,
-                      amount1: data.amount_1 || data.token_1_amount || 0,
-                      pool: data.pool_address || data.pool || '',
-                    };
-                  }
-                }
-              } catch {
-                // Ignore malformed Yuzu event payloads
-              }
-            }
-            const YUZU_NFT_MANAGER = '0x1d0434ae92598710f5ccbfbf51cf66cf2fe8ba8e77381bed92f45bb32d237bc2';
-
-            for (const nft of nftHoldings) {
-              const collectionName = nft.current_token_data?.current_collection?.collection_name || '';
-              const creatorAddress = nft.current_token_data?.current_collection?.creator_address || '';
-              const tokenName = nft.current_token_data?.token_name || '';
-              const isYuzuPosition =
-                collectionName.toLowerCase().includes('yuzu') ||
-                collectionName.toLowerCase().includes('liquidity position') ||
-                creatorAddress.toLowerCase() === YUZU_NFT_MANAGER;
-
-              if (isYuzuPosition) {
-                // Yuzu position IDs are numeric, extracted from token name (e.g., "9410" or "YUZ-LP #9410")
-                const positionId = tokenName.replace(/[^0-9]/g, '');
-
-                // Try to find pool address from events if not the creator address
-                const eventData = yuzuLiquidityMap[positionId];
-                const poolAddress = eventData?.pool || creatorAddress;
-
-                let poolPair = 'LP Position';
-                const collectionMatch = collectionName.match(/\|\s*([A-Za-z0-9.]+\/[A-Za-z0-9.]+)\s*\|/i);
-                if (collectionMatch) {
-                  poolPair = collectionMatch[1].replace('/', ' / ');
-                }
-
-                let liquidityValue = 0;
-                let token0Amount = 0;
-                let token1Amount = 0;
-
-                const tokens = poolPair.split('/').map(t => t.trim().replace(/\.e$/, '').toUpperCase());
-                const getTokenDecimals = (symbol) => {
-                  if (['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(symbol)) return 6;
-                  return 8;
-                };
-
-                const decimals0 = tokens[0] ? getTokenDecimals(tokens[0]) : 8;
-                const decimals1 = tokens[1] ? getTokenDecimals(tokens[1]) : 8;
-
-                // Initial fallback from event data
-                if (eventData) {
-                  token0Amount = Number(eventData.amount0 || 0) / Math.pow(10, decimals0);
-                  token1Amount = Number(eventData.amount1 || 0) / Math.pow(10, decimals1);
-                }
-
-                const getMovePrice = () => {
-                  if (!priceMap) return 0.5;
-                  return priceMap['0xa'] || priceMap['0x1'] || 0.5;
-                };
-
-                if (poolAddress && positionId) {
-                  try {
-                    // Try to get fresh amounts via view function
-                    const viewPayload = {
-                      function: '0x46566b4a16a1261ab400ab5b9067de84ba152b5eb4016b217187f2a2ca980c5a::position_nft_manager::get_position_token_amounts',
-                      typeArguments: [],
-                      functionArguments: [poolAddress, positionId]
-                    };
-
-                    let result;
-                    if (movementClient) {
-                      result = await movementClient.view({ payload: viewPayload });
-                    } else {
-                      const response = await fetch(`${DEFAULT_NETWORK.rpc}/view`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          function: viewPayload.function,
-                          type_arguments: viewPayload.typeArguments,
-                          arguments: viewPayload.functionArguments
-                        })
-                      });
-                      if (response.ok) result = await response.json();
-                    }
-
-                    if (Array.isArray(result) && result.length >= 2) {
-                      const freshAmount0 = Number(result[0]) / Math.pow(10, decimals0);
-                      const freshAmount1 = Number(result[1]) / Math.pow(10, decimals1);
-
-                      // Only update if we got non-zero values (fees might make them larger than event amounts)
-                      if (freshAmount0 > 0 || freshAmount1 > 0) {
-                        token0Amount = freshAmount0;
-                        token1Amount = freshAmount1;
-                      }
-                    }
-                  } catch (err) {
-                    console.warn(`Failed to fetch fresh Yuzu amounts for #${positionId}:`, err);
-                    // Keep fallback values from events
-                  }
-                }
-
-                // Calculate USD value using priceMap
-                const token0Symbol = tokens[0] || '';
-                const token1Symbol = tokens[1] || '';
-                const movePrice = getMovePrice();
-
-                const getPrice = (symbol) => {
-                  if (!priceMap) return 0;
-                  if (symbol === 'MOVE') return movePrice;
-                  if (['USDC', 'USDT', 'USDA', 'USDE'].includes(symbol)) return 1.0;
-
-                  // Try to find in priceMap by symbol
-                  const found = Object.entries(priceMap).find(([addr, price]) => {
-                    const meta = indexerBalances?.find(b => b.address === addr);
-                    return meta?.symbol?.toUpperCase() === symbol;
-                  });
-                  return found ? found[1] : 0;
-                };
-
-                const p0 = getPrice(token0Symbol);
-                const p1 = getPrice(token1Symbol);
-
-                if (p0 > 0 || p1 > 0) {
-                  liquidityValue = (token0Amount * p0) + (token1Amount * p1);
-                } else {
-                  // Basic fallback logic
-                  const isStable0 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token0Symbol);
-                  const isStable1 = ['USDC', 'USDCX', 'USDT', 'USDA', 'USDE', 'DAI'].includes(token1Symbol);
-                  const MEME_TOKENS = ['CAPY', 'MOVECAT', 'GMOVE', 'TUBI', 'GCAT'];
-                  const isMeme0 = MEME_TOKENS.includes(token0Symbol);
-                  const isMeme1 = MEME_TOKENS.includes(token1Symbol);
-
-                  if (isMeme0 || isMeme1) {
-                    liquidityValue = 0;
-                  } else if (isStable0 && isStable1) {
-                    liquidityValue = token0Amount + token1Amount;
-                  } else if (token0Symbol === 'MOVE' && isStable1) {
-                    liquidityValue = (token0Amount * movePrice) + token1Amount;
-                  } else if (token1Symbol === 'MOVE' && isStable0) {
-                    liquidityValue = token0Amount + (token1Amount * movePrice);
-                  }
-                }
-
-                lpPositions.push({
-                  id: `yuzu-nft-${nft.token_data_id}`,
-                  protocol: 'yuzu',
-                  protocolName: 'Yuzu Swap',
-                  symbol: `YUZ-LP #${positionId}`,
-                  name: poolPair,
-                  amount: Number(nft.amount) || 1,
-                  decimals: 0,
-                  address: poolAddress || nft.token_data_id,
-                  underlying: poolPair,
-                  usdValue: liquidityValue,
-                  liquidityValue,
-                  token0Amount,
-                  token1Amount,
-                  isNFT: true,
-                  positionId,
-                  tokenDataId: nft.token_data_id,
-                });
-              }
-            }
-          } catch (error) {
-            console.warn("Failed to fetch Yuzu NFT positions:", error);
-          }
-        }
-
-
-        if (!cancelled) {
-          setLiquidityPositions(lpPositions);
-        }
-      } catch (error) {
-        devLog("Error in detectLPPositions:", error);
-      } finally {
-        if (!cancelled) {
-          setLpLoading(false);
-        }
-      }
-    };
-    detectLPPositions();
-    return () => { cancelled = true; };
-  }, [getCachedMeridianPoolInfo, getCachedYuzuDiscovery, indexerBalances, viewingAddress, priceMap, positions]);
-  useEffect(() => {
-    if (indexerLoading) {
-      if (balances.length === 0) {
-        setAssetsLoading(true);
-      }
-      devLog("Indexer loading...");
-      return; // Early return - don't process yet
-    }
-
-    if (indexerError && viewingAddress && !movementClientLoading && movementClient) {
-      console.warn("Warning: Indexer error, trying RPC fallback:", indexerError);
-      fetchAssets(viewingAddress);
-      return;
-    }
-
-    if (indexerBalances && indexerBalances.length > 0) {
-      devLog("Using indexer balances:", indexerBalances.length, "tokens");
-      const withPrices = indexerBalances.map(balance => {
-        let price = 0;
-        if (priceMap[balance.address]) {
-          price = priceMap[balance.address];
-        }
-        else if (balance.symbol === "MOVE" || balance.symbol === "move") {
-          price = priceMap["0xa"] || priceMap["0x1"] || 0;
-        }
-        else if (balance.symbol === "USDT" || balance.symbol === "USDC") {
-          price = 1.0;
-        }
-        else {
-          price = priceMap[balance.fullType] ?? 0;
-        }
-
-        const usdValue = balance.numericAmount * price;
-        let formattedUsdValue;
-        if (usdValue > 0 && usdValue < 0.01) {
-          formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
-            minimumFractionDigits: 4,
-            maximumFractionDigits: 6,
-          })}`;
-        } else if (usdValue > 0 && usdValue < 1) {
-          formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 4,
-          })}`;
-        } else {
-          formattedUsdValue = `$${usdValue.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}`;
-        }
-        const isHighValueToken = ['BTC', 'WBTC', 'ETH', 'WETH'].includes(balance.symbol);
-        let updatedAmount = balance.amount;
-        if (isHighValueToken && balance.numericAmount < 0.01) {
-          updatedAmount = balance.numericAmount.toLocaleString(undefined, {
-            minimumFractionDigits: 4,
-            maximumFractionDigits: 8,
-          });
-        } else if (isHighValueToken && balance.numericAmount < 1) {
-          updatedAmount = balance.numericAmount.toLocaleString(undefined, {
-            minimumFractionDigits: 4,
-            maximumFractionDigits: 6,
-          });
-        }
-
-        return {
-          ...balance,
-          amount: updatedAmount,
-          price,
-          usdValue,
-          formattedValue: formattedUsdValue,
-        };
-      });
-      const verified = withPrices.filter((t) => t && t.isKnown);
-      verified.sort((a, b) => b.usdValue - a.usdValue);
-      const totalUsd = verified.reduce((sum, t) => sum + (t.usdValue || 0), 0);
-
-      setBalances(verified);
-      setTotalUsdValue(totalUsd);
-      setAssetsLoading(false);
-      setError(null);
-    } else if (indexerBalances && indexerBalances.length === 0 && !indexerLoading && viewingAddress && !movementClientLoading && movementClient) {
-      console.warn("Warning: Indexer returned no balances, trying RPC fallback...");
-      fetchAssets(viewingAddress);
-    } else if (!indexerLoading && !viewingAddress) {
-      setAssetsLoading(false);
-    }
-  }, [indexerBalances, indexerLoading, indexerError, priceMap, viewingAddress, fetchAssets, balances.length, movementClientLoading, movementClient]);
 
 
 
@@ -2274,35 +473,52 @@ const Dashboard = () => {
                   />
                 </div>
                 <div className="hero-profile-socials-grid">
-                  {(entityBranding?.twitter || userProfile?.twitter) ? (
-                    <a
-                      href={entityBranding?.twitter ? entityBranding.twitter : `https://twitter.com/${userProfile.twitter.replace('@', '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hero-social-link"
-                      title={entityBranding?.twitter ? "Twitter" : `Twitter: @${userProfile.twitter.replace('@', '')}`}
-                    >
-                      <span className="hero-social-icon">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.292 19.49h2.039L6.486 3.24H4.298l13.311 17.403z" />
-                        </svg>
-                      </span>
-                    </a>
-                  ) : null}
-                  {(entityBranding?.website || userProfile?.telegram) ? (
-                    <a
-                      href={entityBranding?.website ? (entityBranding.website.startsWith('http') ? entityBranding.website : `https://${entityBranding.website}`) : (userProfile.telegram.startsWith('http') ? userProfile.telegram : `https://${userProfile.telegram}`)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hero-social-link"
-                      title={entityBranding?.website ? "Website" : "Link"}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="hero-social-icon">
+                  <a
+                    href={entityBranding?.twitter ? entityBranding.twitter : (userProfile?.twitter ? `https://twitter.com/${userProfile.twitter.replace('@', '')}` : '#')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`hero-social-link ${!(entityBranding?.twitter || userProfile?.twitter) ? 'disabled' : ''} ${canEditProfile && !(entityBranding?.twitter || userProfile?.twitter) ? 'can-add' : ''}`}
+                    title={entityBranding?.twitter ? "Twitter" : (userProfile?.twitter ? `Twitter: @${userProfile.twitter.replace('@', '')}` : (canEditProfile ? "Add Twitter" : "No Twitter added"))}
+                    onClick={(e) => {
+                      if (!(entityBranding?.twitter || userProfile?.twitter)) {
+                        e.preventDefault();
+                        if (canEditProfile) navigate('/profile');
+                      }
+                    }}
+                  >
+                    <span className="hero-social-icon">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.292 19.49h2.039L6.486 3.24H4.298l13.311 17.403z" />
+                      </svg>
+                    </span>
+                    {canEditProfile && !(entityBranding?.twitter || userProfile?.twitter) && (
+                      <span className="add-social-plus">+</span>
+                    )}
+                  </a>
+
+                  <a
+                    href={entityBranding?.website ? (entityBranding.website.startsWith('http') ? entityBranding.website : `https://${entityBranding.website}`) : (userProfile?.telegram ? (userProfile.telegram.startsWith('http') ? userProfile.telegram : `https://${userProfile.telegram}`) : '#')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`hero-social-link ${!(entityBranding?.website || userProfile?.telegram) ? 'disabled' : ''} ${canEditProfile && !(entityBranding?.website || userProfile?.telegram) ? 'can-add' : ''}`}
+                    title={entityBranding?.website ? "Website" : (userProfile?.telegram ? "Telegram" : (canEditProfile ? "Add Website/Telegram" : "No Website/Telegram added"))}
+                    onClick={(e) => {
+                      if (!(entityBranding?.website || userProfile?.telegram)) {
+                        e.preventDefault();
+                        if (canEditProfile) navigate('/profile');
+                      }
+                    }}
+                  >
+                    <span className="hero-social-icon">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
                         <line x1="8" y1="12" x2="16" y2="12"></line>
                       </svg>
-                    </a>
-                  ) : null}
+                    </span>
+                    {canEditProfile && !(entityBranding?.website || userProfile?.telegram) && (
+                      <span className="add-social-plus">+</span>
+                    )}
+                  </a>
                   <button
                     className="hero-social-link"
                     title="Share Profile"
@@ -2320,22 +536,19 @@ const Dashboard = () => {
           )}
 
           <div className="hero-v3-main-content" style={{ position: 'relative' }}>
-            <div className="hero-v3-actions" style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '12px', zIndex: 10 }}>
+            <div className="hero-v3-actions">
               <button
                 className="hero-action-btn"
                 onClick={() => setHideValues(prev => !prev)}
                 title={hideValues ? "Show Values" : "Hide Values"}
-                style={{ background: 'var(--surface-color, #1a1a1a)', border: 'none', color: '#9ca3af', padding: '8px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', width: '36px', height: '36px' }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'var(--surface-hover, #2a2a2a)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.background = 'var(--surface-color, #1a1a1a)' }}
               >
                 {hideValues ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
                     <line x1="1" y1="1" x2="23" y2="23"></line>
                   </svg>
                 ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
                   </svg>
@@ -2346,11 +559,8 @@ const Dashboard = () => {
                 onClick={handleRefresh}
                 disabled={isRefreshing || (Date.now() - lastRefresh < 30000)}
                 title="Refresh Data"
-                style={{ background: 'var(--surface-color, #1a1a1a)', border: 'none', color: '#9ca3af', padding: '8px', borderRadius: '50%', cursor: (isRefreshing || (Date.now() - lastRefresh < 30000)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', width: '36px', height: '36px', opacity: (isRefreshing || (Date.now() - lastRefresh < 30000)) ? 0.5 : 1 }}
-                onMouseEnter={(e) => { if (!isRefreshing && (Date.now() - lastRefresh >= 30000)) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'var(--surface-hover, #2a2a2a)' } }}
-                onMouseLeave={(e) => { if (!isRefreshing && (Date.now() - lastRefresh >= 30000)) { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.background = 'var(--surface-color, #1a1a1a)' } }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={isRefreshing ? { animation: 'spin 1s linear infinite' } : {}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
                 </svg>
               </button>
@@ -2403,14 +613,19 @@ const Dashboard = () => {
                       className="copy-btn"
                       onClick={(e) => {
                         navigator.clipboard.writeText(viewingAddress);
-                        const btn = e.currentTarget;
-                        btn.classList.add('copied');
-                        setTimeout(() => btn.classList.remove('copied'), 1000);
+                        setShowToast(true);
+                        setTimeout(() => setShowToast(false), 2000);
                       }}
                       title="Copy address"
                     >
                       <img src="/copy.png" alt="Copy" className="copy-icon-img" />
                     </button>
+                    {walletAge && formatWalletAge(walletAge) && (
+                      <>
+                        <span className="address-age-separator">|</span>
+                        <span className="address-age-text">{formatWalletAge(walletAge)} {t(language, 'dashDays').toLowerCase()}</span>
+                      </>
+                    )}
                   </div>
                   {userProfile?.bio ? (
                     <div className="hero-v3-bio">
@@ -2443,65 +658,31 @@ const Dashboard = () => {
 
 
 
-            {assetsLoading ? (
 
-              <NetWorthStatsSkeleton />
-
-            ) : !error && (
-
-              <div className="hero-v3-stats">
-
-                <div className="hero-v3-stat">
-
-                  <span className="hero-v3-stat-value">
-
-                    {hideValues ? '*****' : formatCurrencyValue(convertUSD(totalUsdValue))}
-
-                  </span>
-
-                  <span className="hero-v3-stat-label">{t(language, 'dashWalletBalance')}</span>
-
-                </div>
-
-
-
-                <div className="hero-v3-stat">
-
-                  <span className={`hero-v3-stat-value ${(defiNetValue + liquidityTotalValue) >= 0 ? 'positive' : 'negative'}`}>
-
-                    {hideValues ? '*****' : formatCurrencyValue(convertUSD(defiNetValue + liquidityTotalValue))}
-
-                  </span>
-
-                  <span className="hero-v3-stat-label">{t(language, 'dashUtilizedBalance')}</span>
-
-                </div>
-
-                {walletAge && formatWalletAge(walletAge) && (
-
-                  <div className="hero-v3-stat wallet-age">
-
-                    <span className="hero-v3-stat-value age">
-
-                      {formatWalletAge(walletAge)}
-
-                    </span>
-
-                    <span className="hero-v3-stat-label">{t(language, 'dashWalletAge')} ({t(language, 'dashDays')})</span>
-
-                  </div>
-
-                )}
-
-              </div>
-
-            )}
 
           </div>
 
         </div>
         {error && <ErrorMessage message={error} onRetry={handleRefresh} />}
 
+        <AnimatePresence>
+          {showToast && (
+            <motion.div
+              className="copy-toast"
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <div className="toast-content">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>Copied</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
       <section className="portfolio-tabs-row fade-in">
@@ -2522,7 +703,7 @@ const Dashboard = () => {
       </section>
 
       <AnimatePresence mode="wait">
-        <motion.div 
+        <motion.div
           key={activeTab}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -2533,9 +714,41 @@ const Dashboard = () => {
           {activeTab === PORTFOLIO_TABS.OVERVIEW && (
             <>
               <section className="grid-section">
-                <h3 className="section-title">{t(language, 'dashWalletBalance')}</h3>
-                <div className="grid-container">
-                  {assetsLoading && (
+                <div className="section-header-row">
+                  <div className="section-title-group">
+                    <h3 className="section-title">{t(language, 'dashWalletBalance')}</h3>
+                    <div className="section-header-value">
+                      {hideValues ? '*****' : formatCurrencyValue(convertUSD(totalUsdValue))}
+                    </div>
+                  </div>
+                  <div className="view-mode-toggle">
+                    <button
+                      className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                      onClick={() => setViewMode('grid')}
+                      title="Grid View"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                      </svg>
+                    </button>
+                    <button
+                      className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
+                      onClick={() => setViewMode('table')}
+                      title="Table View"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <line x1="3" y1="12" x2="21" y2="12" />
+                        <line x1="3" y1="18" x2="21" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className={viewMode === 'grid' ? "grid-container" : "token-table-container"}>
+                  {indexerLoading && viewMode === 'grid' && (
                     <>
                       <SkeletonCard delay={0} />
                       <SkeletonCard delay={50} />
@@ -2544,30 +757,119 @@ const Dashboard = () => {
                     </>
                   )}
 
-                  {!assetsLoading && !error && balances.length === 0 && !viewingAddress && (
-                    <div className="empty-state">{t(language, 'dashConnectPortfolio')}</div>
+                  {indexerLoading && viewMode === 'table' && (
+                    <div className="table-skeleton">{t(language, 'dashLoadingTokens') || 'Loading tokens...'}</div>
                   )}
 
-                  {!assetsLoading && !error && balances.length === 0 && viewingAddress && (
-                    <div className="empty-state">{t(language, 'dashNoTokens')}</div>
+                  {!indexerLoading && !error && balances.length === 0 && (
+                    <div className="empty-state">
+                      {viewingAddress ? t(language, 'dashNoTokens') : t(language, 'dashConnectPortfolio')}
+                    </div>
                   )}
 
-                  {!assetsLoading && balances.map((token, index) => (
-                    <TokenCard
-                      key={token.id}
-                      token={token}
-                      delay={index * ANIMATION_DELAYS.TOKEN_CARD}
-                      convertUSD={convertUSD}
-                      formatCurrencyValue={formatCurrencyValue}
-                      language={language}
-                      hideValues={hideValues}
-                    />
-                  ))}
+                  {!indexerLoading && balances.length > 0 && (
+                    viewMode === 'grid' ? (
+                      balances.map((token, index) => (
+                        <TokenCard
+                          key={token.id}
+                          token={token}
+                          delay={index * ANIMATION_DELAYS.TOKEN_CARD}
+                          convertUSD={convertUSD}
+                          formatCurrencyValue={formatCurrencyValue}
+                          language={language}
+                          hideValues={hideValues}
+                        />
+                      ))
+                    ) : (
+                      <div className="token-table-scroll">
+                        <table className="token-table">
+                          <thead>
+                            <tr>
+                              <th className="text-left">Token</th>
+                              <th className="text-right">Price</th>
+                              <th className="text-right">Amount</th>
+                              <th className="text-right">Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {balances.map((token) => {
+                              const baseSymbol = String(token.symbol || '').toUpperCase().replace(/\.E$/i, '').replace(/^CV/, '').replace(/^L/, '');
+                              const visual = TOKEN_VISUALS[baseSymbol] || TOKEN_VISUALS[token.symbol?.toUpperCase()] || null;
+                              
+                              return (
+                                <tr key={token.id}>
+                                  <td className="text-left">
+                                    <div className="token-cell">
+                                      <div className="token-table-logo">
+                                        <img 
+                                          src={visual?.logo || '/movement-logo.svg'} 
+                                          alt={token.symbol} 
+                                          onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }}
+                                        />
+                                      </div>
+                                      <div className="token-cell-info">
+                                        <span className="token-table-symbol">{token.symbol}</span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="text-right">
+                                    <span className="token-table-price">
+                                      {hideValues ? '*****' : formatCurrencyValue(convertUSD(token.price || 0))}
+                                    </span>
+                                  </td>
+                                  <td className="text-right">
+                                    <span className="token-table-amount">
+                                      {hideValues ? '*****' : token.numericAmount.toLocaleString(undefined, { 
+                                        minimumFractionDigits: 2, 
+                                        maximumFractionDigits: token.numericAmount < 0.01 ? 8 : 4 
+                                      })}
+                                    </span>
+                                  </td>
+                                  <td className="text-right">
+                                    <span className="token-table-value highlight">
+                                      {hideValues ? '*****' : formatCurrencyValue(convertUSD(token.usdValue || 0))}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  )}
                 </div>
               </section>
 
               <section className="grid-section">
-                <h3 className="section-title">{t(language, 'dashDefiPositions')}</h3>
+                <div className="section-header-row">
+                  <div className="section-title-group">
+                    <h3 className="section-title">{t(language, 'dashDefiPositions')}</h3>
+                    <div className="section-header-value">
+                      {hideValues ? '*****' : (defiNetValue >= 0 ? '+' : '') + formatCurrencyValue(convertUSD(defiNetValue))}
+                    </div>
+                  </div>
+                  <button
+                    className="global-toggle-btn"
+                    onClick={() => setAllDeFiExpanded(!allDeFiExpanded)}
+                  >
+                    {allDeFiExpanded ? (
+                      <>
+                        <span>Minimize</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                        </svg>
+                      </>
+                    ) : (
+                      <>
+                        <span>Expand</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="grid-container">
                   {(defiLoading || assetsLoading) && visibleDeFiPositions.length === 0 && (
                     <>
@@ -2617,6 +919,7 @@ const Dashboard = () => {
                         currencySymbol={currencySymbol}
                         language={language}
                         hideValues={hideValues}
+                        isExpanded={allDeFiExpanded}
                       />
                     ));
                   })()}
@@ -2624,9 +927,16 @@ const Dashboard = () => {
               </section>
 
               <section className="grid-section">
-                <h3 className="section-title">
-                  {t(language, 'dashLiquidityPositions')}
-                </h3>
+                <div className="section-header-row">
+                  <div className="section-title-group">
+                    <h3 className="section-title">
+                      {t(language, 'dashLiquidityPositions')}
+                    </h3>
+                    <div className="section-header-value">
+                      {hideValues ? '*****' : formatCurrencyValue(convertUSD(liquidityTotalValue))}
+                    </div>
+                  </div>
+                </div>
                 <div className="grid-container lp-grid">
                   {(lpLoading || indexerLoading) && visibleLiquidityPositions.length === 0 && (
                     <>
@@ -2665,7 +975,6 @@ const Dashboard = () => {
 
           {activeTab === PORTFOLIO_TABS.TRX && (
             <section className="grid-section">
-              <h3 className="section-title">{t(language, 'portfolioTransactionHistory')}</h3>
               <Suspense fallback={<RouteFallback />}>
                 <TrxHistory walletAddress={viewingAddress} />
               </Suspense>

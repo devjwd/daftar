@@ -57,7 +57,29 @@ export interface IndexerBalance {
   metadata: any;
   isNative: boolean;
   type: string;
+  type: string;
 }
+
+const CACHE_PREFIX = "indexer_balances_";
+
+const loadCachedBalances = (address: string | null): IndexerBalance[] => {
+  if (!address || typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(`${CACHE_PREFIX}${address.toLowerCase()}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const persistBalances = (address: string | null, balances: IndexerBalance[]) => {
+  if (!address || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(`${CACHE_PREFIX}${address.toLowerCase()}`, JSON.stringify(balances));
+  } catch (e) {
+    // ignore
+  }
+};
 
 interface UseIndexerBalancesResult {
   balances: IndexerBalance[];
@@ -67,7 +89,7 @@ interface UseIndexerBalancesResult {
 }
 
 export const useIndexerBalances = (address: string | null): UseIndexerBalancesResult => {
-  const [balances, setBalances] = useState<IndexerBalance[]>([]);
+  const [balances, setBalances] = useState<IndexerBalance[]>(() => loadCachedBalances(address));
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -175,6 +197,7 @@ export const useIndexerBalances = (address: string | null): UseIndexerBalancesRe
         .sort((a, b) => b.numericAmount - a.numericAmount);
 
       setBalances(processed);
+      persistBalances(address, processed);
     } catch (err: any) {
       setError(err.message || "Failed to fetch balances from indexer");
       setBalances([]);

@@ -19,6 +19,7 @@ import { handleError } from './src/utils/errors.ts';
 import CONFIG from './src/config/index.ts';
 import { generalLimiter } from './src/middleware/rateLimit.ts';
 import { normalizeAddress } from './src/utils/address.ts';
+import { startPricePitcher } from './src/services/priceService.ts';
 
 dotenv.config();
 
@@ -53,6 +54,9 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
     });
     console.log('[Server] Supabase admin initialized');
     app.set('supabaseAdmin', supabaseAdmin);
+
+    // Start background price pitcher
+    startPricePitcher(supabaseAdmin);
   } catch (err: any) {
     console.error('[Server] Failed to initialize Supabase:', err.message);
   }

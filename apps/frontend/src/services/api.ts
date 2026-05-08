@@ -114,10 +114,10 @@ export const getLeaderboard = async (limit: number = 100): Promise<LeaderboardEn
 };
 
 export const searchProfiles = async (query: string, limit: number = 10): Promise<Profile[]> => {
-  const response = await callApi<{ profiles: Profile[] }>(
-    `/api/profiles/search?q=${encodeURIComponent(query)}&limit=${limit}`
+  const response = await callApi<Profile[]>(
+    `/api/profiles?query=${encodeURIComponent(query)}&limit=${limit}`
   );
-  return response.ok ? (response.data?.profiles || []) : [];
+  return response.ok ? (response.data || []) : [];
 };
 
 export const fetchUserBadges = async (address: string) => {
