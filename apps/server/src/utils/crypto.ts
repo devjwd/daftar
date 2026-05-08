@@ -40,9 +40,20 @@ export const verifyWalletSignature = (
   // Parse message for timestamp/nonce if it's JSON
   let signedAt: number | null = null;
   try {
-    const msgObj = typeof message === 'string' && message.startsWith('{') ? JSON.parse(message) : null;
-    if (msgObj?.issuedAt) {
-      signedAt = new Date(msgObj.issuedAt).getTime();
+    if (typeof message === 'string') {
+      if (message.startsWith('{')) {
+        const msgObj = JSON.parse(message);
+        if (msgObj?.issuedAt) signedAt = new Date(msgObj.issuedAt).getTime();
+      } else {
+        // Look for "Timestamp: 2026-05-08T..."
+        const match = message.match(/Timestamp:\s*([^\n]+)/);
+        if (match && match[1]) {
+          const parsedDate = new Date(match[1].trim());
+          if (!isNaN(parsedDate.getTime())) {
+            signedAt = parsedDate.getTime();
+          }
+        }
+      }
     }
   } catch {
     // Ignore parse error on message, treat as raw string
@@ -65,8 +76,36 @@ export const verifyWalletSignature = (
   }
 
   try {
-    const publicKey = new Ed25519PublicKey(publicKeyStr);
-    const aptosSignature = new Ed25519Signature(signatureStr);
+    // Ensure we have strings for the SDK
+    const finalizeHex = (val: any): string => {
+      if (typeof val === 'string') return val.trim();
+      if (val instanceof Uint8Array || (val && typeof val === 'object' && val.constructor?.name === 'Uint8Array')) {
+        return Array.from(val as Uint8Array).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+      if (val && typeof val === 'object') {
+        // Handle indexed object {0: 1, 1: 2...} which can happen if JSON.stringified Uint8Array
+        const keys = Object.keys(val).filter(k => !isNaN(Number(k)));
+        if (keys.length > 0) {
+          const arr = new Uint8Array(keys.length);
+          keys.forEach(k => { arr[Number(k)] = val[k]; });
+          return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+      }
+      return String(val || '').trim();
+    };
+
+    const finalPublicKey = finalizeHex(publicKeyStr);
+    const finalSignature = finalizeHex(signatureStr);
+
+    console.log('[Verification] Final strings:', { 
+      publicKey: finalPublicKey.slice(0, 10) + '...', 
+      signature: finalSignature.slice(0, 10) + '...',
+      messageType: typeof message
+    });
+
+    const publicKey = new Ed25519PublicKey(finalPublicKey);
+    const aptosSignature = new Ed25519Signature(finalSignature);
+    
     const verified = publicKey.verifySignature({
       message: new TextEncoder().encode(String(message)),
       signature: aptosSignature,
@@ -74,6 +113,7 @@ export const verifyWalletSignature = (
 
     if (!verified) {
       console.warn('[Verification] Ed25519 verifySignature returned false');
+      // If it fails, try to see if it's because of the message prefix (some wallets sign differently)
       return false;
     }
 
@@ -87,7 +127,7 @@ export const verifyWalletSignature = (
 
     return match;
   } catch (err: any) {
-    console.error('[Verification] Crypto error:', err.message);
+    console.error('[Verification] Crypto error:', err.message, '| Stack:', err.stack);
     return false;
   }
 };

@@ -100,9 +100,17 @@ export const useProfile = (walletAddress: string | null, options: any = {}): Use
             throw new Error('No signature returned from wallet.');
           }
 
+          // Ensure hex strings for the backend
+          const toHex = (val: any) => {
+            if (typeof val === 'string') return val;
+            if (val instanceof Uint8Array) return Array.from(val).map(b => b.toString(16).padStart(2, '0')).join('');
+            if (val && typeof val === 'object' && val.toString) return val.toString();
+            return val;
+          };
+
           activeSignature = {
-            signature: rawSignature,
-            publicKey: publicKey
+            signature: toHex(rawSignature),
+            publicKey: toHex(publicKey)
           };
           
           // Use the fullMessage if provided by the wallet (Aptos standard for prefixed messages)
