@@ -59,29 +59,6 @@ router.get('/', badgeLimiter, async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/badges/:id
- * Get a specific badge definition
- */
-router.get('/:id', badgeLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
-
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('badge_definitions')
-      .select('*')
-      .eq('badge_id', req.params.id)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'Badge not found' });
-
-    return res.status(200).json(data);
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch badge' });
-  }
-});
 
 /**
  * POST /api/badges/award
@@ -378,6 +355,30 @@ router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
     return res.status(200).json({ ok: true, synced: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Sync failed' });
+  }
+});
+
+/**
+ * GET /api/badges/:id
+ * Get a specific badge definition
+ */
+router.get('/:id', badgeLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('badge_definitions')
+      .select('*')
+      .eq('badge_id', req.params.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Badge not found' });
+
+    return res.status(200).json(data);
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch badge' });
   }
 });
 

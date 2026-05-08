@@ -8,6 +8,25 @@ import { SupabaseClient } from '@supabase/supabase-js';
 const router = express.Router();
 
 /**
+ * GET /api/profiles/nonce
+ * Get next nonce for a wallet
+ */
+router.get('/nonce', generalLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const address = normalizeAddress(req.query.address as string);
+
+  if (!address) return res.status(400).json({ error: 'Invalid address' });
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  try {
+    const nonce = await getNextNonce(supabaseAdmin, address);
+    return res.status(200).json({ nonce });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to generate nonce' });
+  }
+});
+
+/**
  * GET /api/profiles/:address
  */
 router.get('/:address', profileLimiter, async (req: Request, res: Response) => {
@@ -36,24 +55,6 @@ router.get('/:address', profileLimiter, async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/profiles/nonce
- * Get next nonce for a wallet
- */
-router.get('/nonce', generalLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
-  const address = normalizeAddress(req.query.address as string);
-
-  if (!address) return res.status(400).json({ error: 'Invalid address' });
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
-
-  try {
-    const nonce = await getNextNonce(supabaseAdmin, address);
-    return res.status(200).json({ nonce });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to generate nonce' });
-  }
-});
 
 /**
  * POST /api/profiles

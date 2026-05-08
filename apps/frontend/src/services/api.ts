@@ -46,10 +46,10 @@ export const getProfile = async (address: string): Promise<Profile | null> => {
 };
 
 export const updateProfile = async (
-  address: string, 
-  profile: Partial<Profile>, 
-  signature?: any, 
-  signedMessage?: string, 
+  address: string,
+  profile: Partial<Profile>,
+  signature?: any,
+  signedMessage?: string,
   nonce?: number
 ): Promise<Profile> => {
   const response = await callApi<Profile>(`/api/profiles`, {
@@ -130,13 +130,13 @@ export const fetchAllBadges = async (options: { includePrivate?: boolean, includ
   const query = new URLSearchParams();
   if (options.includePrivate) query.append('includePrivate', 'true');
   if (options.includeInactive) query.append('includeInactive', 'true');
-  
+
   const path = `/api/badges${query.toString() ? `?${query.toString()}` : ''}`;
   const response = await callApi<BadgeDefinition[]>(path);
-  return { 
-    ok: response.ok, 
-    badges: response.data || [], 
-    status: response.status, 
+  return {
+    ok: response.ok,
+    badges: response.data || [],
+    status: response.status,
     data: response.data,
     error: response.error
   };
@@ -163,9 +163,9 @@ export const manageBadgeDefinition = async (action: string, badge: any, adminAut
 export const awardBadgeToUser = async (address: string, badgeId: string, metadata: any, options: { adminAuth: any }) => {
   const response = await callApi<any>('/api/badges/award', {
     method: 'POST',
-    body: JSON.stringify({ 
-      walletAddress: normalizeAddress(address), 
-      badgeId, 
+    body: JSON.stringify({
+      walletAddress: normalizeAddress(address),
+      badgeId,
       metadata,
       ...options
     }),
