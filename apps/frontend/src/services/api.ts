@@ -175,7 +175,7 @@ export const awardBadgeToUser = async (address: string, badgeId: string, metadat
   return response;
 };
 
-export const requestMintSignature = async (walletAddress: string, onChainBadgeId: number | string) => {
+export const requestMintSignature = async (walletAddress: string, badgeId: string | number) => {
   const response = await callApi<{ 
     signatureBytes: number[], 
     validUntil: number,
@@ -183,7 +183,7 @@ export const requestMintSignature = async (walletAddress: string, onChainBadgeId
     nonce: number
   }>('/api/badges/award', {
     method: 'POST',
-    body: JSON.stringify({ walletAddress, onChainBadgeId }),
+    body: JSON.stringify({ walletAddress, badgeId }),
   });
 
   if (!response.ok) {

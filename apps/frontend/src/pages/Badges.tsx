@@ -271,7 +271,7 @@ export default function Badges() {
     setMintingIds(prev => new Set([...prev, badge.id]));
     try {
       const senderAddress = typeof account.address === 'string' ? account.address : account.address.toString();
-      const sigResult = await requestMintSignature(senderAddress, badge.onChainBadgeId);
+      const sigResult = await requestMintSignature(senderAddress, badge.id);
       if (!sigResult.ok) throw new Error(sigResult.error || t(language, 'badgesMintAuthFailed'));
 
       const tx = await mintBadge({
