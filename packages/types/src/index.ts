@@ -18,12 +18,14 @@ export type BadgeRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 
 export interface BadgeDefinition {
   badge_id: string;
+  id?: string; // Client-side alias
   name: string;
   description: string;
   image_url: string;
   xp_value: number;
   mint_fee: number;
   on_chain_badge_id: number | null;
+  onChainBadgeId?: number | null; // Client-side alias
   criteria: BadgeCriterion[];
   metadata: Record<string, any>;
   is_public: boolean;
@@ -32,6 +34,7 @@ export interface BadgeDefinition {
   rule_type: number;
   rule_params: Record<string, any>;
   rarity?: BadgeRarity;
+  earned?: boolean; // Client-side state
   metadata_uri?: string;
   created_at?: string;
   updated_at?: string;
@@ -46,6 +49,10 @@ export interface BadgeCriterion {
 export interface EligibilityResult {
   eligible: boolean;
   reason: string;
+  progress?: {
+    current: number;
+    target: number;
+  };
   fromCache?: boolean;
   error?: string;
 }

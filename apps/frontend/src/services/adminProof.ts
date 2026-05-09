@@ -59,11 +59,11 @@ export const createAdminProofHeaders = async ({ account, signMessage, action, bo
   }
 
   const timestamp = Date.now();
+  const nonce = randomNonce().slice(0, 8);
   const bodyHash = await sha256Hex(stableStringify(body || {}));
   
-  // Align with server/src/services/adminService.ts format:
-  // "daftar-admin:${action}:${timestamp}:${jsonBodyHash}"
-  const message = `daftar-admin:${action}:${timestamp}:${bodyHash}`;
+  // Format: "daftar-admin:${action}:${timestamp}:${nonce}:${jsonBodyHash}"
+  const message = `daftar-admin:${action}:${timestamp}:${nonce}:${bodyHash}`;
 
   const response = await signMessage({
     address: true,
@@ -86,6 +86,7 @@ export const createAdminProofHeaders = async ({ account, signMessage, action, bo
     'x-admin-public-key': publicKey,
     'x-admin-signature': normalizeHex(signature),
     'x-admin-timestamp': String(timestamp),
+    'x-admin-nonce': nonce,
     'x-admin-action': action,
     'x-admin-message-b64': encodeBase64(message),
     'x-admin-full-message-b64': encodeBase64(response.fullMessage || ''),

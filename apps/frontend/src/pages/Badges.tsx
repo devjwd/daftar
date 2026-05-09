@@ -21,15 +21,22 @@ import { useBadges } from '../hooks/useBadges';
 import { useBadgeEligibility } from '../hooks/useBadgeEligibility';
 import { t, getStoredLanguagePreference } from '../utils/language';
 import { getSettingsStorageKey } from '../utils/settings';
+import { 
+  getLevelProgress, 
+  getRarityInfo, 
+  BADGE_RARITY, 
+  getLevelFromXP, 
+  getNextLevelXP 
+} from '../config/badges';
 
 const getProgressMessage = (progress, fallbackReason, language) => {
   const current = Number(progress?.current);
-  const required = Number(progress?.required);
+  const target = Number(progress?.target);
 
-  if (Number.isFinite(current) && Number.isFinite(required) && required > 0) {
-    const ratio = current / required;
+  if (Number.isFinite(current) && Number.isFinite(target) && target > 0) {
+    const ratio = current / target;
     const suffix = ratio >= 0.9 ? t(language, 'badgesAlmostThere') : t(language, 'badgesKeepGoing');
-    return `${Math.floor(current)}/${Math.floor(required)} — ${suffix}`;
+    return `${Math.floor(current)}/${Math.floor(target)} — ${suffix}`;
   }
 
   return fallbackReason || t(language, 'badgesNotEligible');
@@ -72,8 +79,8 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled, language })
 
   if (effectiveStatus === 'not_eligible') {
     const progressMessage = getProgressMessage(progress, reason, language);
-    const width = Number(progress?.required) > 0
-      ? Math.max(4, Math.min(100, (Number(progress?.current || 0) / Number(progress.required)) * 100))
+    const width = Number(progress?.target) > 0
+      ? Math.max(4, Math.min(100, (Number(progress?.current || 0) / Number(progress.target)) * 100))
       : 8;
 
     return (
@@ -141,6 +148,21 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled, language })
   );
 }
 
+function BadgeSummary({ earnedCount, totalCount }) {
+  const percentage = totalCount > 0 ? (earnedCount / totalCount) * 100 : 0;
+  
+  return (
+    <div className="badge-summary-minimal">
+      <div className="summary-text">
+        {earnedCount} of {totalCount} Earned
+      </div>
+      <div className="summary-progress-bar">
+        <div className="summary-progress-fill" style={{ width: `${percentage}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function Badges() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const address = connected && account?.address
@@ -171,6 +193,18 @@ export default function Badges() {
     enablePolling: false,
   });
 
+  // Calculate total XP from earned badges
+  const totalXP = useMemo(() => {
+    return badges
+      .filter(b => b.earned)
+      .reduce((sum, b) => {
+        const rarity = getRarityInfo(b.rarity || 'COMMON');
+        // Use xp_value if available, else calculate based on rarity level
+        const val = Number(b.xp_value || b.xp);
+        return sum + (Number.isFinite(val) ? val : (rarity.level * 10));
+      }, 0);
+  }, [badges]);
+
   const earnedLabel = t(language, 'badgesEarned', { earned: earnedCount, total: totalBadges });
 
   const isBadgeExpired = useCallback((badge) => {
@@ -181,8 +215,17 @@ export default function Badges() {
   }, []);
 
   const badgesWithLifecycle = useMemo(
-    () => badges.map((badge) => ({ ...badge, isExpired: isBadgeExpired(badge) })),
-    [badges, isBadgeExpired]
+    () => badges.map((badge) => {
+      const scanResult = scanResults[badge.id];
+      return {
+        ...badge,
+        isExpired: isBadgeExpired(badge),
+        eligible: badge.eligible || scanResult?.eligible || false,
+        progress: badge.progress || scanResult?.progress || 0,
+        reason: badge.reason || scanResult?.reason || null
+      };
+    }),
+    [badges, isBadgeExpired, scanResults]
   );
 
   const activeBadges = useMemo(
@@ -197,8 +240,13 @@ export default function Badges() {
 
   const visibleBadges = lifecycleTab === 'expired' ? expiredBadges : activeBadges;
 
-  const completedBadges = useMemo(
-    () => visibleBadges.filter((badge) => badge.earned || badge.eligible),
+  const earnedBadges = useMemo(
+    () => visibleBadges.filter((badge) => badge.earned),
+    [visibleBadges]
+  );
+
+  const claimableBadges = useMemo(
+    () => visibleBadges.filter((badge) => !badge.earned && badge.eligible),
     [visibleBadges]
   );
 
@@ -221,9 +269,20 @@ export default function Badges() {
       
       // 2. Perform bulk eligibility check
       const results = await bulkCheckEligibility(address, visibleBadges);
-      setScanResults(results);
-      const eligibleCount = Object.values(results).filter(r => r.eligible).length;
+      
+      // 3. Map array results to a lookup object by ID
+      const resultsMap = {};
+      results.forEach(r => {
+        resultsMap[r.id] = r;
+      });
+      setScanResults(resultsMap);
+      
+      const eligibleCount = results.filter(r => r.eligible).length;
       setSuccessMsg(t(language, 'badgesScanResults', { count: eligibleCount }));
+      
+      // 4. Refresh to sync with any background updates
+      await refresh();
+      
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       setError(t(language, 'badgesScanFailed'));
@@ -310,7 +369,17 @@ export default function Badges() {
 
   const renderAchievementCard = (badge) => {
     const badgeState = badge.earned ? 'earned' : (badge.eligible || badge.attestationPending || badge.attestationFailed) ? 'ready' : 'locked';
-    const progressClamped = Math.max(0, Math.min(100, badge.progress || 0));
+    
+    let progressClamped = 0;
+    if (typeof badge.progress === 'number') {
+      progressClamped = Math.max(0, Math.min(100, badge.progress));
+    } else if (badge.progress && typeof badge.progress === 'object') {
+      const current = Number(badge.progress.current || 0);
+      const target = Number(badge.progress.target || 0);
+      if (target > 0) {
+        progressClamped = Math.max(0, Math.min(100, (current / target) * 100));
+      }
+    }
     const isMinting = mintingIds.has(badge.id);
     const successPulse = claimedAnimIds.has(badge.id);
 
@@ -402,6 +471,8 @@ export default function Badges() {
         badgeId: badge.onChainBadgeId,
         signatureBytes: sigResult.signatureBytes,
         validUntil: sigResult.validUntil,
+        signerEpoch: sigResult.signerEpoch,
+        nonce: sigResult.nonce,
         badge,
       });
       txHash = await confirmMintAndOwnership({
@@ -459,18 +530,20 @@ export default function Badges() {
     <div className="badges-page">
       <div className="badges-container">
         <header className="badges-header">
-          <div className="badges-header-text">
+          <div className="badges-header-content">
             <span className="badges-eyebrow">{t(language, 'badgesAchievements')}</span>
             <h1>{t(language, 'badgesTitle')}</h1>
             <p>{t(language, 'badgesSubtitle')}</p>
           </div>
 
-          <div className="badges-progress" aria-label="Badge progress summary">
-            <span className="progress-text">{earnedLabel}</span>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${completionPercent}%` }} />
+          {address && (
+            <div className="badges-header-aside">
+              <BadgeSummary 
+                earnedCount={earnedCount} 
+                totalCount={totalBadges} 
+              />
             </div>
-          </div>
+          )}
         </header>
 
         {/* Messages */}
@@ -554,16 +627,29 @@ export default function Badges() {
 
             {visibleBadges.length > 0 && (
               <>
-                <section className="badges-section">
-                  <h2 className="badges-section-title">
-                    {t(language, 'badgesCompleted')}
-                    <span className="badges-section-count">{completedBadges.length}</span>
-                    <small>{t(language, 'badgesCompletedNote')}</small>
-                  </h2>
-                  <div className="achievement-grid">
-                    {completedBadges.map(renderAchievementCard)}
-                  </div>
-                </section>
+                {earnedBadges.length > 0 && (
+                  <section className="badges-section">
+                    <h2 className="badges-section-title">
+                      {t(language, 'badgesEarnedSection') || 'Earned'}
+                      <span className="badges-section-count">{earnedBadges.length}</span>
+                    </h2>
+                    <div className="achievement-grid">
+                      {earnedBadges.map(renderAchievementCard)}
+                    </div>
+                  </section>
+                )}
+
+                {claimableBadges.length > 0 && (
+                  <section className="badges-section">
+                    <h2 className="badges-section-title">
+                      {t(language, 'badgesClaimableSection') || 'Ready to Claim'}
+                      <span className="badges-section-count">{claimableBadges.length}</span>
+                    </h2>
+                    <div className="achievement-grid">
+                      {claimableBadges.map(renderAchievementCard)}
+                    </div>
+                  </section>
+                )}
 
                 <section className="badges-section">
                   <h2 className="badges-section-title">

@@ -143,9 +143,9 @@ const fetchWithTimeout = async (url, timeoutMs, options = {}) => {
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(url, { 
+    return await fetch(url, {
       ...options,
-      signal: controller.signal 
+      signal: controller.signal
     });
   } finally {
     clearTimeout(timeoutId);
@@ -167,10 +167,10 @@ export const useTokenPrices = () => {
     const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
     const isDemoKey = apiKey?.startsWith('CG-');
     const baseUrl = isDemoKey ? 'https://demo-api.coingecko.com' : 'https://api.coingecko.com';
-    
+
     // Use /coins/markets for more reliable 24h change data
     const url = `${baseUrl}/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h`;
-    
+
     if (apiKey) {
       if (isDemoKey) headers['x-cg-demo-api-key'] = apiKey;
       else headers['x-cg-pro-api-key'] = apiKey;
@@ -226,7 +226,7 @@ export const useTokenPrices = () => {
     if (Object.keys(prices).length === 0) {
       setLoading(true);
     }
-    
+
     setError(null);
     let lastError = null;
 

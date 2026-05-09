@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { syncEntities } from '../services/entityStore';
+import { manageEntity } from '../services/api';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
+import { createAdminProofHeaders } from '../services/adminProof';
 import styles from './EntityAdmin.module.css';
 
 const CATEGORIES = ['Protocol', 'Treasury', 'Swap', 'Dex', 'Lending', 'Staking', 'Bridge', 'Exchange', 'Venture', 'Airdrop'];
 
 export default function EntityAdmin() {
+  const { account, signMessage } = useWallet();
   const [entities, setEntities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     address: '',
@@ -47,115 +52,71 @@ export default function EntityAdmin() {
     fetchEntities();
   }, [fetchEntities]);
 
+  const createAuth = useCallback(async (body) => {
+    if (!account || !signMessage) throw new Error('Connect admin wallet');
+    return await createAdminProofHeaders({
+      account,
+      signMessage,
+      action: 'manage-entities',
+      body
+    });
+  }, [account, signMessage]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!account) return setMessage({ text: 'Please connect wallet', type: 'error' });
+    
+    setSubmitting(true);
     setMessage({ text: 'Saving...', type: 'info' });
 
     try {
-      // Normalize address
       let addr = formData.address.trim().toLowerCase();
       if (addr && !addr.startsWith('0x')) addr = '0x' + addr;
 
-      const payload = {
-        ...formData,
-        address: addr
-      };
-      
-      if (editingId) {
-        payload.id = editingId;
-      }
+      const payload = { ...formData, address: addr };
+      if (editingId) payload.id = editingId;
 
-      const baseUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${baseUrl}/api/entities`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const auth = await createAuth({ action: 'manage-entities', method: 'POST', entity: payload });
+      const result = await manageEntity('POST', payload, auth);
 
-      const result = await response.json();
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error || 'Failed to save entity');
-      }
+      if (!result.ok) throw new Error(result.error || 'Failed to save entity');
 
-      // Update local state immediately for better UX
-      const savedEntity = result.entity || { ...payload, id: result.id || editingId };
+      const savedEntity = result.data?.entity || { ...payload, id: result.data?.id || editingId };
       if (editingId) {
         setEntities(prev => prev.map(e => e.id === editingId ? savedEntity : e));
       } else {
         setEntities(prev => [...prev, savedEntity].sort((a, b) => a.name.localeCompare(b.name)));
       }
 
-      // Refresh dynamic entity cache
       await syncEntities(true);
-
       setMessage({ text: `Successfully ${editingId ? 'updated' : 'added'} entity`, type: 'success' });
       setIsAdding(false);
       setFormData({ 
-        address: '', 
-        name: '', 
-        category: 'Protocol', 
-        logo_url: '', 
-        website_url: '', 
-        twitter_url: '', 
-        custom_type: '', 
-        badge_color: '#9ca3af',
-        is_verified: true 
+        address: '', name: '', category: 'Protocol', logo_url: '', 
+        website_url: '', twitter_url: '', custom_type: '', 
+        badge_color: '#9ca3af', is_verified: true 
       });
-      // Optionally still fetch to be safe
-      fetchEntities();
     } catch (err) {
       console.error('Error saving entity:', err);
-      let errorMsg = err.message || 'Error saving entity';
-      if (err.code === '42501') {
-        errorMsg = 'Permission denied: Only administrators can manage entities. Please ensure you are logged in with the admin wallet.';
-      }
-      setMessage({ text: errorMsg, type: 'error' });
+      setMessage({ text: err.message || 'Error saving entity', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleEdit = (entity) => {
-    setFormData({
-      address: entity.address,
-      name: entity.name,
-      category: entity.category,
-      logo_url: entity.logo_url || '',
-      website_url: entity.website_url || '',
-      twitter_url: entity.twitter_url || '',
-      custom_type: entity.custom_type || '',
-      badge_color: entity.badge_color || '#9ca3af',
-      is_verified: entity.is_verified
-    });
-    setEditingId(entity.id);
-    setIsAdding(true);
-    // Scroll to form
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   const handleDelete = async (id) => {
-    // Basic confirmation
     if (!window.confirm('Are you sure you want to delete this entity mapping?')) return;
+    if (!account) return setMessage({ text: 'Please connect wallet', type: 'error' });
 
     setMessage({ text: 'Deleting...', type: 'info' });
     try {
-       const baseUrl = import.meta.env.VITE_API_URL || '';
-       console.log(`[EntityAdmin] Deleting entity ${id} at ${baseUrl}/api/entities/${id}`);
+       const auth = await createAuth({ action: 'manage-entities', method: 'DELETE', id });
+       const result = await manageEntity('DELETE', { id }, auth);
        
-       const response = await fetch(`${baseUrl}/api/entities/${id}`, {
-         method: 'DELETE',
-         headers: { 'Accept': 'application/json' }
-       });
-       
-       const result = await response.json();
-       if (!response.ok || !result.ok) {
-         throw new Error(result.error || 'Failed to delete entity');
-       }
+       if (!result.ok) throw new Error(result.error || 'Failed to delete entity');
 
-       // Update local state immediately
        setEntities(prev => prev.filter(e => e.id !== id));
-
-       // Refresh dynamic entity cache
        await syncEntities(true);
-
        setMessage({ text: 'Entity deleted successfully', type: 'success' });
     } catch (err) {
       console.error('[EntityAdmin] Delete failed:', err);
@@ -287,7 +248,9 @@ export default function EntityAdmin() {
             </div>
           </div>
           <div className={styles.formActions}>
-             <button type="submit" className={styles.saveBtn}>Save Entity</button>
+             <button type="submit" className={styles.saveBtn} disabled={submitting}>
+               {submitting ? 'Saving...' : 'Save Entity'}
+             </button>
           </div>
         </form>
       )}

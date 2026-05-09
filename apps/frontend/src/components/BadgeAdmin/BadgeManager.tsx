@@ -17,7 +17,7 @@ export default function BadgeManager({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [exporting, setExporting] = useState(false);
 
-  const filteredBadges = badges.filter(b => !!b.isDeleted === showDeleted);
+  const filteredBadges = badges.filter(b => (!!b.isDeleted || !!b.is_deleted) === showDeleted);
 
   const hasAllowlist = (badge) => badge.criteria.some(c => c.type === 'allowlist');
   const hasRewards = (badge) => badge.metadata?.special?.rewards?.enabled;
@@ -109,7 +109,7 @@ export default function BadgeManager({
 
       <div className="ba-badge-list">
         {filteredBadges.map(badge => (
-          <div key={badge.id} className={`ba-badge-item ${!badge.enabled || badge.isDeleted ? 'disabled' : ''}`}>
+          <div key={badge.id} className={`ba-badge-item ${!badge.enabled || badge.isDeleted || badge.is_deleted ? 'disabled' : ''}`}>
             <div className="ba-badge-preview">
               {badge.imageUrl ? (
                 <img src={badge.imageUrl} alt={badge.name} className="ba-badge-thumb" />
@@ -130,12 +130,12 @@ export default function BadgeManager({
                   </span>
                 ))}
                 <span className="ba-criteria-tag">{badge.isPublic === false ? 'Private' : 'Public'}</span>
-                {badge.isDeleted && <span className="ba-criteria-tag" style={{ color: '#ef4444', borderColor: '#ef4444' }}>🗑️ Deleted</span>}
+                {(badge.isDeleted || badge.is_deleted) && <span className="ba-criteria-tag" style={{ color: '#ef4444', borderColor: '#ef4444' }}>🗑️ Deleted</span>}
                 {badge.metadata?.special?.isSpecial && <span className="ba-criteria-tag">✨ Special</span>}
               </div>
             </div>
             <div className="ba-badge-actions">
-              {badge.isDeleted ? (
+              {(badge.isDeleted || badge.is_deleted) ? (
                 <>
                   <button className="ba-btn-icon" onClick={() => handleRestore(badge.id)} title="Restore">
                     🔄 Restore

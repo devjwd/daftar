@@ -26,6 +26,9 @@ interface BadgeStoreMeta {
 // In-memory cache for user awards (Source of truth is now the Server)
 const AWARDS_CACHE = new Map(); // walletAddress -> Array of awards
 
+// In-memory cache for badge definitions
+let _badgesCache: any[] | null = null;
+
 // Throttling for background syncs
 const LAST_SYNC_TIMES = new Map();
 const SYNC_COOLDOWN_MS = 5000; // Reduced to 5 seconds for snappier UI
@@ -57,6 +60,12 @@ function normalizeLoadedBadge(rawBadge) {
 function migrateAndSeedBadges() {
   const rawBadges = readStore(BADGE_STORE_KEY, []);
   const storedMeta = readStore<BadgeStoreMeta>(BADGE_STORE_META_KEY, {});
+  
+  // Early return if already on current schema to prevent redundant writes
+  if (Number(storedMeta?.schemaVersion || 0) >= STORE_SCHEMA_VERSION) {
+    return rawBadges.map(normalizeLoadedBadge).filter(Boolean);
+  }
+
   if (Number(storedMeta?.schemaVersion || 0) < STORE_SCHEMA_VERSION) {
     writeStore(BADGE_STORE_KEY, []);
     writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
@@ -150,6 +159,7 @@ function replaceBadges(badges: any[]) {
   const normalized = Array.isArray(badges)
     ? badges.map(normalizeLoadedBadge).filter(Boolean)
     : [];
+  _badgesCache = normalized; // Update cache
   writeStore(BADGE_STORE_KEY, normalized);
   writeStore(BADGE_STORE_META_KEY, { schemaVersion: STORE_SCHEMA_VERSION, seededAt: Date.now() });
   emit('badges:changed', normalized);
@@ -250,7 +260,9 @@ export async function syncUserAwardsFromBackend(address, force = false) {
  * @returns {Array} badge definitions
  */
 export function getAllBadges() {
-  return migrateAndSeedBadges();
+  if (_badgesCache !== null) return _badgesCache;
+  _badgesCache = migrateAndSeedBadges();
+  return _badgesCache;
 }
 
 /**

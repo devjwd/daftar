@@ -37,6 +37,7 @@ export default function Admin() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [onChainAdmin, setOnChainAdmin] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
 
   const connectedAddress = useMemo(() => {
     if (!account?.address) return null;
@@ -103,11 +104,14 @@ export default function Admin() {
   useEffect(() => {
     const loadGlobalConfig = async () => {
       if (!movementClient) return;
+      setLoadingConfig(true);
       try {
         const registry = await fetchRegistryInfo(movementClient);
         if (registry?.admin) setOnChainAdmin(registry.admin);
       } catch (err) {
         console.warn('[Admin] Failed to load registry admin:', err);
+      } finally {
+        setLoadingConfig(false);
       }
     };
     loadGlobalConfig();
@@ -206,28 +210,45 @@ export default function Admin() {
 
   const executeChanges = useCallback(async () => {
     setRouterSaving(true);
+    const remaining = [...pendingChanges];
     let successCount = 0;
+    let lastError = null;
+
     try {
-      for (const change of pendingChanges) {
-        await trackTransaction(`Updating ${change.label}`, change.action());
-        successCount += 1;
+      while (remaining.length > 0) {
+        const change = remaining[0];
+        try {
+          await trackTransaction(`Updating ${change.label}`, change.action());
+          successCount += 1;
+          remaining.shift(); // Remove only on success
+          setPendingChanges([...remaining]); // Update UI queue
+        } catch (err) {
+          lastError = err;
+          break; // Stop loop on failure to let user decide
+        }
       }
 
-      // Update local storage only if all succeeded or at end of loop
-      const nextLocal = updateSwapSettings({
-        feeInBps: Number(swapSettings.feeInBps),
-        feeReceiver: swapSettings.feeReceiver,
-        chargeFeeBy: swapSettings.chargeFeeBy,
-        defaultSlippagePercent: Number(swapSettings.defaultSlippagePercent),
-        routingMode: 'mosaic',
-      });
+      if (successCount > 0) {
+        // Update local storage for what we actually finished
+        const nextLocal = updateSwapSettings({
+          feeInBps: Number(swapSettings.feeInBps),
+          feeReceiver: swapSettings.feeReceiver,
+          chargeFeeBy: swapSettings.chargeFeeBy,
+          defaultSlippagePercent: Number(swapSettings.defaultSlippagePercent),
+          routingMode: 'mosaic',
+        });
+        setSwapSettings((prev) => ({ ...prev, ...nextLocal }));
+        await loadRouterSettings();
+      }
 
-      setSwapSettings((prev) => ({ ...prev, ...nextLocal }));
-      await loadRouterSettings();
-      setPendingChanges([]);
-      showMessage(`Successfully applied ${successCount} changes on-chain`);
+      if (lastError) {
+        showMessage(`Applied ${successCount} changes. Stopped at "${remaining[0]?.label}": ${lastError.message}`, true);
+      } else {
+        showMessage(`Successfully applied all ${successCount} changes on-chain`);
+        setPendingChanges([]);
+      }
     } catch (error) {
-      showMessage(`Applied ${successCount} changes. Failed on remaining: ${error.message}`, true);
+      showMessage(`Execution error: ${error.message}`, true);
     } finally {
       setRouterSaving(false);
     }
@@ -246,14 +267,14 @@ export default function Admin() {
     showMessage('Swap settings reset to saved values');
   }, [movementClient, loadRouterSettings, showMessage]);
 
-  if (!connected) {
+  if (!connected || loadingConfig) {
     return (
       <div className="admin-page">
         <div className="admin-container">
           <div className="admin-access-gate">
-            <div className="admin-access-icon">🔒</div>
-            <h2>Admin Access</h2>
-            <p>Connect the admin wallet to continue.</p>
+            <div className="admin-access-icon">{loadingConfig ? '⌛' : '🔒'}</div>
+            <h2>{loadingConfig ? 'Authenticating...' : 'Admin Access'}</h2>
+            <p>{loadingConfig ? 'Verifying your administrative privileges...' : 'Connect the admin wallet to continue.'}</p>
           </div>
         </div>
       </div>

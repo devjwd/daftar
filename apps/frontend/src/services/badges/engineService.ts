@@ -56,10 +56,9 @@ async function fetchServerEligibility(address: string) {
  * Check eligibility for a single badge against a wallet.
  * Delegates to the server's bulk endpoint (cached).
  */
-export async function checkBadgeEligibility(address: string, badge: any) {
+export async function checkBadgeEligibility(badgeId: string, address: string) {
   try {
     const resultMap = await fetchServerEligibility(address);
-    const badgeId = badge?.badge_id || badge?.id || '';
     const result = resultMap.get(badgeId);
 
     if (result) {

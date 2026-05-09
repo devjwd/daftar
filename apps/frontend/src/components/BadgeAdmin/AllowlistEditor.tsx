@@ -69,16 +69,29 @@ export default function AllowlistEditor({ badge, account, onClose, showMessage }
       
       if (addresses.length === 0) throw new Error('No valid addresses found in file');
       
-      showMessage('info', `Uploading ${addresses.length} addresses...`);
-      const auth = await createAuth('import', { addresses });
-      const res = await importAllowlist(badge.id, addresses, auth);
-      
-      if (res.ok) {
-        showMessage('success', `Successfully imported ${res.data.imported} addresses`);
-        loadStats();
-      } else {
-        throw new Error(res.data?.error || 'Import failed');
+      const CHUNK_SIZE = 2000;
+      const totalChunks = Math.ceil(addresses.length / CHUNK_SIZE);
+      let importedCount = 0;
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, addresses.length);
+        const chunk = addresses.slice(start, end);
+        
+        showMessage('info', `[Chunk ${i+1}/${totalChunks}] Signing and uploading ${chunk.length} addresses...`);
+        
+        const auth = await createAuth('import', { addresses: chunk });
+        const res = await importAllowlist(badge.id, chunk, auth);
+        
+        if (res.ok) {
+          importedCount += res.data.imported || chunk.length;
+        } else {
+          throw new Error(res.data?.error || `Import failed at chunk ${i+1}`);
+        }
       }
+      
+      showMessage('success', `Successfully imported ${importedCount} addresses in ${totalChunks} batches`);
+      loadStats();
     } catch (err) {
       showMessage('error', err.message);
     } finally {

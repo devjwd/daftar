@@ -126,6 +126,7 @@ export default function BadgeAdmin() {
   const [adminStats, setAdminStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [managingAllowlist, setManagingAllowlist] = useState(null);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const showMessage = useCallback((type, text) => {
     setMessage({ type, text });
@@ -148,10 +149,10 @@ export default function BadgeAdmin() {
       let remoteBadges: any[] = [];
 
       try {
-        // 1. Try secure admin fetch
+        // 1. Try secure admin fetch - we now fetch ALL including deleted for admin view
         const auth = await createManageBadgeAuth({ action: 'list-all-badges' });
         const { fetchAdminBadges } = await import('../../services/api');
-        const result = await fetchAdminBadges(auth);
+        const result = await fetchAdminBadges(auth, true);
         if (result.ok && result.badges) {
           remoteBadges = result.badges;
         } else {
@@ -239,16 +240,29 @@ export default function BadgeAdmin() {
       const txResult = await trackTransaction(`Creating On-Chain Badge: ${form.name}`, txPromise);
 
       showMessage('info', 'Waiting for on-chain confirmation...');
-      let onChainBadgeId;
-      try {
-        onChainBadgeId = await waitForTxAndGetId(movementClient, txResult.hash);
-      } catch (waitErr) {
-        console.error('[BadgeAdmin] Event detection failed:', waitErr);
-        // Fallback or more descriptive error
-        throw new Error(`Transaction succeeded but badge ID detection failed. Please check the explorer: ${txResult.hash}`);
+      let onChainBadgeId = null;
+      let retries = 5;
+      
+      while (retries > 0 && !onChainBadgeId) {
+        try {
+          onChainBadgeId = await waitForTxAndGetId(movementClient, txResult.hash, { creator: account.address.toString() });
+          if (onChainBadgeId) break;
+        } catch (waitErr) {
+          console.warn(`[BadgeAdmin] Attempt ${6-retries} failed:`, waitErr);
+        }
+        
+        if (!onChainBadgeId) {
+          retries--;
+          if (retries > 0) {
+            showMessage('info', `Waiting for indexer... (${retries} retries left)`);
+            await new Promise(r => setTimeout(r, 3000));
+          }
+        }
       }
 
-      if (!onChainBadgeId) throw new Error('Failed to detect new badge ID from events. The transaction was successful, but the indexer may be lagging.');
+      if (!onChainBadgeId) {
+        throw new Error(`Transaction successful, but could not detect new Badge ID after retries. Hash: ${txResult.hash}. Please refresh the On-Chain tab manually.`);
+      }
 
       // 4. Handle Allowlist offboarding (extract addresses for dedicated table)
       const allowlistCriterion = form.criteria.find(c => c.type === 'allowlist');
@@ -365,7 +379,7 @@ export default function BadgeAdmin() {
       showMessage('info', 'Seeding official badges...');
       const auth = await createManageBadgeAuth({ 
         action: 'batch_sync', 
-        badges: OFFICIAL_BADGES.map(b => mapBadgeDefinitionToRow(createBadgeDefinition(b) as any)) 
+        badges: OFFICIAL_BADGES.map(b => mapBadgeDefinitionToRow(createBadgeDefinition(b))) 
       });
       
       const apiResult = await saveBadgeDefinitions({ 
@@ -471,8 +485,8 @@ export default function BadgeAdmin() {
             handleTogglePublic={handleTogglePublic}
             handleManageAllowlist={(b) => setManagingAllowlist(b)}
             setSubTab={setSubTab}
-            showDeleted={false}
-            setShowDeleted={() => { }}
+            showDeleted={showDeleted}
+            setShowDeleted={setShowDeleted}
           />
         )}
         {managingAllowlist && (

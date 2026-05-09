@@ -119,7 +119,8 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
       normalizedAddr,
       badgeDef.on_chain_badge_id,
       validUntil,
-      signerEpoch
+      signerEpoch,
+      nonce
     );
 
     // 5. Update or create attestation in DB
@@ -315,12 +316,15 @@ router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
 
     if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
   
-    // 0. Verify on-chain if possible
-    if (txHash && txHash.startsWith('0x') && onChainBadgeId) {
+    // 0. Verify on-chain (Mandatory for XP)
+    if (onChainBadgeId && txHash && txHash.startsWith('0x')) {
       const isValid = await verifyOnChainMint(txHash, normalizedAddr, onChainBadgeId);
       if (!isValid) {
         return res.status(400).json({ error: 'Invalid transaction hash. On-chain verification failed.' });
       }
+    } else if (xpValue && xpValue > 0) {
+      // If XP is being awarded, we MUST have a verifiable TX
+      return res.status(400).json({ error: 'Transaction hash and on-chain ID are required to award XP.' });
     }
   
     try {

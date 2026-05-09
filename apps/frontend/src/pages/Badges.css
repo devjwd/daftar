@@ -30,10 +30,39 @@
 
 .badges-header {
   display: flex;
-  align-items: flex-end;
+  flex-direction: row;
   justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 20px;
+  align-items: center;
+  gap: 40px;
+  margin-bottom: 40px;
+}
+
+.badges-header-content {
+  flex: 1;
+}
+
+.badges-header h1 {
+  margin: 0;
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 42px;
+  letter-spacing: -0.03em;
+  color: var(--badge-text-0);
+  line-height: 1.1;
+}
+
+.badges-header p {
+  margin-top: 12px;
+  max-width: 480px;
+  color: var(--badge-text-1);
+  font-size: 15px;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+.badges-header-aside {
+  width: 100%;
+  max-width: 440px;
 }
 
 .badges-eyebrow {
@@ -44,56 +73,6 @@
   letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--badge-text-2);
-}
-
-.badges-header h1 {
-  margin: 0;
-  font-family: 'Space Grotesk', 'Inter', sans-serif;
-  font-weight: 700;
-  font-size: 34px;
-  letter-spacing: -0.02em;
-  color: var(--badge-text-0);
-}
-
-.badges-header p {
-  margin-top: 8px;
-  max-width: 560px;
-  color: var(--badge-text-1);
-  font-size: 14px;
-}
-
-.badges-progress {
-  min-width: 240px;
-  padding: 16px 18px;
-  border-radius: 16px;
-  background: 
-    radial-gradient(circle at 80% -10%, rgba(205, 161, 105, 0.12), transparent 45%),
-    rgba(26, 22, 20, 0.6);
-  backdrop-filter: blur(15px);
-  border: 1px solid rgba(205, 161, 105, 0.2);
-  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
-}
-
-.progress-text {
-  display: block;
-  font-size: 12px;
-  color: var(--badge-text-1);
-  margin-bottom: 8px;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(205, 161, 105, 0.2);
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #cda169, #deb884);
-  transition: width 0.35s ease;
 }
 
 .badges-msg {
@@ -119,17 +98,14 @@
 .badges-connect-prompt,
 .badges-loading,
 .badges-empty {
-  margin-top: 14px;
-  border-radius: 24px;
-  border: 1px solid rgba(205, 161, 105, 0.25);
-  background: 
-    radial-gradient(circle at 80% -10%, rgba(205, 161, 105, 0.08), transparent 45%),
-    linear-gradient(180deg, rgba(31, 27, 24, 0.95) 0%, rgba(24, 21, 19, 0.98) 100%);
-  backdrop-filter: blur(20px);
+  margin-top: 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(205, 161, 105, 0.15);
+  background: rgba(26, 22, 20, 0.3);
+  backdrop-filter: blur(10px);
   color: var(--badge-text-2);
   text-align: center;
-  padding: 60px 40px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  padding: 32px 24px;
 }
 
 .badges-connect-icon {
@@ -774,8 +750,8 @@
     align-items: flex-start;
   }
 
-  .badges-progress {
-    width: 100%;
+  .badges-header-aside {
+    max-width: 100%;
   }
 
   .badges-header h1 {
@@ -821,4 +797,44 @@ body[data-theme='light'] .badges-page {
   --badge-text-0: #3f3225;
   --badge-text-1: #6a533a;
   --badge-text-2: #8a7360;
+}
+
+/* --- Badge Summary Card --- */
+/* --- Badge Summary Minimal --- */
+.badge-summary-minimal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 280px;
+  margin-top: 10px;
+}
+
+.summary-text {
+  font-size: 13px;
+  color: var(--badge-text-2);
+  margin-bottom: 8px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
+.summary-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(205, 161, 105, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.summary-progress-fill {
+  height: 100%;
+  background: #cda169;
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+@media (max-width: 600px) {
+  .summary-value {
+    font-size: 28px;
+  }
 }

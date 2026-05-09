@@ -2,6 +2,7 @@ import nacl from 'tweetnacl';
 import { createHash } from 'crypto';
 import { normalizeAddress } from '../utils/address.ts';
 import { Request } from 'express';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 const ADMIN_SIGNATURE_TTL_MS = 5 * 60 * 1000;
 
@@ -21,6 +22,18 @@ const hexToBytes = (value: string): Uint8Array => {
     bytes[i / 2] = parseInt(normalized.substr(i, 2), 16);
   }
   return bytes;
+};
+
+const stableStringify = (value: any): string => {
+  if (value === null || value === undefined) return 'null';
+  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  if (typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
 };
 
 /**
@@ -52,20 +65,46 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
     throw new Error('Request signature expired');
   }
 
-  // 3. Verify Signature
-  // Message format: "daftar-admin:${action}:${timestamp}:${jsonBodyHash}"
-  const bodyHash = createHash('sha256').update(JSON.stringify(req.body)).digest('hex');
-  const messageStr = `daftar-admin:${action}:${timestamp}:${bodyHash}`;
+  // 3. Nonce Check (Replay Protection)
+  const supabase = req.app.get('supabaseAdmin') as SupabaseClient;
+  
+  // Extract nonce from message (if constructing) or from header if available
+  // For robustness, we check the database for the exact (address, timestamp, nonce) triplet
+  const nonce = String(req.headers['x-admin-nonce'] || 'none'); 
+
+  if (supabase) {
+    const { data: existingNonce } = await supabase
+      .from('admin_nonces')
+      .select('id')
+      .eq('address', address)
+      .eq('timestamp', timestamp)
+      .eq('nonce', nonce)
+      .maybeSingle();
+
+    if (existingNonce) {
+      throw new Error('Request already processed (Replay detected)');
+    }
+
+    // Record this nonce immediately
+    await supabase.from('admin_nonces').insert({
+      address,
+      timestamp,
+      nonce,
+      created_at: new Date().toISOString()
+    }).catch(err => console.warn('[AdminAuth] Failed to record nonce:', err.message));
+  }
+
+  // 4. Verify Signature
+  // Message format: "daftar-admin:${action}:${timestamp}:${nonce}:${jsonBodyHash}"
+  const bodyHash = createHash('sha256').update(stableStringify(req.body)).digest('hex');
+  const messageStr = `daftar-admin:${action}:${timestamp}:${nonce}:${bodyHash}`;
   
   const fullMessageB64 = String(req.headers['x-admin-full-message-b64'] || '');
   
   try {
     const signatureBytes = hexToBytes(signature);
-    // Use provided public key or fall back to address (backward compatibility/legacy scripts)
     const publicKeyBytes = hexToBytes(publicKey || address);
 
-    // If we have the full message (exactly as signed by the wallet), use it.
-    // Otherwise, construct the expected message string.
     let messageBytes: Uint8Array;
     if (fullMessageB64) {
       messageBytes = new Uint8Array(Buffer.from(fullMessageB64, 'base64'));
@@ -75,9 +114,10 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
 
     let isValid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
 
-    // If verification fails and we didn't have a full message, try the legacy Aptos prefix
+    // Legacy Fallback (without nonce)
     if (!isValid && !fullMessageB64) {
-      const aptosMessage = `APTOS\nmessage: ${messageStr}\nnonce: ${timestamp}`;
+      const legacyMessageStr = `daftar-admin:${action}:${timestamp}:${bodyHash}`;
+      const aptosMessage = `APTOS\nmessage: ${legacyMessageStr}\nnonce: ${timestamp}`;
       isValid = nacl.sign.detached.verify(
         new TextEncoder().encode(aptosMessage),
         signatureBytes,

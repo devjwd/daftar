@@ -175,7 +175,12 @@ export const awardBadgeToUser = async (address: string, badgeId: string, metadat
 };
 
 export const requestMintSignature = async (walletAddress: string, onChainBadgeId: number | string) => {
-  const response = await callApi<{ signatureBytes: number[], validUntil: number }>('/api/badges/award', {
+  const response = await callApi<{ 
+    signatureBytes: number[], 
+    validUntil: number,
+    signerEpoch: number,
+    nonce: number
+  }>('/api/badges/award', {
     method: 'POST',
     body: JSON.stringify({ walletAddress, onChainBadgeId }),
   });
@@ -198,49 +203,55 @@ export const requestMintSignature = async (walletAddress: string, onChainBadgeId
     return { ok: false, error: 'Missing expiry timestamp in server response' };
   }
 
-  return { ok: true, signatureBytes, validUntil };
+  return { 
+    ok: true, 
+    signatureBytes, 
+    validUntil,
+    signerEpoch: data?.signerEpoch || 0,
+    nonce: data?.nonce || 0
+  };
 };
 
 export const importAllowlist = async (badgeId: string, addresses: string[], adminAuth: any) => {
-  const response = await callApi('/api/admin/import-allowlist', {
+  const response = await callApi<any>('/api/admin/manage-badge', {
     method: 'POST',
-    body: JSON.stringify({ badge_id: badgeId, addresses, action: 'import' }),
+    body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, addresses, action_type: 'import' }),
     headers: adminAuth || {}
   });
   return response;
 };
 
 export const getAllowlistStats = async (badgeId: string, adminAuth: any) => {
-  const response = await callApi('/api/admin/import-allowlist', {
+  const response = await callApi<any>('/api/admin/manage-badge', {
     method: 'POST',
-    body: JSON.stringify({ badge_id: badgeId, action: 'stats' }),
+    body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, action_type: 'stats' }),
     headers: adminAuth || {}
   });
   return response;
 };
 
 export const searchAllowlist = async (badgeId: string, walletAddress: string, adminAuth: any) => {
-  const response = await callApi('/api/admin/import-allowlist', {
+  const response = await callApi<any>('/api/admin/manage-badge', {
     method: 'POST',
-    body: JSON.stringify({ badge_id: badgeId, wallet_address: walletAddress, action: 'search' }),
+    body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, wallet_address: walletAddress, action_type: 'search' }),
     headers: adminAuth || {}
   });
   return response;
 };
 
 export const removeFromAllowlist = async (badgeId: string, walletAddress: string, adminAuth: any) => {
-  const response = await callApi('/api/admin/import-allowlist', {
+  const response = await callApi<any>('/api/admin/manage-badge', {
     method: 'POST',
-    body: JSON.stringify({ badge_id: badgeId, wallet_address: walletAddress, action: 'remove' }),
+    body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, wallet_address: walletAddress, action_type: 'remove' }),
     headers: adminAuth || {}
   });
   return response;
 };
 
 export const clearAllowlist = async (badgeId: string, adminAuth: any) => {
-  const response = await callApi('/api/admin/import-allowlist', {
+  const response = await callApi<any>('/api/admin/manage-badge', {
     method: 'POST',
-    body: JSON.stringify({ badge_id: badgeId, action: 'clear' }),
+    body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, action_type: 'clear' }),
     headers: adminAuth || {}
   });
   return response;
@@ -251,10 +262,10 @@ export const fetchBadgeHolders = async (badgeId: string) => {
   return { ok: response.ok, data: response.data?.holders || [], status: response.status, error: response.error };
 };
 
-export const fetchAdminBadges = async (adminAuth: any) => {
+export const fetchAdminBadges = async (adminAuth: any, includeDeleted: boolean = false) => {
   const response = await callApi<{ badges: BadgeDefinition[] }>('/api/admin/manage-badge', {
     method: 'POST',
-    body: JSON.stringify({ action: 'list-all-badges' }),
+    body: JSON.stringify({ action: 'list-all-badges', include_deleted: includeDeleted }),
     headers: adminAuth || {}
   });
   return { ok: response.ok, badges: response.data?.badges || [], status: response.status, error: response.error };
@@ -269,6 +280,20 @@ export const updateSystemConfig = async (settings: Record<string, any>, adminAut
   const response = await callApi<any>('/api/config', {
     method: 'POST',
     body: JSON.stringify({ settings }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export const manageEntity = async (action_type: 'POST' | 'DELETE', payload: any, adminAuth: any) => {
+  const response = await callApi<any>('/api/admin/manage-badge', {
+    method: 'POST',
+    body: JSON.stringify({ 
+      action: 'manage-entities', 
+      method: action_type,
+      entity: action_type === 'POST' ? payload : undefined,
+      id: action_type === 'DELETE' ? payload.id : undefined
+    }),
     headers: adminAuth || {}
   });
   return response;
@@ -297,5 +322,6 @@ export default {
   fetchBadgeHolders,
   fetchAdminBadges,
   getSystemConfig,
-  updateSystemConfig
+  updateSystemConfig,
+  manageEntity
 };

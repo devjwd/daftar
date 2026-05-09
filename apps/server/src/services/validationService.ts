@@ -14,6 +14,7 @@ export const BADGE_RULES = {
   DAFTAR_PROFILE_COMPLETE: 11,
   DAFTAR_SWAP_COUNT: 12,
   DAFTAR_VOLUME_USD: 13,
+  ANYONE: 14,
 };
 
 const VALID_RULE_TYPES = new Set(Object.values(BADGE_RULES));
@@ -82,6 +83,7 @@ export const normalizeRuleType = (value: any): number | null => {
     daftar_profile_complete: BADGE_RULES.DAFTAR_PROFILE_COMPLETE,
     daftar_swap_count: BADGE_RULES.DAFTAR_SWAP_COUNT,
     daftar_volume_usd: BADGE_RULES.DAFTAR_VOLUME_USD,
+    anyone: BADGE_RULES.ANYONE,
   };
 
   return mapping[raw] ?? null;
@@ -288,6 +290,10 @@ export const validateRuleParams = (
           min: ensureNumberInRange(params.min ?? params.amount ?? 10, 0, 100000000, 10),
         },
       };
+    }
+
+    if (ruleType === BADGE_RULES.ANYONE) {
+      return { ok: true, ruleParams: {} };
     }
 
     return { ok: false, error: 'Unsupported rule type' };

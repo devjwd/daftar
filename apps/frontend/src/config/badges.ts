@@ -17,7 +17,10 @@ export const getBadgeModuleAddress = () => getModuleAddress();
 
 export const getBadgeFunction = (functionName) => {
   const address = getBadgeModuleAddress();
-  if (!address) return null;
+  if (!address) {
+    console.error('[badges] VITE_BADGE_SBT_MODULE_ADDRESS or VITE_BADGE_MODULE_ADDRESS is not set in .env');
+    return null;
+  }
   return `${address}::${BADGE_MODULE_NAME}::${functionName}`;
 };
 
@@ -43,6 +46,7 @@ export const CRITERIA_TYPES = {
   DAFTAR_PROFILE_COMPLETE: 'daftar_profile_complete',
   DAFTAR_SWAP_COUNT: 'daftar_swap_count',
   DAFTAR_VOLUME_USD: 'daftar_volume_usd',
+  ANYONE: 'anyone',
 };
 
 // Human-readable labels for each criteria type
@@ -65,6 +69,7 @@ export const CRITERIA_LABELS = {
   [CRITERIA_TYPES.DAFTAR_PROFILE_COMPLETE]: 'Daftar Profile Complete',
   [CRITERIA_TYPES.DAFTAR_SWAP_COUNT]: 'Daftar Swap Count',
   [CRITERIA_TYPES.DAFTAR_VOLUME_USD]: 'Daftar Trade Volume (USD)',
+  [CRITERIA_TYPES.ANYONE]: 'Open to Anyone (No Requirements)',
 };
 
 // Criteria parameter schemas (drives the admin form rendering)
@@ -142,6 +147,7 @@ export const CRITERIA_PARAM_SCHEMAS = {
   [CRITERIA_TYPES.DAFTAR_VOLUME_USD]: {
     min: { type: 'number', label: 'Minimum Volume (USD)', required: true, default: 10, min: 1 },
   },
+  [CRITERIA_TYPES.ANYONE]: {},
 };
 
 // ─── Badge Categories ────────────────────────────────────────────────
@@ -212,10 +218,6 @@ export const BADGE_RULES = {
   DAFTAR_PROFILE_COMPLETE: 11, // Daftar profile with username/pfp/bio
   DAFTAR_SWAP_COUNT: 12,       // Minimum swaps on Daftar
   DAFTAR_VOLUME_USD: 13,       // Minimum trade volume on Daftar
-  // Legacy aliases
-  OFFCHAIN_ALLOWLIST: 3,
-  TRANSACTION_COUNT: 4,
-  DAYS_ONCHAIN: 5,
 };
 
 // ─── Badge Status (matches smart contract) ───────────────────────────
@@ -325,6 +327,20 @@ export const createBadgeDefinition = ({
   isPublic = true,
   enabled = true,
   onChainBadgeId = null,
+}: {
+  id?: string;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  category?: string;
+  rarity?: string;
+  xp?: number;
+  mintFee?: number;
+  criteria?: any[];
+  metadata?: any;
+  isPublic?: boolean;
+  enabled?: boolean;
+  onChainBadgeId?: any;
 }) => {
   const now = Date.now();
   const specialMeta = metadata.special && typeof metadata.special === 'object'
@@ -451,6 +467,7 @@ export const criteriaToRuleType = (criteriaType) => {
     [CRITERIA_TYPES.DAFTAR_SWAP_COUNT]: BADGE_RULES.DAFTAR_SWAP_COUNT,
     [CRITERIA_TYPES.DAFTAR_VOLUME_USD]: BADGE_RULES.DAFTAR_VOLUME_USD,
     // Default to attestation for complex off-chain rules
+    [CRITERIA_TYPES.ANYONE]: BADGE_RULES.ATTESTATION,
     [CRITERIA_TYPES.TOKEN_HOLDER]: BADGE_RULES.ATTESTATION,
     [CRITERIA_TYPES.PROTOCOL_LEND_AMOUNT]: BADGE_RULES.ATTESTATION,
     [CRITERIA_TYPES.DEX_TX_COUNT]: BADGE_RULES.ATTESTATION,

@@ -1,18 +1,18 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { checkBadgeEligibility } from '../services/api';
+import { BadgeDefinition, EligibilityResult } from '@daftar/types';
 
-export const useBadgeEligibility = (badge: any) => {
+export const useBadgeEligibility = (badge: BadgeDefinition) => {
   const { account, connected } = useWallet();
   const address = connected && account?.address 
     ? (typeof account.address === 'string' ? account.address : account.address.toString())
     : null;
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'eligible' | 'not_eligible' | 'error' | 'already_owned' | 'requires_admin'>('idle');
-  const [progress, setProgress] = useState<any>(null);
+  const [progress, setProgress] = useState<EligibilityResult['progress']>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const checkCount = useRef(0);
 
   const checkEligibility = useCallback(async (options: { force?: boolean } = {}) => {
     if (!address || !badge?.id) return;
@@ -48,11 +48,10 @@ export const useBadgeEligibility = (badge: any) => {
 
   // Auto-check on mount or address change
   useEffect(() => {
-    if (address && badge?.id && checkCount.current === 0) {
-      checkCount.current = 1;
+    if (address && badge?.id && !badge.earned) {
       checkEligibility();
     }
-  }, [address, badge?.id, checkEligibility]);
+  }, [address, badge?.id]); // Only re-run when wallet or badge changes
 
   return {
     status,

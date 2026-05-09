@@ -10,6 +10,15 @@ import './index.css';
 validateRequiredEnvs();
 void syncSettingsFromBackend();
 
+// Global error handler for asset loading failures (stale builds)
+window.addEventListener('error', (e) => {
+  const msg = e.message.toLowerCase();
+  if (msg.includes('unable to preload css') || msg.includes('failed to fetch dynamically imported module')) {
+    console.warn('Asset loading failure detected. Refreshing for latest version...');
+    window.location.reload();
+  }
+}, true);
+
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Failed to find the root element');
 

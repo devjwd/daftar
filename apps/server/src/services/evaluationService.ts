@@ -7,6 +7,20 @@ import { BadgeDefinition, EligibilityResult } from '@daftar/types';
 
 const VERIFIED_CACHE_TTL_MS = CONFIG.CACHE.VERIFIED_TTL_MS;
 
+// Short-lived cache for on-chain data to deduplicate burst requests (e.g. bulk scan)
+const RPC_BURST_CACHE = new Map<string, { value: any; timestamp: number }>();
+const RPC_BURST_TTL_MS = 10_000; // 10 seconds
+
+const getCachedRpc = (key: string) => {
+  const cached = RPC_BURST_CACHE.get(key);
+  if (cached && Date.now() - cached.timestamp < RPC_BURST_TTL_MS) return cached.value;
+  return null;
+};
+
+const setCachedRpc = (key: string, value: any) => {
+  RPC_BURST_CACHE.set(key, { value, timestamp: Date.now() });
+};
+
 export const isFresh = (timestamp: string | null | undefined): boolean => {
   if (!timestamp) return false;
   const parsed = Date.parse(timestamp);
@@ -50,25 +64,32 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
     const coinType = String(params.coin_type ?? '').trim();
     if (!coinType) throw new Error('MIN_BALANCE requires coin_type');
     
-    const fullnodeUrl = getFullnodeUrl();
-    const view = await fetchJson(`${fullnodeUrl}/view`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        function: '0x1::coin::balance',
-        type_arguments: [coinType],
-        arguments: [wallet],
-      }),
-    });
+    const cacheKey = `bal:${wallet}:${coinType}`;
+    let rawBalance = getCachedRpc(cacheKey);
 
-    const rawBalance = Array.isArray(view.parsed) ? Number(view.parsed[0] ?? 0) : 0;
+    if (rawBalance === null) {
+      const fullnodeUrl = getFullnodeUrl();
+      const view = await fetchJson(`${fullnodeUrl}/view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          function: '0x1::coin::balance',
+          type_arguments: [coinType],
+          arguments: [wallet],
+        }),
+      });
+
+      rawBalance = Array.isArray(view.parsed) ? Number(view.parsed[0] ?? 0) : 0;
+      setCachedRpc(cacheKey, rawBalance);
+    }
     const decimals = Number(params.decimals ?? 8);
     const balance = rawBalance / Math.pow(10, decimals);
     const minAmount = Number(params.min_amount ?? 0);
 
     return {
       eligible: balance >= minAmount,
-      reason: balance >= minAmount ? 'min-balance-threshold-met' : 'min-balance-threshold-not-met'
+      reason: balance >= minAmount ? 'min-balance-threshold-met' : 'min-balance-threshold-not-met',
+      progress: { current: balance, target: minAmount }
     };
   },
 
@@ -82,7 +103,8 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
     const current = count || 0;
     return {
       eligible: current >= minCount,
-      reason: current >= minCount ? 'transaction-threshold-met' : 'transaction-threshold-not-met'
+      reason: current >= minCount ? 'transaction-threshold-met' : 'transaction-threshold-not-met',
+      progress: { current, target: minCount }
     };
   },
 
@@ -92,7 +114,8 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
     const current = Number(data || 0);
     return {
       eligible: current >= minDays,
-      reason: current >= minDays ? 'active-days-threshold-met' : 'active-days-threshold-not-met'
+      reason: current >= minDays ? 'active-days-threshold-met' : 'active-days-threshold-not-met',
+      progress: { current, target: minDays }
     };
   },
 
@@ -103,10 +126,15 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
       .eq('wallet_address', wallet)
       .maybeSingle();
 
-    const isComplete = !!(profile?.username && profile?.bio && profile?.avatar_url);
+    const fields = [profile?.username, profile?.bio, profile?.avatar_url];
+    const current = fields.filter(Boolean).length;
+    const target = fields.length;
+    const isComplete = current === target;
+
     return {
       eligible: isComplete,
-      reason: isComplete ? 'profile-complete' : 'profile-incomplete'
+      reason: isComplete ? 'profile-complete' : 'profile-incomplete',
+      progress: { current, target }
     };
   },
 
@@ -121,7 +149,8 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
     const current = stats?.total_swaps || 0;
     return {
       eligible: current >= min,
-      reason: current >= min ? 'swap-count-met' : 'swap-count-not-met'
+      reason: current >= min ? 'swap-count-met' : 'swap-count-not-met',
+      progress: { current, target: min }
     };
   },
 
@@ -136,7 +165,15 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
     const current = Number(stats?.total_volume_usd || 0);
     return {
       eligible: current >= min,
-      reason: current >= min ? 'volume-threshold-met' : 'volume-threshold-not-met'
+      reason: current >= min ? 'volume-threshold-met' : 'volume-threshold-not-met',
+      progress: { current, target: min }
+    };
+  },
+
+  [BADGE_RULES.ANYONE]: async () => {
+    return {
+      eligible: true,
+      reason: 'open-badge-accessible-to-all'
     };
   }
 };
@@ -210,7 +247,22 @@ export const evaluateRule = async (
   badge: BadgeDefinition,
   cachedAttestation: any
 ): Promise<EligibilityResult> => {
-  // 1. Cache Check
+  // 1. Time-Gate Check
+  const now = Date.now();
+  const special = badge.metadata?.special;
+  if (special?.timeLimited?.enabled) {
+    const start = special.timeLimited.startsAt ? new Date(special.timeLimited.startsAt).getTime() : 0;
+    const end = special.timeLimited.endsAt ? new Date(special.timeLimited.endsAt).getTime() : Infinity;
+
+    if (now < start) {
+      return { eligible: false, reason: 'badge-event-not-started' };
+    }
+    if (now > end) {
+      return { eligible: false, reason: 'badge-event-expired' };
+    }
+  }
+
+  // 2. Cache Check
   if (cachedAttestation?.eligible === true && isFresh(cachedAttestation.verified_at)) {
     return { eligible: true, reason: 'cached', fromCache: true };
   }
@@ -218,6 +270,8 @@ export const evaluateRule = async (
   // 2. Composite Criteria Support
   const criteria = Array.isArray(badge.criteria) ? badge.criteria : [];
   if (criteria.length > 0) {
+    const operator = (badge.rule_params?.operator || 'AND').toUpperCase();
+    
     const results = await Promise.all(criteria.map(async (c) => {
       const mockBadge: BadgeDefinition = { 
         ...badge, 
@@ -227,10 +281,16 @@ export const evaluateRule = async (
       };
       return await evaluateRule(supabase, walletAddress, mockBadge, null);
     }));
-    const allEligible = results.every(r => r.eligible);
+
+    const isEligible = operator === 'OR' 
+      ? results.some(r => r.eligible) 
+      : results.every(r => r.eligible);
+
     return {
-      eligible: allEligible,
-      reason: allEligible ? 'all-criteria-met' : (results.find(r => !r.eligible)?.reason || 'criteria-not-met'),
+      eligible: isEligible,
+      reason: isEligible 
+        ? (operator === 'OR' ? 'at-least-one-criterion-met' : 'all-criteria-met') 
+        : (operator === 'OR' ? 'no-criteria-met' : (results.find(r => !r.eligible)?.reason || 'criteria-not-met')),
       fromCache: false
     };
   }

@@ -557,6 +557,8 @@ interface MintBadgeArgs {
   badgeId: number | string;
   signatureBytes: number[];
   validUntil: number;
+  signerEpoch?: number;
+  nonce?: number;
   badge?: any;
 }
 
@@ -567,6 +569,8 @@ export const mintBadge = async ({
   badgeId,
   signatureBytes,
   validUntil,
+  signerEpoch = 0,
+  nonce = 0,
 }: MintBadgeArgs) => {
   const fn = getBadgeFunction("mint");
   if (!fn) throw new Error("Badge module address not configured");
@@ -585,9 +589,14 @@ export const mintBadge = async ({
     data: {
       function: fn,
       typeArguments: [],
-      // Contract: mint(user, badge_id: u64, valid_until: u64, signature_bytes: vector<u8>)
-      // 3rd party audit fix: Use BigInt for u64 to ensure precision
-      functionArguments: [BigInt(badgeId).toString(), BigInt(validUntil).toString(), Array.from(signatureBytes)],
+      // Contract: mint(user, badge_id, valid_until, signer_epoch, nonce, signature_bytes)
+      functionArguments: [
+        BigInt(badgeId).toString(), 
+        BigInt(validUntil).toString(), 
+        BigInt(signerEpoch).toString(),
+        BigInt(nonce).toString(),
+        Array.from(signatureBytes)
+      ],
     },
   });
 

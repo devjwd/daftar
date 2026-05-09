@@ -64,8 +64,9 @@ export async function signMintAuthorization(
   sNonce.serializeU64(BigInt(nonce));
   const nonceBytes = sNonce.toUint8Array();
   
+  // Total size: domain + 2 addresses (32+32) + 4 u64s (8*4)
   const finalPayload = new Uint8Array(
-    domain.length + 32 + 32 + 8 + 8 + 8
+    domain.length + 32 + 32 + 8 + 8 + 8 + 8
   );
   let pos = 0;
   finalPayload.set(domain, pos); pos += domain.length;
@@ -74,6 +75,7 @@ export async function signMintAuthorization(
   finalPayload.set(badgeIdBytes, pos); pos += 8;
   finalPayload.set(validUntilBytes, pos); pos += 8;
   finalPayload.set(signerEpochBytes, pos); pos += 8;
+  finalPayload.set(nonceBytes, pos); pos += 8;
   
   const signature = privateKey.sign(finalPayload);
   
