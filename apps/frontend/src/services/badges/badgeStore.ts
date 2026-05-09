@@ -156,7 +156,7 @@ function writeStore(key: string, data: any) {
   }
 }
 
-function replaceBadges(badges: any[]) {
+export function replaceBadges(badges: any[]) {
   const normalized = Array.isArray(badges)
     ? badges.map(normalizeLoadedBadge).filter(Boolean)
     : [];
@@ -632,6 +632,7 @@ export default {
   revokeBadge,
   importBadges,
   exportBadges,
+  replaceBadges,
   clearAllBadgeData,
   syncBadgesFromBackend,
   syncUserAwardsFromBackend,
