@@ -210,6 +210,7 @@ router.get('/eligibility', badgeLimiter, forceRefreshLimiter, async (req: Reques
   }
 });
 
+/**
  * GET /api/badges/eligibility/bulk
  * Bulk check eligibility for all active badges
  */
