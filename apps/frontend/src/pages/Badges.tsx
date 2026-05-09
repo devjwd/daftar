@@ -175,7 +175,6 @@ export default function Badges() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [selectedBadge, setSelectedBadge] = useState(null);
-  const [claimedAnimIds, setClaimedAnimIds] = useState(new Set());
   const [isScanning, setIsScanning] = useState(false);
   const [scanResults, setScanResults] = useState({});
 
@@ -184,7 +183,6 @@ export default function Badges() {
     badges,
     totalBadges,
     earnedCount,
-    completionPercent,
     loading,
     refresh,
   } = useBadges(address, {
@@ -192,20 +190,6 @@ export default function Badges() {
     clientLoading: movementClientLoading,
     enablePolling: false,
   });
-
-  // Calculate total XP from earned badges
-  const totalXP = useMemo(() => {
-    return badges
-      .filter(b => b.earned)
-      .reduce((sum, b) => {
-        const rarity = getRarityInfo(b.rarity || 'COMMON');
-        // Use xp_value if available, else calculate based on rarity level
-        const val = Number(b.xp_value || b.xp);
-        return sum + (Number.isFinite(val) ? val : (rarity.level * 10));
-      }, 0);
-  }, [badges]);
-
-  const earnedLabel = t(language, 'badgesEarned', { earned: earnedCount, total: totalBadges });
 
   const isBadgeExpired = useCallback((badge) => {
     const timeLimited = badge?.metadata?.special?.timeLimited;
@@ -228,241 +212,43 @@ export default function Badges() {
     [badges, isBadgeExpired, scanResults]
   );
 
-  const activeBadges = useMemo(
-    () => badgesWithLifecycle.filter((badge) => !badge.isExpired),
-    [badgesWithLifecycle]
-  );
-
-  const expiredBadges = useMemo(
-    () => badgesWithLifecycle.filter((badge) => badge.isExpired),
-    [badgesWithLifecycle]
-  );
-
+  const activeBadges = useMemo(() => badgesWithLifecycle.filter(b => !b.isExpired), [badgesWithLifecycle]);
+  const expiredBadges = useMemo(() => badgesWithLifecycle.filter(b => b.isExpired), [badgesWithLifecycle]);
   const visibleBadges = lifecycleTab === 'expired' ? expiredBadges : activeBadges;
 
-  const earnedBadges = useMemo(
-    () => visibleBadges.filter((badge) => badge.earned),
-    [visibleBadges]
-  );
+  const earnedBadges = useMemo(() => visibleBadges.filter(b => b.earned), [visibleBadges]);
+  const availableBadges = useMemo(() => visibleBadges.filter(b => !b.earned), [visibleBadges]);
 
-  const claimableBadges = useMemo(
-    () => visibleBadges.filter((badge) => !badge.earned && badge.eligible),
-    [visibleBadges]
-  );
-
-  const incompleteBadges = useMemo(
-    () => visibleBadges.filter((badge) => !badge.earned && !badge.eligible),
-    [visibleBadges]
-  );
-
-  const closeBadgeModal = useCallback(() => {
-    setSelectedBadge(null);
-  }, []);
-
-  const handleDeepScan = useCallback(async () => {
+  const handleDeepScan = async () => {
     if (!address || !visibleBadges.length) return;
     setIsScanning(true);
     try {
-      // 1. Force sync history to DB first
       const baseUrl = import.meta.env.VITE_API_URL || '';
-      await fetch(`${baseUrl}/api/transactions/sync?wallet=${address}`).catch(err => console.warn('Sync failed:', err));
-      
-      // 2. Perform bulk eligibility check
+      await fetch(`${baseUrl}/api/transactions/sync?wallet=${address}`).catch(() => {});
       const results = await bulkCheckEligibility(address, visibleBadges);
-      
-      // 3. Map array results to a lookup object by ID
       const resultsMap = {};
-      results.forEach(r => {
-        resultsMap[r.id] = r;
-      });
+      results.forEach(r => { resultsMap[r.id] = r; });
       setScanResults(resultsMap);
-      
-      const eligibleCount = results.filter(r => r.eligible).length;
-      setSuccessMsg(t(language, 'badgesScanResults', { count: eligibleCount }));
-      
-      // 4. Refresh to sync with any background updates
       await refresh();
-      
+      setSuccessMsg(t(language, 'badgesScanResults', { count: results.filter(r => r.eligible).length }));
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       setError(t(language, 'badgesScanFailed'));
     } finally {
       setIsScanning(false);
     }
-  }, [address, visibleBadges]);
-
-  const syncBadgeMint = useCallback(async ({ senderAddress, badge, txHash, attempt = 0 }) => {
-    const baseUrl = import.meta.env.VITE_API_URL || '';
-    const response = await fetch(`${baseUrl}/api/badges/sync`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        walletAddress: senderAddress,
-        badgeId: badge.id,
-        onChainBadgeId: badge.onChainBadgeId,
-        txHash,
-        xpValue: Number(badge.xp || 0),
-        badgeName: badge.name,
-        rarity: badge.rarity,
-      }),
-    });
-
-    if (response.ok) {
-      return true;
-    }
-
-    if (attempt === 0) {
-      setSuccessMsg(t(language, 'badgesMintSuccessSyncFail'));
-      setTimeout(() => setSuccessMsg(''), 6500);
-      setTimeout(() => {
-        void syncBadgeMint({ senderAddress, badge, txHash, attempt: 1 });
-      }, 5000);
-    }
-
-    const payload = await response.json().catch(() => null);
-    console.warn('[badges] sync endpoint returned non-OK status', response.status, payload);
-    return false;
-  }, []);
-
-  useEffect(() => {
-    if (!selectedBadge) return undefined;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        closeBadgeModal();
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [selectedBadge, closeBadgeModal]);
-
-  const handleShareBadge = useCallback(async (badge) => {
-    const shareTitle = t(language, 'badgesShareTitle', { name: badge.name }) || `${badge.name} achievement`;
-    const shareText = `${badge.name} - ${badge.description || t(language, 'badgesDescriptionFallback')}`;
-
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: shareTitle, text: shareText });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(`${shareTitle}\n${shareText}`);
-        setSuccessMsg(t(language, 'badgesShareSuccess'));
-        setTimeout(() => setSuccessMsg(''), 2500);
-      } else {
-        setError(t(language, 'badgesShareNotSupported'));
-        setTimeout(() => setError(''), 2500);
-      }
-    } catch (err) {
-      // Ignore abort errors from dismissed native share sheet.
-      if (err?.name !== 'AbortError') {
-        setError(t(language, 'badgesShareError'));
-        setTimeout(() => setError(''), 2500);
-      }
-    }
-  }, []);
-
-  const renderAchievementCard = (badge) => {
-    const badgeState = badge.earned ? 'earned' : (badge.eligible || badge.attestationPending || badge.attestationFailed) ? 'ready' : 'locked';
-    
-    let progressClamped = 0;
-    if (typeof badge.progress === 'number') {
-      progressClamped = Math.max(0, Math.min(100, badge.progress));
-    } else if (badge.progress && typeof badge.progress === 'object') {
-      const current = Number(badge.progress.current || 0);
-      const target = Number(badge.progress.target || 0);
-      if (target > 0) {
-        progressClamped = Math.max(0, Math.min(100, (current / target) * 100));
-      }
-    }
-    const isMinting = mintingIds.has(badge.id);
-    const successPulse = claimedAnimIds.has(badge.id);
-
-    return (
-      <article
-        key={badge.id}
-        className={`achievement-card achievement-${badgeState} ${badge.isExpired ? 'achievement-expired' : ''} ${successPulse ? 'achievement-success-pop' : ''}`}
-        onClick={() => setSelectedBadge(badge)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            setSelectedBadge(badge);
-          }
-        }}
-      >
-        <div className="achievement-icon-wrap" aria-hidden="true">
-          {badge.imageUrl ? (
-            <img src={badge.imageUrl} alt="" className="achievement-icon-image" loading="lazy" />
-          ) : (
-            <span className="achievement-icon-fallback">{badge.emoji || '🏅'}</span>
-          )}
-        </div>
-
-        <div className="achievement-content">
-          <h3>{badge.name}</h3>
-          <p>{badge.description || t(language, 'badgesDescriptionFallback')}</p>
-
-          {!badge.earned && !badge.eligible && progressClamped > 0 && (
-            <div className="achievement-progress" aria-label={`Progress ${Math.round(progressClamped)} percent`}>
-              <div className="achievement-progress-fill" style={{ width: `${progressClamped}%` }} />
-            </div>
-          )}
-        </div>
-
-        <div className="achievement-actions">
-          <BadgeEligibilityActions
-            badge={badge}
-            minting={isMinting}
-            onMint={handleMint}
-            disabled={badge.isExpired}
-            language={language}
-          />
-
-          {badge.earned && <span className="achievement-status-pill">{t(language, 'badgesAchievements')}</span>}
-          {!badge.earned && !badge.eligible && !badge.attestationPending && !badge.attestationFailed && <span className="achievement-status-pill">{t(language, 'badgesLocked')}</span>}
-          {badge.publishPending && <span className="achievement-status-pill">{t(language, 'badgesPublishing')}</span>}
-          {badge.attestationPending && <span className="achievement-status-pill">{t(language, 'badgesAttesting')}</span>}
-          {badge.attestationFailed && <span className="achievement-status-pill achievement-status-pill--warn" title={t(language, 'badgesAttestationFailedNote')}>{t(language, 'badgesAttestationFailed')}</span>}
-
-          <span className="achievement-chevron" aria-hidden="true">›</span>
-        </div>
-      </article>
-    );
   };
 
-  // Mint handler
-  const handleMint = useCallback(async (badge) => {
+  const handleMint = async (badge) => {
     if (!connected || !account || !signAndSubmitTransaction) {
       setError(t(language, 'badgesConnectToClaim'));
       return;
     }
-    if (!movementClient) {
-      setError(t(language, 'badgesClientLoading'));
-      return;
-    }
-
-    setError('');
-    setSuccessMsg('');
     setMintingIds(prev => new Set([...prev, badge.id]));
-
     try {
-      if (badge.onChainBadgeId == null) {
-        throw new Error(t(language, 'badgesNotPublished'));
-      }
-
-      let txHash = null;
       const senderAddress = typeof account.address === 'string' ? account.address : account.address.toString();
       const sigResult = await requestMintSignature(senderAddress, badge.onChainBadgeId);
-      if (!sigResult.ok) {
-        throw new Error(sigResult.error || t(language, 'badgesMintAuthFailed'));
-      }
+      if (!sigResult.ok) throw new Error(sigResult.error || t(language, 'badgesMintAuthFailed'));
 
       const tx = await mintBadge({
         client: movementClient,
@@ -475,47 +261,32 @@ export default function Badges() {
         nonce: sigResult.nonce,
         badge,
       });
-      txHash = await confirmMintAndOwnership({
+
+      const txHash = await confirmMintAndOwnership({
         client: movementClient,
         txResponse: tx,
         badgeId: badge.onChainBadgeId,
         owner: senderAddress,
       });
 
-      let syncOk = true;
-      try {
-        syncOk = await syncBadgeMint({ senderAddress, badge, txHash });
-      } catch (syncError) {
-        syncOk = false;
-        setSuccessMsg(t(language, 'badgesMintSuccessSyncFail'));
-        setTimeout(() => setSuccessMsg(''), 6500);
-        setTimeout(() => {
-          void syncBadgeMint({ senderAddress, badge, txHash, attempt: 1 });
-        }, 5000);
-        console.warn('[badges] sync endpoint call failed', syncError);
-      }
-
-      await awardBadge(address, badge.id, {
-        txHash,
-        onChainBadgeId: badge.onChainBadgeId,
-        metadata: { mintedAt: Date.now() },
+      await fetch(`${import.meta.env.VITE_API_URL}/api/badges/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: senderAddress,
+          badgeId: badge.id,
+          onChainBadgeId: badge.onChainBadgeId,
+          txHash,
+          xpValue: Number(badge.xp || 0),
+          badgeName: badge.name,
+          rarity: badge.rarity,
+        }),
       });
 
-      setClaimedAnimIds((prev) => new Set([...prev, badge.id]));
-      setTimeout(() => {
-        setClaimedAnimIds((prev) => {
-          const next = new Set(prev);
-          next.delete(badge.id);
-          return next;
-        });
-      }, 1400);
-
-      if (syncOk) {
-        setSuccessMsg(t(language, 'badgesClaimSuccess', { badgeName: badge.name }));
-        setTimeout(() => setSuccessMsg(''), 4000);
-      }
+      await refresh();
+      setSuccessMsg(t(language, 'badgesClaimSuccess', { badgeName: badge.name }));
+      setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
-      console.error('Mint error:', err);
       setError(err.message || t(language, 'badgesCheckFailed'));
     } finally {
       setMintingIds(prev => {
@@ -524,194 +295,150 @@ export default function Badges() {
         return next;
       });
     }
-  }, [connected, account, signAndSubmitTransaction, address, movementClient, syncBadgeMint]);
+  };
+
+  const renderBadgeCard = (badge) => {
+    const isMinting = mintingIds.has(badge.id);
+    const status = badge.earned ? 'earned' : badge.eligible ? 'eligible' : 'locked';
+
+    return (
+      <article 
+        key={badge.id} 
+        className={`achievement-card achievement-${status}`}
+        onClick={() => setSelectedBadge(badge)}
+      >
+        <div className="achievement-card-header">
+          <div className="achievement-icon-wrap">
+            {badge.imageUrl ? <img src={badge.imageUrl} alt="" className="achievement-icon-image" /> : (badge.emoji || '🏅')}
+          </div>
+          <div className="achievement-info">
+            <h3>{badge.name}</h3>
+            <p>{badge.description}</p>
+          </div>
+        </div>
+
+        <div className="achievement-card-footer">
+          <span className="achievement-status-pill">
+            {badge.earned ? t(language, 'badgesOwned') : badge.eligible ? t(language, 'badgesEligible') : t(language, 'badgesLocked')}
+          </span>
+          {badge.eligible && !badge.earned && (
+            <button 
+              className="achievement-claim-btn"
+              onClick={(e) => { e.stopPropagation(); handleMint(badge); }}
+              disabled={isMinting}
+            >
+              {isMinting ? t(language, 'badgesClaiming') : t(language, 'badgesClaim')}
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  };
 
   return (
     <div className="badges-page">
       <div className="badges-container">
         <header className="badges-header">
-          <div className="badges-header-content">
+          <div className="badges-header-left">
             <span className="badges-eyebrow">{t(language, 'badgesAchievements')}</span>
             <h1>{t(language, 'badgesTitle')}</h1>
             <p>{t(language, 'badgesSubtitle')}</p>
           </div>
-
+          
           {address && (
-            <div className="badges-header-aside">
-              <BadgeSummary 
-                earnedCount={earnedCount} 
-                totalCount={totalBadges} 
-              />
+            <div className="badges-header-right">
+              <BadgeSummary earnedCount={earnedCount} totalCount={totalBadges} />
             </div>
           )}
         </header>
 
-        {/* Messages */}
         {successMsg && <div className="badges-msg badges-msg-success">{successMsg}</div>}
         {error && <div className="badges-msg badges-msg-error">{error}</div>}
 
-        {/* Not connected */}
-        {!connected && (
-          <div className="badges-connect-prompt">
-            <div className="badges-connect-icon">🔐</div>
-            <p>{t(language, 'badgesConnectPrompt')}</p>
+        <div className="badges-toolbar">
+          <div className="achievement-tabs">
+            <button 
+              className={`achievement-tab ${lifecycleTab === 'active' ? 'is-active' : ''}`}
+              onClick={() => setLifecycleTab('active')}
+            >
+              {t(language, 'badgesActive')} <span>{activeBadges.length}</span>
+            </button>
+            <button 
+              className={`achievement-tab ${lifecycleTab === 'expired' ? 'is-active' : ''}`}
+              onClick={() => setLifecycleTab('expired')}
+            >
+              {t(language, 'badgesExpired')} <span>{expiredBadges.length}</span>
+            </button>
           </div>
-        )}
 
-        {/* Loading */}
-        {connected && loading && totalBadges > 0 && badgesWithLifecycle.length === 0 && (
+          <div className="badges-actions-group">
+            <button 
+              className="badges-scan-btn" 
+              onClick={handleDeepScan} 
+              disabled={isScanning || loading}
+            >
+              {isScanning ? t(language, 'badgesScanning') : t(language, 'badgesDeepScan')}
+            </button>
+            <button 
+              className="badges-refresh-btn" 
+              onClick={refresh} 
+              disabled={loading}
+            >
+              ↻
+            </button>
+          </div>
+        </div>
+
+        {loading && totalBadges === 0 ? (
           <div className="badges-loading">
             <div className="badges-spinner" />
             <p>{t(language, 'badgesChecking')}</p>
           </div>
-        )}
-
-        {/* No badges defined yet */}
-        {connected && !loading && totalBadges === 0 && (
-          <div className="badges-empty">
-            <p>{t(language, 'badgesNoBadgesAvailable')}</p>
-          </div>
-        )}
-
-        {/* Badge Sections */}
-        {connected && badgesWithLifecycle.length > 0 && (
+        ) : (
           <>
-            {/* Real-time indicator */}
-            {loading && (
-              <div className="badges-realtime-indicator">
-                <span className="badges-pulse-dot" />
-                {t(language, 'badgesChecking')}
-              </div>
+            {earnedBadges.length > 0 && (
+              <section className="badges-section">
+                <h2 className="badges-section-title">
+                  {t(language, 'badgesEarnedSection')}
+                  <span className="badges-section-count">{earnedBadges.length}</span>
+                </h2>
+                <div className="achievement-grid">
+                  {earnedBadges.map(renderBadgeCard)}
+                </div>
+              </section>
             )}
 
-            {/* Refresh button */}
-            <div className="badges-toolbar">
-              <button
-                className={`badges-scan-btn ${isScanning ? 'is-scanning' : ''}`}
-                onClick={handleDeepScan}
-                disabled={loading || isScanning}
-              >
-                {isScanning ? t(language, 'badgesScanning') : t(language, 'badgesDeepScan')}
-              </button>
-              <button className="badges-refresh-btn" onClick={refresh} disabled={loading || isScanning}>
-                ↻ {t(language, 'badgesRefresh')}
-              </button>
-            </div>
-
-            <div className="achievement-tabs" role="tablist" aria-label="Badge lifecycle filters">
-              <button
-                className={`achievement-tab ${lifecycleTab === 'active' ? 'is-active' : ''}`}
-                onClick={() => setLifecycleTab('active')}
-                role="tab"
-                aria-selected={lifecycleTab === 'active'}
-              >
-                {t(language, 'badgesActive')}
-                <span>{activeBadges.length}</span>
-              </button>
-              <button
-                className={`achievement-tab ${lifecycleTab === 'expired' ? 'is-active' : ''}`}
-                onClick={() => setLifecycleTab('expired')}
-                role="tab"
-                aria-selected={lifecycleTab === 'expired'}
-              >
-                {t(language, 'badgesExpired')}
-                <span>{expiredBadges.length}</span>
-              </button>
-            </div>
-
-            {visibleBadges.length === 0 && (
-              <div className="badges-empty">
-                <p>{lifecycleTab === 'expired' ? t(language, 'badgesNoExpired') : t(language, 'badgesNoActive')}</p>
-              </div>
-            )}
-
-            {visibleBadges.length > 0 && (
-              <>
-                {earnedBadges.length > 0 && (
-                  <section className="badges-section">
-                    <h2 className="badges-section-title">
-                      {t(language, 'badgesEarnedSection') || 'Earned'}
-                      <span className="badges-section-count">{earnedBadges.length}</span>
-                    </h2>
-                    <div className="achievement-grid">
-                      {earnedBadges.map(renderAchievementCard)}
-                    </div>
-                  </section>
-                )}
-
-                {claimableBadges.length > 0 && (
-                  <section className="badges-section">
-                    <h2 className="badges-section-title">
-                      {t(language, 'badgesClaimableSection') || 'Ready to Claim'}
-                      <span className="badges-section-count">{claimableBadges.length}</span>
-                    </h2>
-                    <div className="achievement-grid">
-                      {claimableBadges.map(renderAchievementCard)}
-                    </div>
-                  </section>
-                )}
-
-                <section className="badges-section">
-                  <h2 className="badges-section-title">
-                    {t(language, 'badgesIncomplete')}
-                    <span className="badges-section-count">{incompleteBadges.length}</span>
-                    <small>{t(language, 'badgesIncompleteNote')}</small>
-                  </h2>
-                  <div className="achievement-grid">
-                    {incompleteBadges.map(renderAchievementCard)}
-                  </div>
-                </section>
-              </>
+            {availableBadges.length > 0 && (
+              <section className="badges-section">
+                <h2 className="badges-section-title">
+                  {t(language, 'badgesAvailableSection') || 'Available'}
+                  <span className="badges-section-count">{availableBadges.length}</span>
+                </h2>
+                <div className="achievement-grid">
+                  {availableBadges.map(renderBadgeCard)}
+                </div>
+              </section>
             )}
           </>
         )}
       </div>
 
       {selectedBadge && (
-        <div className="badge-modal-backdrop" onClick={closeBadgeModal} role="presentation">
-          <div
-            className="badge-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="badge-modal-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button className="badge-modal-close" onClick={closeBadgeModal} aria-label="Close badge details">
-              ×
-            </button>
-
-            <div className="badge-modal-icon-wrap" aria-hidden="true">
-              {selectedBadge.imageUrl ? (
-                <img src={selectedBadge.imageUrl} alt="" className="badge-modal-icon-image" loading="lazy" />
-              ) : (
-                <span className="badge-modal-icon-fallback">{selectedBadge.emoji || '🏅'}</span>
-              )}
+        <div className="badge-modal-backdrop" onClick={() => setSelectedBadge(null)}>
+          <div className="badge-modal" onClick={e => e.stopPropagation()}>
+            <button className="badge-modal-close" onClick={() => setSelectedBadge(null)}>×</button>
+            <div className="badge-modal-icon-wrap">
+              {selectedBadge.imageUrl ? <img src={selectedBadge.imageUrl} alt="" /> : (selectedBadge.emoji || '🏅')}
             </div>
-
-            <h3 id="badge-modal-title">{selectedBadge.name}</h3>
-            <p>{selectedBadge.description || t(language, 'badgesDescriptionFallback')}</p>
-
-            <div className="badge-modal-meta">
-              {selectedBadge.earned && <span className="badge-modal-pill is-earned">{t(language, 'badgesAchievements')}</span>}
-              {selectedBadge.eligible && !selectedBadge.earned && <span className="badge-modal-pill is-claim">{t(language, 'badgesReadyToClaim')}</span>}
-              {!selectedBadge.earned && !selectedBadge.eligible && <span className="badge-modal-pill is-locked">{t(language, 'badgesInProgress')}</span>}
-            </div>
-
-            {selectedBadge.attestationPending && (
-              <p className="badge-modal-note">
-                {t(language, 'badgesAttestationNote')}
-              </p>
-            )}
-            {selectedBadge.attestationFailed && (
-              <p className="badge-modal-note badge-modal-note--warn">
-                {t(language, 'badgesAttestationFailedNote')}
-              </p>
-            )}
-
-            <button
+            <h3>{selectedBadge.name}</h3>
+            <p>{selectedBadge.description}</p>
+            <button 
               className="badge-modal-share"
-              onClick={() => handleShareBadge(selectedBadge)}
-              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(`${selectedBadge.name}: ${selectedBadge.description}`);
+                setSuccessMsg(t(language, 'badgesShareSuccess'));
+                setTimeout(() => setSuccessMsg(''), 2000);
+              }}
             >
               {t(language, 'badgesShare')}
             </button>

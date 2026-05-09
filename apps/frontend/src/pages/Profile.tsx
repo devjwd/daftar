@@ -128,7 +128,10 @@ export default function Profile() {
     return (
       <div className="profile-page">
         <div className="profile-container">
-          <div className="loading-state">{t(language, 'profileLoading')}</div>
+          <div className="loading-state">
+            <div className="spinner" />
+            <p>{t(language, 'profileLoading')}</p>
+          </div>
         </div>
       </div>
     );
@@ -138,6 +141,9 @@ export default function Profile() {
     <div className="profile-page">
       {showSuccess && (
         <div className="success-banner">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
           {t(language, 'profileSavedSuccess')}
         </div>
       )}
