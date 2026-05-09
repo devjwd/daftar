@@ -28,7 +28,7 @@ export const useBadgeEligibility = (badge: BadgeDefinition) => {
     setReason(null);
 
     try {
-      const result = await checkBadgeEligibility(badge.id, address);
+      const result = await checkBadgeEligibility(badge.id, address, options.force);
       if (result) {
         setStatus(result.eligible ? 'eligible' : 'not_eligible');
         setProgress(result.progress);

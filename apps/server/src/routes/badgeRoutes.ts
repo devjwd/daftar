@@ -1,5 +1,9 @@
 import express, { Request, Response } from 'express';
-import { badgeLimiter, awardLimiter } from '../middleware/rateLimit.ts';
+import { 
+  badgeLimiter, 
+  awardLimiter, 
+  forceRefreshLimiter 
+} from '../middleware/rateLimit.ts';
 import { evaluateRule, getSignerEpoch, verifyOnChainMint } from '../services/evaluationService.ts';
 import { signMintAuthorization } from '../services/signingService.ts';
 import { normalizeAddress } from '../utils/address.ts';
@@ -99,8 +103,8 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
       .eq('wallet_address', normalizedAddr)
       .maybeSingle();
 
-    // 3. Evaluate eligibility
-    const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badgeDef, attestation);
+    // 3. Evaluate eligibility (Forcing LIVE check for signature generation)
+    const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badgeDef, null);
 
     if (!evaluation.eligible) {
       return res.status(403).json({
@@ -155,10 +159,11 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
  * GET /api/badges/eligibility
  * Check if a user is eligible for a badge without generating a signature
  */
-router.get('/eligibility', badgeLimiter, async (req: Request, res: Response) => {
+router.get('/eligibility', badgeLimiter, forceRefreshLimiter, async (req: Request, res: Response) => {
   const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
-  const { badgeId, wallet } = req.query;
+  const { badgeId, wallet, force } = req.query;
   const normalizedAddr = normalizeAddress(wallet as string);
+  const bypassCache = force === 'true';
 
   if (!badgeId || !normalizedAddr) {
     return res.status(400).json({ error: 'badgeId and wallet are required' });
@@ -184,8 +189,19 @@ router.get('/eligibility', badgeLimiter, async (req: Request, res: Response) => 
       .eq('wallet_address', normalizedAddr)
       .maybeSingle();
 
-    // 3. Evaluate
-    const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, attestation);
+    // 3. Evaluate (with cache awareness)
+    const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, bypassCache ? null : attestation);
+
+    // 4. If newly found eligible, persist to DB for future caching
+    if (evaluation.eligible && !evaluation.fromCache) {
+      await supabaseAdmin.from('badge_attestations').upsert({
+        badge_id: badge.badge_id,
+        wallet_address: normalizedAddr,
+        eligible: true,
+        verified_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'badge_id, wallet_address' });
+    }
 
     return res.status(200).json(evaluation);
   } catch (err: any) {
@@ -194,14 +210,14 @@ router.get('/eligibility', badgeLimiter, async (req: Request, res: Response) => 
   }
 });
 
-/**
  * GET /api/badges/eligibility/bulk
  * Bulk check eligibility for all active badges
  */
-router.get('/eligibility/bulk', badgeLimiter, async (req: Request, res: Response) => {
+router.get('/eligibility/bulk', badgeLimiter, forceRefreshLimiter, async (req: Request, res: Response) => {
   const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
-  const { wallet } = req.query;
+  const { wallet, force } = req.query;
   const normalizedAddr = normalizeAddress(wallet as string);
+  const bypassCache = force === 'true';
 
   if (!normalizedAddr) {
     return res.status(400).json({ error: 'wallet address is required' });
@@ -230,7 +246,21 @@ router.get('/eligibility/bulk', badgeLimiter, async (req: Request, res: Response
     // 3. Evaluate each badge
     const results = await Promise.all((badges || []).map(async (badge) => {
       const attestation = attestationMap.get(badge.badge_id);
-      const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, attestation);
+      const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, bypassCache ? null : attestation);
+      
+      // 4. Background persist if newly eligible (don't await for speed, but catch errors)
+      if (evaluation.eligible && !evaluation.fromCache) {
+        supabaseAdmin.from('badge_attestations').upsert({
+          badge_id: badge.badge_id,
+          wallet_address: normalizedAddr,
+          eligible: true,
+          verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'badge_id, wallet_address' }).then(({ error }) => {
+          if (error) console.error(`[Badges/Bulk] Failed to cache eligibility for ${badge.badge_id}:`, error.message);
+        });
+      }
+
       return {
         badge_id: badge.badge_id,
         ...evaluation

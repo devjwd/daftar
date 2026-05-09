@@ -220,13 +220,36 @@ export default function Badges() {
   const earnedBadges = useMemo(() => visibleBadges.filter(b => b.earned), [visibleBadges]);
   const availableBadges = useMemo(() => visibleBadges.filter(b => !b.earned), [visibleBadges]);
 
+  // Auto-scan on mount or address change (Smart Cache optimized)
+  useEffect(() => {
+    if (address && visibleBadges.length > 0 && !isScanning && Object.keys(scanResults).length === 0) {
+      const runInitialScan = async () => {
+        setIsScanning(true);
+        try {
+          const results = await bulkCheckEligibility(address, visibleBadges);
+          const resultsMap = {};
+          results.forEach(r => { resultsMap[r.id] = r; });
+          setScanResults(resultsMap);
+        } catch (err) {
+          console.warn('[Badges] Initial scan failed:', err);
+        } finally {
+          setIsScanning(false);
+        }
+      };
+      runInitialScan();
+    }
+  }, [address, visibleBadges.length]);
+
   const handleDeepScan = async () => {
     if (!address || !visibleBadges.length) return;
     setIsScanning(true);
     try {
       const baseUrl = import.meta.env.VITE_API_URL || '';
+      // Optional: sync transactions first to ensure latest data
       await fetch(`${baseUrl}/api/transactions/sync?wallet=${address}`).catch(() => {});
-      const results = await bulkCheckEligibility(address, visibleBadges);
+      
+      // Force a fresh calculation on the server
+      const results = await bulkCheckEligibility(address, visibleBadges, { force: true });
       const resultsMap = {};
       results.forEach(r => { resultsMap[r.id] = r; });
       setScanResults(resultsMap);

@@ -17,17 +17,18 @@ import { normalizeAddress } from '../../utils/address';
  * Fetch bulk eligibility results from the server.
  * Returns a Map of badge_id → { eligible, reason, progress }
  */
-async function fetchServerEligibility(address: string) {
+async function fetchServerEligibility(address: string, options: { force?: boolean } = {}) {
   const normalized = normalizeAddress(address);
   const cacheKey = `bulk:${normalized}`;
   const cached = CACHE.get(cacheKey);
 
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+  if (!options.force && cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
     return cached.data;
   }
 
   try {
-    const response = await fetch(`${API_URL}/api/badges/eligibility/bulk?wallet=${normalized}`);
+    const forceParam = options.force ? '&force=true' : '';
+    const response = await fetch(`${API_URL}/api/badges/eligibility/bulk?wallet=${normalized}${forceParam}`);
     if (!response.ok) {
       console.warn('[EngineService] Server eligibility check failed:', response.status);
       return new Map();
@@ -56,9 +57,9 @@ async function fetchServerEligibility(address: string) {
  * Check eligibility for a single badge against a wallet.
  * Delegates to the server's bulk endpoint (cached).
  */
-export async function checkBadgeEligibility(badgeId: string, address: string) {
+export async function checkBadgeEligibility(badgeId: string, address: string, options: { force?: boolean } = {}) {
   try {
-    const resultMap = await fetchServerEligibility(address);
+    const resultMap = await fetchServerEligibility(address, options);
     const result = resultMap.get(badgeId);
 
     if (result) {
@@ -94,9 +95,9 @@ export const evaluateBadge = checkBadgeEligibility;
  * Bulk check eligibility for multiple badges.
  * Fetches from server ONCE and maps results.
  */
-export async function bulkCheckEligibility(address: string, badges: any[]) {
+export async function bulkCheckEligibility(address: string, badges: any[], options: { force?: boolean } = {}) {
   try {
-    const resultMap = await fetchServerEligibility(address);
+    const resultMap = await fetchServerEligibility(address, options);
 
     return (badges || []).map(badge => {
       const badgeId = badge?.badge_id || badge?.id || '';

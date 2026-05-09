@@ -84,9 +84,10 @@ export const getBadges = async (): Promise<BadgeDefinition[]> => {
   return response.ok ? (response.data || []) : [];
 };
 
-export const checkBadgeEligibility = async (badgeId: string, wallet: string): Promise<EligibilityResult | null> => {
+export const checkBadgeEligibility = async (badgeId: string, wallet: string, force: boolean = false): Promise<EligibilityResult | null> => {
+  const forceParam = force ? '&force=true' : '';
   const response = await callApi<EligibilityResult>(
-    `/api/badges/eligibility?wallet=${encodeURIComponent(normalizeAddress(wallet))}&badgeId=${encodeURIComponent(badgeId)}`
+    `/api/badges/eligibility?wallet=${encodeURIComponent(normalizeAddress(wallet))}&badgeId=${encodeURIComponent(badgeId)}${forceParam}`
   );
   return response.ok ? response.data : null;
 };
