@@ -51,7 +51,10 @@ function normalizeLoadedBadge(rawBadge) {
   return {
     ...rawBadge,
     id,
-    isPublic: rawBadge.isPublic !== false,
+    imageUrl: rawBadge.imageUrl || rawBadge.image_url,
+    xp: rawBadge.xp || rawBadge.xp_value || 0,
+    isPublic: rawBadge.isPublic ?? rawBadge.is_public ?? true,
+    onChainBadgeId: rawBadge.onChainBadgeId ?? rawBadge.on_chain_badge_id,
     criteria: Array.isArray(rawBadge.criteria) ? rawBadge.criteria : [],
     metadata: rawBadge.metadata && typeof rawBadge.metadata === 'object' ? rawBadge.metadata : {},
   };
@@ -95,8 +98,6 @@ function mapCriterionToRule(criterionType) {
   if (criterionType === CRITERIA_TYPES.TRANSACTION_COUNT) return BADGE_RULES.TRANSACTION_COUNT;
   if (criterionType === CRITERIA_TYPES.DAYS_ONCHAIN) return BADGE_RULES.DAYS_ONCHAIN;
   if (criterionType === CRITERIA_TYPES.MIN_BALANCE) return BADGE_RULES.MIN_BALANCE;
-  if (criterionType === CRITERIA_TYPES.PROTOCOL_COUNT) return BADGE_RULES.PROTOCOL_COUNT;
-  if (criterionType === CRITERIA_TYPES.PROTOCOL_USAGE || criterionType === CRITERIA_TYPES.DAPP_USAGE) return BADGE_RULES.DAPP_USAGE;
   if (criterionType === CRITERIA_TYPES.ALLOWLIST) return BADGE_RULES.ALLOWLIST;
   if (criterionType === CRITERIA_TYPES.DAFTAR_PROFILE_COMPLETE) return BADGE_RULES.DAFTAR_PROFILE_COMPLETE;
   if (criterionType === CRITERIA_TYPES.DAFTAR_SWAP_COUNT) return BADGE_RULES.DAFTAR_SWAP_COUNT;
@@ -590,34 +591,6 @@ export function exportBadges() {
 }
 
 /**
- * Export scanner-compatible config for backend badge admin workflows.
- * Only exports badges whose first criterion maps to a supported server rule.
- */
-export function exportScannerConfigs() {
-  const configs = [];
-
-  for (const badge of getEnabledBadges()) {
-    const firstCriterion = Array.isArray(badge.criteria) ? badge.criteria[0] : null;
-    if (!firstCriterion?.type) continue;
-
-    const rule = mapCriterionToRule(firstCriterion.type);
-    if (rule == null) continue;
-
-    configs.push({
-      badgeId: badge.id,
-      onChainBadgeId: (badge as any).onChainBadgeId ?? null,
-      rule,
-      params: {
-        badgeId: badge.id,
-        ...(firstCriterion.params || {}),
-      },
-    });
-  }
-
-  return JSON.stringify(configs, null, 2);
-}
-
-/**
  * Clear all badge data (definitions and awards).
  */
 export async function clearAllBadgeData(options: any = {}) {
@@ -659,7 +632,6 @@ export default {
   revokeBadge,
   importBadges,
   exportBadges,
-  exportScannerConfigs,
   clearAllBadgeData,
   syncBadgesFromBackend,
   syncUserAwardsFromBackend,

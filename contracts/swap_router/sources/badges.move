@@ -98,6 +98,7 @@ module swap_router::badges {
         owner: address,
         badges: Table<u64, BadgeInstance>,
         badge_ids: vector<u64>,
+        used_nonces: Table<u64, bool>,
     }
 
     // --- EVENTS ---
@@ -260,11 +261,12 @@ module swap_router::badges {
     ///
     /// Signed message (BCS, little-endian):
     ///   domain || module_addr (32 bytes) || user_addr (32 bytes)
-    ///   || badge_id (8 bytes) || valid_until (8 bytes) || signer_epoch (8 bytes)
+    ///   || badge_id (8 bytes) || valid_until (8 bytes) || signer_epoch (8 bytes) || nonce (8 bytes)
     public entry fun mint(
         user: &signer,
         badge_id: u64,
         valid_until: u64,
+        nonce: u64,
         signature_bytes: vector<u8>,
     ) acquires BadgeRegistry, BadgeStore {
         assert!(vector::length(&signature_bytes) == SIG_LEN, E_INVALID_SIGNATURE);
@@ -278,12 +280,18 @@ module swap_router::badges {
         assert!(!registry.paused, E_REGISTRY_PAUSED);
         assert!(table::contains(&registry.badges, badge_id), E_BADGE_NOT_FOUND);
 
+        ensure_badge_store(user);
+        let store = borrow_global_mut<BadgeStore>(user_addr);
+        assert!(!table::contains(&store.used_nonces, nonce), E_INVALID_SIGNATURE);
+        table::add(&mut store.used_nonces, nonce, true);
+
         let message = copy MINT_DOMAIN_SEPARATOR;
         vector::append(&mut message, bcs::to_bytes(&@swap_router));
         vector::append(&mut message, bcs::to_bytes(&user_addr));
         vector::append(&mut message, bcs::to_bytes(&badge_id));
         vector::append(&mut message, bcs::to_bytes(&valid_until));
         vector::append(&mut message, bcs::to_bytes(&registry.signer_epoch));
+        vector::append(&mut message, bcs::to_bytes(&nonce));
 
         let pub_key_opt = ed25519::new_validated_public_key_from_bytes(registry.signer_pub_key);
         assert!(option::is_some(&pub_key_opt), E_INVALID_PUB_KEY);
@@ -299,8 +307,6 @@ module swap_router::badges {
         if (badge_mut.ends_at > 0)   assert!(now <= badge_mut.ends_at,   E_BADGE_EXPIRED);
         if (badge_mut.max_supply > 0) assert!(badge_mut.total_minted < badge_mut.max_supply, E_SUPPLY_REACHED);
 
-        ensure_badge_store(user);
-        let store = borrow_global_mut<BadgeStore>(user_addr);
         assert!(!table::contains(&store.badges, badge_id), E_ALREADY_MINTED);
         assert!(vector::length(&store.badge_ids) < MAX_BADGES_PER_USER, E_TOO_MANY_BADGES_PER_USER);
 
@@ -337,6 +343,7 @@ module swap_router::badges {
                 owner: user_addr,
                 badges: table::new(),
                 badge_ids: vector::empty(),
+                used_nonces: table::new(),
             });
         };
     }

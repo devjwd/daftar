@@ -6,10 +6,6 @@ export const BADGE_RULES = {
   ATTESTATION: 3,
   TX_COUNT: 4,
   ACTIVE_DAYS: 5,
-  PROTOCOL_COUNT: 6,
-  DAPP_USAGE: 7,
-  HOLDING_PERIOD: 8,
-  NFT_HOLDER: 9,
   COMPOSITE: 10,
   DAFTAR_PROFILE_COMPLETE: 11,
   DAFTAR_SWAP_COUNT: 12,
@@ -75,10 +71,6 @@ export const normalizeRuleType = (value: any): number | null => {
     tx_count: BADGE_RULES.TX_COUNT,
     active_days: BADGE_RULES.ACTIVE_DAYS,
     days_onchain: BADGE_RULES.ACTIVE_DAYS,
-    protocol_count: BADGE_RULES.PROTOCOL_COUNT,
-    dapp_usage: BADGE_RULES.DAPP_USAGE,
-    holding_period: BADGE_RULES.HOLDING_PERIOD,
-    nft_holder: BADGE_RULES.NFT_HOLDER,
     composite: BADGE_RULES.COMPOSITE,
     daftar_profile_complete: BADGE_RULES.DAFTAR_PROFILE_COMPLETE,
     daftar_swap_count: BADGE_RULES.DAFTAR_SWAP_COUNT,
@@ -171,7 +163,7 @@ export const validateRuleParams = (
       return {
         ok: true,
         ruleParams: {
-          min_count: ensureIntegerInRange(params.min_count ?? params.minAmount ?? params.count, 1, 1000000, 1),
+          min_count: ensureIntegerInRange(params.min_count ?? params.minAmount ?? params.count ?? params.min, 1, 1000000, 1),
         },
       };
     }
@@ -180,73 +172,7 @@ export const validateRuleParams = (
       return {
         ok: true,
         ruleParams: {
-          min_days: ensureIntegerInRange(params.min_days ?? params.minDays ?? params.days, 1, 3650, 1),
-        },
-      };
-    }
-
-    if (ruleType === BADGE_RULES.PROTOCOL_COUNT) {
-      return {
-        ok: true,
-        ruleParams: {
-          min_protocols: ensureIntegerInRange(params.min_protocols ?? params.minProtocols ?? params.count, 1, 1000, 1),
-        },
-      };
-    }
-
-    if (ruleType === BADGE_RULES.DAPP_USAGE) {
-      const dappKey = ensureString(params.dapp_key ?? params.dappKey);
-      const dappName = ensureString(params.dapp_name ?? params.dappName);
-      const dappContract = ensureString(params.dapp_contract ?? params.dappContract);
-
-      if (!dappKey && !dappName && !dappContract) {
-        throw new Error('DAPP_USAGE requires at least one of dapp_key, dappName, or dapp_contract');
-      }
-
-      validateStringLength(dappKey, 120, 'rule_params.dapp_key');
-      validateStringLength(dappName, 200, 'rule_params.dapp_name');
-      validateStringLength(dappContract, 200, 'rule_params.dapp_contract');
-
-      return {
-        ok: true,
-        ruleParams: {
-          dapp_key: dappKey,
-          dapp_name: dappName,
-          dapp_contract: dappContract,
-        },
-      };
-    }
-
-    if (ruleType === BADGE_RULES.HOLDING_PERIOD) {
-      const coinType = ensureString(params.coin_type ?? params.coinType);
-      if (!coinType) throw new Error('HOLDING_PERIOD requires rule_params.coin_type');
-      validateStringLength(coinType, 200, 'rule_params.coin_type');
-      return {
-        ok: true,
-        ruleParams: {
-          coin_type: coinType,
-          min_amount: ensureNumberInRange(params.min_amount ?? params.minAmount, 0, 1000000000, 0),
-          min_days: ensureIntegerInRange(params.min_days ?? params.minDays ?? params.days, 1, 3650, 1),
-        },
-      };
-    }
-
-    if (ruleType === BADGE_RULES.NFT_HOLDER) {
-      const collectionName = ensureString(params.collection_name ?? params.collectionName);
-      const collectionAddress = ensureString(params.collection_address ?? params.collectionAddress);
-      if (!collectionName && !collectionAddress) {
-        throw new Error('NFT_HOLDER requires collection_name or collection_address');
-      }
-
-      validateStringLength(collectionName, 200, 'rule_params.collection_name');
-      validateStringLength(collectionAddress, 200, 'rule_params.collection_address');
-
-      return {
-        ok: true,
-        ruleParams: {
-          collection_name: collectionName,
-          collection_address: collectionAddress,
-          min_count: ensureIntegerInRange(params.min_count ?? params.minCount, 1, 10000, 1),
+          min_days: ensureIntegerInRange(params.min_days ?? params.minDays ?? params.days ?? params.min, 1, 3650, 1),
         },
       };
     }

@@ -24,10 +24,12 @@ router.get('/', badgeLimiter, async (req: Request, res: Response) => {
   const includePrivate = req.query.includePrivate === 'true';
   const includeInactive = req.query.includeInactive === 'true';
 
-  // Check Cache (only for public active badges)
+  // Check Cache (disabled to ensure immediate visibility of new badges)
+  /*
   if (!includePrivate && !includeInactive && badgeCache && (Date.now() - badgeCache.timestamp < CACHE_TTL)) {
     return res.status(200).json(badgeCache.data);
   }
+  */
 
   try {
     let query = supabaseAdmin
@@ -146,29 +148,6 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[Badges/Award] Error:', err);
     return res.status(500).json({ error: err.message || 'Evaluation failed' });
-  }
-});
-
-/**
- * GET /api/badges/definitions
- * Alias for GET /api/badges
- */
-router.get('/definitions', badgeLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
-
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('badge_definitions')
-      .select('*')
-      .eq('is_active', true)
-      .eq('is_public', true)
-      .eq('is_deleted', false);
-
-    if (error) throw error;
-    return res.status(200).json({ badges: data });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch definitions' });
   }
 });
 
@@ -335,6 +314,7 @@ router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
       }, { onConflict: 'wallet_address' });
 
     // 2. Record attestation / ownership
+    // Standardizing: we put txHash in metadata to trigger the DB sync_user_xp logic
     const { error } = await supabaseAdmin
       .from('badge_attestations')
       .upsert({
@@ -343,18 +323,11 @@ router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
         eligible: true,
         verified_at: new Date().toISOString(),
         proof_hash: txHash,
+        metadata: { txHash }, 
         updated_at: new Date().toISOString()
       }, { onConflict: 'badge_id, wallet_address' });
 
     if (error) throw error;
-
-    // 3. Update User XP if provided
-    if (xpValue && xpValue > 0) {
-      await supabaseAdmin.rpc('increment_user_xp', { 
-        user_addr: normalizedAddr, 
-        amount: xpValue 
-      });
-    }
 
     return res.status(200).json({ ok: true, synced: true });
   } catch (err: any) {

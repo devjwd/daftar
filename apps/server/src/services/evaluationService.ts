@@ -32,15 +32,26 @@ export const getFullnodeUrl = (): string => {
 };
 
 const fetchJson = async (url: string, init?: any): Promise<{ response: any; parsed: any }> => {
-  const response = await fetch(url, init);
-  const text = await response.text();
-  let parsed = null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
   try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch (err) {
-    console.error(`Failed to parse JSON from ${url}:`, err);
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+    }
+    const text = await response.text();
+    let parsed = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch (err) {
+      console.error(`Failed to parse JSON from ${url}:`, err);
+    }
+    return { response, parsed };
+  } finally {
+    clearTimeout(timeout);
   }
-  return { response, parsed };
 };
 
 /**
@@ -61,7 +72,7 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
   },
 
   [BADGE_RULES.MIN_BALANCE]: async (supabase, wallet, badge, params) => {
-    const coinType = String(params.coin_type ?? '').trim();
+    const coinType = String(params.coin_type ?? params.coinType ?? '').trim();
     if (!coinType) throw new Error('MIN_BALANCE requires coin_type');
     
     const cacheKey = `bal:${wallet}:${coinType}`;
@@ -69,7 +80,7 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
 
     if (rawBalance === null) {
       const fullnodeUrl = getFullnodeUrl();
-      const view = await fetchJson(`${fullnodeUrl}/view`, {
+      const { response, parsed } = await fetchJson(`${fullnodeUrl}/view`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -79,22 +90,30 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
         }),
       });
 
-      rawBalance = Array.isArray(view.parsed) ? Number(view.parsed[0] ?? 0) : 0;
+      if (!Array.isArray(parsed)) {
+        throw new Error(parsed?.message || 'Invalid RPC response format');
+      }
+
+      rawBalance = Number(parsed[0] ?? 0);
       setCachedRpc(cacheKey, rawBalance);
     }
+    const rawBalanceVal = BigInt(rawBalance || 0);
     const decimals = Number(params.decimals ?? 8);
-    const balance = rawBalance / Math.pow(10, decimals);
-    const minAmount = Number(params.min_amount ?? 0);
+    const minAmount = Number(params.min_amount ?? params.minAmount ?? params.min ?? 0);
+    const minAmountRaw = BigInt(Math.floor(minAmount * Math.pow(10, decimals)));
+
+    const isEligible = rawBalanceVal >= minAmountRaw;
+    const currentDisplay = Number(rawBalanceVal) / Math.pow(10, decimals);
 
     return {
-      eligible: balance >= minAmount,
-      reason: balance >= minAmount ? 'min-balance-threshold-met' : 'min-balance-threshold-not-met',
-      progress: { current: balance, target: minAmount }
+      eligible: isEligible,
+      reason: isEligible ? 'min-balance-threshold-met' : 'min-balance-threshold-not-met',
+      progress: { current: currentDisplay, target: minAmount }
     };
   },
 
   [BADGE_RULES.TX_COUNT]: async (supabase, wallet, badge, params) => {
-    const minCount = Math.max(1, Number(params.min_count ?? 1));
+    const minCount = Math.max(1, Number(params.min_count ?? params.minAmount ?? params.count ?? params.min ?? 1));
     const { count } = await supabase
       .from('transaction_history')
       .select('*', { count: 'exact', head: true })
@@ -109,7 +128,7 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
   },
 
   [BADGE_RULES.ACTIVE_DAYS]: async (supabase, wallet, badge, params) => {
-    const minDays = Math.max(1, Number(params.min_days ?? 1));
+    const minDays = Math.max(1, Number(params.min_days ?? params.minDays ?? params.days ?? params.min ?? 1));
     const { data } = await supabase.rpc('count_active_days', { user_addr: wallet });
     const current = Number(data || 0);
     return {
@@ -276,7 +295,7 @@ export const evaluateRule = async (
       const mockBadge: BadgeDefinition = { 
         ...badge, 
         criteria: [], 
-        rule_type: c.rule_type || 0, 
+        rule_type: c.rule_type || c.type || 0, 
         rule_params: c.params || {} 
       };
       return await evaluateRule(supabase, walletAddress, mockBadge, null);

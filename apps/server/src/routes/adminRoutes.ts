@@ -149,7 +149,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
     }
 
     if (action === 'import-allowlist') {
-      const { badge_id, addresses, action: allowlistAction, wallet_address } = req.body;
+      const { badge_id, addresses, action_type: allowlistAction, wallet_address } = req.body;
       
       if (allowlistAction === 'import') {
         if (!badge_id || !Array.isArray(addresses)) return res.status(400).json({ error: 'badge_id and addresses array required' });

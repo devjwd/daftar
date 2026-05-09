@@ -21,7 +21,8 @@ export default function BadgeDefinitionForm({
   handleSubmit, 
   resetForm, 
   protocolOptions,
-  criteriaOptions = []
+  criteriaOptions = [],
+  tokenOptions = []
 }) {
   
   const updateForm = (key, value) => setForm(p => ({ ...p, [key]: value }));
@@ -175,11 +176,22 @@ export default function BadgeDefinitionForm({
             ) : pDef.type === 'select' ? (
               <select 
                 value={criterion.params[pKey] || ''} 
-                onChange={e => updateCriterion(index, pKey, e.target.value)}
+                onChange={e => {
+                  const val = e.target.value;
+                  updateCriterion(index, pKey, val);
+                  
+                  // Auto-update decimals if it's a token selection
+                  if (pKey === 'coinType' && tokenOptions) {
+                    const token = tokenOptions.find(t => t.value === val);
+                    if (token) {
+                      updateCriterion(index, 'decimals', token.decimals);
+                    }
+                  }
+                }}
                 className="ba-select"
               >
                 <option value="">Select...</option>
-                {(pKey === 'protocolKey' ? protocolOptions : pDef.options || []).map(o => (
+                {(pKey === 'protocolKey' ? protocolOptions : (pKey === 'coinType' ? tokenOptions : pDef.options || [])).map(o => (
                   <option key={o.value || o} value={o.value || o}>{o.label || o}</option>
                 ))}
               </select>

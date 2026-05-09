@@ -62,9 +62,9 @@ export const useBadges = (address: string | null, options: UseBadgesOptions = {}
     const enrichedBadges = allDefinitions.map(def => ({
       ...def,
       earned: earnedIds.has(def.id),
-      // Add other UI-expected fields
-      imageUrl: def.icon || def.imageUrl,
-      onChainBadgeId: def.on_chain_badge_id ?? def.onChainBadgeId,
+      imageUrl: def.imageUrl || def.image_url || def.icon,
+      onChainBadgeId: def.onChainBadgeId ?? def.on_chain_badge_id,
+      xp: def.xp ?? def.xp_value ?? 0,
     }));
 
     const total = enrichedBadges.length;

@@ -589,11 +589,10 @@ export const mintBadge = async ({
     data: {
       function: fn,
       typeArguments: [],
-      // Contract: mint(user, badge_id, valid_until, signer_epoch, nonce, signature_bytes)
+      // Contract: mint(user, badge_id, valid_until, nonce, signature_bytes)
       functionArguments: [
         BigInt(badgeId).toString(), 
         BigInt(validUntil).toString(), 
-        BigInt(signerEpoch).toString(),
         BigInt(nonce).toString(),
         Array.from(signatureBytes)
       ],

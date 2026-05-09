@@ -26,7 +26,8 @@ import {
   getRarityInfo, 
   BADGE_RARITY, 
   getLevelFromXP, 
-  getNextLevelXP 
+  getNextLevelXP,
+  CRITERIA_LABELS
 } from '../config/badges';
 
 const getProgressMessage = (progress, fallbackReason, language) => {
@@ -318,9 +319,45 @@ export default function Badges() {
         </div>
 
         <div className="achievement-card-footer">
-          <span className="achievement-status-pill">
-            {badge.earned ? t(language, 'badgesOwned') : badge.eligible ? t(language, 'badgesEligible') : t(language, 'badgesLocked')}
-          </span>
+          <div className="achievement-status-group-wrap">
+            <div className="achievement-status-group">
+              <span className="achievement-status-pill">
+                {badge.earned ? t(language, 'badgesOwned') : badge.eligible ? t(language, 'badgesEligible') : t(language, 'badgesLocked')}
+              </span>
+              {badge.criteria && Array.isArray(badge.criteria) && badge.criteria.length > 0 && (
+                <span className="achievement-criteria-label">
+                  {badge.criteria.map(c => CRITERIA_LABELS[c.type] || c.type).join(' + ')}
+                </span>
+              )}
+            </div>
+
+            {!badge.earned && !badge.eligible && badge.progress !== undefined && (
+              <div className="achievement-card-progress">
+                <div className="achievement-card-progress-bar">
+                  <div 
+                    className="achievement-card-progress-fill" 
+                    style={{ 
+                      width: `${Math.min(100, typeof badge.progress === 'object' 
+                        ? (badge.progress.current / badge.progress.target) * 100 
+                        : badge.progress)}%` 
+                    }} 
+                  />
+                </div>
+                <div className="achievement-progress-labels">
+                  <span className="achievement-progress-text">
+                    {typeof badge.progress === 'object' 
+                      ? `${Math.floor(badge.progress.current)}/${Math.floor(badge.progress.target)}` 
+                      : `${Math.floor(badge.progress)}%`
+                    }
+                  </span>
+                  <span className="achievement-progress-reason">
+                    {getProgressMessage(badge.progress, badge.reason, language)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {badge.eligible && !badge.earned && (
             <button 
               className="achievement-claim-btn"

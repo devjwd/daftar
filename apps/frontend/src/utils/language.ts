@@ -186,6 +186,8 @@ const TRANSLATIONS = {
     badgesSubtitle: "Earn SBT achievements by participating in the Movement Network.",
     badgesAchievements: "Achievements",
     badgesEarned: "{earned} of {total} Earned",
+    badgesEarnedSection: "Collected Achievements",
+    badgesAvailableSection: "Available to Earn",
     badgesDeepScan: "Deep Scan My Wallet",
     badgesScanning: "⚡ Scanning Network...",
     badgesRefresh: "Refresh",

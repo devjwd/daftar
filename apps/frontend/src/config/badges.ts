@@ -81,7 +81,7 @@ export const CRITERIA_PARAM_SCHEMAS = {
     min: { type: 'number', label: 'Minimum Days', required: true, default: 7, min: 1 },
   },
   [CRITERIA_TYPES.MIN_BALANCE]: {
-    coinType: { type: 'text', label: 'Coin Type (full path)', required: true, placeholder: '0x1::aptos_coin::AptosCoin' },
+    coinType: { type: 'select', label: 'Token to Hold', required: true, options: [] },
     minAmount: { type: 'number', label: 'Minimum Amount (human-readable)', required: true, default: 1, min: 0 },
     decimals: { type: 'number', label: 'Token Decimals', required: false, default: 8, min: 0, max: 18 },
   },
@@ -218,6 +218,7 @@ export const BADGE_RULES = {
   DAFTAR_PROFILE_COMPLETE: 11, // Daftar profile with username/pfp/bio
   DAFTAR_SWAP_COUNT: 12,       // Minimum swaps on Daftar
   DAFTAR_VOLUME_USD: 13,       // Minimum trade volume on Daftar
+  ANYONE: 14,                  // Open to everyone
 };
 
 // ─── Badge Status (matches smart contract) ───────────────────────────
@@ -467,7 +468,7 @@ export const criteriaToRuleType = (criteriaType) => {
     [CRITERIA_TYPES.DAFTAR_SWAP_COUNT]: BADGE_RULES.DAFTAR_SWAP_COUNT,
     [CRITERIA_TYPES.DAFTAR_VOLUME_USD]: BADGE_RULES.DAFTAR_VOLUME_USD,
     // Default to attestation for complex off-chain rules
-    [CRITERIA_TYPES.ANYONE]: BADGE_RULES.ATTESTATION,
+    [CRITERIA_TYPES.ANYONE]: BADGE_RULES.ANYONE,
     [CRITERIA_TYPES.TOKEN_HOLDER]: BADGE_RULES.ATTESTATION,
     [CRITERIA_TYPES.PROTOCOL_LEND_AMOUNT]: BADGE_RULES.ATTESTATION,
     [CRITERIA_TYPES.DEX_TX_COUNT]: BADGE_RULES.ATTESTATION,

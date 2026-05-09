@@ -86,12 +86,16 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
     }
 
     // Record this nonce immediately
-    await supabase.from('admin_nonces').insert({
-      address,
-      timestamp,
-      nonce,
-      created_at: new Date().toISOString()
-    }).catch(err => console.warn('[AdminAuth] Failed to record nonce:', err.message));
+    try {
+      await supabase.from('admin_nonces').insert({
+        address,
+        timestamp,
+        nonce,
+        created_at: new Date().toISOString()
+      });
+    } catch (err: any) {
+      console.warn('[AdminAuth] Failed to record nonce:', err.message);
+    }
   }
 
   // 4. Verify Signature

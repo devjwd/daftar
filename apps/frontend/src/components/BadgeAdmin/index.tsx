@@ -7,11 +7,13 @@ import {
   fetchAllBadges,
   saveBadgeDefinitions,
   manageBadgeDefinition,
-  importAllowlist
+  importAllowlist,
+  fetchAdminBadges
 } from '../../services/api';
 import { mapBadgeDefinitionToRow } from '../../utils/badgeUtils';
 import { createAdminProofHeaders } from '../../services/adminProof';
-import { getAllBadges } from '../../services/badges/badgeStore';
+import { MOVEMENT_TOKENS } from '../../config/tokens';
+import { getAllBadges, replaceBadges } from '../../services/badges/badgeStore';
 
 import {
   createBadge as createOnChainBadge,
@@ -36,47 +38,7 @@ import AllowlistEditor from './AllowlistEditor';
 
 import '../BadgeAdmin.css';
 
-const OFFICIAL_BADGES = [
-  {
-    name: 'Early Adopter',
-    description: 'One of the first users to explore the Movement Network via Daftar.',
-    imageUrl: 'https://gateway.pinata.cloud/ipfs/QmZ8v6G6J7N1m8XfX8z6Xy9hVv1n3V7fX8z6Xy9hVv1n3',
-    category: 'community',
-    rarity: 'rare',
-    xp: 100,
-    mintFee: 0,
-    isPublic: true,
-    enabled: true,
-    onChainBadgeId: 1,
-    criteria: [{ type: 'transaction_count', params: { min: 1 } }]
-  },
-  {
-    name: 'Transaction Master',
-    description: 'Achieve 50+ transactions on Movement Network.',
-    imageUrl: 'https://gateway.pinata.cloud/ipfs/QmZ8v6G6J7N1m8XfX8z6Xy9hVv1n3V7fX8z6Xy9hVv1n3',
-    category: 'activity',
-    rarity: 'epic',
-    xp: 500,
-    mintFee: 0,
-    isPublic: true,
-    enabled: true,
-    onChainBadgeId: 2,
-    criteria: [{ type: 'transaction_count', params: { min: 50 } }]
-  },
-  {
-    name: 'DeFi Explorer',
-    description: 'Interact with 5+ unique protocols on Movement.',
-    imageUrl: 'https://gateway.pinata.cloud/ipfs/QmZ8v6G6J7N1m8XfX8z6Xy9hVv1n3V7fX8z6Xy9hVv1n3',
-    category: 'defi',
-    rarity: 'legendary',
-    xp: 1000,
-    mintFee: 0,
-    isPublic: true,
-    enabled: true,
-    onChainBadgeId: 3,
-    criteria: [{ type: 'protocol_count', params: { min: 5 } }]
-  }
-];
+// Form states
 
 const EMPTY_FORM = {
   name: '',
@@ -103,12 +65,11 @@ const CRITERIA_DISPLAY_LIST = [
   { type: CRITERIA_TYPES.TRANSACTION_COUNT, label: '📊 Transaction Count — Requires a minimum number of on-chain transactions' },
   { type: CRITERIA_TYPES.DAYS_ONCHAIN, label: '📅 Days On-chain — Requires a minimum number of days since first transaction' },
   { type: CRITERIA_TYPES.MIN_BALANCE, label: '💰 Minimum Balance — Requires holding a minimum balance of a specific token' },
-  { type: CRITERIA_TYPES.PROTOCOL_USAGE, label: '🏗️ Protocol Usage — Requires interaction with a specific DeFi protocol' },
-  { type: CRITERIA_TYPES.PROTOCOL_COUNT, label: '🧩 Protocol Interaction Count — Requires interaction with a minimum number of unique DeFi protocols/dApps' },
   { type: CRITERIA_TYPES.ALLOWLIST, label: '📋 Allowlist — Requires the user address to be on an allow list' },
   { type: CRITERIA_TYPES.DAFTAR_PROFILE_COMPLETE, label: '👤 Daftar Profile Complete — User has completed their profile (Username, Bio, PFP)' },
   { type: CRITERIA_TYPES.DAFTAR_SWAP_COUNT, label: '🚀 Daftar Swap Count — Requires a minimum number of swaps on the Daftar platform' },
   { type: CRITERIA_TYPES.DAFTAR_VOLUME_USD, label: '💎 Daftar Trade Volume (USD) — Requires a minimum total USD volume swapped on Daftar' },
+  { type: CRITERIA_TYPES.ANYONE, label: '🔓 Anyone — No requirements, accessible to all users' },
 ];
 
 export default function BadgeAdmin() {
@@ -151,7 +112,6 @@ export default function BadgeAdmin() {
       try {
         // 1. Try secure admin fetch - we now fetch ALL including deleted for admin view
         const auth = await createManageBadgeAuth({ action: 'list-all-badges' });
-        const { fetchAdminBadges } = await import('../../services/api');
         const result = await fetchAdminBadges(auth, true);
         if (result.ok && result.badges) {
           remoteBadges = result.badges;
@@ -166,19 +126,10 @@ export default function BadgeAdmin() {
         }
       }
 
-      // 3. Merge strategy: Server is authoritative. 
-      // We keep local badges only if they have a different ID (un-synced)
-      const localBadges = getAllBadges() || [];
-      const merged = [...remoteBadges];
-      const serverIds = new Set(remoteBadges.map(b => b.badge_id || b.id));
-
-      localBadges.forEach(lb => {
-        if (!serverIds.has(lb.id) && !serverIds.has(lb.badge_id)) {
-          merged.push(lb);
-        }
-      });
-
-      setBadges(merged);
+      // 3. Server is the absolute source of truth.
+      // Update local cache and get normalized versions
+      const normalized = replaceBadges(remoteBadges);
+      setBadges(normalized);
     } catch (err) {
       console.error('[BadgeAdmin] Load failed', err);
     } finally {
@@ -287,8 +238,9 @@ export default function BadgeAdmin() {
         badges: [mapBadgeDefinitionToRow(badgePayload as any)]
       });
 
+      const badgeRow = mapBadgeDefinitionToRow(badgePayload as any);
       const apiResult = await saveBadgeDefinitions({
-        badges: [badgePayload as any],
+        badges: [badgeRow],
         adminAuth: auth
       });
 
@@ -309,10 +261,10 @@ export default function BadgeAdmin() {
       setSubTab('manage');
       loadBadges();
     } catch (err) {
-      console.error('Error saving entity:', err);
-      let errorMsg = err.message || 'Error saving entity';
-      if (err.code === '42501') {
-        errorMsg = 'Permission denied: Only administrators can manage entities. Please ensure you are logged in with the admin wallet.';
+      console.error('Error saving badge definition:', err);
+      let errorMsg = err.message || 'Error saving badge definition';
+      if (err.code === '42501' || errorMsg.includes('Unauthorized')) {
+        errorMsg = 'Permission denied: Only administrators can manage badge definitions. Please ensure you are logged in with the admin wallet.';
       }
       setMessage({ text: errorMsg, type: 'error' });
     } finally {
@@ -372,32 +324,7 @@ export default function BadgeAdmin() {
     }
   };
 
-  const handleSeedOfficial = async () => {
-    if (!connected || !account) return;
-    setSubmitting(true);
-    try {
-      showMessage('info', 'Seeding official badges...');
-      const auth = await createManageBadgeAuth({ 
-        action: 'batch_sync', 
-        badges: OFFICIAL_BADGES.map(b => mapBadgeDefinitionToRow(createBadgeDefinition(b))) 
-      });
-      
-      const apiResult = await saveBadgeDefinitions({ 
-        badges: OFFICIAL_BADGES.map(b => createBadgeDefinition(b)), 
-        adminAuth: auth 
-      });
 
-      if (!apiResult.ok) throw new Error(apiResult.error || 'Seed failed');
-      
-      showMessage('success', 'Official badges seeded successfully!');
-      loadBadges();
-    } catch (err: any) {
-      console.error('[BadgeAdmin] Seed failed', err);
-      showMessage('error', err.message || 'Seed failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleBulkSync = async () => {
     if (!connected || !account) return;
@@ -427,6 +354,11 @@ export default function BadgeAdmin() {
   };
 
   const protocolOptions = [{ value: 'mosaic', label: 'Mosaic' }];
+  const tokenOptions = Object.values(MOVEMENT_TOKENS).map(t => ({
+    value: t.address === '0xa' ? '0x1::aptos_coin::AptosCoin' : `${t.address}::asset::${t.symbol}`,
+    label: `${t.name} (${t.symbol})`,
+    decimals: t.decimals
+  }));
   const criteriaOptions = CRITERIA_DISPLAY_LIST;
 
   return (
@@ -460,16 +392,7 @@ export default function BadgeAdmin() {
           </button>
         )}
 
-        {badges.length === 0 && (
-          <button 
-            className="ba-subtab ba-seed-btn" 
-            onClick={handleSeedOfficial} 
-            disabled={submitting}
-            title="Populate with official Daftar badges"
-          >
-            🌱 Seed Official Badges
-          </button>
-        )}
+
       </div>
 
       {/* adminStats status bar removed - server-side evaluation is the source of truth */}
@@ -502,6 +425,7 @@ export default function BadgeAdmin() {
             form={form} setForm={setForm} editingId={editingId}
             submitting={submitting} handleSubmit={handleSubmit} resetForm={resetForm}
             protocolOptions={protocolOptions} criteriaOptions={criteriaOptions}
+            tokenOptions={tokenOptions}
           />
         )}
         {subTab === 'onchain' && (
