@@ -1,0 +1,305 @@
+/* =========================================
+   PNL Chart — Full Hero Integration
+   ========================================= */
+
+.pnl-chart-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 80%;
+  min-width: 0;
+  min-height: 140px;
+  position: relative;
+  gap: 0;
+  user-select: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- Header ---- */
+.chart-header-v4 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+
+
+.segmented-control {
+  display: flex;
+  background: rgba(26, 22, 20, 0.82);
+  border: 1px solid rgba(205, 161, 105, 0.22);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+  box-shadow: inset 0 0 0 1px rgba(205, 161, 105, 0.08);
+}
+
+.segment-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #deb884;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.segment-btn:hover:not(.active) {
+  background: rgba(205, 161, 105, 0.12);
+  color: #ffe3c1;
+}
+
+.segment-btn.active {
+  background: linear-gradient(135deg, #cda169 0%, #deb884 100%);
+  color: #14110f;
+  box-shadow: 0 4px 12px rgba(205, 161, 105, 0.35);
+}
+
+.segment-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.segment-btn.active svg {
+  color: #14110f;
+}
+
+/* ---- Timeframe ---- */
+.timeframe-selectors-v4 {
+  display: flex;
+  gap: 0;
+  margin-right: 5px;
+}
+
+.tf-btn-v4 {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 5px 6px;
+  border-radius: 7px;
+  transition: all 0.18s ease;
+  border: 1px solid transparent;
+  letter-spacing: 0.2px;
+}
+
+.tf-btn-v4:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tf-btn-v4.active {
+  color: #fff;
+  opacity: 1;
+}
+
+/* ---- History View ---- */
+.pnl-history-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  gap: 6px;
+}
+
+.pnl-change-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #36c690;
+  flex-shrink: 0;
+}
+
+.pnl-change-percent {
+  font-size: 12px;
+  opacity: 0.8;
+  font-weight: 600;
+}
+
+.pnl-change-badge[data-positive="false"] {
+  color: #e06a6a;
+}
+
+.pnl-change-arrow {
+  font-size: 9px;
+  margin-top: 1px;
+}
+
+.pnl-change-period {
+  font-weight: 400;
+  opacity: 0.65;
+  font-size: 11px;
+}
+
+.pnl-chart-wrapper-v4 {
+  flex: 1;
+  min-height: 120px;
+  min-width: 0;
+  width: 100%;
+  position: relative;
+  user-select: none;
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pnl-chart-wrapper-v4 svg {
+  outline: none !important;
+  user-select: none;
+}
+
+.pnl-chart-wrapper-v4 *:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* ---- Breakdown View ---- */
+.pnl-breakdown-view {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 16px;
+  min-height: 0;
+  padding: 4px 0;
+  margin-top: 10px;
+}
+
+.breakdown-donut-area {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none !important;
+  user-select: none;
+}
+
+.breakdown-donut-area * {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.breakdown-donut-area svg {
+  outline: none !important;
+}
+
+.donut-center-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.donut-total-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+.donut-total-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.breakdown-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.breakdown-legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.breakdown-legend-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.breakdown-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.breakdown-legend-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  white-space: nowrap;
+}
+
+.breakdown-legend-pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ---- Tooltip ---- */
+.history-tooltip {
+  background: rgba(18, 15, 12, 0.96);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  min-width: 140px;
+}
+
+.tooltip-date {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.tooltip-value-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.tooltip-label {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tooltip-value {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}

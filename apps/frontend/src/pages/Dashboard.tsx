@@ -33,19 +33,20 @@ import DeFiPositionCard from "../components/Dashboard/DeFiPositionCard";
 import LiquidityCard from "../components/Dashboard/LiquidityCard";
 import TokenCard from "../components/Dashboard/TokenCard";
 import StakingCard from "../components/Dashboard/StakingCard";
-import { 
-  SkeletonCard, 
-  LiquiditySkeleton, 
-  DeFiSkeleton, 
-  NetWorthValueSkeleton, 
+import PNLChart from "../components/Dashboard/PNLChart";
+import {
+  SkeletonCard,
+  LiquiditySkeleton,
+  DeFiSkeleton,
+  NetWorthValueSkeleton,
   NetWorthMetaSkeleton,
   NetWorthStatsSkeleton
 } from "../components/Dashboard/Skeletons";
-import { 
-  getDeFiPositionUsdValue, 
-  getLiquidityPositionUsdValue, 
-  humanizeAssetName, 
-  renderColoredTokenText, 
+import {
+  getDeFiPositionUsdValue,
+  getLiquidityPositionUsdValue,
+  humanizeAssetName,
+  renderColoredTokenText,
   TokenIcon,
   getAssetChange,
   processBalances
@@ -114,7 +115,7 @@ const Dashboard = () => {
   } = useDeFiPositions(viewingAddress, priceMap, indexerBalances);
 
   const settingsKey = useMemo(() => getSettingsStorageKey(account?.address), [account?.address]);
-  
+
 
   const [hideValues, setHideValues] = useState(() => localStorage.getItem('hideValues') === 'true');
   const [viewMode, setViewMode] = useState('grid');
@@ -170,9 +171,9 @@ const Dashboard = () => {
     [allPositions]
   );
 
-  const balances = useMemo(() => 
+  const balances = useMemo(() =>
     processBalances(indexerBalances, priceMap, allPositions),
-  [indexerBalances, priceMap, allPositions]);
+    [indexerBalances, priceMap, allPositions]);
 
   const totalUsdValue = useMemo(() =>
     balances.reduce((sum, b) => sum + (b.usdValue || 0), 0),
@@ -535,50 +536,53 @@ const Dashboard = () => {
             </div>
           )}
 
-          <div className="hero-v3-main-content" style={{ position: 'relative' }}>
-            <div className="hero-v3-actions">
-              <button
-                className="hero-action-btn"
-                onClick={() => setHideValues(prev => !prev)}
-                title={hideValues ? "Show Values" : "Hide Values"}
-              >
-                {hideValues ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                  </svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                )}
-              </button>
-              <button
-                className={`hero-action-btn ${isRefreshing ? 'spin' : ''}`}
-                onClick={handleRefresh}
-                disabled={isRefreshing || (Date.now() - lastRefresh < 30000)}
-                title="Refresh Data"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
-                </svg>
-              </button>
+          <div className="hero-v3-main-content">
+            <div className="hero-v3-title-row">
+              <span className="hero-v3-title">
+                {entityBranding?.name ? (
+                  <>
+                    <span className="hero-v3-entity-name-highlight">{entityBranding.name}</span>
+                    <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth')}</span>
+                  </>
+                ) : userProfile?.username ? (
+                  <>
+                    <span className="hero-v3-entity-name-highlight">{userProfile.username}</span>
+                    <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth')}</span>
+                  </>
+                ) : t(language, 'dashNetWorth')}
+              </span>
+              <div className="hero-v3-left-actions">
+                <div className="hero-v3-actions-capsule">
+                  <button
+                    className="hero-action-btn-v4"
+                    onClick={() => setHideValues(prev => !prev)}
+                    title={hideValues ? "Show Values" : "Hide Values"}
+                  >
+                    {hideValues ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    className={`hero-action-btn-v4 ${isRefreshing ? 'spin' : ''}`}
+                    onClick={handleRefresh}
+                    disabled={isRefreshing || (Date.now() - lastRefresh < 30000)}
+                    title="Refresh Data"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
-
-            <span className="hero-v3-title">
-              {entityBranding?.name ? (
-                <>
-                  <span className="hero-v3-entity-name-highlight">{entityBranding.name}</span>
-                  <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth')}</span>
-                </>
-              ) : userProfile?.username ? (
-                <>
-                  <span className="hero-v3-entity-name-highlight">{userProfile.username}</span>
-                  <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth')}</span>
-                </>
-              ) : t(language, 'dashNetWorth')}
-            </span>
 
             <div className="hero-v3-value-container">
               <div className="hero-v3-value">
@@ -618,7 +622,10 @@ const Dashboard = () => {
                       }}
                       title="Copy address"
                     >
-                      <img src="/copy.png" alt="Copy" className="copy-icon-img" />
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="copy-icon-svg">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                      </svg>
                     </button>
                     {walletAge && formatWalletAge(walletAge) && (
                       <>
@@ -662,6 +669,16 @@ const Dashboard = () => {
 
           </div>
 
+        </div>
+
+        <div className="hero-v3-right">
+          <PNLChart
+            hideValues={hideValues}
+            setHideValues={setHideValues}
+            handleRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+            lastRefresh={lastRefresh}
+          />
         </div>
         {error && <ErrorMessage message={error} onRetry={handleRefresh} />}
 
@@ -795,15 +812,15 @@ const Dashboard = () => {
                             {balances.map((token) => {
                               const baseSymbol = String(token.symbol || '').toUpperCase().replace(/\.E$/i, '').replace(/^CV/, '').replace(/^L/, '');
                               const visual = TOKEN_VISUALS[baseSymbol] || TOKEN_VISUALS[token.symbol?.toUpperCase()] || null;
-                              
+
                               return (
                                 <tr key={token.id}>
                                   <td className="text-left">
                                     <div className="token-cell">
                                       <div className="token-table-logo">
-                                        <img 
-                                          src={visual?.logo || '/movement-logo.svg'} 
-                                          alt={token.symbol} 
+                                        <img
+                                          src={visual?.logo || '/movement-logo.svg'}
+                                          alt={token.symbol}
                                           onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }}
                                         />
                                       </div>
@@ -819,9 +836,9 @@ const Dashboard = () => {
                                   </td>
                                   <td className="text-right">
                                     <span className="token-table-amount">
-                                      {hideValues ? '*****' : token.numericAmount.toLocaleString(undefined, { 
-                                        minimumFractionDigits: 2, 
-                                        maximumFractionDigits: token.numericAmount < 0.01 ? 8 : 4 
+                                      {hideValues ? '*****' : token.numericAmount.toLocaleString(undefined, {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: token.numericAmount < 0.01 ? 8 : 4
                                       })}
                                     </span>
                                   </td>
