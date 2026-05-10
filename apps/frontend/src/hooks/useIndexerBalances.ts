@@ -198,6 +198,7 @@ export const useIndexerBalances = (address: string | null): UseIndexerBalancesRe
 
       setBalances(processed);
       persistBalances(address, processed);
+      return processed;
     } catch (err: any) {
       setError(err.message || "Failed to fetch balances from indexer");
       setBalances([]);

@@ -96,7 +96,7 @@ const Dashboard = () => {
   const yuzuDiscoveryCacheRef = useRef(new Map());
 
   // 1. Pricing and Basic Data
-  const { prices: priceMap, priceChanges, loading: pricesLoading, error: pricesError } = useTokenPrices();
+  const { prices: priceMap, priceChanges, loading: pricesLoading, error: pricesError, refresh: refreshPrices } = useTokenPrices();
 
   const {
     balances: indexerBalances,
@@ -148,17 +148,33 @@ const Dashboard = () => {
   }, [settingsKey]);
 
   const handleRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    
     setIsRefreshing(true);
     try {
-      await Promise.all([
-        refreshIndexer(),
-        refreshDeFi()
+      // 1. Refresh prices and base balances first
+      const [priceData, balanceData] = await Promise.all([
+        refreshPrices(),
+        refreshIndexer()
       ]);
+      
+      // 2. Then refresh DeFi positions (passing latest data to avoid stale closures)
+      await refreshDeFi({ 
+        force: true, 
+        priceMap: priceData?.prices, 
+        balances: balanceData 
+      });
+      
+      // 3. Update lastRefresh to trigger TrxHistory and other sub-components
       setLastRefresh(Date.now());
+      
+      devLog("Dashboard: Full data refresh complete");
+    } catch (err) {
+      console.error("Refresh failed:", err);
     } finally {
       setIsRefreshing(false);
     }
-  }, [refreshIndexer, refreshDeFi]);
+  }, [refreshPrices, refreshIndexer, refreshDeFi, isRefreshing]);
 
   // 3. Derived States (Calculated from Discovery results)
   const visibleLiquidityPositions = useMemo(() =>
@@ -571,6 +587,7 @@ const Dashboard = () => {
                     )}
                   </button>
                   <button
+                    type="button"
                     className={`hero-action-btn-v4 ${isRefreshing ? 'spin' : ''}`}
                     onClick={handleRefresh}
                     disabled={isRefreshing || (Date.now() - lastRefresh < 30000)}
@@ -993,7 +1010,10 @@ const Dashboard = () => {
           {activeTab === PORTFOLIO_TABS.TRX && (
             <section className="grid-section">
               <Suspense fallback={<RouteFallback />}>
-                <TrxHistory walletAddress={viewingAddress} />
+                <TrxHistory 
+                  walletAddress={viewingAddress} 
+                  refreshTrigger={lastRefresh}
+                />
               </Suspense>
             </section>
           )}

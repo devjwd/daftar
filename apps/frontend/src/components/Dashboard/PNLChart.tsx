@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import './PNLChart.css';
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
@@ -95,14 +95,6 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
   const totalValue = 0.02; // Mock total value matching the UI
   const currentBreakdownData = breakdownType === 'Asset' ? BREAKDOWN_DATA : PROTOCOL_BREAKDOWN_DATA;
-
-  const onPieEnter = (_: any, index: number) => {
-    setActiveIndex(index);
-  };
-
-  const onPieLeave = () => {
-    setActiveIndex(-1);
-  };
 
   const firstVal = data[0]?.value ?? 0;
   const lastVal = data[data.length - 1]?.value ?? 0;
@@ -235,28 +227,29 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   startAngle={90}
                   endAngle={-270}
                   strokeWidth={0}
-                  onMouseEnter={onPieEnter}
-                  onMouseLeave={onPieLeave}
+                  isAnimationActive={activeIndex === -1}
+                  animationDuration={400}
                   activeShape={(props: any) => {
-                    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
                     return (
-                      <g>
-                        <path
-                          d={`M ${cx + (outerRadius + 4) * Math.cos(-startAngle * Math.PI / 180)},${cy + (outerRadius + 4) * Math.sin(-startAngle * Math.PI / 180)} A ${outerRadius + 4},${outerRadius + 4} 0 ${Math.abs(endAngle - startAngle) > 180 ? 1 : 0},1 ${cx + (outerRadius + 4) * Math.cos(-endAngle * Math.PI / 180)},${cy + (outerRadius + 4) * Math.sin(-endAngle * Math.PI / 180)} L ${cx + (innerRadius - 2) * Math.cos(-endAngle * Math.PI / 180)},${cy + (innerRadius - 2) * Math.sin(-endAngle * Math.PI / 180)} A ${innerRadius - 2},${innerRadius - 2} 0 ${Math.abs(endAngle - startAngle) > 180 ? 1 : 0},0 ${cx + (innerRadius - 2) * Math.cos(-startAngle * Math.PI / 180)},${cy + (innerRadius - 2) * Math.sin(-startAngle * Math.PI / 180)} Z`}
-                          fill={fill}
-                          opacity={1}
-                        />
-                      </g>
+                      <Sector
+                        {...props}
+                        outerRadius={props.outerRadius + 5}
+                        innerRadius={props.innerRadius - 2}
+                        fill={props.fill}
+                        style={{ transition: 'all 0.15s ease', outline: 'none' }}
+                      />
                     );
                   }}
                   activeIndex={activeIndex}
                 >
                   {currentBreakdownData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.color} 
-                      opacity={0.9}
-                      style={{ transition: 'all 0.3s ease', cursor: 'pointer' }}
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color}
+                      opacity={activeIndex === -1 || activeIndex === index ? 0.9 : 0.3}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onMouseLeave={() => setActiveIndex(-1)}
+                      style={{ transition: 'all 0.15s ease', cursor: 'pointer', outline: 'none' }}
                     />
                   ))}
                 </Pie>
@@ -267,21 +260,22 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 {activeIndex === -1 ? 'Total' : currentBreakdownData[activeIndex].name}
               </span>
               <span className="donut-total-value">
-                {activeIndex === -1 
-                  ? `$${totalValue.toFixed(2)}` 
+                {activeIndex === -1
+                  ? `$${totalValue.toFixed(2)}`
                   : `$${(totalValue * (currentBreakdownData[activeIndex].value / 100)).toFixed(4)}`
                 }
               </span>
             </div>
           </div>
 
-          <div className="breakdown-legend">
+          <div className={`breakdown-legend ${activeIndex !== -1 ? 'is-hovering' : ''}`}>
             {currentBreakdownData.map((item, index) => (
-              <div 
-                className={`breakdown-legend-item ${activeIndex === index ? 'active' : ''}`} 
+              <div
+                className={`breakdown-legend-item ${activeIndex === index ? 'active' : ''}`}
                 key={item.name}
                 onMouseEnter={() => setActiveIndex(index)}
                 onMouseLeave={() => setActiveIndex(-1)}
+                style={{ cursor: 'pointer' }}
               >
                 <div className="breakdown-legend-left">
                   <span className="breakdown-dot" style={{ background: item.color }} />

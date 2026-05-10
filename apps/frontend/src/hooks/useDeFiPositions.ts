@@ -98,54 +98,70 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
     const cached = loadPersistedDeFiPositions(targetAddress);
     return cached?.positions || [];
   });
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const fetchInProgress = useRef(false);
   const lastFetchedAddress = useRef(null);
   const fetchGeneration = useRef(0);
 
-  const fetchPositions = useCallback(async (options: { force?: boolean } = {}) => {
-    const forceRefresh = options.force === true;
+  // Use refs for everything to make fetchPositions stable and avoid stale closures
+  const priceMapRef = useRef(priceMap);
+  const balancesRef = useRef(balances);
+  const clientRef = useRef(client);
+  const targetAddressRef = useRef(targetAddress);
 
-    if (!targetAddress) {
+  useEffect(() => { priceMapRef.current = priceMap; }, [priceMap]);
+  useEffect(() => { balancesRef.current = balances; }, [balances]);
+  useEffect(() => { clientRef.current = client; }, [client]);
+  useEffect(() => { targetAddressRef.current = targetAddress; }, [targetAddress]);
+
+  const fetchPositions = useCallback(async (options: { force?: boolean, priceMap?: any, balances?: any } = {}) => {
+    const forceRefresh = options.force === true;
+    const providedPriceMap = options.priceMap;
+    const providedBalances = options.balances;
+
+    const currentTargetAddress = targetAddressRef.current;
+    const apiClient = clientRef.current;
+
+    if (!currentTargetAddress) {
       setPositions([]);
       setLoading(false);
       return;
     }
 
-    if (!client) {
+    if (!apiClient) {
       if (clientError) setError(clientError.message || "Movement client error");
       return;
     }
 
-    if (fetchInProgress.current) return;
+    if (fetchInProgress.current && !forceRefresh) return;
 
-    const cachedSnapshot = loadPersistedDeFiPositions(targetAddress);
-    if (cachedSnapshot?.positions?.length && !forceRefresh && lastFetchedAddress.current === targetAddress) {
+    const cachedSnapshot = loadPersistedDeFiPositions(currentTargetAddress);
+    if (cachedSnapshot?.positions?.length && !forceRefresh && lastFetchedAddress.current === currentTargetAddress) {
       setPositions(cachedSnapshot.positions);
       setLoading(false);
       return;
     }
 
     fetchInProgress.current = true;
-    lastFetchedAddress.current = targetAddress;
+    lastFetchedAddress.current = currentTargetAddress;
     fetchGeneration.current += 1;
     const currentGeneration = fetchGeneration.current;
-    
+
     setLoading(true);
     setError(null);
 
-    devLog(`🔍 [DeFi Discovery] Scanning ${targetAddress}...`);
+    devLog(`🔍 [DeFi Discovery] Scanning ${currentTargetAddress}... (force=${forceRefresh})`);
 
     try {
-      // 1. Fetch account resources (cached)
+      // 1. Fetch account resources (cached unless forced)
       const resources = await (async () => {
-        const cacheKey = `resources:${targetAddress}`;
-        const cached = getFreshCacheEntry(accountResourcesCache, cacheKey, RESOURCE_CACHE_TTL_MS);
+        const cacheKey = `resources:${currentTargetAddress}`;
+        const cached = !forceRefresh ? getFreshCacheEntry(accountResourcesCache, cacheKey, RESOURCE_CACHE_TTL_MS) : null;
         if (cached) return cached;
 
-        const fetched = await client.getAccountResources({ accountAddress: targetAddress.toString() });
+        const fetched = await apiClient.getAccountResources({ accountAddress: currentTargetAddress.toString() });
         accountResourcesCache.set(cacheKey, { value: fetched, cachedAt: Date.now() });
         return fetched;
       })();
@@ -157,7 +173,7 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
       for (const resource of resources) {
         for (const adapter of ALL_ADAPTERS as any[]) {
           if (!adapter.searchString || !adapter.parse) continue;
-          
+
           if (resource.type.includes(adapter.searchString)) {
             if (typeof adapter.filterType === "function" && !adapter.filterType(resource.type)) continue;
 
@@ -176,14 +192,14 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
                 if (isNaN(amount) || amount <= 0) return;
 
                 const symbol = typeof item === 'object' ? item.tokenSymbol : (adapter.id.includes('move') ? 'MOVE' : null);
-                
+
                 // Final fallback for USD price if the adapter didn't provide it
-                const price = resolveTokenPrice(priceMap, resource.type, symbol);
+                const price = resolveTokenPrice(providedPriceMap || priceMapRef.current, resource.type, symbol);
                 const numericValue = (typeof item === 'object' && item.usdValue) ? item.usdValue : (amount * price);
 
                 const posId = `${adapter.id}_${resource.type.split('<')[0]}_${idx}`;
                 if (!discoveredMap.has(posId)) {
-                   let position: any = {
+                  let position: any = {
                     id: posId,
                     name: typeof item === 'object' ? (item.name || adapter.name) : adapter.name,
                     type: adapter.type,
@@ -220,7 +236,13 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
       const discoveryResults = await Promise.all(
         (ALL_ADAPTERS as any[]).filter(a => typeof a.discover === 'function').map(async (adapter) => {
           try {
-            const context = { client, targetAddress, priceMap, resources, balances };
+            const context = {
+              client: apiClient,
+              targetAddress: currentTargetAddress,
+              priceMap: providedPriceMap || priceMapRef.current,
+              resources,
+              balances: providedBalances || balancesRef.current
+            };
             const found = await adapter.discover(context);
             return Array.isArray(found) ? found : [];
           } catch (err) {
@@ -244,7 +266,7 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
 
       if (currentGeneration === fetchGeneration.current) {
         setPositions(finalPositions);
-        persistDeFiPositions(targetAddress, finalPositions);
+        persistDeFiPositions(currentTargetAddress, finalPositions);
       }
     } catch (err) {
       console.error("DeFi discovery failed:", err);
@@ -255,13 +277,13 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
       }
       fetchInProgress.current = false;
     }
-  }, [targetAddress, client, clientError, priceMap, (balances || []).length]);
+  }, [clientError]); // Stable dependency array
 
   useEffect(() => {
-    if (targetAddress) {
+    if (targetAddressRef.current) {
       void fetchPositions();
     }
-  }, [targetAddress, fetchPositions]);
+  }, [fetchPositions, targetAddress, priceMap, (balances || []).length]);
 
-  return { positions, loading, error, refresh: () => fetchPositions({ force: true }) };
+  return { positions, loading, error, refresh: fetchPositions };
 };

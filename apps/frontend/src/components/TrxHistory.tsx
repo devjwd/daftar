@@ -365,7 +365,7 @@ const SkeletonRows = ({ count = 5 }) => (
   </>
 );
 
-export default function TrxHistory({ walletAddress }) {
+export default function TrxHistory({ walletAddress, refreshTrigger = 0 }) {
   const mountedRef = useRef(true);
   const paginationAbortRef = useRef(null);
   const [activeFilter, setActiveFilter] = useState('all');
@@ -453,7 +453,7 @@ export default function TrxHistory({ walletAddress }) {
       paginationAbortRef.current?.abort();
       paginationAbortRef.current = null;
     };
-  }, [activeFilter, walletAddress]);
+  }, [activeFilter, walletAddress, refreshTrigger]);
 
   useEffect(() => {
     if (!walletAddress) {

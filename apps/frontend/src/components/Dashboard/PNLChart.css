@@ -174,7 +174,7 @@
   align-items: center;
   gap: 16px;
   min-height: 0;
-  padding: 4px 0;
+  padding: 1px 0;
   margin-top: 10px;
 }
 
@@ -239,6 +239,25 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.breakdown-legend.is-hovering .breakdown-legend-item {
+  opacity: 0.35;
+}
+
+.breakdown-legend.is-hovering .breakdown-legend-item.active {
+  opacity: 1;
+  transform: translateX(4px);
+}
+
+.breakdown-legend.is-hovering .breakdown-legend-item.active .breakdown-legend-name {
+  color: #fff;
+  font-weight: 600;
+}
+
+.breakdown-legend.is-hovering .breakdown-legend-item.active .breakdown-legend-pct {
+  color: #fff;
 }
 
 .breakdown-legend-left {

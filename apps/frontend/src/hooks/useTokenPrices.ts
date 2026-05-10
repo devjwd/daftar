@@ -267,7 +267,7 @@ export const useTokenPrices = () => {
         persistCachedPrices(aliasedSnapshot.prices, aliasedSnapshot.priceChanges);
 
         setLoading(false);
-        return;
+        return aliasedSnapshot;
       } catch (e) {
         lastError = e;
 
@@ -309,5 +309,5 @@ export const useTokenPrices = () => {
     };
   }, [fetchPrices]);
 
-  return { prices, priceChanges, loading, error };
+  return { prices, priceChanges, loading, error, refresh: fetchPrices };
 };
