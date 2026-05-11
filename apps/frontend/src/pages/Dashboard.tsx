@@ -18,6 +18,7 @@ import { useUserLevel } from "../hooks/useUserLevel";
 import { useBadges } from "../hooks/useBadges";
 import useUserBadges from "../hooks/useUserBadges";
 import { useDeFiPositions } from "../hooks/useDeFiPositions";
+import { useNFTs } from "../hooks/useNFTs";
 import { getWalletAge, getUserNFTHoldings, getUserTokenBalances, getYuzuLiquidityPositions } from "../services/indexer";
 import { getLevelBasedPfp } from "../utils/levelPfp";
 import { getStoredLanguagePreference, t } from "../utils/language";
@@ -49,13 +50,17 @@ import {
   renderColoredTokenText,
   TokenIcon,
   getAssetChange,
-  processBalances
+  processBalances,
+  getTokenPriceFromMap
 } from "../utils/dashboardUtils";
 
 const TrxHistory = lazy(() => import("../components/TrxHistory"));
+const NFTCard = lazy(() => import("../components/Dashboard/NFTCard"));
+
 const PORTFOLIO_TABS = {
   OVERVIEW: "overview",
   TRX: "trx",
+  NFT: "nfts",
 };
 
 const LP_DISCOVERY_CACHE_TTL_MS = 90 * 1000;
@@ -114,6 +119,15 @@ const Dashboard = () => {
     refresh: refreshDeFi
   } = useDeFiPositions(viewingAddress, priceMap, indexerBalances);
 
+  const movePrice = useMemo(() => getTokenPriceFromMap('MOVE', priceMap) || 0, [priceMap]);
+
+  const {
+    nfts: userNFTs,
+    totalWorth: nftsTotalWorth,
+    loading: nftsLoading,
+    refresh: refreshNFTs
+  } = useNFTs(viewingAddress, movePrice);
+
   const settingsKey = useMemo(() => getSettingsStorageKey(account?.address), [account?.address]);
 
 
@@ -158,12 +172,15 @@ const Dashboard = () => {
         refreshIndexer()
       ]);
       
-      // 2. Then refresh DeFi positions (passing latest data to avoid stale closures)
-      await refreshDeFi({ 
-        force: true, 
-        priceMap: priceData?.prices, 
-        balances: balanceData 
-      });
+      // 2. Then refresh DeFi positions and NFTs
+      await Promise.all([
+        refreshDeFi({ 
+          force: true, 
+          priceMap: priceData?.prices, 
+          balances: balanceData 
+        }),
+        refreshNFTs()
+      ]);
       
       // 3. Update lastRefresh to trigger TrxHistory and other sub-components
       setLastRefresh(Date.now());
@@ -213,8 +230,8 @@ const Dashboard = () => {
 
   const totalUsdValueRounded = useMemo(() => Math.round(totalUsdValue * 100) / 100, [totalUsdValue]);
 
-  const combinedNetWorth = totalUsdValueRounded + defiNetValue + liquidityTotalValue;
-  const assetsLoading = pricesLoading || indexerLoading || clientLoading;
+  const combinedNetWorth = totalUsdValueRounded + defiNetValue + liquidityTotalValue + (nftsTotalWorth || 0);
+  const assetsLoading = pricesLoading || indexerLoading || clientLoading || nftsLoading;
   const lpLoading = defiLoading;
 
   const { profile: userProfile } = useProfile(viewingAddress);
@@ -734,6 +751,14 @@ const Dashboard = () => {
         >
           {t(language, 'portfolioTabTrxHistory')}
         </button>
+        <button
+          type="button"
+          className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.NFT ? 'active' : ''}`}
+          onClick={() => setActiveTab(PORTFOLIO_TABS.NFT)}
+        >
+          NFTs
+          {userNFTs.length > 0 && <span className="nft-tab-count">{userNFTs.length}</span>}
+        </button>
       </section>
 
       <AnimatePresence mode="wait">
@@ -1015,6 +1040,47 @@ const Dashboard = () => {
                   refreshTrigger={lastRefresh}
                 />
               </Suspense>
+            </section>
+          )}
+
+          {activeTab === PORTFOLIO_TABS.NFT && (
+            <section className="grid-section">
+              <div className="section-header-row">
+                <div className="section-title-group">
+                  <h3 className="section-title">NFT Gallery</h3>
+                  <div className="section-header-value">
+                    {userNFTs.length} Assets
+                  </div>
+                </div>
+              </div>
+
+              {nftsLoading ? (
+                <div className="nft-skeleton-grid">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="nft-skeleton-card" />
+                  ))}
+                </div>
+              ) : userNFTs.length > 0 ? (
+                <div className="nft-grid">
+                  <Suspense fallback={<div>Loading components...</div>}>
+                    {userNFTs.map((nft, index) => (
+                      <NFTCard
+                        key={nft.token_data_id}
+                        nft={nft}
+                        delay={index * 50}
+                        convertUSD={convertUSD}
+                        formatCurrencyValue={formatCurrencyValue}
+                        hideValues={hideValues}
+                      />
+                    ))}
+                  </Suspense>
+                </div>
+              ) : (
+                <div className="nft-empty-state">
+                  <div className="empty-icon">🖼️</div>
+                  <p>{viewingAddress ? "No NFTs found in this wallet" : "Connect your wallet to see your NFTs"}</p>
+                </div>
+              )}
             </section>
           )}
         </motion.div>
