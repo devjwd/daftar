@@ -15,7 +15,6 @@ const GET_USER_TRANSACTIONS = `
     ) {
       transaction_version
       user_transaction {
-        hash
         sender
         timestamp
         entry_function_id_str

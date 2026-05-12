@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { DEFAULT_TOKEN_COLOR, TOKEN_VISUALS } from '../config/display';
-import { checkAccountExists } from '../services/indexer';
-import { getOrFetchTransactions } from '../services/transactionService';
+import { DEFAULT_TOKEN_COLOR, TOKEN_VISUALS } from '../../config/display';
+import { checkAccountExists } from '../../services/indexer';
+import { getOrFetchTransactions } from '../../services/transactionService';
 
 import styles from './TrxHistory.module.css';
 
@@ -327,7 +327,7 @@ const TokenIcon = ({ symbol }) => {
       style={{
         '--token-primary': color.primary,
         '--token-secondary': color.secondary,
-      }}
+      } as any}
       aria-hidden="true"
     >
       {visual?.logo ? <img src={visual.logo} alt="" className={styles.tokenIconImage} /> : normalized.charAt(0) || '?'}
@@ -569,13 +569,13 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0 }) {
               <SkeletonRows count={8} />
             ) : error ? (
               <tr>
-                <td colSpan="5">
+                <td colSpan={5}>
                   <div className={styles.emptyState}>{error}</div>
                 </td>
               </tr>
             ) : transactions.length === 0 ? (
               <tr>
-                <td colSpan="5">
+                <td colSpan={5}>
                   <div className={styles.emptyState}>No transactions found</div>
                 </td>
               </tr>

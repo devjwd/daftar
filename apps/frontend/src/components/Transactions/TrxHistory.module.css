@@ -27,8 +27,7 @@
 .toolbar,
 .tableWrap,
 .loadMoreWrap,
-.emptyState,
-.skeletonList {
+.emptyState {
   position: relative;
   z-index: 1;
 }

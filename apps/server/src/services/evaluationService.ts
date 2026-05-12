@@ -236,28 +236,49 @@ export const verifyOnChainMint = async (
   if (!txHash || !txHash.startsWith('0x')) return false;
 
   const fullnodeUrl = getFullnodeUrl();
-  const moduleAddr = CONFIG.SIGNER.MODULE_ADDRESS;
+  const rawModuleAddr = CONFIG.SIGNER.MODULE_ADDRESS || '';
+  const normalizedModuleAddr = normalizeAddress(rawModuleAddr);
+  const shortModuleAddr = normalizedModuleAddr.replace(/^0x0+/, '0x');
+  const normalizedWallet = normalizeAddress(walletAddress);
 
-  try {
-    const { response, parsed } = await fetchJson(`${fullnodeUrl}/transactions/by_hash/${txHash}`);
-    if (!response.ok || !parsed) return false;
+  let attempts = 0;
+  const maxAttempts = 3;
 
-    // Check if transaction was successful
-    if (parsed.success !== true) return false;
+  while (attempts < maxAttempts) {
+    try {
+      const { response, parsed } = await fetchJson(`${fullnodeUrl}/transactions/by_hash/${txHash}`);
 
-    // Search through events for BadgeMinted
-    const events = Array.isArray(parsed.events) ? parsed.events : [];
-    const mintEvent = events.find((e: any) => 
-      e.type === `${moduleAddr}::badges::BadgeMinted` &&
-      normalizeAddress(e.data?.recipient) === normalizeAddress(walletAddress) &&
-      Number(e.data?.badge_id) === Number(onChainBadgeId)
-    );
+      if (response.ok && parsed) {
+        // Check if transaction was successful
+        if (parsed.success !== true) return false;
 
-    return !!mintEvent;
-  } catch (err) {
-    console.error('[Evaluation] On-chain verification failed:', err);
-    return false;
+        // Search through events for BadgeMinted
+        const events = Array.isArray(parsed.events) ? parsed.events : [];
+        const mintEvent = events.find((e: any) => {
+          const type = String(e.type || '');
+          // Support both padded and unpadded module addresses in event type
+          const isCorrectType = type.includes('::badges::BadgeMinted') && 
+                               (type.startsWith(normalizedModuleAddr) || type.startsWith(shortModuleAddr));
+          
+          return isCorrectType &&
+                 normalizeAddress(e.data?.recipient) === normalizedWallet &&
+                 Number(e.data?.badge_id) === Number(onChainBadgeId);
+        });
+
+        if (mintEvent) return true;
+      }
+    } catch (err) {
+      console.warn(`[Evaluation] verifyOnChainMint attempt ${attempts + 1} failed:`, err);
+    }
+
+    attempts++;
+    if (attempts < maxAttempts) {
+      // Exponential backoff or simple delay to wait for node consistency
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
+
+  return false;
 };
 
 export const evaluateRule = async (
@@ -295,7 +316,7 @@ export const evaluateRule = async (
       const mockBadge: BadgeDefinition = { 
         ...badge, 
         criteria: [], 
-        rule_type: c.rule_type || c.type || 0, 
+        rule_type: normalizeRuleType(c.rule_type || c.type) || 0, 
         rule_params: c.params || {} 
       };
       return await evaluateRule(supabase, walletAddress, mockBadge, null);

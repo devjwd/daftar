@@ -61,18 +61,16 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
       if (supabase) {
         const { data } = await supabase
           .from('price_cache')
-          .select('price_usd')
-          .eq('token', 'SNAPSHOT_LATEST')
-          .order('cached_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .select('token_id, price_usd, change_24h');
 
-        if (data?.price_usd) {
-          try {
-            return JSON.parse(data.price_usd as string);
-          } catch {
-            return null;
-          }
+        if (data && data.length > 0) {
+          const prices: Record<string, number> = {};
+          const priceChanges: Record<string, number> = {};
+          data.forEach((row: any) => {
+            prices[row.token_id] = Number(row.price_usd);
+            priceChanges[row.token_id] = Number(row.change_24h || 0);
+          });
+          return { prices, priceChanges };
         }
       }
       return null;
@@ -92,23 +90,21 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
 
     const snapshot = { prices, priceChanges };
 
-    // Store in DB for "next price" and persistence
+    // Store in DB for persistence
     if (supabase) {
-      const today = new Date().toISOString().split('T')[0];
-
-      // Delete old "SNAPSHOT_LATEST" entries to keep storage free
-      await supabase
-        .from('price_cache')
-        .delete()
-        .eq('token', 'SNAPSHOT_LATEST');
-
-      // Insert new one
-      await supabase.from('price_cache').insert({
-        token: 'SNAPSHOT_LATEST',
-        date: today,
-        price_usd: JSON.stringify(snapshot),
+      const entries = Object.entries(snapshot.prices).map(([token, price]) => ({
+        token_id: token,
+        price_usd: price,
+        change_24h: snapshot.priceChanges[token] || 0,
         cached_at: new Date().toISOString()
-      });
+      }));
+
+      if (entries.length > 0) {
+        // Upsert all prices
+        await supabase
+          .from('price_cache')
+          .upsert(entries, { onConflict: 'token_id' });
+      }
     }
 
     return snapshot;

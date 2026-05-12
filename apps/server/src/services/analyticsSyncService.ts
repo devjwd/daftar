@@ -18,7 +18,6 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
     ) {
       transaction_version
       user_transaction {
-        hash
         sender
         timestamp
         entry_function_id_str
@@ -57,7 +56,7 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
 function enrichTransaction(tx: any, walletAddress: string) {
   const ut = tx.user_transaction || {};
   const functionId = ut.entry_function_id_str || '';
-  
+
   // Combine FA and Coin activities
   const activities = [
     ...(tx.fungible_asset_activities || []),
@@ -68,12 +67,12 @@ function enrichTransaction(tx: any, walletAddress: string) {
       metadata: { symbol: ca.coin_type.includes('aptos_coin') ? 'APT' : 'MOVE', decimals: 8 }
     }))
   ];
-  
+
   let protocol = 'Unknown';
   let action = 'OTHER';
   let category = 'Transfer';
   let description = 'Unknown transaction';
-  
+
   // Protocol Detection
   if (functionId.includes('0x8304621d305021a1')) protocol = 'Liquidswap';
   else if (functionId.includes('0x2c7bccf7df3d0c01') || functionId.includes('0x6a01d5')) protocol = 'Echelon';
@@ -126,7 +125,7 @@ function enrichTransaction(tx: any, walletAddress: string) {
 
   // 3. Storage Optimization: Strip bloated metadata
   const optimizedMetadata = {
-    hash: ut.hash,
+    hash: ut.hash || `v${tx.transaction_version}`,
     entry_function_id_str: functionId,
     success: tx.user_transaction?.success ?? true,
     // Only keep essential activity info
@@ -146,7 +145,7 @@ function enrichTransaction(tx: any, walletAddress: string) {
   return {
     user_address: walletAddress,
     version: tx.transaction_version,
-    hash: ut.hash,
+    hash: ut.hash || `v${tx.transaction_version}`,
     timestamp: ut.timestamp,
     protocol,
     action,
@@ -169,10 +168,11 @@ export async function syncFullUserHistory(
   walletAddress: string
 ) {
   const address = normalizeAddress(walletAddress);
-  let ltVersion: string | null = null; // Start with null to get latest
+  // Using max signed bigint instead of u64 max to avoid 'out of range' indexer error
+  let ltVersion: string = "9223372036854775807";
   let totalSynced = 0;
   let hasMore = true;
-  const BATCH_SIZE = 50; 
+  const BATCH_SIZE = 50;
   const MAX_BATCHES = 100; // Safety limit: Max 5,000 transactions per sync trigger
   let batchCount = 0;
 
@@ -188,23 +188,23 @@ export async function syncFullUserHistory(
   try {
     while (hasMore && batchCount < MAX_BATCHES) {
       batchCount++;
-      console.log(`[DeepSync] Fetching batch ${batchCount}/${MAX_BATCHES} (lt_version: ${ltVersion || 'LATEST'})...`);
-      
+      console.log(`[DeepSync] Fetching batch ${batchCount}/${MAX_BATCHES} (lt_version: ${ltVersion})...`);
+
       const response = await fetch(MOVEMENT_INDEXER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: GET_USER_TRANSACTIONS_PAGINATED,
-          variables: { 
-            address, 
-            limit: BATCH_SIZE, 
-            lt_version: ltVersion 
+          variables: {
+            address,
+            limit: BATCH_SIZE,
+            lt_version: ltVersion
           }
         })
       });
 
       const json: any = await response.json();
-      
+
       if (json.errors) {
         console.error('[DeepSync] Indexer GraphQL Error:', json.errors);
         throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
@@ -219,7 +219,7 @@ export async function syncFullUserHistory(
       }
 
       const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
-      
+
       const { error: upsertError } = await supabase
         .from('user_transaction_history')
         .upsert(enriched, { onConflict: 'user_address,version' });
@@ -256,7 +256,7 @@ export async function syncFullUserHistory(
 
     console.log(`[DeepSync] ✅ Successfully synced ${totalSynced} transactions for ${address}`);
     return { totalSynced };
-    
+
   } catch (err: any) {
     console.error(`[DeepSync] ❌ Fatal error for ${address}:`, err.message);
     await supabase.from('user_sync_status').update({ sync_error: err.message }).eq('user_address', address);

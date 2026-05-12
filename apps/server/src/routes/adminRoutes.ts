@@ -162,21 +162,21 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
           created_at: new Date().toISOString()
         }));
 
-        const { error } = await supabaseAdmin.from('badge_allowlists').upsert(rows, { onConflict: 'badge_id,wallet_address' });
+        const { error } = await supabaseAdmin.from('badge_eligible_wallets').upsert(rows, { onConflict: 'badge_id,wallet_address' });
         if (error) throw error;
         return res.json({ ok: true, count: rows.length });
       }
 
       if (allowlistAction === 'remove') {
         if (!badge_id || !wallet_address) return res.status(400).json({ error: 'badge_id and wallet_address required' });
-        const { error } = await supabaseAdmin.from('badge_allowlists').delete().eq('badge_id', badge_id).eq('wallet_address', wallet_address.toLowerCase());
+        const { error } = await supabaseAdmin.from('badge_eligible_wallets').delete().eq('badge_id', badge_id).eq('wallet_address', wallet_address.toLowerCase());
         if (error) throw error;
         return res.json({ ok: true });
       }
 
       if (allowlistAction === 'clear') {
         if (!badge_id) return res.status(400).json({ error: 'badge_id required' });
-        const { error } = await supabaseAdmin.from('badge_allowlists').delete().eq('badge_id', badge_id);
+        const { error } = await supabaseAdmin.from('badge_eligible_wallets').delete().eq('badge_id', badge_id);
         if (error) throw error;
         return res.json({ ok: true });
       }

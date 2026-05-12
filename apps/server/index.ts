@@ -10,8 +10,8 @@ import priceRoutes from './src/routes/priceRoutes.ts';
 import leaderboardRoutes from './src/routes/leaderboardRoutes.ts';
 import profileRoutes from './src/routes/profileRoutes.ts';
 import adminRoutes from './src/routes/adminRoutes.ts';
-import storageRoutes from './src/routes/storageRoutes.ts';
 import configRoutes from './src/routes/configRoutes.ts';
+import transactionRoutes from './src/routes/transactionRoutes.ts';
 
 // Service Imports
 import { syncUserTransactions } from './src/services/syncService.ts';
@@ -33,8 +33,8 @@ app.use(express.json({ limit: '1mb' }));
 app.use(
   cors({
     origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-      const allowedOrigins = process.env.BADGE_CORS_ORIGIN 
-        ? process.env.BADGE_CORS_ORIGIN.split(',') 
+      const allowedOrigins = process.env.BADGE_CORS_ORIGIN
+        ? process.env.BADGE_CORS_ORIGIN.split(',')
         : ['http://localhost:3000', 'http://localhost:3001', 'https://www.daftar.fi', 'https://daftar.fi'];
       if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
         callback(null, true);
@@ -87,8 +87,8 @@ app.use('/api/prices', priceRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/profiles', profileRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/storage', storageRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/transactions', transactionRoutes);
 
 // Transactions Sync Route
 app.get('/api/transactions/sync', generalLimiter, async (req: Request, res: Response) => {
@@ -120,9 +120,9 @@ app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Respons
       .maybeSingle();
 
     if (profileError || !profile?.is_verified) {
-      return res.status(403).json({ 
-        error: 'Unauthorized', 
-        message: 'Deep sync is only available for verified community members.' 
+      return res.status(403).json({
+        error: 'Unauthorized',
+        message: 'Deep sync is only available for verified community members.'
       });
     }
 
@@ -139,8 +139,8 @@ app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Respons
       console.error(`[Analytics/Sync] Background Error for ${wallet}:`, err);
     });
 
-    return res.status(202).json({ 
-      ok: true, 
+    return res.status(202).json({
+      ok: true,
       message: 'Deep sync started in background',
       status: 'syncing'
     });
@@ -169,13 +169,13 @@ app.get('/api/analytics/status', async (req: Request, res: Response) => {
 app.get('/api/analytics/data', async (req: Request, res: Response) => {
   const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
   const timeframe = (req.query.timeframe as string) || 'All';
-  
+
   if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
 
   // Security Fix: Require signature for private financial data
   const signature = req.query.signature as string;
   const message = req.query.message as string;
-  
+
   if (!signature || !message) {
     // For now, we'll allow it if it's the user's own profile, but ideally we want a session/sig
     // return res.status(401).json({ error: 'Authentication required to view analytics data' });
@@ -199,7 +199,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       else if (timeframe === '1M') filterDate.setMonth(now.getMonth() - 1);
       else if (timeframe === '3M') filterDate.setMonth(now.getMonth() - 3);
       else if (timeframe === '1Y') filterDate.setFullYear(now.getFullYear() - 1);
-      
+
       query = query.gte('timestamp', filterDate.toISOString());
     }
 
@@ -211,7 +211,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
     const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
     const totalGasUsd = txs.reduce((sum, tx) => sum + Number(tx.gas_usd || 0), 0);
     const protocols = [...new Set(txs.map(tx => tx.protocol))];
-    
+
     const protocolUsage = protocols.map(p => ({
       name: p,
       value: txs.filter(tx => tx.protocol === p).length,
@@ -243,7 +243,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       activityHistory, // Now returns full filtered history instead of hardcoded slice(-20)
       insights: [
         { type: 'achievement', title: 'Power User', desc: `You have interacted with ${protocols.length} protocols.`, icon: '🏆' },
-        { type: 'opportunity', title: 'Volume Milestone', desc: `Your total volume has reached $${totalVolume.toLocaleString(undefined, {maximumFractionDigits:0})}.`, icon: '📈' }
+        { type: 'opportunity', title: 'Volume Milestone', desc: `Your total volume has reached $${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`, icon: '📈' }
       ]
     });
   } catch (err: any) {

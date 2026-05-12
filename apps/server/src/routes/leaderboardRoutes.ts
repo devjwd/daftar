@@ -21,13 +21,14 @@ router.get('/', async (req: Request, res: Response) => {
       .order('xp', { ascending: false });
 
     if (entityAddresses.length > 0) {
-      query = query.not('wallet_address', 'in', `(${entityAddresses.join(',')})`);
+      query = query.filter('wallet_address', 'not.in', `(${entityAddresses.join(',')})`);
     }
 
     const { data, error } = await query.limit(limit);
 
     if (error) {
-      return res.status(500).json({ error: 'Failed to fetch leaderboard' });
+      console.error('[Leaderboard] Supabase Error:', error);
+      return res.status(500).json({ error: 'Failed to fetch leaderboard', details: error.message });
     }
 
     const leaderboardData = Array.isArray(data) ? data : [];

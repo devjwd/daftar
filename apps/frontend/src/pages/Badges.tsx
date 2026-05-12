@@ -43,8 +43,8 @@ const getProgressMessage = (progress, fallbackReason, language) => {
   return fallbackReason || t(language, 'badgesNotEligible');
 };
 
-function BadgeEligibilityActions({ badge, minting, onMint, disabled, language }) {
-  const { status, progress, reason, checkEligibility, isLoading } = useBadgeEligibility(badge);
+function BadgeEligibilityActions({ badge, minting, onMint, disabled, language, client }) {
+  const { status, progress, reason, checkEligibility, isLoading } = useBadgeEligibility(badge, client);
 
   const effectiveStatus = badge?.earned
     ? 'already_owned'
@@ -341,17 +341,23 @@ export default function Badges() {
           </div>
         </div>
 
-        <div className="achievement-card-footer">
-          <div className="achievement-status-group-wrap">
-            <div className="achievement-status-group">
-              <span className="achievement-status-pill">
-                {badge.earned ? t(language, 'badgesOwned') : badge.eligible ? t(language, 'badgesEligible') : t(language, 'badgesLocked')}
-              </span>
-              {badge.criteria && Array.isArray(badge.criteria) && badge.criteria.length > 0 && (
-                <span className="achievement-criteria-label">
-                  {badge.criteria.map(c => CRITERIA_LABELS[c.type] || c.type).join(' + ')}
-                </span>
-              )}
+          <div className="achievement-card-footer">
+            <div className="achievement-status-group-wrap">
+              <div className="achievement-status-group">
+                <BadgeEligibilityActions 
+                  badge={badge} 
+                  minting={isMinting} 
+                  onMint={handleMint} 
+                  disabled={badge.isExpired}
+                  language={language}
+                  client={movementClient}
+                />
+                {badge.criteria && Array.isArray(badge.criteria) && badge.criteria.length > 0 && (
+                  <span className="achievement-criteria-label">
+                    {badge.criteria.map(c => CRITERIA_LABELS[c.type] || c.type).join(' + ')}
+                  </span>
+                )}
+              </div>
             </div>
 
             {!badge.earned && !badge.eligible && badge.progress !== undefined && (

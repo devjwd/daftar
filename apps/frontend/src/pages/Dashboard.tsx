@@ -54,7 +54,8 @@ import {
   getTokenPriceFromMap
 } from "../utils/dashboardUtils";
 
-const TrxHistory = lazy(() => import("../components/TrxHistory"));
+const TrxHistory = lazy(() => import("../components/Transactions/TrxHistory"));
+const NFTTable = lazy(() => import("../components/NFTs/NFTTable"));
 const AnalyticsView = lazy(() => import("../components/Analytics/AnalyticsView"));
 
 const PORTFOLIO_TABS = {
@@ -100,6 +101,61 @@ const Dashboard = () => {
   const [hidePositionThreshold, setHidePositionThreshold] = useState(0);
   const meridianPoolInfoCacheRef = useRef(new Map());
   const yuzuDiscoveryCacheRef = useRef(new Map());
+
+  const getAddressString = (accountObj) => {
+    if (!accountObj || !accountObj.address) return null;
+
+    const addr = accountObj.address;
+    if (typeof addr === "string") {
+      return addr.trim();
+    }
+    if (addr && typeof addr === "object") {
+      try {
+        if (typeof addr.toString === "function" && addr.toString !== Object.prototype.toString) {
+          const str = addr.toString();
+          if (str && str.startsWith("0x")) {
+            return str;
+          }
+        }
+        if (typeof addr.hex === "function") {
+          return addr.hex();
+        }
+        if (addr.data) {
+          let dataArray;
+          if (addr.data instanceof Uint8Array) {
+            dataArray = Array.from(addr.data);
+          } else if (Array.isArray(addr.data)) {
+            dataArray = addr.data;
+          }
+
+          if (dataArray && dataArray.length > 0) {
+            const hex = dataArray
+              .map(b => {
+                const num = typeof b === "number" ? b : parseInt(b, 10);
+                return num.toString(16).padStart(2, "0");
+              })
+              .join("");
+            return `0x${hex}`;
+          }
+        }
+      } catch (e) {
+        console.warn("Error converting address object:", e);
+      }
+    }
+    const str = String(addr).trim();
+    if (str && str !== "[object Object]") {
+      return str;
+    }
+
+    return null;
+  };
+
+  const connectedWalletAddress = connected ? getAddressString(account) : null;
+  const canEditProfile = Boolean(
+    connectedWalletAddress &&
+    viewingAddress &&
+    connectedWalletAddress.toLowerCase() === viewingAddress.toLowerCase()
+  );
 
   // 1. Pricing and Basic Data
   const { prices: priceMap, priceChanges, loading: pricesLoading, error: pricesError, refresh: refreshPrices } = useTokenPrices();
@@ -286,6 +342,12 @@ const Dashboard = () => {
   }, [urlAddress, connected]);
 
   useEffect(() => {
+    if (!canEditProfile && activeTab === PORTFOLIO_TABS.ANALYTICS) {
+      setActiveTab(PORTFOLIO_TABS.OVERVIEW);
+    }
+  }, [canEditProfile, activeTab]);
+
+  useEffect(() => {
     const params = new URLSearchParams(location.search);
     const addressParam = params.get('address');
     if (addressParam && isValidAddress(addressParam)) {
@@ -363,60 +425,7 @@ const Dashboard = () => {
     return null;
   }, [balances, visibleDeFiPositions, visibleLiquidityPositions, priceChanges, combinedNetWorth]);
 
-  const getAddressString = (accountObj) => {
-    if (!accountObj || !accountObj.address) return null;
 
-    const addr = accountObj.address;
-    if (typeof addr === "string") {
-      return addr.trim();
-    }
-    if (addr && typeof addr === "object") {
-      try {
-        if (typeof addr.toString === "function" && addr.toString !== Object.prototype.toString) {
-          const str = addr.toString();
-          if (str && str.startsWith("0x")) {
-            return str;
-          }
-        }
-        if (typeof addr.hex === "function") {
-          return addr.hex();
-        }
-        if (addr.data) {
-          let dataArray;
-          if (addr.data instanceof Uint8Array) {
-            dataArray = Array.from(addr.data);
-          } else if (Array.isArray(addr.data)) {
-            dataArray = addr.data;
-          }
-
-          if (dataArray && dataArray.length > 0) {
-            const hex = dataArray
-              .map(b => {
-                const num = typeof b === "number" ? b : parseInt(b, 10);
-                return num.toString(16).padStart(2, "0");
-              })
-              .join("");
-            return `0x${hex}`;
-          }
-        }
-      } catch (e) {
-        console.warn("Error converting address object:", e);
-      }
-    }
-    const str = String(addr).trim();
-    if (str && str !== "[object Object]") {
-      return str;
-    }
-
-    return null;
-  };
-
-  const connectedWalletAddress = connected ? getAddressString(account) : null;
-  const canEditProfile = Boolean(
-    connectedWalletAddress &&
-    viewingAddress &&
-    connectedWalletAddress.toLowerCase() === viewingAddress.toLowerCase()
-  );
   useEffect(() => {
     if (account && connected) {
       const addressString = getAddressString(account);
@@ -581,7 +590,9 @@ const Dashboard = () => {
                   </>
                 ) : userProfile?.username ? (
                   <>
-                    <span className="hero-v3-entity-name-highlight">{userProfile.username}</span>
+                    <span className="hero-v3-entity-name-highlight">
+                      {userProfile.username}
+                    </span>
                     <span className="hero-v3-title-suffix">{t(language, 'dashNetWorth')}</span>
                   </>
                 ) : t(language, 'dashNetWorth')}
@@ -765,25 +776,26 @@ const Dashboard = () => {
           className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.NFT ? 'active' : ''}`}
           onClick={() => setActiveTab(PORTFOLIO_TABS.NFT)}
         >
-          NFTs
-          {userNFTs.length > 0 && <span className="nft-tab-count">{userNFTs.length}</span>}
+          NFTS
         </button>
 
-        <button
-          type="button"
-          className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
-          onClick={() => setActiveTab(PORTFOLIO_TABS.ANALYTICS)}
-          style={{ marginLeft: 'auto' }}
-        >
-          <div className="analytics-btn-content">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-              <line x1="18" y1="20" x2="18" y2="10"></line>
-              <line x1="12" y1="20" x2="12" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
-            Analytics
-          </div>
-        </button>
+        {canEditProfile && (
+          <button
+            type="button"
+            className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
+            onClick={() => setActiveTab(PORTFOLIO_TABS.ANALYTICS)}
+            style={{ marginLeft: 'auto' }}
+          >
+            <div className="analytics-btn-content">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+              </svg>
+              Analytics
+            </div>
+          </button>
+        )}
       </section>
 
       <AnimatePresence mode="wait">
@@ -1069,103 +1081,17 @@ const Dashboard = () => {
           )}
 
           {activeTab === PORTFOLIO_TABS.NFT && (
-            <section className="grid-section">
-              <div className="section-header-row">
-                <div className="section-title-group">
-                  <h3 className="section-title">NFT Portfolio</h3>
-                  <div className="section-header-value">
-                    {userNFTs.length} Assets
-                  </div>
-                </div>
-              </div>
-
-              {nftsLoading ? (
-                <div className="nft-skeleton-table">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="nft-skeleton-row" />
-                  ))}
-                </div>
-              ) : groupedCollections.length > 0 ? (
-                <div className="nft-table-container">
-                  <table className="nft-table">
-                    <thead>
-                      <tr>
-                        <th>Collection Name</th>
-                        <th className="text-right">Amount</th>
-                        <th className="text-right">Floor Price</th>
-                        <th className="text-right">Top Bid</th>
-                        <th className="text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupedCollections.map((col) => {
-                        const tradeportUrl = `https://www.tradeport.xyz/movement/collection/${col.collectionId}`;
-                        const displayImage = col.imageUri?.startsWith('ipfs://')
-                          ? col.imageUri.replace('ipfs://', 'https://ipfs.io/ipfs/')
-                          : col.imageUri;
-
-                        return (
-                          <tr key={col.collectionId}>
-                            <td className="collection-cell">
-                              <div className="collection-info">
-                                <span className="collection-name-text">
-                                  {col.collectionName}
-                                </span>
-                                <div className="collection-images-stack">
-                                  {col.sampleImages.slice(0, 3).map((img, i) => (
-                                    <div key={i} className="collection-img-wrapper" style={{ marginLeft: i > 0 ? '-24px' : '0', zIndex: 3 - i }}>
-                                      <img
-                                        src={img.startsWith('ipfs://') ? img.replace('ipfs://', 'https://ipfs.io/ipfs/') : img}
-                                        alt=""
-                                        onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }}
-                                      />
-                                    </div>
-                                  ))}
-                                  {col.count > 3 && (
-                                    <div className="collection-img-more">
-                                      +{col.count - 3}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="text-right">{col.count}</td>
-                            <td className="text-right">
-                              <div className="price-stack">
-                                <span className="native-price">{col.floorPrice > 0 ? `${col.floorPrice.toFixed(2)} MOVE` : '-'}</span>
-                                {col.totalUsdValue > 0 && (
-                                  <span className="usd-price">
-                                    {hideValues ? '***' : formatCurrencyValue(convertUSD(col.totalUsdValue))}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="text-right">
-                              <span className="native-price">{col.topBid > 0 ? `${col.topBid.toFixed(2)} MOVE` : '-'}</span>
-                            </td>
-                            <td className="text-center">
-                              <a
-                                href={tradeportUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="list-btn"
-                              >
-                                View on Tradeport
-                              </a>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="nft-empty-state">
-                  <div className="empty-icon">🖼️</div>
-                  <p>{viewingAddress ? "No NFTs found in this wallet" : "Connect your wallet to see your NFTs"}</p>
-                </div>
-              )}
-            </section>
+            <Suspense fallback={<RouteFallback />}>
+              <NFTTable
+                userNFTs={userNFTs}
+                groupedCollections={groupedCollections}
+                nftsLoading={nftsLoading}
+                viewingAddress={viewingAddress}
+                hideValues={hideValues}
+                convertUSD={convertUSD}
+                formatCurrencyValue={formatCurrencyValue}
+              />
+            </Suspense>
           )}
 
           {activeTab === PORTFOLIO_TABS.ANALYTICS && (

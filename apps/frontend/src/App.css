@@ -548,144 +548,9 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 
 /* --- 6. NETWORK BADGE --- */
 
-.network-badge {
 
-  display: flex;
 
-  align-items: center;
 
-  gap: var(--spacing-sm);
-
-  background: var(--glass);
-
-  padding: var(--spacing-sm) var(--spacing-md);
-
-  border-radius: var(--radius-full);
-
-  font-size: 13px;
-
-  font-weight: 600;
-
-  color: var(--text-secondary);
-
-  border: 1px solid var(--border-subtle);
-
-  backdrop-filter: blur(20px);
-
-  transition: all var(--transition-base);
-
-}
-
-
-
-.network-badge:hover {
-
-  background: var(--glass-hover);
-
-  border-color: var(--border-medium);
-
-}
-
-
-
-.network-status {
-
-  width: 8px;
-
-  height: 8px;
-
-  border-radius: 50%;
-
-  position: relative;
-
-}
-
-
-
-.network-status::after {
-
-  content: '';
-
-  position: absolute;
-
-  inset: -4px;
-
-  border-radius: 50%;
-
-  animation: pulse-ring 2s infinite;
-
-}
-
-
-
-.network-status.online {
-
-  background: var(--success);
-
-}
-
-
-
-.network-status.online::after {
-
-  background: rgba(54, 198, 144, 0.4);
-
-}
-
-
-
-.network-status.offline {
-
-  background: var(--error);
-
-}
-
-
-
-.network-status.offline::after {
-
-  background: rgba(224, 106, 106, 0.4);
-
-}
-
-
-
-.network-status.checking {
-
-  background: var(--warning);
-
-}
-
-
-
-.network-status.checking::after {
-
-  background: rgba(229, 124, 35, 0.4);
-
-}
-
-
-
-@keyframes pulse-ring {
-
-  0%,
-  100% {
-
-    opacity: 0;
-
-    transform: scale(1);
-
-  }
-
-  50% {
-
-    opacity: 1;
-
-    transform: scale(1.2);
-
-  }
-
-}
 
 
 
@@ -2604,10 +2469,16 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #3b82f6; /* Verified blue */
-  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.3));
+  color: var(--primary); /* Matched to website primary color */
+  filter: drop-shadow(0 0 4px rgba(205, 161, 105, 0.3));
   margin-left: 4px;
   animation: tickPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.verified-tick.inline-name {
+  margin-left: 8px;
+  vertical-align: middle;
+  transform: translateY(-1px);
 }
 
 @keyframes tickPop {
@@ -2837,7 +2708,8 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 .portfolio-tabs-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
   margin-bottom: var(--spacing-xl);
   padding: 0 4px;
 }
@@ -2845,16 +2717,38 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 .portfolio-tab-btn {
   position: relative;
   padding: 10px 0;
+  margin-right: 12px;
   border: none;
   background: transparent;
   color: var(--text-tertiary);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   font-family: var(--font-display);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   cursor: pointer;
   transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.portfolio-tab-btn:not(.analytics-tab-v4):not(:last-child)::before {
+  content: '';
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Ensure no separator after the last regular tab before the Analytics button */
+.portfolio-tab-btn + .analytics-tab-v4::before {
+  display: none;
+}
+
+/* If analytics tab exists, the button before it shouldn't have a separator */
+.portfolio-tab-btn:has(+ .analytics-tab-v4)::before {
+  display: none;
 }
 
 .portfolio-tab-btn::after {
@@ -2895,6 +2789,30 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 .analytics-tab-v4:hover {
   background: var(--glass-hover) !important;
   border-color: var(--primary) !important;
+}
+
+.nft-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  background: rgba(205, 161, 105, 0.15);
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  min-width: 18px;
+  height: 16px;
+  vertical-align: middle;
+  transform: translateY(-1px);
+  border: 1px solid rgba(205, 161, 105, 0.2);
+}
+
+.portfolio-tab-btn.active .nft-tab-count {
+  background: var(--primary);
+  color: var(--bg-primary);
+  border-color: var(--primary);
 }
 
 .analytics-tab-v4.active {
@@ -6485,202 +6403,5 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   color: inherit;
 }
 
-/* === NFT PORTFOLIO TABLE SECTION === */
-.nft-table-container {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-subtle);
-  overflow-x: auto;
-  margin-top: 1rem;
-  box-shadow: var(--shadow-sm);
-}
 
-.nft-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  min-width: 800px;
-}
-
-.nft-table th {
-  padding: 12px 20px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border-subtle);
-  background: rgba(205, 161, 105, 0.03);
-}
-
-.nft-table td {
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--border-subtle);
-  vertical-align: middle;
-}
-
-.nft-table tr:last-child td {
-  border-bottom: none;
-}
-
-.nft-table tr:hover td {
-  background: rgba(205, 161, 105, 0.02);
-}
-
-.collection-cell {
-  min-width: 300px;
-}
-
-.collection-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.collection-images-stack {
-  display: flex;
-  align-items: center;
-  position: relative;
-}
-
-.collection-img-wrapper {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: rgba(0, 0, 0, 0.2);
-  border: 2px solid var(--bg-secondary);
-  flex-shrink: 0;
-  transition: transform 0.2s ease;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
-}
-
-.collection-img-wrapper:hover {
-  transform: translateY(-4px) scale(1.1);
-  z-index: 10 !important;
-}
-
-.collection-img-more {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-subtle);
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 8px;
-  box-shadow: var(--shadow-sm);
-}
-
-.collection-img-wrapper img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.collection-name-text {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 15px;
-  font-family: var(--font-display);
-}
-
-.price-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.native-price {
-  font-weight: 700;
-  color: var(--primary);
-  font-size: 14px;
-}
-
-.usd-price {
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-
-.list-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
-  background: var(--primary);
-  color: var(--bg-primary);
-  border-radius: var(--radius-md);
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: all var(--transition-base);
-  border: 1px solid var(--primary);
-  white-space: nowrap;
-}
-
-.list-btn:hover {
-  background: transparent;
-  color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(205, 161, 105, 0.2);
-}
-
-.text-right {
-  text-align: right;
-}
-
-.text-center {
-  text-align: center;
-}
-
-/* NFT Skeletons */
-.nft-skeleton-table {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-xl);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  border: 1px solid var(--border-subtle);
-}
-
-.nft-skeleton-row {
-  height: 52px;
-  background: linear-gradient(90deg, var(--bg-tertiary) 25%, rgba(205, 161, 105, 0.05) 50%, var(--bg-tertiary) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: var(--radius-lg);
-}
-
-.nft-empty-state {
-  padding: 80px 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  color: var(--text-tertiary);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-subtle);
-}
-
-.empty-icon {
-  font-size: 48px;
-  opacity: 0.5;
-}
-
-.nft-tab-count {
-  font-size: 10px;
-  background: var(--primary);
-  color: var(--bg-primary);
-  padding: 1px 6px;
-  border-radius: 10px;
-  margin-left: 6px;
-  font-weight: 800;
-}
+
