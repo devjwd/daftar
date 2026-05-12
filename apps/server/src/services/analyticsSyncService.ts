@@ -122,70 +122,91 @@ export async function syncFullUserHistory(
   walletAddress: string
 ) {
   const address = normalizeAddress(walletAddress);
-  let ltVersion = "18446744073709551615"; // Max u64 to start from latest
+  let ltVersion: string | null = null; // Start with null to get latest
   let totalSynced = 0;
   let hasMore = true;
-  const BATCH_SIZE = 100;
+  const BATCH_SIZE = 50; // Smaller batches are safer for deep sync
 
-  console.log(`[DeepSync] Starting full history pull for ${address}...`);
+  console.log(`[DeepSync] 🚀 Starting deep history pull for ${address}...`);
 
   // Initialize sync status
   await supabase.from('user_sync_status').upsert({
     user_address: address,
-    last_sync_at: new Date().toISOString()
+    last_sync_at: new Date().toISOString(),
+    full_history_synced: false
   });
 
-  while (hasMore) {
-    const response = await fetch(MOVEMENT_INDEXER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: GET_USER_TRANSACTIONS_PAGINATED,
-        variables: { address, limit: BATCH_SIZE, lt_version: ltVersion }
-      })
-    });
+  try {
+    while (hasMore) {
+      console.log(`[DeepSync] Fetching batch (lt_version: ${ltVersion || 'LATEST'})...`);
+      
+      const response = await fetch(MOVEMENT_INDEXER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: GET_USER_TRANSACTIONS_PAGINATED,
+          variables: { 
+            address, 
+            limit: BATCH_SIZE, 
+            lt_version: ltVersion 
+          }
+        })
+      });
 
-    const json: any = await response.json();
-    const txs = json.data?.account_transactions || [];
+      const json: any = await response.json();
+      
+      if (json.errors) {
+        console.error('[DeepSync] Indexer GraphQL Error:', json.errors);
+        throw new Error('Indexer query failed');
+      }
 
-    if (txs.length === 0) {
-      hasMore = false;
-      break;
+      const txs = json.data?.account_transactions || [];
+      console.log(`[DeepSync] Found ${txs.length} transactions in this batch.`);
+
+      if (txs.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
+      
+      const { error } = await supabase
+        .from('user_transaction_history')
+        .upsert(enriched, { onConflict: 'user_address,version' });
+
+      if (error) {
+        console.error('[DeepSync] Supabase Upsert Error:', error);
+        throw error;
+      }
+
+      totalSynced += txs.length;
+      ltVersion = txs[txs.length - 1].transaction_version;
+
+      // Update status for frontend progress
+      await supabase.from('user_sync_status').update({
+        last_synced_version: ltVersion
+      }).eq('user_address', address);
+
+      // Stop if batch is smaller than limit (reached the end)
+      if (txs.length < BATCH_SIZE) {
+        hasMore = false;
+      }
+
+      // Small cooldown to avoid hitting indexer limits
+      await new Promise(r => setTimeout(r, 100));
     }
 
-    const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
-    
-    const { error } = await supabase
-      .from('user_transaction_history')
-      .upsert(enriched, { onConflict: 'user_address,version' });
-
-    if (error) {
-      console.error('[DeepSync] Error saving batch:', error);
-      await supabase.from('user_sync_status').update({ sync_error: error.message }).eq('user_address', address);
-      throw error;
-    }
-
-    totalSynced += txs.length;
-    ltVersion = txs[txs.length - 1].transaction_version;
-
-    console.log(`[DeepSync] Synced ${totalSynced} transactions...`);
-
-    // Update status for frontend progress
     await supabase.from('user_sync_status').update({
-      last_synced_version: ltVersion
+      full_history_synced: true,
+      last_sync_at: new Date().toISOString()
     }).eq('user_address', address);
 
-    // Stop if batch is smaller than limit (reached the end)
-    if (txs.length < BATCH_SIZE) {
-      hasMore = false;
-    }
+    console.log(`[DeepSync] ✅ Successfully synced ${totalSynced} transactions for ${address}`);
+    return { totalSynced };
+    
+  } catch (err: any) {
+    console.error(`[DeepSync] ❌ Fatal error for ${address}:`, err.message);
+    await supabase.from('user_sync_status').update({ sync_error: err.message }).eq('user_address', address);
+    throw err;
   }
-
-  await supabase.from('user_sync_status').update({
-    full_history_synced: true,
-    last_sync_at: new Date().toISOString()
-  }).eq('user_address', address);
-
-  console.log(`[DeepSync] Completed. Total ${totalSynced} transactions synced for ${address}`);
-  return { totalSynced };
 }
