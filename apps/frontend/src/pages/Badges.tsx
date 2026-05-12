@@ -383,8 +383,7 @@ export default function Badges() {
                     {getProgressMessage(badge.progress, badge.reason, language)}
                   </span>
                 </div>
-              </div>
-            )}
+              )}
           </div>
 
           {badge.eligible && !badge.earned && (
@@ -396,7 +395,6 @@ export default function Badges() {
               {isMinting ? t(language, 'badgesClaiming') : t(language, 'badgesClaim')}
             </button>
           )}
-        </div>
       </article>
     );
   };
