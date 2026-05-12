@@ -157,11 +157,11 @@ export async function syncFullUserHistory(
       
       if (json.errors) {
         console.error('[DeepSync] Indexer GraphQL Error:', json.errors);
-        throw new Error('Indexer query failed');
+        throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
       }
 
       const txs = json.data?.account_transactions || [];
-      console.log(`[DeepSync] Found ${txs.length} transactions in this batch.`);
+      console.log(`[DeepSync] Found ${txs.length} transactions.`);
 
       if (txs.length === 0) {
         hasMore = false;
@@ -170,30 +170,29 @@ export async function syncFullUserHistory(
 
       const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
       
-      const { error } = await supabase
+      const { error: upsertError } = await supabase
         .from('user_transaction_history')
         .upsert(enriched, { onConflict: 'user_address,version' });
 
-      if (error) {
-        console.error('[DeepSync] Supabase Upsert Error:', error);
-        throw error;
+      if (upsertError) {
+        console.error('[DeepSync] Supabase Error:', upsertError);
+        throw upsertError;
       }
 
       totalSynced += txs.length;
       ltVersion = txs[txs.length - 1].transaction_version;
 
-      // Update status for frontend progress
+      // Update status for frontend progress - using String for version safety
       await supabase.from('user_sync_status').update({
-        last_synced_version: ltVersion
+        last_synced_version: String(ltVersion)
       }).eq('user_address', address);
 
-      // Stop if batch is smaller than limit (reached the end)
       if (txs.length < BATCH_SIZE) {
         hasMore = false;
       }
 
-      // Small cooldown to avoid hitting indexer limits
-      await new Promise(r => setTimeout(r, 100));
+      // Slightly longer wait to ensure indexer stability
+      await new Promise(r => setTimeout(r, 200));
     }
 
     await supabase.from('user_sync_status').update({
