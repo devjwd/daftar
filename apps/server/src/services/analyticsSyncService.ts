@@ -32,10 +32,21 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
         type
         is_transaction_success
         entry_function_id_str
+        entry_function_id_str
         metadata {
           symbol
           decimals
         }
+      }
+      coin_activities {
+        transaction_version
+        transaction_timestamp
+        owner_address
+        amount
+        coin_type
+        activity_type
+        is_transaction_success
+        entry_function_id_str
       }
     }
   }
@@ -47,7 +58,17 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
 function enrichTransaction(tx: any, walletAddress: string) {
   const ut = tx.user_transaction || {};
   const functionId = ut.entry_function_id_str || '';
-  const activities = tx.fungible_asset_activities || [];
+  
+  // Combine FA and Coin activities
+  const activities = [
+    ...(tx.fungible_asset_activities || []),
+    ...(tx.coin_activities || []).map((ca: any) => ({
+      ...ca,
+      type: ca.activity_type,
+      asset_type: ca.coin_type,
+      metadata: { symbol: ca.coin_type.includes('aptos_coin') ? 'APT' : 'MOVE', decimals: 8 }
+    }))
+  ];
   
   let protocol = 'Unknown';
   let action = 'OTHER';
@@ -60,9 +81,9 @@ function enrichTransaction(tx: any, walletAddress: string) {
   else if (functionId.includes('0x1::')) protocol = 'Movement Core';
   else if (functionId.includes('0xe399b9')) protocol = 'Aries';
 
-  // Action & Asset Extraction
-  const outFlows = activities.filter((a: any) => a.amount > 0 && a.owner_address === walletAddress);
-  const inFlows = activities.filter((a: any) => a.amount < 0 && a.owner_address === walletAddress);
+  // Action & Asset Extraction using Event Types
+  const inFlows = activities.filter((a: any) => String(a.type).includes('Deposit') && a.owner_address === walletAddress);
+  const outFlows = activities.filter((a: any) => String(a.type).includes('Withdraw') && a.owner_address === walletAddress);
 
   if (functionId.includes('swap')) {
     action = 'SWAP';

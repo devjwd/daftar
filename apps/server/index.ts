@@ -167,27 +167,34 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       color: p === 'Liquidswap' ? '#cda169' : p === 'Echelon' ? '#36c690' : '#7b68ee'
     }));
 
-    // PnL Chart Data (Simplified for now: cumulative volume impact)
+    // Cumulative Volume Chart Data
     let cumulative = 0;
-    const pnlHistory = txs.map(tx => {
-      cumulative += Number(tx.value_usd || 0);
+    const activityHistory = txs.map(tx => {
+      // Ignore failed prices (-1)
+      const val = Number(tx.value_usd || 0);
+      const safeVal = val < 0 ? 0 : val;
+      cumulative += safeVal;
       return {
         date: tx.timestamp.split('T')[0],
         value: cumulative
       };
     });
 
+    // Simple dynamic growth metric (vs previous batch or just a fun stat for now)
+    const activeMonths = [...new Set(txs.map(tx => tx.timestamp.substring(0, 7)))].length;
+    const avgVolumePerMonth = activeMonths > 0 ? totalVolume / activeMonths : 0;
+
     return res.status(200).json({
       totalVolume,
       totalGasUsd,
       interactionCount: txs.length,
-      totalPnL: cumulative, // Mock proxy for now
-      pnlPercent: 12.4, // Placeholder calc
+      cumulativeVolume: cumulative,
+      activeMonths,
       protocolUsage,
-      pnlHistory: pnlHistory.slice(-20), // Last 20 data points
+      activityHistory: activityHistory.slice(-20), // Last 20 data points
       insights: [
         { type: 'achievement', title: 'Power User', desc: `You have interacted with ${protocols.length} protocols.`, icon: '🏆' },
-        { type: 'opportunity', title: 'Volume Milestone', desc: `Your total volume has reached $${totalVolume.toLocaleString()}.`, icon: '📈' }
+        { type: 'opportunity', title: 'Volume Milestone', desc: `Your total volume has reached $${totalVolume.toLocaleString(undefined, {maximumFractionDigits:0})}.`, icon: '📈' }
       ]
     });
   } catch (err: any) {

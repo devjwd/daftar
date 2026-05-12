@@ -108,11 +108,15 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
         is_processed: true
       }).eq('id', tx.id);
     } else {
-      // If price not found, we might want to skip or try later
-      // For now, let's just mark as processed to avoid infinite loops, or keep false to retry
+      // Mark as processed with a failure flag (-1) to avoid infinite loop
+      await supabase.from('user_transaction_history').update({
+        price_usd: -1,
+        value_usd: 0,
+        is_processed: true
+      }).eq('id', tx.id);
     }
 
-    // Small delay to avoid CG rate limits
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Increased delay to 2500ms to stay safely under CoinGecko's 30 calls/minute limit
+    await new Promise(resolve => setTimeout(resolve, 2500));
   }
 }

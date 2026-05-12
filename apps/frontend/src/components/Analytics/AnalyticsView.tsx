@@ -129,15 +129,15 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             {/* Header Summary Section */}
             <div className="analytics-header-grid">
               <motion.div className="analytics-summary-card pnl">
-                <div className="summary-label">Lifetime Performance</div>
+                <div className="summary-label">Total Capital Flow</div>
                 <div className="summary-main-val">
-                  {analyticsData ? (analyticsData.totalPnL >= 0 ? '+' : '-') : ''}${Math.abs(analyticsData?.totalPnL || 0).toLocaleString()}
+                  ${Math.abs(analyticsData?.cumulativeVolume || 0).toLocaleString(undefined, {maximumFractionDigits:0})}
                 </div>
                 <div className="summary-sub-row">
-                  <span className={`summary-badge ${analyticsData?.pnlPercent >= 0 ? 'positive' : 'negative'}`}>
-                    {analyticsData?.pnlPercent >= 0 ? '+' : ''}{analyticsData?.pnlPercent || 0}%
+                  <span className="summary-badge positive">
+                    {analyticsData?.activeMonths || 0} Months
                   </span>
-                  <span className="summary-context">since first transaction</span>
+                  <span className="summary-context">of active on-chain history</span>
                 </div>
                 <div className="card-decoration">
                   <svg viewBox="0 0 200 100" className="bg-chart-svg">
@@ -176,7 +176,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
               <div className="analytics-main-column">
                 <div className="analytics-card-v4 chart-card">
                   <div className="card-header-v4">
-                    <h3 className="card-title-v4">PnL History</h3>
+                    <h3 className="card-title-v4">Activity History</h3>
                     <div className="time-selectors-v4">
                       {TIME_FRAMES.map(tf => (
                         <button key={tf} className={`time-btn-v4 ${timeframe === tf ? 'active' : ''}`} onClick={() => setTimeframe(tf)}>{tf}</button>
@@ -185,7 +185,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                   </div>
                   <div className="big-chart-container">
                     <ResponsiveContainer width="100%" height={340}>
-                      <AreaChart data={analyticsData?.pnlHistory || []}>
+                      <AreaChart data={analyticsData?.activityHistory || []}>
                         <defs>
                           <linearGradient id="mainPnlGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.25}/>
