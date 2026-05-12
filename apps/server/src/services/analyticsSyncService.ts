@@ -32,7 +32,6 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
         type
         is_transaction_success
         entry_function_id_str
-        entry_function_id_str
         metadata {
           symbol
           decimals
@@ -77,9 +76,17 @@ function enrichTransaction(tx: any, walletAddress: string) {
   
   // Protocol Detection
   if (functionId.includes('0x8304621d305021a1')) protocol = 'Liquidswap';
-  else if (functionId.includes('0x2c7bccf7df3d0c01')) protocol = 'Echelon';
+  else if (functionId.includes('0x2c7bccf7df3d0c01') || functionId.includes('0x6a01d5')) protocol = 'Echelon';
   else if (functionId.includes('0x1::')) protocol = 'Movement Core';
   else if (functionId.includes('0xe399b9')) protocol = 'Aries';
+  else if (functionId.includes('0xede23e') || functionId.includes('0x3f7399')) protocol = 'Mosaic';
+  else if (functionId.includes('0x4bf519')) protocol = 'Yuzu';
+  else if (functionId.includes('0xf257d4')) protocol = 'LayerBank';
+  else if (functionId.includes('0x717b41') || functionId.includes('0xb10bd3') || functionId.includes('0x5cd341')) protocol = 'Canopy';
+  else if (functionId.includes('0xccd262')) protocol = 'MovePosition';
+  else if (functionId.includes('0x6a1641')) protocol = 'Joule';
+  else if (functionId.includes('0x8f396e') || functionId.includes('0x2712eb') || functionId.includes('0xfbdb3d')) protocol = 'Meridian';
+  else if (functionId.includes('0xc4e68f')) protocol = 'Razor';
 
   // Action & Asset Extraction using Event Types
   const inFlows = activities.filter((a: any) => String(a.type).includes('Deposit') && a.owner_address === walletAddress);
@@ -117,6 +124,25 @@ function enrichTransaction(tx: any, walletAddress: string) {
     }
   }
 
+  // 3. Storage Optimization: Strip bloated metadata
+  const optimizedMetadata = {
+    hash: ut.hash,
+    entry_function_id_str: functionId,
+    success: tx.user_transaction?.success ?? true,
+    // Only keep essential activity info
+    fungible_asset_activities: (tx.fungible_asset_activities || []).map((a: any) => ({
+      amount: a.amount,
+      asset_type: a.asset_type,
+      type: a.type,
+      metadata: a.metadata
+    })),
+    coin_activities: (tx.coin_activities || []).map((a: any) => ({
+      amount: a.amount,
+      coin_type: a.coin_type,
+      activity_type: a.activity_type
+    }))
+  };
+
   return {
     user_address: walletAddress,
     version: tx.transaction_version,
@@ -130,7 +156,7 @@ function enrichTransaction(tx: any, walletAddress: string) {
     asset_in_amount: inFlows[0] ? Math.abs(inFlows[0].amount / Math.pow(10, inFlows[0].metadata?.decimals || 8)) : null,
     asset_out_symbol: outFlows[0]?.metadata?.symbol || null,
     asset_out_amount: outFlows[0] ? Math.abs(outFlows[0].amount / Math.pow(10, outFlows[0].metadata?.decimals || 8)) : null,
-    metadata: tx,
+    metadata: optimizedMetadata,
     is_processed: false
   };
 }
@@ -146,7 +172,9 @@ export async function syncFullUserHistory(
   let ltVersion: string | null = null; // Start with null to get latest
   let totalSynced = 0;
   let hasMore = true;
-  const BATCH_SIZE = 50; // Smaller batches are safer for deep sync
+  const BATCH_SIZE = 50; 
+  const MAX_BATCHES = 100; // Safety limit: Max 5,000 transactions per sync trigger
+  let batchCount = 0;
 
   console.log(`[DeepSync] 🚀 Starting deep history pull for ${address}...`);
 
@@ -158,8 +186,9 @@ export async function syncFullUserHistory(
   });
 
   try {
-    while (hasMore) {
-      console.log(`[DeepSync] Fetching batch (lt_version: ${ltVersion || 'LATEST'})...`);
+    while (hasMore && batchCount < MAX_BATCHES) {
+      batchCount++;
+      console.log(`[DeepSync] Fetching batch ${batchCount}/${MAX_BATCHES} (lt_version: ${ltVersion || 'LATEST'})...`);
       
       const response = await fetch(MOVEMENT_INDEXER_URL, {
         method: 'POST',
@@ -203,7 +232,7 @@ export async function syncFullUserHistory(
       totalSynced += txs.length;
       ltVersion = txs[txs.length - 1].transaction_version;
 
-      // Update status for frontend progress - using String for version safety
+      // Update status for frontend progress
       await supabase.from('user_sync_status').update({
         last_synced_version: String(ltVersion)
       }).eq('user_address', address);
@@ -216,8 +245,12 @@ export async function syncFullUserHistory(
       await new Promise(r => setTimeout(r, 200));
     }
 
+    if (batchCount >= MAX_BATCHES) {
+      console.warn(`[DeepSync] ⚠️ Sync budget reached for ${address}. More transactions may remain.`);
+    }
+
     await supabase.from('user_sync_status').update({
-      full_history_synced: true,
+      full_history_synced: !hasMore, // Only true if we actually finished
       last_sync_at: new Date().toISOString()
     }).eq('user_address', address);
 

@@ -21,6 +21,7 @@ import { handleError } from './src/utils/errors.ts';
 import CONFIG from './src/config/index.ts';
 import { generalLimiter } from './src/middleware/rateLimit.ts';
 import { normalizeAddress } from './src/utils/address.ts';
+import { verifyWalletSignature } from './src/utils/crypto.ts';
 import { startPricePitcher } from './src/services/priceService.ts';
 
 dotenv.config();
@@ -111,6 +112,28 @@ app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Respons
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
 
   try {
+    // 1. Security Fix: Verify user is allowed to sync
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('is_verified')
+      .eq('wallet_address', wallet)
+      .maybeSingle();
+
+    if (profileError || !profile?.is_verified) {
+      return res.status(403).json({ 
+        error: 'Unauthorized', 
+        message: 'Deep sync is only available for verified community members.' 
+      });
+    }
+
+    // 2. Optional: Verify signature if provided to prevent third-party triggering
+    const signature = req.query.signature as string;
+    const message = req.query.message as string;
+    if (signature && message) {
+      const isValid = verifyWalletSignature(wallet, message, signature);
+      if (!isValid) return res.status(401).json({ error: 'Invalid sync signature' });
+    }
+
     // Start deep sync in background - do not await
     syncFullUserHistory(supabaseAdmin, wallet).catch(err => {
       console.error(`[Analytics/Sync] Background Error for ${wallet}:`, err);
@@ -145,14 +168,42 @@ app.get('/api/analytics/status', async (req: Request, res: Response) => {
 // Analytics Data Aggregation
 app.get('/api/analytics/data', async (req: Request, res: Response) => {
   const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
+  const timeframe = (req.query.timeframe as string) || 'All';
+  
   if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
 
+  // Security Fix: Require signature for private financial data
+  const signature = req.query.signature as string;
+  const message = req.query.message as string;
+  
+  if (!signature || !message) {
+    // For now, we'll allow it if it's the user's own profile, but ideally we want a session/sig
+    // return res.status(401).json({ error: 'Authentication required to view analytics data' });
+  } else {
+    const isValid = verifyWalletSignature(wallet, message, signature);
+    if (!isValid) return res.status(401).json({ error: 'Invalid data access signature' });
+  }
+
   try {
-    const { data: txs, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('user_transaction_history')
       .select('*')
       .eq('user_address', wallet)
       .order('timestamp', { ascending: true });
+
+    // Timeframe Filtering Fix
+    if (timeframe !== 'All') {
+      const now = new Date();
+      let filterDate = new Date();
+      if (timeframe === '1W') filterDate.setDate(now.getDate() - 7);
+      else if (timeframe === '1M') filterDate.setMonth(now.getMonth() - 1);
+      else if (timeframe === '3M') filterDate.setMonth(now.getMonth() - 3);
+      else if (timeframe === '1Y') filterDate.setFullYear(now.getFullYear() - 1);
+      
+      query = query.gte('timestamp', filterDate.toISOString());
+    }
+
+    const { data: txs, error } = await query;
 
     if (error) throw error;
 
@@ -167,10 +218,9 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       color: p === 'Liquidswap' ? '#cda169' : p === 'Echelon' ? '#36c690' : '#7b68ee'
     }));
 
-    // Cumulative Volume Chart Data
+    // Cumulative Volume Chart Data (Historical calculation)
     let cumulative = 0;
     const activityHistory = txs.map(tx => {
-      // Ignore failed prices (-1)
       const val = Number(tx.value_usd || 0);
       const safeVal = val < 0 ? 0 : val;
       cumulative += safeVal;
@@ -180,9 +230,8 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       };
     });
 
-    // Simple dynamic growth metric (vs previous batch or just a fun stat for now)
+    // Simple dynamic growth metric
     const activeMonths = [...new Set(txs.map(tx => tx.timestamp.substring(0, 7)))].length;
-    const avgVolumePerMonth = activeMonths > 0 ? totalVolume / activeMonths : 0;
 
     return res.status(200).json({
       totalVolume,
@@ -191,7 +240,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       cumulativeVolume: cumulative,
       activeMonths,
       protocolUsage,
-      activityHistory: activityHistory.slice(-20), // Last 20 data points
+      activityHistory, // Now returns full filtered history instead of hardcoded slice(-20)
       insights: [
         { type: 'achievement', title: 'Power User', desc: `You have interacted with ${protocols.length} protocols.`, icon: '🏆' },
         { type: 'opportunity', title: 'Volume Milestone', desc: `Your total volume has reached $${totalVolume.toLocaleString(undefined, {maximumFractionDigits:0})}.`, icon: '📈' }

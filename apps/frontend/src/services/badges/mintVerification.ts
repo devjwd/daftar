@@ -1,11 +1,26 @@
 import { hasBadge } from '../badgeService';
 
-export const extractTransactionHash = (txResponse) => {
+interface TransactionResponse {
+  hash?: string;
+  transactionHash?: string;
+  txnHash?: string;
+}
+
+interface AptosClient {
+  waitForTransaction: (params: { transactionHash: string }) => Promise<any>;
+}
+
+export const extractTransactionHash = (txResponse: TransactionResponse | any): string | null => {
   if (!txResponse || typeof txResponse !== 'object') return null;
   return txResponse.hash || txResponse.transactionHash || txResponse.txnHash || null;
 };
 
-export const waitForSuccessfulTransaction = async ({ client, txHash }) => {
+interface WaitParams {
+  client: AptosClient;
+  txHash: string;
+}
+
+export const waitForSuccessfulTransaction = async ({ client, txHash }: WaitParams): Promise<any> => {
   if (!client || typeof client.waitForTransaction !== 'function') {
     throw new Error('Aptos client is required to verify mint transaction status');
   }
@@ -24,7 +39,13 @@ export const waitForSuccessfulTransaction = async ({ client, txHash }) => {
   return txResult;
 };
 
-export const verifyOnChainBadgeOwnership = async ({ client, badgeId, owner }) => {
+interface VerifyParams {
+  client: any;
+  badgeId: string | number;
+  owner: string;
+}
+
+export const verifyOnChainBadgeOwnership = async ({ client, badgeId, owner }: VerifyParams): Promise<boolean> => {
   const confirmedOwned = await hasBadge(client, Number(badgeId), owner);
   if (!confirmedOwned) {
     throw new Error('Mint transaction succeeded but on-chain badge ownership was not confirmed');
@@ -32,8 +53,16 @@ export const verifyOnChainBadgeOwnership = async ({ client, badgeId, owner }) =>
   return true;
 };
 
-export const confirmMintAndOwnership = async ({ client, txResponse, badgeId, owner }) => {
+interface ConfirmParams {
+  client: AptosClient;
+  txResponse: TransactionResponse;
+  badgeId: string | number;
+  owner: string;
+}
+
+export const confirmMintAndOwnership = async ({ client, txResponse, badgeId, owner }: ConfirmParams): Promise<string> => {
   const txHash = extractTransactionHash(txResponse);
+  if (!txHash) throw new Error('Failed to extract transaction hash');
   await waitForSuccessfulTransaction({ client, txHash });
   await verifyOnChainBadgeOwnership({ client, badgeId, owner });
   return txHash;

@@ -28,12 +28,10 @@ router.get('/', badgeLimiter, async (req: Request, res: Response) => {
   const includePrivate = req.query.includePrivate === 'true';
   const includeInactive = req.query.includeInactive === 'true';
 
-  // Check Cache (disabled to ensure immediate visibility of new badges)
-  /*
+  // Check Cache
   if (!includePrivate && !includeInactive && badgeCache && (Date.now() - badgeCache.timestamp < CACHE_TTL)) {
     return res.status(200).json(badgeCache.data);
   }
-  */
 
   try {
     let query = supabaseAdmin

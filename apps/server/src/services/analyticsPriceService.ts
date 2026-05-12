@@ -3,12 +3,28 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import CONFIG from '../config/index.ts';
 
 // Mapping of Movement tokens to CoinGecko IDs
+// Mapping of Movement tokens to CoinGecko IDs
 const TOKEN_GEKO_MAP: Record<string, string> = {
+  // Native & Core
   '0x1::aptos_coin::AptosCoin': 'aptos',
-  '0x1::move_coin::MoveCoin': 'movement', // Hypothetical ID, adjust if different
-  '0x2775ca060ee29c793f64c419623d24cd5d4833d7::usdc::USDC': 'usd-coin',
-  '0x399b9e77605e54452140d3a51f7b8d80f8641951::weth::WETH': 'ethereum',
-  '0x123...': 'tether' // Add more as needed
+  '0x1': 'movement',
+  '0xa': 'movement',
+  
+  // Stablecoins
+  '0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d': 'tether',
+  '0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39': 'usd-coin',
+  '0xba11833544a2f99eec743f41a228ca6ffa7f13c3b6b04681d5a79a8b75ff225e': 'usd-coin',
+  '0x9d146a4c9472a7e7b0dbc72da0eafb02b54173a956ef22a9fba29756f8661c6c': 'ethena-usde',
+  
+  // Assets
+  '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376': 'ethereum',
+  '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c': 'bitcoin',
+  
+  // LSTs & Restaked
+  '0x2f6af255328fe11b88d840d1e367e946ccd16bd7ebddd6ee7e2ef9f7ae0c53ef': 'renzo-restaked-eth',
+  '0x51ffc9885233adf3dd411078cad57535ed1982013dc82d9d6c433a55f2e0035d': 'kelp-dao-restaked-eth',
+  '0xe956f5062c3b9cba00e82dc775d29acf739ffa1e612e619062423b58afdbf035': 'wrapped-eeth',
+  '0x527c43638a6c389a9ad702e7085f31c48223624d5102a5207dfab861f482c46d': 'solv-btc'
 };
 
 /**
