@@ -2884,6 +2884,37 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   transform: scaleX(1);
 }
 
+.analytics-tab-v4 {
+  background: var(--glass) !important;
+  padding: 8px 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--border-subtle) !important;
+  transition: all 0.2s ease !important;
+}
+
+.analytics-tab-v4:hover {
+  background: var(--glass-hover) !important;
+  border-color: var(--primary) !important;
+}
+
+.analytics-tab-v4.active {
+  background: rgba(205, 161, 105, 0.15) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+.analytics-tab-v4.active::after {
+  display: none;
+}
+
+.analytics-btn-content {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
 .portfolio-content-panel {
   animation: portfolioPanelEnter 0.24s ease;
   transform-origin: top center;

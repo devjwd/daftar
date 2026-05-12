@@ -100,7 +100,10 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
 
   // 4. Verify Signature
   // Message format: "daftar-admin:${action}:${timestamp}:${nonce}:${jsonBodyHash}"
-  const bodyHash = createHash('sha256').update(stableStringify(req.body)).digest('hex');
+  const bodyToHash = { ...req.body };
+  delete bodyToHash.adminAuth; // Exclude auth headers if they were passed in body
+  
+  const bodyHash = createHash('sha256').update(stableStringify(bodyToHash)).digest('hex');
   const messageStr = `daftar-admin:${action}:${timestamp}:${nonce}:${bodyHash}`;
   
   const fullMessageB64 = String(req.headers['x-admin-full-message-b64'] || '');

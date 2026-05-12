@@ -30,7 +30,8 @@ export const FALLBACK_PRICES: Record<string, number> = {
 
 const getCoinGeckoApiUrl = (isDemo: boolean): string => {
   const ids = Array.from(new Set(Object.values(TOKEN_COINGECKO_IDS))).join(',');
-  const baseUrl = isDemo ? 'https://demo-api.coingecko.com' : 'https://api.coingecko.com';
+  // Note: Coingecko Demo API also uses api.coingecko.com, but with different limits/headers
+  const baseUrl = 'https://api.coingecko.com';
   return `${baseUrl}/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
 };
 

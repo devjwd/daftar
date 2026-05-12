@@ -15,6 +15,8 @@ import configRoutes from './src/routes/configRoutes.ts';
 
 // Service Imports
 import { syncUserTransactions } from './src/services/syncService.ts';
+import { syncFullUserHistory } from './src/services/analyticsSyncService.ts';
+import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { handleError } from './src/utils/errors.ts';
 import CONFIG from './src/config/index.ts';
 import { generalLimiter } from './src/middleware/rateLimit.ts';
@@ -57,6 +59,17 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
 
     // Start background price pitcher
     startPricePitcher(supabaseAdmin);
+
+    // Start background analytics price backfiller (every 30 seconds)
+    setInterval(async () => {
+      if (supabaseAdmin) {
+        try {
+          await backfillTransactionPrices(supabaseAdmin, 50);
+        } catch (err) {
+          console.error('[Server] Analytics Backfill Loop Error:', err);
+        }
+      }
+    }, 30000);
   } catch (err: any) {
     console.error('[Server] Failed to initialize Supabase:', err.message);
   }
@@ -88,6 +101,29 @@ app.get('/api/transactions/sync', generalLimiter, async (req: Request, res: Resp
   } catch (err: any) {
     console.error('[Transactions/Sync] Error:', err);
     return res.status(500).json({ error: err.message || 'Sync failed' });
+  }
+});
+
+// Advanced Analytics Deep Sync Route
+app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Response) => {
+  const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
+  if (!wallet) return res.status(400).json({ error: 'wallet is required' });
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  try {
+    // Start deep sync in background - do not await
+    syncFullUserHistory(supabaseAdmin, wallet).catch(err => {
+      console.error(`[Analytics/Sync] Background Error for ${wallet}:`, err);
+    });
+
+    return res.status(202).json({ 
+      ok: true, 
+      message: 'Deep sync started in background',
+      status: 'syncing'
+    });
+  } catch (err: any) {
+    console.error('[Analytics/Sync] Trigger Error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to start sync' });
   }
 });
 
