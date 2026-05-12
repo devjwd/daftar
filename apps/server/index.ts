@@ -127,6 +127,74 @@ app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Respons
   }
 });
 
+// Analytics Status Polling
+app.get('/api/analytics/status', async (req: Request, res: Response) => {
+  const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
+  if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
+
+  const { data, error } = await supabaseAdmin
+    .from('user_sync_status')
+    .select('*')
+    .eq('user_address', wallet)
+    .single();
+
+  if (error) return res.status(404).json({ error: 'Status not found' });
+  return res.status(200).json(data);
+});
+
+// Analytics Data Aggregation
+app.get('/api/analytics/data', async (req: Request, res: Response) => {
+  const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
+  if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
+
+  try {
+    const { data: txs, error } = await supabaseAdmin
+      .from('user_transaction_history')
+      .select('*')
+      .eq('user_address', wallet)
+      .order('timestamp', { ascending: true });
+
+    if (error) throw error;
+
+    // Aggregate Stats
+    const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
+    const totalGasUsd = txs.reduce((sum, tx) => sum + Number(tx.gas_usd || 0), 0);
+    const protocols = [...new Set(txs.map(tx => tx.protocol))];
+    
+    const protocolUsage = protocols.map(p => ({
+      name: p,
+      value: txs.filter(tx => tx.protocol === p).length,
+      color: p === 'Liquidswap' ? '#cda169' : p === 'Echelon' ? '#36c690' : '#7b68ee'
+    }));
+
+    // PnL Chart Data (Simplified for now: cumulative volume impact)
+    let cumulative = 0;
+    const pnlHistory = txs.map(tx => {
+      cumulative += Number(tx.value_usd || 0);
+      return {
+        date: tx.timestamp.split('T')[0],
+        value: cumulative
+      };
+    });
+
+    return res.status(200).json({
+      totalVolume,
+      totalGasUsd,
+      interactionCount: txs.length,
+      totalPnL: cumulative, // Mock proxy for now
+      pnlPercent: 12.4, // Placeholder calc
+      protocolUsage,
+      pnlHistory: pnlHistory.slice(-20), // Last 20 data points
+      insights: [
+        { type: 'achievement', title: 'Power User', desc: `You have interacted with ${protocols.length} protocols.`, icon: '🏆' },
+        { type: 'opportunity', title: 'Volume Milestone', desc: `Your total volume has reached $${totalVolume.toLocaleString()}.`, icon: '📈' }
+      ]
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // --- Global Error Handler ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   handleError(err, res);

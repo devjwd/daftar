@@ -1170,7 +1170,7 @@ const Dashboard = () => {
 
           {activeTab === PORTFOLIO_TABS.ANALYTICS && (
             <Suspense fallback={<div className="loading-indicator">Analyzing history...</div>}>
-              <AnalyticsView />
+              <AnalyticsView walletAddress={viewingAddress} />
             </Suspense>
           )}
         </motion.div>
