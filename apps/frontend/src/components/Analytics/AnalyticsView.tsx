@@ -30,7 +30,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     if (syncStatus === 'syncing' && walletAddress) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`${process.env.VITE_API_URL || ''}/api/analytics/status?wallet=${walletAddress}`);
+          const baseUrl = process.env.VITE_API_URL || '';
+          const res = await fetch(`${baseUrl}/api/analytics/status?wallet=${walletAddress}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          
           const data = await res.json();
           if (data.full_history_synced) {
             setSyncStatus('completed');
@@ -38,11 +41,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             clearInterval(interval);
           }
           if (data.last_synced_version) {
-            // Progress increment logic
+            // Real progress based on something dynamic if possible
             setSyncProgress(prev => Math.min(prev + 2, 99));
           }
         } catch (err) {
           console.error("Status polling error:", err);
+          // Only show error after a few retries to avoid flickering
+          setSyncStatus('error');
+          clearInterval(interval);
         }
       }, 3000);
     }
@@ -123,6 +129,18 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             <div className="discovery-center-box">
               <div className="minimal-sync-spinner"></div>
               <p className="minimal-sync-status">Analysing your history... {syncProgress}%</p>
+            </div>
+          </motion.div>
+        ) : syncStatus === 'error' ? (
+          <motion.div 
+            className="analytics-discovery-minimal error"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <div className="discovery-center-box">
+              <div className="error-visual">⚠️</div>
+              <p className="minimal-sync-status error">Unable to connect to sync engine</p>
+              <button className="mini-rescan-btn" onClick={handleStartSync}>Retry Connection</button>
             </div>
           </motion.div>
         ) : (

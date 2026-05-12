@@ -63,10 +63,13 @@
   to { transform: rotate(360deg); }
 }
 
-.minimal-sync-status {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--primary);
+.minimal-sync-status.error {
+  color: #ff4b4b;
+}
+
+.error-visual {
+  font-size: 32px;
+  margin-bottom: 8px;
 }
 
 /* Mini Header */
