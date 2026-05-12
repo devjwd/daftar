@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_url        text,
   xp                bigint       NOT NULL DEFAULT 0, -- Upgraded to bigint for scalability
   edit_key_hash     text,
+  is_verified       boolean      NOT NULL DEFAULT false,
   created_at        timestamptz  NOT NULL DEFAULT now(),
   updated_at        timestamptz  NOT NULL DEFAULT now(),
   CONSTRAINT wallet_address_lowercase CHECK (wallet_address = lower(wallet_address))

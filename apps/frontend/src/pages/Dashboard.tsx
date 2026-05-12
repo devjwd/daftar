@@ -55,7 +55,6 @@ import {
 } from "../utils/dashboardUtils";
 
 const TrxHistory = lazy(() => import("../components/TrxHistory"));
-const NFTCard = lazy(() => import("../components/Dashboard/NFTCard"));
 
 const PORTFOLIO_TABS = {
   OVERVIEW: "overview",
@@ -123,6 +122,7 @@ const Dashboard = () => {
 
   const {
     nfts: userNFTs,
+    groupedCollections,
     totalWorth: nftsTotalWorth,
     loading: nftsLoading,
     refresh: refreshNFTs
@@ -163,7 +163,7 @@ const Dashboard = () => {
 
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
-    
+
     setIsRefreshing(true);
     try {
       // 1. Refresh prices and base balances first
@@ -171,20 +171,20 @@ const Dashboard = () => {
         refreshPrices(),
         refreshIndexer()
       ]);
-      
+
       // 2. Then refresh DeFi positions and NFTs
       await Promise.all([
-        refreshDeFi({ 
-          force: true, 
-          priceMap: priceData?.prices, 
-          balances: balanceData 
+        refreshDeFi({
+          force: true,
+          priceMap: priceData?.prices,
+          balances: balanceData
         }),
         refreshNFTs()
       ]);
-      
+
       // 3. Update lastRefresh to trigger TrxHistory and other sub-components
       setLastRefresh(Date.now());
-      
+
       devLog("Dashboard: Full data refresh complete");
     } catch (err) {
       console.error("Refresh failed:", err);
@@ -661,6 +661,13 @@ const Dashboard = () => {
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                       </svg>
                     </button>
+                    {(userProfile as any)?.is_verified && (
+                      <span className="verified-tick" title="Verified Profile">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                      </span>
+                    )}
                     {walletAge && formatWalletAge(walletAge) && (
                       <>
                         <span className="address-age-separator">|</span>
@@ -1035,8 +1042,8 @@ const Dashboard = () => {
           {activeTab === PORTFOLIO_TABS.TRX && (
             <section className="grid-section">
               <Suspense fallback={<RouteFallback />}>
-                <TrxHistory 
-                  walletAddress={viewingAddress} 
+                <TrxHistory
+                  walletAddress={viewingAddress}
                   refreshTrigger={lastRefresh}
                 />
               </Suspense>
@@ -1047,7 +1054,7 @@ const Dashboard = () => {
             <section className="grid-section">
               <div className="section-header-row">
                 <div className="section-title-group">
-                  <h3 className="section-title">NFT Gallery</h3>
+                  <h3 className="section-title">NFT Portfolio</h3>
                   <div className="section-header-value">
                     {userNFTs.length} Assets
                   </div>
@@ -1055,25 +1062,84 @@ const Dashboard = () => {
               </div>
 
               {nftsLoading ? (
-                <div className="nft-skeleton-grid">
-                  {[...Array(8)].map((_, i) => (
-                    <div key={i} className="nft-skeleton-card" />
+                <div className="nft-skeleton-table">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="nft-skeleton-row" />
                   ))}
                 </div>
-              ) : userNFTs.length > 0 ? (
-                <div className="nft-grid">
-                  <Suspense fallback={<div>Loading components...</div>}>
-                    {userNFTs.map((nft, index) => (
-                      <NFTCard
-                        key={nft.token_data_id}
-                        nft={nft}
-                        delay={index * 50}
-                        convertUSD={convertUSD}
-                        formatCurrencyValue={formatCurrencyValue}
-                        hideValues={hideValues}
-                      />
-                    ))}
-                  </Suspense>
+              ) : groupedCollections.length > 0 ? (
+                <div className="nft-table-container">
+                  <table className="nft-table">
+                    <thead>
+                      <tr>
+                        <th>Collection Name</th>
+                        <th className="text-right">Amount</th>
+                        <th className="text-right">Floor Price</th>
+                        <th className="text-right">Top Bid</th>
+                        <th className="text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupedCollections.map((col) => {
+                        const tradeportUrl = `https://www.tradeport.xyz/movement/collection/${col.collectionId}`;
+                        const displayImage = col.imageUri?.startsWith('ipfs://')
+                          ? col.imageUri.replace('ipfs://', 'https://ipfs.io/ipfs/')
+                          : col.imageUri;
+
+                        return (
+                          <tr key={col.collectionId}>
+                            <td className="collection-cell">
+                              <div className="collection-info">
+                                <span className="collection-name-text">
+                                  {col.collectionName}
+                                </span>
+                                <div className="collection-images-stack">
+                                  {col.sampleImages.slice(0, 3).map((img, i) => (
+                                    <div key={i} className="collection-img-wrapper" style={{ marginLeft: i > 0 ? '-24px' : '0', zIndex: 3 - i }}>
+                                      <img
+                                        src={img.startsWith('ipfs://') ? img.replace('ipfs://', 'https://ipfs.io/ipfs/') : img}
+                                        alt=""
+                                        onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }}
+                                      />
+                                    </div>
+                                  ))}
+                                  {col.count > 3 && (
+                                    <div className="collection-img-more">
+                                      +{col.count - 3}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-right">{col.count}</td>
+                            <td className="text-right">
+                              <div className="price-stack">
+                                <span className="native-price">{col.floorPrice > 0 ? `${col.floorPrice.toFixed(2)} MOVE` : '-'}</span>
+                                {col.totalUsdValue > 0 && (
+                                  <span className="usd-price">
+                                    {hideValues ? '***' : formatCurrencyValue(convertUSD(col.totalUsdValue))}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="text-right">
+                              <span className="native-price">{col.topBid > 0 ? `${col.topBid.toFixed(2)} MOVE` : '-'}</span>
+                            </td>
+                            <td className="text-center">
+                              <a
+                                href={tradeportUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="list-btn"
+                              >
+                                View on Tradeport
+                              </a>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
                 <div className="nft-empty-state">

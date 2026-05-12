@@ -300,6 +300,18 @@ export const manageEntity = async (action_type: 'POST' | 'DELETE', payload: any,
   return response;
 };
 
+export const manageUserVerification = async (action_data: { method: 'LIST' | 'TOGGLE_VERIFICATION', address?: string, verified?: boolean, query?: string }, adminAuth: any) => {
+  const response = await callApi<any>('/api/admin/manage-badge', {
+    method: 'POST',
+    body: JSON.stringify({ 
+      action: 'manage-users', 
+      ...action_data
+    }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
 export default {
   getProfile,
   updateProfile,
@@ -324,5 +336,6 @@ export default {
   fetchAdminBadges,
   getSystemConfig,
   updateSystemConfig,
-  manageEntity
+  manageEntity,
+  manageUserVerification
 };

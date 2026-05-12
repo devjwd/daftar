@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getUserNFTHoldings } from '../services/indexer';
-import { getCollectionFloorPrices } from '../services/tradeport';
+import { getCollectionStats } from '../services/tradeport';
 import { devLog } from '../utils/devLogger';
 
 export interface NFTAsset {
@@ -20,14 +20,26 @@ export interface NFTAsset {
     };
   };
   floorPrice?: number; // In MOVE
+  topBid?: number; // In MOVE
   usdValue?: number;
+}
+
+export interface GroupedNFTCollection {
+  collectionId: string;
+  collectionName: string;
+  count: number;
+  imageUri: string;
+  sampleImages: string[];
+  floorPrice: number;
+  topBid: number;
+  totalUsdValue: number;
 }
 
 export const useNFTs = (address: string | null, movePrice: number = 0) => {
   const [nfts, setNfts] = useState<NFTAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [floorPrices, setFloorPrices] = useState<Record<string, number>>({});
+  const [collectionStats, setCollectionStats] = useState<Record<string, { floor: number; topBid: number }>>({});
 
   const fetchNFTs = useCallback(async () => {
     if (!address) {
@@ -48,10 +60,10 @@ export const useNFTs = (address: string | null, movePrice: number = 0) => {
           .filter(id => !!id)
       )) as string[];
 
-      // Fetch floor prices from Tradeport
+      // Fetch floor prices and top bids from Tradeport
       if (collectionIds.length > 0) {
-        const floors = await getCollectionFloorPrices(collectionIds);
-        setFloorPrices(floors);
+        const stats = await getCollectionStats(collectionIds);
+        setCollectionStats(stats);
       }
 
       setNfts(holdings);
@@ -102,17 +114,51 @@ export const useNFTs = (address: string | null, movePrice: number = 0) => {
       })
       .map(nft => {
         const collectionId = nft.current_token_data?.collection_id;
-        const floor = floorPrices[collectionId] || 0;
+        const stats = collectionStats[collectionId] || { floor: 0, topBid: 0 };
         const amount = parseFloat(nft.amount) || 1;
-        const usdValue = floor * amount * movePrice;
+        const usdValue = stats.floor * amount * movePrice;
 
         return {
           ...nft,
-          floorPrice: floor,
+          floorPrice: stats.floor,
+          topBid: stats.topBid,
           usdValue: usdValue
         };
       });
-  }, [nfts, floorPrices, movePrice]);
+  }, [nfts, collectionStats, movePrice]);
+
+  const groupedCollections = useMemo(() => {
+    const groups: Record<string, GroupedNFTCollection> = {};
+
+    nftsWithValues.forEach(nft => {
+      const collectionId = nft.current_token_data?.collection_id || 'unknown';
+      const collectionName = nft.current_token_data?.current_collection?.collection_name || 'Unknown Collection';
+      
+      if (!groups[collectionId]) {
+        groups[collectionId] = {
+          collectionId,
+          collectionName,
+          count: 0,
+          imageUri: nft.current_token_data?.token_uri || '',
+          sampleImages: [],
+          floorPrice: nft.floorPrice || 0,
+          topBid: nft.topBid || 0,
+          totalUsdValue: 0
+        };
+      }
+
+      groups[collectionId].count += parseInt(nft.amount) || 1;
+      groups[collectionId].totalUsdValue += nft.usdValue || 0;
+      
+      if (groups[collectionId].sampleImages.length < 4 && nft.current_token_data?.token_uri) {
+        if (!groups[collectionId].sampleImages.includes(nft.current_token_data.token_uri)) {
+          groups[collectionId].sampleImages.push(nft.current_token_data.token_uri);
+        }
+      }
+    });
+
+    return Object.values(groups).sort((a, b) => b.totalUsdValue - a.totalUsdValue);
+  }, [nftsWithValues]);
 
   const totalWorth = useMemo(() => {
     return nftsWithValues.reduce((sum, nft) => sum + (nft.usdValue || 0), 0);
@@ -120,6 +166,7 @@ export const useNFTs = (address: string | null, movePrice: number = 0) => {
 
   return {
     nfts: nftsWithValues,
+    groupedCollections,
     totalWorth,
     loading,
     error,

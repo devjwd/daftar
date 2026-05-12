@@ -38,7 +38,7 @@ export default function ProfileCard({ address }) {
       <div className="profile-card-header">
         <div className="profile-card-avatar">
           <img 
-            src={profile?.pfp || '/pfp/default.png'} 
+            src={(profile as any)?.avatar_url || '/pfp/default.png'} 
             alt={profile?.username || 'User'} 
             className="profile-card-image" 
           />
@@ -46,6 +46,13 @@ export default function ProfileCard({ address }) {
         <div className="profile-card-info">
           <h3 className="profile-card-name">
             {profile?.username || formatAddress(address)}
+            {(profile as any)?.is_verified && (
+              <span className="verified-badge" title="Verified User">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+              </span>
+            )}
           </h3>
           <p className="profile-card-address">{formatAddress(address)}</p>
         </div>

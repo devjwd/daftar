@@ -4,11 +4,14 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import './Admin.css';
 import BadgeAdmin from '../components/BadgeAdmin';
 import EntityAdmin from '../components/EntityAdmin';
+import UserVerificationAdmin from '../components/UserVerificationAdmin';
+
 import { useMovementClient } from '../hooks/useMovementClient';
 import { useTransactionTracker } from '../hooks/useTransactionTracker';
 import {
   getSwapSettings,
   updateSwapSettings,
+  SwapSettings,
 } from '../services/adminService';
 
 import { ADMIN_ADDRESS } from '../config/network';
@@ -30,7 +33,7 @@ export default function Admin() {
   
   const [activeTab, setActiveTab] = useState('badges');
 
-  const [swapSettings, setSwapSettings] = useState(getSwapSettings());
+  const [swapSettings, setSwapSettings] = useState<SwapSettings>(getSwapSettings());
   const [onChainSettings, setOnChainSettings] = useState(null);
   const [routerLoading, setRouterLoading] = useState(false);
   const [routerSaving, setRouterSaving] = useState(false);
@@ -92,6 +95,7 @@ export default function Admin() {
       setSwapSettings((prev) => ({
         ...prev,
         ...chain,
+        chargeFeeBy: chain.chargeFeeBy as 'token_in' | 'token_out',
         mosaicApiKey: local.mosaicApiKey || prev.mosaicApiKey || '',
       }));
     } catch (error) {
@@ -133,7 +137,7 @@ export default function Admin() {
       const normalized = {
         feeInBps: Math.max(0, Math.min(500, Number(swapSettings.feeInBps) || 0)),
         feeReceiver: normalizeAddress(swapSettings.feeReceiver),
-        chargeFeeBy: String(swapSettings.chargeFeeBy || 'token_in').toLowerCase() === 'token_out' ? 'token_out' : 'token_in',
+        chargeFeeBy: (String(swapSettings.chargeFeeBy || 'token_in').toLowerCase() === 'token_out' ? 'token_out' : 'token_in') as 'token_in' | 'token_out',
         defaultSlippagePercent: Math.max(0.01, Math.min(50, Number(swapSettings.defaultSlippagePercent) || 0.5)),
         paused: Boolean(swapSettings.paused),
       };
@@ -370,11 +374,25 @@ export default function Admin() {
                 <span className="admin-tab-meta">Swap execution controls</span>
               </span>
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'verification'}
+              className={`admin-tab ${activeTab === 'verification' ? 'active' : ''}`}
+              onClick={() => setActiveTab('verification')}
+            >
+              <span className="admin-tab-icon" aria-hidden="true">✔️</span>
+              <span className="admin-tab-text">
+                <span className="admin-tab-title">Verification</span>
+                <span className="admin-tab-meta">Manage verified user status</span>
+              </span>
+            </button>
           </div>
         </div>
 
         {activeTab === 'badges' && <BadgeAdmin />}
         {activeTab === 'entities' && <EntityAdmin />}
+        {activeTab === 'verification' && <UserVerificationAdmin />}
 
         {activeTab === 'settings' && (
           <div className="admin-content">
@@ -411,7 +429,7 @@ export default function Admin() {
                         max="50"
                         step="0.01"
                         value={swapSettings.defaultSlippagePercent}
-                        onChange={(e) => setSwapSettings((prev) => ({ ...prev, defaultSlippagePercent: e.target.value }))}
+                        onChange={(e) => setSwapSettings((prev) => ({ ...prev, defaultSlippagePercent: Number(e.target.value) }))}
                       />
                       <small className="admin-field-hint">
                         Applied on the swap screen as the starting value.
@@ -449,7 +467,7 @@ export default function Admin() {
                         max="500"
                         step="1"
                         value={swapSettings.feeInBps}
-                        onChange={(e) => setSwapSettings((prev) => ({ ...prev, feeInBps: e.target.value }))}
+                        onChange={(e) => setSwapSettings((prev) => ({ ...prev, feeInBps: Number(e.target.value) }))}
                       />
                       <small className="admin-field-hint">
                         Current: {feePercent}% (max 5.00%)

@@ -50,28 +50,26 @@ export const queryTradeport = async (query: string, variables: Record<string, an
 };
 
 /**
- * Get floor prices for a list of collection IDs
+ * Get stats (floor, top bid) for a list of collection IDs
  */
-export const getCollectionFloorPrices = async (collectionIds: string[]): Promise<Record<string, number>> => {
+export const getCollectionStats = async (collectionIds: string[]): Promise<Record<string, { floor: number; topBid: number }>> => {
   if (!collectionIds.length) return {};
 
   const query = `
-    query getCollectionFloors($ids: [String!]) {
+    query getCollectionStats($ids: [String!]) {
       movement {
         collections(where: { collection_id: { _in: $ids } }) {
           collection_id
           floor
+          top_bid
         }
       }
     }
   `;
 
-  // Note: If 'movement' isn't supported, we might need to fallback to 'aptos'
-  // But since the docs mentioned Movement, we'll try that first.
   try {
     const data = await queryTradeport(query, { ids: collectionIds });
     
-    // Fallback to aptos if movement field is null
     let collections = data?.movement?.collections;
     if (!collections && data?.aptos) {
       collections = data.aptos.collections;
@@ -79,18 +77,19 @@ export const getCollectionFloorPrices = async (collectionIds: string[]): Promise
 
     if (!collections) return {};
 
-    const floorMap: Record<string, number> = {};
+    const statsMap: Record<string, { floor: number; topBid: number }> = {};
     collections.forEach((col: any) => {
-      if (col.collection_id && col.floor !== undefined) {
-        // Floor is usually in native token units (octas for Aptos/Movement)
-        // We'll return it as a float in MOVE
-        floorMap[col.collection_id] = col.floor / 100_000_000;
+      if (col.collection_id) {
+        statsMap[col.collection_id] = {
+          floor: (col.floor || 0) / 100_000_000,
+          topBid: (col.top_bid || 0) / 100_000_000
+        };
       }
     });
 
-    return floorMap;
+    return statsMap;
   } catch (error) {
-    console.error("getCollectionFloorPrices error:", error);
+    console.error("getCollectionStats error:", error);
     return {};
   }
 };

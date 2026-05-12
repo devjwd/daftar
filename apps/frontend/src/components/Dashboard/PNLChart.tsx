@@ -114,20 +114,18 @@ const PNLChart: React.FC<PNLChartProps> = ({
             onClick={() => setActiveTab('History')}
             title="History"
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
-            {activeTab === 'History' && <span>History</span>}
           </button>
           <button
             className={`segment-btn ${activeTab === 'Breakdown' ? 'active' : ''}`}
             onClick={() => setActiveTab('Breakdown')}
             title="Breakdown"
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z" />
             </svg>
-            {activeTab === 'Breakdown' && <span>Breakdown</span>}
           </button>
         </div>
 

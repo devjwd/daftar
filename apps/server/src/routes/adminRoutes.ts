@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { verifyAdminRequest } from '../services/adminService.ts';
 import { auditBadgeDefinitions } from '../services/syncService.ts';
 import { validateBadgeDefinitionPayload } from '../services/validationService.ts';
+import { normalizeAddress } from '../utils/address.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const router = express.Router();
@@ -186,7 +187,43 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       return res.json({ success: true, ...results });
     }
 
+    if (action === 'manage-users') {
+      const { method, address: targetAddress, verified } = req.body;
+      
+      if (method === 'LIST') {
+        const { query } = req.body;
+        let dbQuery = supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false });
+        
+        if (query) {
+          dbQuery = dbQuery.or(`username.ilike.%${query}%,wallet_address.ilike.%${query}%`);
+        }
+        
+        const { data, error } = await dbQuery.limit(50);
+        if (error) throw error;
+        return res.json({ success: true, users: data });
+      }
+
+      if (method === 'TOGGLE_VERIFICATION') {
+        if (!targetAddress) return res.status(400).json({ error: 'targetAddress required' });
+        
+        const normalized = normalizeAddress(targetAddress);
+        const { data, error } = await supabaseAdmin
+          .from('profiles')
+          .upsert({ 
+            wallet_address: normalized,
+            is_verified: !!verified, 
+            updated_at: new Date().toISOString() 
+          }, { onConflict: 'wallet_address' })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        return res.json({ success: true, user: data });
+      }
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
+
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

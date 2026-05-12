@@ -2,7 +2,7 @@ import { SWAP_ROUTER_ADDRESS } from '../config/network';
 
 import { normalizeAddress } from '../utils/address';
 
-const normalizeChargeFeeBy = (value) => {
+const normalizeChargeFeeBy = (value: any): 'token_in' | 'token_out' => {
   const raw = String(value || '').trim().toLowerCase();
   return raw === 'token_out' ? 'token_out' : 'token_in';
 };

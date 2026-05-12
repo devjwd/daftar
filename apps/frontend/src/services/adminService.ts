@@ -14,7 +14,7 @@ const ADDRESS_PATTERN = /^0x[a-f0-9]{1,64}$/i;
 // Global cache for sync settings
 let memoizedData: any = null;
 
-interface SwapSettings {
+export interface SwapSettings {
   feeInBps: number;
   feeReceiver: string;
   chargeFeeBy: 'token_in' | 'token_out';
@@ -25,6 +25,8 @@ interface SwapSettings {
   protocolFeeBps?: number;
   referrer?: string;
   updatedAt?: string;
+  mosaicApiKey?: string;
+  paused?: boolean;
 }
 
 const DEFAULT_SWAP_SETTINGS: SwapSettings = {
@@ -37,6 +39,8 @@ const DEFAULT_SWAP_SETTINGS: SwapSettings = {
   enabledLiquiditySources: [...DEFAULT_ENABLED_LIQUIDITY_SOURCE_IDS],
   protocolFeeBps: 0,
   referrer: '',
+  mosaicApiKey: '',
+  paused: false,
 };
 
 /**
