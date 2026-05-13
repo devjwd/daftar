@@ -15,7 +15,7 @@ export default function EntityAdmin() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     address: '',
     name: '',
@@ -37,7 +37,7 @@ export default function EntityAdmin() {
         .from('tracked_entities')
         .select('*')
         .order('name');
-      
+
       if (error) throw error;
       setEntities(data || []);
     } catch (err) {
@@ -52,6 +52,23 @@ export default function EntityAdmin() {
     fetchEntities();
   }, [fetchEntities]);
 
+  const handleEdit = (entity) => {
+    setEditingId(entity.id);
+    setFormData({
+      address: entity.address,
+      name: entity.name,
+      category: entity.category || 'Protocol',
+      logo_url: entity.logo_url || '',
+      website_url: entity.website_url || '',
+      twitter_url: entity.twitter_url || '',
+      custom_type: entity.custom_type || '',
+      badge_color: entity.badge_color || '#9ca3af',
+      is_verified: !!entity.is_verified
+    });
+    setIsAdding(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const createAuth = useCallback(async (body) => {
     if (!account || !signMessage) throw new Error('Connect admin wallet');
     return await createAdminProofHeaders({
@@ -65,7 +82,7 @@ export default function EntityAdmin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!account) return setMessage({ text: 'Please connect wallet', type: 'error' });
-    
+
     setSubmitting(true);
     setMessage({ text: 'Saving...', type: 'info' });
 
@@ -73,7 +90,7 @@ export default function EntityAdmin() {
       let addr = formData.address.trim().toLowerCase();
       if (addr && !addr.startsWith('0x')) addr = '0x' + addr;
 
-      const payload = { ...formData, address: addr };
+      const payload: any = { ...formData, address: addr };
       if (editingId) payload.id = editingId;
 
       const auth = await createAuth({ action: 'manage-entities', method: 'POST', entity: payload });
@@ -91,10 +108,10 @@ export default function EntityAdmin() {
       await syncEntities(true);
       setMessage({ text: `Successfully ${editingId ? 'updated' : 'added'} entity`, type: 'success' });
       setIsAdding(false);
-      setFormData({ 
-        address: '', name: '', category: 'Protocol', logo_url: '', 
-        website_url: '', twitter_url: '', custom_type: '', 
-        badge_color: '#9ca3af', is_verified: true 
+      setFormData({
+        address: '', name: '', category: 'Protocol', logo_url: '',
+        website_url: '', twitter_url: '', custom_type: '',
+        badge_color: '#9ca3af', is_verified: true
       });
     } catch (err) {
       console.error('Error saving entity:', err);
@@ -110,14 +127,14 @@ export default function EntityAdmin() {
 
     setMessage({ text: 'Deleting...', type: 'info' });
     try {
-       const auth = await createAuth({ action: 'manage-entities', method: 'DELETE', id });
-       const result = await manageEntity('DELETE', { id }, auth);
-       
-       if (!result.ok) throw new Error(result.error || 'Failed to delete entity');
+      const auth = await createAuth({ action: 'manage-entities', method: 'DELETE', id });
+      const result = await manageEntity('DELETE', { id }, auth);
 
-       setEntities(prev => prev.filter(e => e.id !== id));
-       await syncEntities(true);
-       setMessage({ text: 'Entity deleted successfully', type: 'success' });
+      if (!result.ok) throw new Error(result.error || 'Failed to delete entity');
+
+      setEntities(prev => prev.filter(e => e.id !== id));
+      await syncEntities(true);
+      setMessage({ text: 'Entity deleted successfully', type: 'success' });
     } catch (err) {
       console.error('[EntityAdmin] Delete failed:', err);
       setMessage({ text: `Delete failed: ${err.message}`, type: 'error' });
@@ -131,12 +148,16 @@ export default function EntityAdmin() {
           <h2>Entity Wallets</h2>
           <p>Map wallet addresses to recognizable names in the UI.</p>
         </div>
-        <button 
+        <button
           className={styles.addBtn}
           onClick={() => {
             setIsAdding(!isAdding);
             setEditingId(null);
-            setFormData({ address: '', name: '', category: 'Protocol', logo_url: '', website_url: '', twitter_url: '', is_verified: true });
+            setFormData({
+              address: '', name: '', category: 'Protocol', logo_url: '',
+              website_url: '', twitter_url: '', is_verified: true,
+              custom_type: '', badge_color: '#9ca3af'
+            });
           }}
         >
           {isAdding ? 'Cancel' : '+ Add Entity'}
@@ -155,55 +176,55 @@ export default function EntityAdmin() {
           <div className={styles.formGrid}>
             <div className={styles.inputGroup}>
               <label>Wallet Address</label>
-              <input 
-                type="text" 
-                required 
+              <input
+                type="text"
+                required
                 placeholder="0x..."
                 value={formData.address}
-                onChange={e => setFormData({...formData, address: e.target.value})}
+                onChange={e => setFormData({ ...formData, address: e.target.value })}
               />
             </div>
             <div className={styles.inputGroup}>
               <label>Entity Name</label>
-              <input 
-                type="text" 
-                required 
+              <input
+                type="text"
+                required
                 placeholder="e.g. Movement Treasury"
                 value={formData.name}
-                onChange={e => setFormData({...formData, name: e.target.value})}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
             <div className={styles.inputGroup}>
               <label>Category (Entity Classification)</label>
-              <select 
+              <select
                 value={formData.category}
-                onChange={e => setFormData({...formData, category: e.target.value})}
+                onChange={e => setFormData({ ...formData, category: e.target.value })}
               >
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div className={styles.inputGroup}>
               <label>Special Transaction Tag (Badge Label)</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="e.g. CASHBACK, REWARD, MINT"
                 value={formData.custom_type || ''}
-                onChange={e => setFormData({...formData, custom_type: e.target.value})}
+                onChange={e => setFormData({ ...formData, custom_type: e.target.value })}
               />
             </div>
             <div className={styles.inputGroup}>
               <label>Badge Color</label>
               <div className={styles.colorPickerWrap}>
-                <input 
-                  type="color" 
+                <input
+                  type="color"
                   value={formData.badge_color || '#9ca3af'}
-                  onChange={e => setFormData({...formData, badge_color: e.target.value})}
+                  onChange={e => setFormData({ ...formData, badge_color: e.target.value })}
                   className={styles.colorPicker}
                 />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={formData.badge_color || '#9ca3af'}
-                  onChange={e => setFormData({...formData, badge_color: e.target.value})}
+                  onChange={e => setFormData({ ...formData, badge_color: e.target.value })}
                   className={styles.colorHexInput}
                   placeholder="#FFFFFF"
                 />
@@ -211,46 +232,46 @@ export default function EntityAdmin() {
             </div>
             <div className={styles.inputGroup}>
               <label>Logo URL (optional)</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="https://..."
                 value={formData.logo_url}
-                onChange={e => setFormData({...formData, logo_url: e.target.value})}
+                onChange={e => setFormData({ ...formData, logo_url: e.target.value })}
               />
             </div>
             <div className={styles.inputGroup}>
               <label>Website (optional)</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="https://..."
                 value={formData.website_url}
-                onChange={e => setFormData({...formData, website_url: e.target.value})}
+                onChange={e => setFormData({ ...formData, website_url: e.target.value })}
               />
             </div>
             <div className={styles.inputGroup}>
               <label>X (Twitter) URL</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="https://x.com/..."
                 value={formData.twitter_url}
-                onChange={e => setFormData({...formData, twitter_url: e.target.value})}
+                onChange={e => setFormData({ ...formData, twitter_url: e.target.value })}
               />
             </div>
             <div className={styles.checkboxGroup}>
               <label>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={formData.is_verified}
-                  onChange={e => setFormData({...formData, is_verified: e.target.checked})}
+                  onChange={e => setFormData({ ...formData, is_verified: e.target.checked })}
                 />
                 Is Verified Entity
               </label>
             </div>
           </div>
           <div className={styles.formActions}>
-             <button type="submit" className={styles.saveBtn} disabled={submitting}>
-               {submitting ? 'Saving...' : 'Save Entity'}
-             </button>
+            <button type="submit" className={styles.saveBtn} disabled={submitting}>
+              {submitting ? 'Saving...' : 'Save Entity'}
+            </button>
           </div>
         </form>
       )}
@@ -268,14 +289,18 @@ export default function EntityAdmin() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="5" className={styles.center}>Loading...</td></tr>
+              <tr><td colSpan={5} className={styles.center}>Loading...</td></tr>
             ) : entities.length === 0 ? (
-              <tr><td colSpan="5" className={styles.center}>No entities registered.</td></tr>
+              <tr><td colSpan={5} className={styles.center}>No entities registered.</td></tr>
             ) : entities.map(entity => (
               <tr key={entity.id}>
                 <td>
                   <div className={styles.entityCell}>
-                    <img src={entity.logo_url || '/movement-logo.svg'} alt="" onError={(e) => e.target.src = '/movement-logo.svg'} />
+                    <img
+                      src={entity.logo_url || '/movement-logo.svg'}
+                      alt=""
+                      onError={(e) => (e.currentTarget as HTMLImageElement).src = '/movement-logo.svg'}
+                    />
                     <span>{entity.name}</span>
                   </div>
                 </td>

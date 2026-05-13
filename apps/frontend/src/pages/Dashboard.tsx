@@ -425,6 +425,66 @@ const Dashboard = () => {
     return null;
   }, [balances, visibleDeFiPositions, visibleLiquidityPositions, priceChanges, combinedNetWorth]);
 
+  // Actual Breakdown Data Calculations
+  const assetBreakdownData = useMemo(() => {
+    const total = combinedNetWorth;
+    if (total <= 0) return [];
+    
+    const data = [
+      { name: 'Wallet', value: Math.round((totalUsdValueRounded / total) * 100), color: '#cda169', rawValue: totalUsdValueRounded },
+      { name: 'DeFi', value: Math.round((defiNetValue / total) * 100), color: '#7b68ee', rawValue: defiNetValue },
+      { name: 'LP', value: Math.round((liquidityTotalValue / total) * 100), color: '#36c690', rawValue: liquidityTotalValue },
+      { name: 'NFTs', value: Math.round(((nftsTotalWorth || 0) / total) * 100), color: '#e06a6a', rawValue: nftsTotalWorth || 0 },
+    ].filter(d => d.rawValue > 0);
+    
+    // Normalize to 100%
+    const sum = data.reduce((acc, curr) => acc + curr.value, 0);
+    if (sum !== 100 && data.length > 0) {
+      data[0].value += (100 - sum);
+    }
+    return data;
+  }, [totalUsdValueRounded, defiNetValue, liquidityTotalValue, nftsTotalWorth, combinedNetWorth]);
+
+  const protocolBreakdownData = useMemo(() => {
+    const protocolMap = new Map();
+    protocolMap.set('Holding', totalUsdValueRounded + (nftsTotalWorth || 0));
+    
+    [...visibleDeFiPositions, ...visibleLiquidityPositions].forEach(p => {
+       const proto = p.protocolName || p.platform || 'Unknown';
+       protocolMap.set(proto, (protocolMap.get(proto) || 0) + (p.numericValue || 0));
+    });
+    
+    const total = combinedNetWorth;
+    if (total <= 0) return [];
+
+    const colors = ['#cda169', '#7b68ee', '#36c690', '#e06a6a', '#9ca3af', '#4ade80', '#facc15'];
+    
+    const sorted = Array.from(protocolMap.entries())
+      .map(([name, value], idx) => ({ 
+         name, 
+         rawValue: value, 
+         value: Math.round((value / total) * 100),
+         color: colors[idx % colors.length]
+      }))
+      .filter(d => d.rawValue > 0)
+      .sort((a, b) => b.rawValue - a.rawValue);
+      
+    let finalData = sorted;
+    if (sorted.length > 5) {
+      finalData = sorted.slice(0, 4);
+      const others = sorted.slice(4);
+      const othersValue = others.reduce((acc, curr) => acc + curr.rawValue, 0);
+      const othersPct = others.reduce((acc, curr) => acc + curr.value, 0);
+      finalData.push({ name: 'Others', rawValue: othersValue, value: othersPct, color: '#9ca3af' });
+    }
+    
+    const sum = finalData.reduce((acc, curr) => acc + curr.value, 0);
+    if (sum !== 100 && finalData.length > 0) {
+      finalData[0].value += (100 - sum);
+    }
+    
+    return finalData;
+  }, [totalUsdValueRounded, nftsTotalWorth, visibleDeFiPositions, visibleLiquidityPositions, combinedNetWorth]);
 
   useEffect(() => {
     if (account && connected) {
@@ -732,6 +792,11 @@ const Dashboard = () => {
             handleRefresh={handleRefresh}
             isRefreshing={isRefreshing}
             lastRefresh={lastRefresh}
+            totalValue={combinedNetWorth}
+            assetBreakdown={assetBreakdownData}
+            protocolBreakdown={protocolBreakdownData}
+            walletAddress={viewingAddress}
+            isVerified={(userProfile as any)?.is_verified}
           />
         </div>
         {error && <ErrorMessage message={error} onRetry={handleRefresh} />}

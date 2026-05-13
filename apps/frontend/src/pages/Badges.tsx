@@ -21,11 +21,11 @@ import { useBadges } from '../hooks/useBadges';
 import { useBadgeEligibility } from '../hooks/useBadgeEligibility';
 import { t, getStoredLanguagePreference } from '../utils/language';
 import { getSettingsStorageKey } from '../utils/settings';
-import { 
-  getLevelProgress, 
-  getRarityInfo, 
-  BADGE_RARITY, 
-  getLevelFromXP, 
+import {
+  getLevelProgress,
+  getRarityInfo,
+  BADGE_RARITY,
+  getLevelFromXP,
   getNextLevelXP,
   CRITERIA_LABELS
 } from '../config/badges';
@@ -151,7 +151,7 @@ function BadgeEligibilityActions({ badge, minting, onMint, disabled, language, c
 
 function BadgeSummary({ earnedCount, totalCount }) {
   const percentage = totalCount > 0 ? (earnedCount / totalCount) * 100 : 0;
-  
+
   return (
     <div className="badge-summary-minimal">
       <div className="summary-text">
@@ -246,8 +246,8 @@ export default function Badges() {
     try {
       const baseUrl = import.meta.env.VITE_API_URL || '';
       // Optional: sync transactions first to ensure latest data
-      await fetch(`${baseUrl}/api/transactions/sync?wallet=${address}`).catch(() => {});
-      
+      await fetch(`${baseUrl}/api/transactions/sync?wallet=${address}`).catch(() => { });
+
       // Force a fresh calculation on the server
       const results = await bulkCheckEligibility(address, visibleBadges, { force: true });
       const resultsMap = {};
@@ -326,8 +326,8 @@ export default function Badges() {
     const status = badge.earned ? 'earned' : badge.eligible ? 'eligible' : 'locked';
 
     return (
-      <article 
-        key={badge.id} 
+      <article
+        key={badge.id}
         className={`achievement-card achievement-${status}`}
         onClick={() => setSelectedBadge(badge)}
       >
@@ -344,10 +344,10 @@ export default function Badges() {
         <div className="achievement-card-footer">
           <div className="achievement-status-group-wrap">
             <div className="achievement-status-group">
-              <BadgeEligibilityActions 
-                badge={badge} 
-                minting={isMinting} 
-                onMint={handleMint} 
+              <BadgeEligibilityActions
+                badge={badge}
+                minting={isMinting}
+                onMint={handleMint}
                 disabled={badge.isExpired}
                 language={language}
                 client={movementClient}
@@ -363,19 +363,19 @@ export default function Badges() {
           {!badge.earned && !badge.eligible && badge.progress !== undefined && (
             <div className="achievement-card-progress">
               <div className="achievement-card-progress-bar">
-                <div 
-                  className="achievement-card-progress-fill" 
-                  style={{ 
-                    width: `${Math.min(100, typeof badge.progress === 'object' 
-                      ? (badge.progress.current / badge.progress.target) * 100 
-                      : badge.progress)}%` 
-                  }} 
+                <div
+                  className="achievement-card-progress-fill"
+                  style={{
+                    width: `${Math.min(100, typeof badge.progress === 'object'
+                      ? (badge.progress.current / badge.progress.target) * 100
+                      : badge.progress)}%`
+                  }}
                 />
               </div>
               <div className="achievement-progress-labels">
                 <span className="achievement-progress-text">
-                  {typeof badge.progress === 'object' 
-                    ? `${Math.floor(badge.progress.current)}/${Math.floor(badge.progress.target)}` 
+                  {typeof badge.progress === 'object'
+                    ? `${Math.floor(badge.progress.current)}/${Math.floor(badge.progress.target)}`
                     : `${Math.floor(badge.progress)}%`
                   }
                 </span>
@@ -388,7 +388,7 @@ export default function Badges() {
         </div>
 
         {badge.eligible && !badge.earned && (
-          <button 
+          <button
             className="achievement-claim-btn"
             onClick={(e) => { e.stopPropagation(); handleMint(badge); }}
             disabled={isMinting}
@@ -409,7 +409,7 @@ export default function Badges() {
             <h1>{t(language, 'badgesTitle')}</h1>
             <p>{t(language, 'badgesSubtitle')}</p>
           </div>
-          
+
           {address && (
             <div className="badges-header-right">
               <BadgeSummary earnedCount={earnedCount} totalCount={totalBadges} />
@@ -422,13 +422,13 @@ export default function Badges() {
 
         <div className="badges-toolbar">
           <div className="achievement-tabs">
-            <button 
+            <button
               className={`achievement-tab ${lifecycleTab === 'active' ? 'is-active' : ''}`}
               onClick={() => setLifecycleTab('active')}
             >
               {t(language, 'badgesActive')} <span>{activeBadges.length}</span>
             </button>
-            <button 
+            <button
               className={`achievement-tab ${lifecycleTab === 'expired' ? 'is-active' : ''}`}
               onClick={() => setLifecycleTab('expired')}
             >
@@ -437,16 +437,16 @@ export default function Badges() {
           </div>
 
           <div className="badges-actions-group">
-            <button 
-              className="badges-scan-btn" 
-              onClick={handleDeepScan} 
+            <button
+              className="badges-scan-btn"
+              onClick={handleDeepScan}
               disabled={isScanning || loading}
             >
               {isScanning ? t(language, 'badgesScanning') : t(language, 'badgesDeepScan')}
             </button>
-            <button 
-              className="badges-refresh-btn" 
-              onClick={refresh} 
+            <button
+              className="badges-refresh-btn"
+              onClick={refresh}
               disabled={loading}
             >
               ↻
@@ -497,7 +497,7 @@ export default function Badges() {
             </div>
             <h3>{selectedBadge.name}</h3>
             <p>{selectedBadge.description}</p>
-            <button 
+            <button
               className="badge-modal-share"
               onClick={() => {
                 navigator.clipboard.writeText(`${selectedBadge.name}: ${selectedBadge.description}`);

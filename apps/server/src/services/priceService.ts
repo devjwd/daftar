@@ -89,21 +89,44 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
     });
 
     const snapshot = { prices, priceChanges };
+    const now = new Date().toISOString();
 
     // Store in DB for persistence
     if (supabase) {
-      const entries = Object.entries(snapshot.prices).map(([token, price]) => ({
+      // 1. Update Current Price Cache (for portfolio display)
+      const cacheEntries = Object.entries(snapshot.prices).map(([token, price]) => ({
         token_id: token,
         price_usd: price,
         change_24h: snapshot.priceChanges[token] || 0,
-        cached_at: new Date().toISOString()
+        cached_at: now
       }));
 
-      if (entries.length > 0) {
-        // Upsert all prices
+      if (cacheEntries.length > 0) {
         await supabase
           .from('price_cache')
-          .upsert(entries, { onConflict: 'token_id' });
+          .upsert(cacheEntries, { onConflict: 'token_id' });
+      }
+
+      // 2. Add to Historical Table (for PNL charts)
+      // We only store specific high-value assets here to avoid DB bloat, or all if requested.
+      // The user specifically mentioned MOVE, BTC, and ETH.
+      const historyEntries = Object.entries(snapshot.prices)
+        .filter(([addr]) => {
+           // Filters for MOVE (0x1, 0xa), BTC, and ETH
+           return addr === '0x1' || addr === '0xa' || 
+                  addr === '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c' || 
+                  addr === '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376';
+        })
+        .map(([addr, price]) => ({
+          token_address: addr,
+          price: price,
+          timestamp: now,
+          granularity: 'daily', // Using daily for the main history table
+          source: 'coingecko'
+        }));
+
+      if (historyEntries.length > 0) {
+        await supabase.from('token_price_history').insert(historyEntries);
       }
     }
 

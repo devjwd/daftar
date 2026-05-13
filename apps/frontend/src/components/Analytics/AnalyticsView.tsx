@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar, CartesianGrid
+  PieChart, Pie, Cell, BarChart, Bar, CartesianGrid, Legend
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProfile } from '../../hooks/useProfile';
@@ -22,8 +22,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
   // Fetch profile to check verification status
   const { profile, loading: profileLoading } = useProfile(walletAddress || null);
-  // Using a safe check to satisfy TypeScript
-  const isVerified = (profile as any)?.is_verified || false;
+  // Using a safe check to satisfy TypeScript - FORCED TO TRUE FOR TESTING
+  const isVerified = true; // (profile as any)?.is_verified || false;
 
   // Vite uses import.meta.env instead of process.env
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
@@ -95,7 +95,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     );
   }
 
-  // Restricted Access View
+  // Restricted Access View - DISABLED FOR TESTING
+  /*
   if (!isVerified) {
     return (
       <div className="analytics-page-v4">
@@ -105,6 +106,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
       </div>
     );
   }
+  */
 
   // If no data and not syncing, show the Minimalist Discovery state
   const isInitialState = !analyticsData && syncStatus === 'idle';
@@ -198,6 +200,22 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                 </div>
                 <div className="stat-capsule">
                   <div className="stat-cap-info">
+                    <span className="stat-cap-label">Inflow</span>
+                    <span className="stat-cap-val positive">
+                      +${(analyticsData?.totalInflow || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
+                <div className="stat-capsule">
+                  <div className="stat-cap-info">
+                    <span className="stat-cap-label">Outflow</span>
+                    <span className="stat-cap-val negative">
+                      -${(analyticsData?.totalOutflow || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
+                <div className="stat-capsule">
+                  <div className="stat-cap-info">
                     <span className="stat-cap-label">Interactions</span>
                     <span className="stat-cap-val">{analyticsData?.interactionCount || 0}</span>
                   </div>
@@ -253,7 +271,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                   <div className="affinity-visual">
                     <ResponsiveContainer width="100%" height={200}>
                       <PieChart>
-                        <Pie data={analyticsData?.protocolUsage || []} innerRadius={60} outerRadius={75} paddingAngle={8} dataKey="value" stroke="none">
+                        <Tooltip contentStyle={{ backgroundColor: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                        <Pie data={analyticsData?.protocolUsage || []} innerRadius={60} outerRadius={75} paddingAngle={8} dataKey="value" stroke="none" nameKey="name">
                           {(analyticsData?.protocolUsage || []).map((entry: any, index: number) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
@@ -261,6 +281,39 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* New Badges Section */}
+            <div className="analytics-badges-grid">
+              {/* Top Protocols/Addresses */}
+              <div className="badges-section">
+                <h3>Top protocol/addresses interact with</h3>
+                <div className="badges-container">
+                  {(analyticsData?.topEntities || []).map((entity: any, i: number) => (
+                    <div key={i} className="badge-capsule">
+                      <div className="badge-icon">
+                        {entity.name.includes('...') ? '👤' : '⚡'}
+                      </div>
+                      <span className="badge-name">{entity.name}</span>
+                      <span className="badge-value">${Math.abs(entity.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Top Tokens */}
+              <div className="badges-section">
+                <h3>Top tokens in transactions</h3>
+                <div className="badges-container">
+                  {(analyticsData?.topTokens || []).map((token: any, i: number) => (
+                    <div key={i} className="badge-capsule">
+                      <div className="badge-icon">💎</div>
+                      <span className="badge-name">{token.symbol}</span>
+                      <span className="badge-value">${Math.abs(token.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

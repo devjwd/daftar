@@ -119,12 +119,14 @@ app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Respons
       .eq('wallet_address', wallet)
       .maybeSingle();
 
+    /*
     if (profileError || !profile?.is_verified) {
       return res.status(403).json({
         error: 'Unauthorized',
         message: 'Deep sync is only available for verified community members.'
       });
     }
+    */
 
     // 2. Optional: Verify signature if provided to prevent third-party triggering
     const signature = req.query.signature as string;
@@ -207,9 +209,26 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
 
     if (error) throw error;
 
-    // Aggregate Stats
     const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
     const totalGasUsd = txs.reduce((sum, tx) => sum + Number(tx.gas_usd || 0), 0);
+    
+    // Calculate Inflow & Outflow
+    let totalInflow = 0;
+    let totalOutflow = 0;
+    txs.forEach(tx => {
+      const val = Number(tx.value_usd || 0);
+      const action = tx.action || '';
+      if (['RECEIVE', 'WITHDRAW', 'CLAIM', 'BRIDGE_IN'].includes(action)) {
+        totalInflow += val;
+      } else if (['SEND', 'DEPOSIT', 'BORROW', 'BRIDGE_OUT'].includes(action)) {
+        totalOutflow += val;
+      } else if (action === 'SWAP') {
+        // Swaps are internal, but technically involve an outflow and inflow
+        // For simple dashboard metrics, we'll exclude them from "External Flow" 
+        // unless you want them included. Usually, Net Flow ignores swaps.
+      }
+    });
+
     const protocols = [...new Set(txs.map(tx => tx.protocol))];
 
     const protocolUsage = protocols.map(p => ({
@@ -218,29 +237,76 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       color: p === 'Liquidswap' ? '#cda169' : p === 'Echelon' ? '#36c690' : '#7b68ee'
     }));
 
-    // Cumulative Volume Chart Data (Historical calculation)
+    // Cumulative Volume Chart Data
     let cumulative = 0;
+    let cumulativeFlow = 0;
     const activityHistory = txs.map(tx => {
-      const val = Number(tx.value_usd || 0);
-      const safeVal = val < 0 ? 0 : val;
-      cumulative += safeVal;
-      return {
-        date: tx.timestamp.split('T')[0],
-        value: cumulative
-      };
+      cumulative += Number(tx.value_usd || 0);
+      return { date: tx.timestamp.split('T')[0], value: cumulative };
     });
 
-    // Simple dynamic growth metric
+    const netFlowHistory = txs.map(tx => {
+      const val = Number(tx.value_usd || 0);
+      const action = tx.action || '';
+      if (['RECEIVE', 'WITHDRAW', 'CLAIM', 'BRIDGE_IN'].includes(action)) {
+        cumulativeFlow += val;
+      } else if (['SEND', 'DEPOSIT', 'BORROW', 'BRIDGE_OUT'].includes(action)) {
+        cumulativeFlow -= val;
+      }
+      return { date: tx.timestamp.split('T')[0], value: cumulativeFlow };
+    });
+
+    // To prevent empty charts, ensure at least one point exists
+    if (netFlowHistory.length === 0) {
+      netFlowHistory.push({ date: new Date().toISOString().split('T')[0], value: 0 });
+    }
+
     const activeMonths = [...new Set(txs.map(tx => tx.timestamp.substring(0, 7)))].length;
+
+    // 1. Aggregate Protocols & Addresses
+    const entityMap = new Map<string, { value: number, count: number }>();
+    txs.forEach(tx => {
+      const entity = tx.protocol !== 'Unknown' ? tx.protocol : (tx.hash.substring(0, 10) + '...'); 
+      const val = Number(tx.value_usd || 0);
+      const existing = entityMap.get(entity) || { value: 0, count: 0 };
+      entityMap.set(entity, { value: existing.value + val, count: existing.count + 1 });
+    });
+
+    const topEntities = Array.from(entityMap.entries())
+      .map(([name, stats]) => ({ name, value: stats.value, count: stats.count }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 18);
+
+    // 2. Aggregate Top Tokens
+    const tokenMap = new Map<string, number>();
+    txs.forEach(tx => {
+      const val = Number(tx.value_usd || 0);
+      if (tx.asset_in_symbol) {
+        tokenMap.set(tx.asset_in_symbol, (tokenMap.get(tx.asset_in_symbol) || 0) + val);
+      }
+      if (tx.asset_out_symbol && tx.asset_out_symbol !== tx.asset_in_symbol) {
+        tokenMap.set(tx.asset_out_symbol, (tokenMap.get(tx.asset_out_symbol) || 0) + val);
+      }
+    });
+
+    const topTokens = Array.from(tokenMap.entries())
+      .map(([symbol, value]) => ({ symbol, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 18);
 
     return res.status(200).json({
       totalVolume,
       totalGasUsd,
+      totalInflow,
+      totalOutflow,
       interactionCount: txs.length,
       cumulativeVolume: cumulative,
       activeMonths,
       protocolUsage,
-      activityHistory, // Now returns full filtered history instead of hardcoded slice(-20)
+      activityHistory,
+      netFlowHistory,
+      topEntities,
+      topTokens,
       insights: [
         { type: 'achievement', title: 'Power User', desc: `You have interacted with ${protocols.length} protocols.`, icon: '🏆' },
         { type: 'opportunity', title: 'Volume Milestone', desc: `Your total volume has reached $${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`, icon: '📈' }

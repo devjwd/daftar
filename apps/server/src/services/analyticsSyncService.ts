@@ -50,6 +50,51 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
   }
 `;
 
+// GraphQL query for forward incremental sync (new transactions)
+const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
+  query WalletTransactionsForward($address: String!, $limit: Int!, $gt_version: bigint) {
+    account_transactions(
+      where: { 
+        account_address: { _eq: $address },
+        transaction_version: { _gt: $gt_version }
+      }
+      order_by: { transaction_version: asc }
+      limit: $limit
+    ) {
+      transaction_version
+      user_transaction {
+        sender
+        timestamp
+        entry_function_id_str
+      }
+      fungible_asset_activities {
+        transaction_version
+        transaction_timestamp
+        owner_address
+        amount
+        asset_type
+        type
+        is_transaction_success
+        entry_function_id_str
+        metadata {
+          symbol
+          decimals
+        }
+      }
+      coin_activities {
+        transaction_version
+        transaction_timestamp
+        owner_address
+        amount
+        coin_type
+        activity_type
+        is_transaction_success
+        entry_function_id_str
+      }
+    }
+  }
+`;
+
 /**
  * Deep classifier and humanizer for analytics
  */
@@ -168,93 +213,159 @@ export async function syncFullUserHistory(
   walletAddress: string
 ) {
   const address = normalizeAddress(walletAddress);
-  // Using max signed bigint instead of u64 max to avoid 'out of range' indexer error
-  let ltVersion: string = "9223372036854775807";
-  let totalSynced = 0;
-  let hasMore = true;
   const BATCH_SIZE = 50;
-  const MAX_BATCHES = 100; // Safety limit: Max 5,000 transactions per sync trigger
-  let batchCount = 0;
+  let totalSynced = 0;
 
   console.log(`[DeepSync] 🚀 Starting deep history pull for ${address}...`);
 
-  // Initialize sync status
+  // 1. Fetch current sync status and max/min versions from database
+  const { data: statusData } = await supabase
+    .from('user_sync_status')
+    .select('*')
+    .eq('user_address', address)
+    .maybeSingle();
+
+  const isFullySynced = statusData?.full_history_synced === true;
+
+  const { data: maxData } = await supabase
+    .from('user_transaction_history')
+    .select('version')
+    .eq('user_address', address)
+    .order('version', { ascending: false })
+    .limit(1);
+
+  const { data: minData } = await supabase
+    .from('user_transaction_history')
+    .select('version')
+    .eq('user_address', address)
+    .order('version', { ascending: true })
+    .limit(1);
+
+  let maxVersionStr = maxData && maxData.length > 0 ? String(maxData[0].version) : "0";
+  let minVersionStr = minData && minData.length > 0 ? String(minData[0].version) : "9223372036854775807";
+
+  // Mark status as currently syncing
   await supabase.from('user_sync_status').upsert({
     user_address: address,
     last_sync_at: new Date().toISOString(),
-    full_history_synced: false
+    full_history_synced: false 
   });
 
   try {
-    while (hasMore && batchCount < MAX_BATCHES) {
-      batchCount++;
-      console.log(`[DeepSync] Fetching batch ${batchCount}/${MAX_BATCHES} (lt_version: ${ltVersion})...`);
-
+    // --- PHASE 1: FORWARD SYNC (New Transactions) ---
+    console.log(`[DeepSync] Phase 1: Forward Sync from > ${maxVersionStr}`);
+    let gtVersion = maxVersionStr;
+    let hasMoreForward = true;
+    let forwardBatchCount = 0;
+    const MAX_FORWARD_BATCHES = 50;
+    
+    while (hasMoreForward && forwardBatchCount < MAX_FORWARD_BATCHES) {
+      forwardBatchCount++;
+      
       const response = await fetch(MOVEMENT_INDEXER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: GET_USER_TRANSACTIONS_PAGINATED,
-          variables: {
-            address,
-            limit: BATCH_SIZE,
-            lt_version: ltVersion
-          }
+          query: GET_USER_TRANSACTIONS_FORWARD_PAGINATED,
+          variables: { address, limit: BATCH_SIZE, gt_version: gtVersion }
         })
       });
 
       const json: any = await response.json();
-
-      if (json.errors) {
-        console.error('[DeepSync] Indexer GraphQL Error:', json.errors);
-        throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
-      }
-
+      if (json.errors) throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
+      
       const txs = json.data?.account_transactions || [];
-      console.log(`[DeepSync] Found ${txs.length} transactions.`);
-
       if (txs.length === 0) {
-        hasMore = false;
+        hasMoreForward = false;
         break;
       }
-
+      
       const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
-
       const { error: upsertError } = await supabase
         .from('user_transaction_history')
         .upsert(enriched, { onConflict: 'user_address,version' });
 
-      if (upsertError) {
-        console.error('[DeepSync] Supabase Error:', upsertError);
-        throw upsertError;
-      }
+      if (upsertError) throw upsertError;
 
       totalSynced += txs.length;
-      ltVersion = txs[txs.length - 1].transaction_version;
-
-      // Update status for frontend progress
-      await supabase.from('user_sync_status').update({
-        last_synced_version: String(ltVersion)
-      }).eq('user_address', address);
-
-      if (txs.length < BATCH_SIZE) {
-        hasMore = false;
-      }
-
-      // Slightly longer wait to ensure indexer stability
+      gtVersion = txs[txs.length - 1].transaction_version;
+      
+      if (txs.length < BATCH_SIZE) hasMoreForward = false;
       await new Promise(r => setTimeout(r, 200));
     }
 
-    if (batchCount >= MAX_BATCHES) {
-      console.warn(`[DeepSync] ⚠️ Sync budget reached for ${address}. More transactions may remain.`);
+    // Update status to let frontend know we've pulled new items
+    await supabase.from('user_sync_status').update({
+      last_synced_version: String(gtVersion)
+    }).eq('user_address', address);
+
+    // --- PHASE 2: BACKWARD SYNC (Historical Gaps) ---
+    let fullyFinishedHistory = isFullySynced;
+    
+    if (!isFullySynced) {
+      console.log(`[DeepSync] Phase 2: Backward Sync from < ${minVersionStr}`);
+      let ltVersion = minVersionStr;
+      let hasMoreBackward = true;
+      let backwardBatchCount = 0;
+      const MAX_BACKWARD_BATCHES = 100;
+
+      while (hasMoreBackward && backwardBatchCount < MAX_BACKWARD_BATCHES) {
+        backwardBatchCount++;
+        
+        const response = await fetch(MOVEMENT_INDEXER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: GET_USER_TRANSACTIONS_PAGINATED,
+            variables: { address, limit: BATCH_SIZE, lt_version: ltVersion }
+          })
+        });
+
+        const json: any = await response.json();
+        if (json.errors) throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
+        
+        const txs = json.data?.account_transactions || [];
+        if (txs.length === 0) {
+          hasMoreBackward = false;
+          fullyFinishedHistory = true; // Reached the beginning of time
+          break;
+        }
+
+        const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
+        const { error: upsertError } = await supabase
+          .from('user_transaction_history')
+          .upsert(enriched, { onConflict: 'user_address,version' });
+
+        if (upsertError) throw upsertError;
+
+        totalSynced += txs.length;
+        ltVersion = txs[txs.length - 1].transaction_version;
+        
+        // Let frontend know we are still crawling deep
+        await supabase.from('user_sync_status').update({
+          last_synced_version: String(ltVersion)
+        }).eq('user_address', address);
+
+        if (txs.length < BATCH_SIZE) {
+          hasMoreBackward = false;
+          fullyFinishedHistory = true;
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      if (backwardBatchCount >= MAX_BACKWARD_BATCHES) {
+        console.warn(`[DeepSync] ⚠️ Backward sync budget reached. More history remains.`);
+        fullyFinishedHistory = false;
+      }
     }
 
+    // Finalize sync status
     await supabase.from('user_sync_status').update({
-      full_history_synced: !hasMore, // Only true if we actually finished
+      full_history_synced: fullyFinishedHistory,
       last_sync_at: new Date().toISOString()
     }).eq('user_address', address);
 
-    console.log(`[DeepSync] ✅ Successfully synced ${totalSynced} transactions for ${address}`);
+    console.log(`[DeepSync] ✅ Sync complete. Total processed this run: ${totalSynced}`);
     return { totalSynced };
 
   } catch (err: any) {

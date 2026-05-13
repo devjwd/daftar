@@ -2469,7 +2469,8 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--primary); /* Matched to website primary color */
+  color: var(--primary);
+  /* Matched to website primary color */
   filter: drop-shadow(0 0 4px rgba(205, 161, 105, 0.3));
   margin-left: 4px;
   animation: tickPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -2482,8 +2483,15 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 }
 
 @keyframes tickPop {
-  from { opacity: 0; transform: scale(0.5); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .hero-v3-address-inline .copy-btn {
@@ -2742,7 +2750,7 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 }
 
 /* Ensure no separator after the last regular tab before the Analytics button */
-.portfolio-tab-btn + .analytics-tab-v4::before {
+.portfolio-tab-btn+.analytics-tab-v4::before {
   display: none;
 }
 
@@ -6402,6 +6410,3 @@ body[data-theme="light"] .hero-v3-stat-value.negative {
 .global-toggle-btn svg {
   color: inherit;
 }
-
-
-

@@ -4,58 +4,7 @@ import './PNLChart.css';
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
 
-const generateMockData = (timeframe: string) => {
-  const data = [];
-  let points = 24;
-  let baseValue = 100;
-  let volatility = 5;
-
-  if (timeframe === '1D') { points = 24; volatility = 8; baseValue = 95; }
-  else if (timeframe === '1W') { points = 7; volatility = 15; baseValue = 90; }
-  else if (timeframe === '1M') { points = 30; volatility = 25; baseValue = 80; }
-  else if (timeframe === '3M') { points = 90; volatility = 40; baseValue = 60; }
-  else if (timeframe === 'All') { points = 12; volatility = 50; baseValue = 50; }
-
-  let currentValue = baseValue;
-  for (let i = 0; i <= points; i++) {
-    currentValue = currentValue + (Math.random() - 0.4) * volatility;
-    let timeLabel = '';
-    const d = new Date();
-    if (timeframe === '1D') {
-      d.setHours(d.getHours() - (points - i));
-      timeLabel = d.toLocaleTimeString(undefined, { hour: 'numeric', hour12: true });
-    } else if (timeframe === '1W') {
-      d.setDate(d.getDate() - (points - i));
-      timeLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
-    } else if (timeframe === '1M') {
-      d.setDate(d.getDate() - (points - i));
-      timeLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    } else if (timeframe === '3M') {
-      d.setDate(d.getDate() - (points - i));
-      timeLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    } else {
-      d.setMonth(d.getMonth() - (points - i));
-      timeLabel = d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
-    }
-    data.push({ time: timeLabel, value: Math.max(0.1, currentValue) });
-  }
-  return data;
-};
-
-const BREAKDOWN_DATA = [
-  { name: 'Wallet', value: 45, color: '#cda169' },
-  { name: 'DeFi', value: 28, color: '#7b68ee' },
-  { name: 'LP', value: 17, color: '#36c690' },
-  { name: 'NFTs', value: 10, color: '#e06a6a' },
-];
-
-const PROTOCOL_BREAKDOWN_DATA = [
-  { name: 'Holding', value: 42, color: '#cda169' },
-  { name: 'Echelon', value: 18, color: '#7b68ee' },
-  { name: 'Meridian', value: 15, color: '#36c690' },
-  { name: 'Joule', value: 10, color: '#e06a6a' },
-  { name: 'Others', value: 15, color: '#9ca3af' },
-];
+// Mock data generation removed
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -78,6 +27,11 @@ interface PNLChartProps {
   handleRefresh?: () => void;
   isRefreshing?: boolean;
   lastRefresh?: number;
+  totalValue?: number;
+  assetBreakdown?: any[];
+  protocolBreakdown?: any[];
+  walletAddress?: string | null;
+  isVerified?: boolean;
 }
 
 const PNLChart: React.FC<PNLChartProps> = ({
@@ -85,19 +39,65 @@ const PNLChart: React.FC<PNLChartProps> = ({
   setHideValues,
   handleRefresh,
   isRefreshing = false,
-  lastRefresh = 0
+  lastRefresh = 0,
+  totalValue = 0,
+  assetBreakdown = [],
+  protocolBreakdown = [],
+  walletAddress = null,
+  isVerified = false
 }) => {
-  const [timeframe, setTimeframe] = useState('1D');
+  const [timeframe, setTimeframe] = useState('1M');
   const [activeTab, setActiveTab] = useState('History');
   const [breakdownType, setBreakdownType] = useState('Asset');
   const [activeIndex, setActiveIndex] = useState(-1);
-  const data = useMemo(() => generateMockData(timeframe), [timeframe]);
+  const [historicalData, setHistoricalData] = useState<any[]>([]);
 
-  const totalValue = 0.02; // Mock total value matching the UI
-  const currentBreakdownData = breakdownType === 'Asset' ? BREAKDOWN_DATA : PROTOCOL_BREAKDOWN_DATA;
+  // Fetch real historical data from analytics endpoint
+  React.useEffect(() => {
+    if (!walletAddress || activeTab !== 'History') return;
+    
+    const fetchHistory = async () => {
+      try {
+        const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+        let tf = timeframe;
+        if (tf === '1D') tf = '1W'; // Fallback if 1D not fully supported backend
+        
+        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data && data.netFlowHistory) {
+          // Reconstruct net worth history by anchoring the end to current totalValue
+          const flow = data.netFlowHistory;
+          if (flow.length > 0) {
+            const lastFlow = flow[flow.length - 1].value;
+            const diff = totalValue - lastFlow;
+            
+            const reconstructed = flow.map((pt: any) => ({
+              time: new Date(pt.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+              value: Math.max(0, pt.value + diff)
+            }));
+            
+            setHistoricalData(reconstructed);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch PNL history:", err);
+      }
+    };
+    
+    fetchHistory();
+  }, [walletAddress, timeframe, activeTab, totalValue, lastRefresh]);
 
-  const firstVal = data[0]?.value ?? 0;
-  const lastVal = data[data.length - 1]?.value ?? 0;
+  const currentBreakdownData = breakdownType === 'Asset' ? assetBreakdown : protocolBreakdown;
+
+  // Use historicalData, or a flat line at current value if no history
+  const dataToRender = historicalData.length > 1 
+    ? historicalData 
+    : [{ time: 'Start', value: totalValue }, { time: 'Now', value: totalValue }];
+
+  const firstVal = dataToRender[0]?.value ?? totalValue;
+  const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
   const isPositive = lastVal >= firstVal;
   const changeUSD = Math.abs(lastVal - firstVal).toFixed(2);
   const changePercent = firstVal > 0 ? (((lastVal - firstVal) / firstVal) * 100).toFixed(2) : '0.00';
@@ -167,8 +167,15 @@ const PNLChart: React.FC<PNLChartProps> = ({
             <span className="pnl-change-percent">({isPositive ? '+' : ''}{changePercent}%)</span>
           </div>
           <div className="pnl-chart-wrapper-v4">
-            <ResponsiveContainer width="99%" height="100%">
-              <AreaChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+            {!isVerified && (
+              <div className="pnl-restricted-overlay">
+                <div className="restricted-content">
+                  <p>Verify this profile to unlock historical analytics</p>
+                </div>
+              </div>
+            )}
+            <ResponsiveContainer width="99%" height="100%" className={!isVerified ? 'blurred-chart' : ''}>
+              <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
@@ -255,12 +262,12 @@ const PNLChart: React.FC<PNLChartProps> = ({
             </ResponsiveContainer>
             <div className="donut-center-label">
               <span className="donut-total-label">
-                {activeIndex === -1 ? 'Total' : currentBreakdownData[activeIndex].name}
+                {activeIndex === -1 ? 'Total' : currentBreakdownData[activeIndex]?.name}
               </span>
               <span className="donut-total-value">
                 {activeIndex === -1
-                  ? `$${totalValue.toFixed(2)}`
-                  : `$${(totalValue * (currentBreakdownData[activeIndex].value / 100)).toFixed(4)}`
+                  ? `$${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                  : `$${(currentBreakdownData[activeIndex]?.rawValue || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
                 }
               </span>
             </div>
