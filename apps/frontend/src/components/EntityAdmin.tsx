@@ -11,10 +11,20 @@ const CATEGORIES = ['Protocol', 'Treasury', 'Swap', 'Dex', 'Lending', 'Staking',
 export default function EntityAdmin() {
   const { account, signMessage } = useWallet();
   const [entities, setEntities] = useState([]);
+  const [labels, setLabels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [labelSearch, setLabelSearch] = useState('');
+  const [isAddingLabel, setIsAddingLabel] = useState(false);
+  const [submittingLabel, setSubmittingLabel] = useState(false);
+  const [labelFormData, setLabelFormData] = useState({
+    address: '',
+    entity_id: '',
+    label_name: ''
+  });
 
   const [formData, setFormData] = useState({
     address: '',
@@ -48,9 +58,25 @@ export default function EntityAdmin() {
     }
   }, []);
 
+  const fetchLabels = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('address_labels')
+        .select('*, tracked_entities(name, logo_url)')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setLabels(data);
+      }
+    } catch (err) {
+      console.error('Error fetching labels:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchEntities();
-  }, [fetchEntities]);
+    fetchLabels();
+  }, [fetchEntities, fetchLabels]);
 
   const handleEdit = (entity) => {
     setEditingId(entity.id);
@@ -317,6 +343,147 @@ export default function EntityAdmin() {
                   <div className={styles.actions}>
                     <button onClick={() => handleEdit(entity)}>Edit</button>
                     <button className={styles.deleteBtn} onClick={() => handleDelete(entity.id)}>Delete</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <header className={styles.header} style={{ marginTop: '48px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '32px' }}>
+        <div className={styles.headerInfo}>
+          <h2>Detected Deposit Addresses ({labels.length})</h2>
+          <p>Addresses tagged by the heuristic engine or manually added.</p>
+        </div>
+        <button
+          className={styles.addBtn}
+          onClick={() => {
+            setIsAddingLabel(!isAddingLabel);
+            setLabelFormData({ address: '', entity_id: '', label_name: '' });
+          }}
+        >
+          {isAddingLabel ? 'Cancel' : '+ Add Address Label'}
+        </button>
+      </header>
+
+      {isAddingLabel && (
+        <form className={styles.formCard} onSubmit={async (e) => {
+          e.preventDefault();
+          if (!account) return setMessage({ text: 'Please connect wallet', type: 'error' });
+          setSubmittingLabel(true);
+          try {
+            const payload = { label: labelFormData, action: 'manage-labels', method: 'POST' };
+            const auth = await createAuth(payload);
+            const res = await fetch((import.meta as any).env?.VITE_API_URL + '/api/admin/manage-badge', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...auth },
+              body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || 'Failed to save label');
+            setLabels(prev => [data.label, ...prev.filter(l => l.address !== data.label.address)]);
+            setIsAddingLabel(false);
+            setLabelFormData({ address: '', entity_id: '', label_name: '' });
+            setMessage({ text: 'Label added successfully', type: 'success' });
+          } catch (err: any) {
+            setMessage({ text: err.message, type: 'error' });
+          } finally {
+            setSubmittingLabel(false);
+          }
+        }}>
+          <h3>Register Address Label</h3>
+          <div className={styles.formGrid}>
+            <div className={styles.inputGroup}>
+              <label>Deposit Wallet Address</label>
+              <input type="text" required placeholder="0x..." value={labelFormData.address} onChange={e => setLabelFormData({...labelFormData, address: e.target.value})} />
+            </div>
+            <div className={styles.inputGroup}>
+              <label>Hub Entity (Exchange)</label>
+              <select required value={labelFormData.entity_id} onChange={e => setLabelFormData({...labelFormData, entity_id: e.target.value})}>
+                <option value="">-- Select Entity --</option>
+                {entities.filter(e => e.category === 'Exchange' || e.category === 'Treasury').map(e => (
+                  <option key={e.id} value={e.id}>{e.name} ({e.category})</option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.inputGroup}>
+              <label>Label Name</label>
+              <input type="text" required placeholder="e.g. Binance Deposit Address" value={labelFormData.label_name} onChange={e => setLabelFormData({...labelFormData, label_name: e.target.value})} />
+            </div>
+          </div>
+          <div className={styles.formActions}>
+            <button type="submit" className={styles.saveBtn} disabled={submittingLabel}>
+              {submittingLabel ? 'Saving...' : 'Save Label'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div style={{ marginBottom: '16px' }}>
+        <input 
+          type="text" 
+          placeholder="Search by address or label..." 
+          value={labelSearch}
+          onChange={e => setLabelSearch(e.target.value)}
+          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
+        />
+      </div>
+
+      <div className={styles.tableWrapper}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Hub Entity</th>
+              <th>Deposit Address</th>
+              <th>Label Name</th>
+              <th>Method</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} className={styles.center}>Loading...</td></tr>
+            ) : labels.length === 0 ? (
+              <tr><td colSpan={5} className={styles.center}>No deposit addresses detected yet.</td></tr>
+            ) : labels.filter((l: any) => l.address.toLowerCase().includes(labelSearch.toLowerCase()) || l.label_name.toLowerCase().includes(labelSearch.toLowerCase())).map((label: any) => (
+              <tr key={label.address}>
+                <td>
+                  <div className={styles.entityCell}>
+                    <img
+                      src={label.tracked_entities?.logo_url || '/movement-logo.svg'}
+                      alt=""
+                      onError={(e) => (e.currentTarget as HTMLImageElement).src = '/movement-logo.svg'}
+                    />
+                    <span>{label.tracked_entities?.name || 'Unknown Hub'}</span>
+                  </div>
+                </td>
+                <td>
+                  <a href={`/profile/${label.address}`} target="_blank" rel="noreferrer" className={styles.code} style={{color: '#cda169', textDecoration: 'none'}}>
+                    {label.address.slice(0, 10)}...{label.address.slice(-6)}
+                  </a>
+                </td>
+                <td><span className={styles.categoryTag}>{label.label_name}</span></td>
+                <td><span className={styles.statusVerified}>{label.discovery_method}</span></td>
+                <td>
+                  <div className={styles.actions}>
+                    <button className={styles.deleteBtn} onClick={async () => {
+                      if (!window.confirm('Are you sure you want to delete this label?')) return;
+                      try {
+                        const payload = { address: label.address, action: 'manage-labels', method: 'DELETE' };
+                        const auth = await createAuth(payload);
+                        const res = await fetch((import.meta as any).env?.VITE_API_URL + '/api/admin/manage-badge', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', ...auth },
+                          body: JSON.stringify(payload)
+                        });
+                        if (!res.ok) throw new Error('Failed to delete');
+                        setLabels(prev => prev.filter(l => l.address !== label.address));
+                        setMessage({ text: 'Label deleted', type: 'success' });
+                      } catch (err: any) {
+                        setMessage({ text: err.message, type: 'error' });
+                      }
+                    }}>Delete</button>
                   </div>
                 </td>
               </tr>

@@ -112,10 +112,10 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
       // The user specifically mentioned MOVE, BTC, and ETH.
       const historyEntries = Object.entries(snapshot.prices)
         .filter(([addr]) => {
-           // Filters for MOVE (0x1, 0xa), BTC, and ETH
-           return addr === '0x1' || addr === '0xa' || 
-                  addr === '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c' || 
-                  addr === '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376';
+          // Filters for MOVE (0x1, 0xa), BTC, and ETH
+          return addr === '0x1' || addr === '0xa' ||
+            addr === '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c' ||
+            addr === '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376';
         })
         .map(([addr, price]) => ({
           token_address: addr,

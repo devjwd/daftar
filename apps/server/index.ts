@@ -211,7 +211,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
 
     const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
     const totalGasUsd = txs.reduce((sum, tx) => sum + Number(tx.gas_usd || 0), 0);
-    
+
     // Calculate Inflow & Outflow
     let totalInflow = 0;
     let totalOutflow = 0;
@@ -263,13 +263,34 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
 
     const activeMonths = [...new Set(txs.map(tx => tx.timestamp.substring(0, 7)))].length;
 
+    // Integrated Dapps/Protocols whitelist
+    const WHITELIST_PROTOCOLS = new Set([
+      'Liquidswap', 'Echelon', 'Movement Core', 'Aries', 'Mosaic',
+      'Yuzu', 'LayerBank', 'Canopy', 'MovePosition', 'Joule',
+      'Meridian', 'Razor'
+    ]);
+
+    // Known Centralized Exchanges (CEXs)
+    const KNOWN_EXCHANGES = new Set([
+      'Binance', 'OKX', 'Coinbase', 'MEXC', 'Gate', 'Bitget', 'KuCoin', 'Bybit', 'Kraken'
+    ]);
+
+    // Integrated/Verified Tokens whitelist (Symbols)
+    const WHITELIST_TOKENS = new Set([
+      'MOVE', 'USDT', 'USDT.e', 'USDC', 'USDC.e', 'ETH', 'WETH', 'BTC',
+      'WBTC', 'rsETH', 'gMOVE', 'cvMOVE', 'stMOVE', 'APT', 'USDe'
+    ]);
+
     // 1. Aggregate Protocols & Addresses
     const entityMap = new Map<string, { value: number, count: number }>();
     txs.forEach(tx => {
-      const entity = tx.protocol !== 'Unknown' ? tx.protocol : (tx.hash.substring(0, 10) + '...'); 
-      const val = Number(tx.value_usd || 0);
-      const existing = entityMap.get(entity) || { value: 0, count: 0 };
-      entityMap.set(entity, { value: existing.value + val, count: existing.count + 1 });
+      // Only keep whitelisted protocols
+      if (tx.protocol !== 'Unknown' && WHITELIST_PROTOCOLS.has(tx.protocol)) {
+        const entity = tx.protocol;
+        const val = Number(tx.value_usd || 0);
+        const existing = entityMap.get(entity) || { value: 0, count: 0 };
+        entityMap.set(entity, { value: existing.value + val, count: existing.count + 1 });
+      }
     });
 
     const topEntities = Array.from(entityMap.entries())
@@ -281,10 +302,14 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
     const tokenMap = new Map<string, number>();
     txs.forEach(tx => {
       const val = Number(tx.value_usd || 0);
-      if (tx.asset_in_symbol) {
+
+      // Filter asset_in
+      if (tx.asset_in_symbol && WHITELIST_TOKENS.has(tx.asset_in_symbol)) {
         tokenMap.set(tx.asset_in_symbol, (tokenMap.get(tx.asset_in_symbol) || 0) + val);
       }
-      if (tx.asset_out_symbol && tx.asset_out_symbol !== tx.asset_in_symbol) {
+
+      // Filter asset_out (if different)
+      if (tx.asset_out_symbol && tx.asset_out_symbol !== tx.asset_in_symbol && WHITELIST_TOKENS.has(tx.asset_out_symbol)) {
         tokenMap.set(tx.asset_out_symbol, (tokenMap.get(tx.asset_out_symbol) || 0) + val);
       }
     });
@@ -293,6 +318,51 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       .map(([symbol, value]) => ({ symbol, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 18);
+
+    // 3. Exchange Usage Analysis
+    const exchangeUsage = {
+      deposits: { total: 0, breakdown: [] as any[], history: [] as any[] },
+      withdrawals: { total: 0, breakdown: [] as any[], history: [] as any[] }
+    };
+
+    const depMap = new Map<string, number>();
+    const witMap = new Map<string, number>();
+    let depCumul = 0;
+    let witCumul = 0;
+
+    txs.forEach(tx => {
+      const val = Number(tx.value_usd || 0);
+      const protocol = tx.protocol || 'Unknown';
+      const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
+      
+      if (isExchange) {
+        const action = tx.action || '';
+        const date = tx.timestamp.split('T')[0];
+
+        // Is it a Deposit to Exchange?
+        if (['SEND', 'DEPOSIT', 'BRIDGE_OUT'].includes(action)) {
+          exchangeUsage.deposits.total += val;
+          depMap.set(protocol, (depMap.get(protocol) || 0) + val);
+          depCumul += val;
+          exchangeUsage.deposits.history.push({ date, value: depCumul });
+        } 
+        // Is it a Withdrawal from Exchange?
+        else if (['RECEIVE', 'WITHDRAW', 'CLAIM', 'BRIDGE_IN'].includes(action)) {
+          exchangeUsage.withdrawals.total += val;
+          witMap.set(protocol, (witMap.get(protocol) || 0) + val);
+          witCumul += val;
+          exchangeUsage.withdrawals.history.push({ date, value: witCumul });
+        }
+      }
+    });
+
+    exchangeUsage.deposits.breakdown = Array.from(depMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    exchangeUsage.withdrawals.breakdown = Array.from(witMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
 
     return res.status(200).json({
       totalVolume,
@@ -307,6 +377,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       netFlowHistory,
       topEntities,
       topTokens,
+      exchangeUsage,
       insights: [
         { type: 'achievement', title: 'Power User', desc: `You have interacted with ${protocols.length} protocols.`, icon: '🏆' },
         { type: 'opportunity', title: 'Volume Milestone', desc: `Your total volume has reached $${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`, icon: '📈' }

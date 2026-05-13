@@ -23,6 +23,8 @@ import { getWalletAge, getUserNFTHoldings, getUserTokenBalances, getYuzuLiquidit
 import { getLevelBasedPfp } from "../utils/levelPfp";
 import { getStoredLanguagePreference, t } from "../utils/language";
 import { getSettingsStorageKey, getStoredHidePositionThreshold } from "../utils/settings";
+import { useAddressLabel } from "../hooks/useAddressLabel";
+
 import { devLog } from "../utils/devLogger";
 import { getTokenDecimals, isValidAddress, parseCoinType } from "../utils/tokenUtils";
 import { resolveTokenPrice } from "../utils/price";
@@ -294,6 +296,7 @@ const Dashboard = () => {
 
   const { profile: userProfile } = useProfile(viewingAddress);
   const { level: viewingLevel } = useUserLevel(viewingAddress);
+  const { label: addressLabel } = useAddressLabel(viewingAddress);
 
   const modalProfileAddress = showProfileModal ? viewingAddress : null;
   const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(modalProfileAddress);
@@ -746,6 +749,11 @@ const Dashboard = () => {
                         <span className="address-age-separator">|</span>
                         <span className="address-age-text">{formatWalletAge(walletAge)} {t(language, 'dashDays').toLowerCase()}</span>
                       </>
+                    )}
+                    {addressLabel && (
+                      <span className="exchange-label-badge" title="Known Exchange Deposit Address">
+                        {addressLabel}
+                      </span>
                     )}
                   </div>
                   {userProfile?.bio ? (

@@ -149,6 +149,30 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       }
     }
 
+    if (action === 'manage-labels') {
+      const { label, address, method } = req.body;
+      
+      if (method === 'DELETE') {
+        if (!address) return res.status(400).json({ error: 'address required' });
+        const { error } = await supabaseAdmin.from('address_labels').delete().eq('address', address);
+        if (error) throw error;
+        return res.json({ success: true, ok: true, action: 'delete-label', address });
+      }
+
+      if (!label) return res.status(400).json({ error: 'label data required' });
+      
+      const payload = {
+        address: label.address.toLowerCase(),
+        entity_id: label.entity_id,
+        label_name: label.label_name,
+        discovery_method: label.discovery_method || 'manual'
+      };
+
+      const { data, error } = await supabaseAdmin.from('address_labels').upsert([payload], { onConflict: 'address' }).select('*, tracked_entities(name, logo_url)').single();
+      if (error) throw error;
+      return res.json({ success: true, ok: true, action: 'create-label', label: data });
+    }
+
     if (action === 'import-allowlist') {
       const { badge_id, addresses, action_type: allowlistAction, wallet_address } = req.body;
       
