@@ -205,68 +205,7 @@ function enrichTransaction(tx: any, walletAddress: string) {
   };
 }
 
-/**
- * Detects if any transaction in the batch represents a sweep to an exchange hub.
- */
-async function detectExchangeDepositsBatch(rawTxs: any[], enrichedTxs: any[], supabase: SupabaseClient) {
-  if (!rawTxs || rawTxs.length === 0) return;
 
-  const potentialHubs = new Set<string>();
-  const txHubMap = new Map<string, { sender: string, hub: string }>();
-
-  for (let i = 0; i < enrichedTxs.length; i++) {
-    const enriched = enrichedTxs[i];
-    if (enriched.action !== 'SEND') continue;
-
-    const rawTx = rawTxs.find((t: any) => t.transaction_version === enriched.version);
-    if (!rawTx) continue;
-
-    const activities = [
-      ...(rawTx.fungible_asset_activities || []),
-      ...(rawTx.coin_activities || []).map((ca: any) => ({ ...ca, type: ca.activity_type, owner_address: ca.owner_address }))
-    ];
-    
-    const deposit = activities.find((a: any) => String(a.type).includes('Deposit') && a.owner_address !== enriched.user_address);
-    if (deposit && deposit.owner_address) {
-      potentialHubs.add(deposit.owner_address);
-      txHubMap.set(String(enriched.version), { sender: enriched.user_address, hub: deposit.owner_address });
-    }
-  }
-
-  if (potentialHubs.size === 0) return;
-
-  const { data: entities } = await supabase
-    .from('tracked_entities')
-    .select('id, address, name')
-    .in('address', Array.from(potentialHubs))
-    .eq('category', 'Exchange');
-
-  if (!entities || entities.length === 0) return;
-
-  const entityMap = new Map(entities.map(e => [e.address, e]));
-  const labelsToInsert = [];
-
-  for (const { sender, hub } of txHubMap.values()) {
-    const entity = entityMap.get(hub);
-    if (entity) {
-      labelsToInsert.push({
-        address: sender,
-        label_name: `${entity.name} Deposit Address`,
-        entity_id: entity.id,
-        discovery_method: 'sweep_pattern'
-      });
-    }
-  }
-
-  if (labelsToInsert.length > 0) {
-    try {
-      await supabase.from('address_labels').upsert(labelsToInsert, { onConflict: 'address' });
-      console.log(`[Detection] Tagged ${labelsToInsert.length} exchange deposit addresses.`);
-    } catch (err: any) {
-      console.warn(`[Detection] Failed to insert labels:`, err.message);
-    }
-  }
-}
 
 /**
  * Main deep sync loop
@@ -350,8 +289,6 @@ export async function syncFullUserHistory(
 
       if (upsertError) throw upsertError;
 
-      // Run heuristic detection for exchange deposit addresses
-      await detectExchangeDepositsBatch(txs, enriched, supabase);
 
       totalSynced += txs.length;
       gtVersion = txs[txs.length - 1].transaction_version;
@@ -404,8 +341,6 @@ export async function syncFullUserHistory(
 
         if (upsertError) throw upsertError;
 
-        // Run heuristic detection for exchange deposit addresses
-        await detectExchangeDepositsBatch(txs, enriched, supabase);
 
         totalSynced += txs.length;
         ltVersion = txs[txs.length - 1].transaction_version;

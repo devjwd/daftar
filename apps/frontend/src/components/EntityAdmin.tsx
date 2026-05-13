@@ -20,6 +20,10 @@ export default function EntityAdmin() {
   const [labelSearch, setLabelSearch] = useState('');
   const [isAddingLabel, setIsAddingLabel] = useState(false);
   const [submittingLabel, setSubmittingLabel] = useState(false);
+  
+  const [isCrawling, setIsCrawling] = useState(false);
+  const [crawlStatus, setCrawlStatus] = useState('');
+
   const [labelFormData, setLabelFormData] = useState({
     address: '',
     entity_id: '',
@@ -77,6 +81,93 @@ export default function EntityAdmin() {
     fetchEntities();
     fetchLabels();
   }, [fetchEntities, fetchLabels]);
+
+  const runLocalCrawl = async () => {
+    if (isCrawling) return;
+    const exchanges = entities.filter(e => e.category === 'Exchange');
+    if (exchanges.length === 0) return setMessage({ text: 'No exchange entities registered to crawl', type: 'error' });
+
+    setIsCrawling(true);
+    setMessage({ text: 'Starting local network crawl...', type: 'info' });
+
+    const knownAddresses = new Set(entities.map(e => e.address.toLowerCase()));
+    let totalFound = 0;
+
+    try {
+      for (const exchange of exchanges) {
+        setCrawlStatus(`Crawling ${exchange.name}...`);
+        let ltVersion = null;
+        let hasMore = true;
+        let batchCount = 0;
+
+        while (hasMore && batchCount < 20) { // Limit to 20 batches (1000 txs) per exchange for safety
+          batchCount++;
+          const res = await fetch((import.meta as any).env.VITE_MOVEMENT_INDEXER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: `query Crawl($addr: String!, $lt: bigint) {
+                account_transactions(where: { account_address: { _eq: $addr }, transaction_version: { _lt: $lt } }, order_by: { transaction_version: desc }, limit: 50) {
+                  transaction_version
+                  user_transaction { sender }
+                }
+              }`,
+              variables: { addr: exchange.address, lt: ltVersion }
+            })
+          });
+
+          const json = await res.json();
+          const txs = json.data?.account_transactions || [];
+          if (txs.length === 0) {
+            hasMore = false;
+            break;
+          }
+
+          const discoveredLabels = [];
+          for (const tx of txs) {
+            const sender = tx.user_transaction?.sender?.toLowerCase();
+            if (sender && sender !== exchange.address.toLowerCase() && !knownAddresses.has(sender)) {
+              discoveredLabels.push({
+                address: sender,
+                entity_id: exchange.id,
+                label_name: `${exchange.name} Deposit Address`,
+                discovery_method: 'browser_crawl'
+              });
+              knownAddresses.add(sender); // Don't re-label same address in this session
+            }
+          }
+
+          if (discoveredLabels.length > 0) {
+            const payload = { label: discoveredLabels[0], action: 'manage-labels', method: 'POST' }; // Using first one as template, backend handles upsert
+            // Wait, we need a bulk endpoint ideally, but let's send them one by one or modify backend.
+            // For now, let's send them one by one but in rapid succession.
+            for (const label of discoveredLabels) {
+              const auth = await createAuth({ label, action: 'manage-labels', method: 'POST' });
+              await fetch((import.meta as any).env.VITE_API_URL + '/api/admin/manage-badge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...auth },
+                body: JSON.stringify({ label, action: 'manage-labels', method: 'POST' })
+              });
+              totalFound++;
+              setCrawlStatus(`Crawling ${exchange.name}... Discovered ${totalFound} addresses`);
+            }
+          }
+
+          ltVersion = txs[txs.length - 1].transaction_version;
+          if (txs.length < 50) hasMore = false;
+          await new Promise(r => setTimeout(r, 100));
+        }
+      }
+      setMessage({ text: `Crawl complete! Found ${totalFound} new deposit addresses.`, type: 'success' });
+      fetchLabels();
+    } catch (err: any) {
+      console.error('Crawl error:', err);
+      setMessage({ text: 'Crawl interrupted: ' + err.message, type: 'error' });
+    } finally {
+      setIsCrawling(false);
+      setCrawlStatus('');
+    }
+  };
 
   const handleEdit = (entity) => {
     setEditingId(entity.id);
@@ -356,15 +447,35 @@ export default function EntityAdmin() {
           <h2>Detected Deposit Addresses ({labels.length})</h2>
           <p>Addresses tagged by the heuristic engine or manually added.</p>
         </div>
-        <button
-          className={styles.addBtn}
-          onClick={() => {
-            setIsAddingLabel(!isAddingLabel);
-            setLabelFormData({ address: '', entity_id: '', label_name: '' });
-          }}
-        >
-          {isAddingLabel ? 'Cancel' : '+ Add Address Label'}
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {isCrawling && (
+            <div style={{ fontSize: '12px', color: '#cda169', fontWeight: '600', animation: 'pulse 2s infinite' }}>
+              {crawlStatus}
+            </div>
+          )}
+          <button
+            className={styles.addBtn}
+            onClick={runLocalCrawl}
+            disabled={isCrawling}
+            style={{ 
+              background: 'rgba(205, 161, 105, 0.1)', 
+              color: '#cda169', 
+              border: '1px solid rgba(205, 161, 105, 0.3)',
+              cursor: isCrawling ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {isCrawling ? '⚡ Scanning...' : '🔄 Scan Network for Deposits'}
+          </button>
+          <button
+            className={styles.addBtn}
+            onClick={() => {
+              setIsAddingLabel(!isAddingLabel);
+              setLabelFormData({ address: '', entity_id: '', label_name: '' });
+            }}
+          >
+            {isAddingLabel ? 'Cancel' : '+ Add Address Label'}
+          </button>
+        </div>
       </header>
 
       {isAddingLabel && (
