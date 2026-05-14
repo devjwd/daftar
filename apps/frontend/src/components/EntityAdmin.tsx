@@ -149,7 +149,7 @@ export default function EntityAdmin() {
 
           ltVersion = txs[txs.length - 1].transaction_version;
           if (txs.length < 50) hasMore = false;
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise(r => setTimeout(r, 200));
         }
 
         if (allDiscoveredForExchange.length > 0) {
