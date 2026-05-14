@@ -18,6 +18,7 @@ const GET_USER_TRANSACTIONS = `
         sender
         timestamp
         entry_function_id_str
+        payload
       }
       fungible_asset_activities {
         transaction_version
@@ -41,7 +42,7 @@ const GET_USER_TRANSACTIONS = `
  * Basic transaction classifier for backend sync.
  * (Ported and simplified from historyEngine.js)
  */
-function classifyAndNormalize(tx: any, walletAddress: string): MovementTransaction & { source: string; fetched_at: string } {
+function classifyAndNormalize(tx: any, walletAddress: string, labelsMap: Map<string, any> = new Map()): MovementTransaction & { source: string; fetched_at: string } {
   const userAddr = normalizeAddress(walletAddress);
   const ut = tx.user_transaction || {};
   const functionName = ut.entry_function_id_str || '';
@@ -60,6 +61,22 @@ function classifyAndNormalize(tx: any, walletAddress: string): MovementTransacti
   if (functionName.includes('0x1::')) dappName = 'Movement Core';
   else if (functionName.includes('0x8304621d305021a1')) dappName = 'Liquidswap';
   else if (functionName.includes('0x2c7bccf7df3d0c01')) dappName = 'Echelon Finance';
+
+  // Identify exchange deposit addresses from payload
+  const payload = ut.payload;
+  let receiver = null;
+  if (payload?.function === '0x1::aptos_account::transfer' || payload?.function === '0x1::coin::transfer') {
+    receiver = payload.arguments?.[0];
+  } else if (payload?.entry_function_id_str?.includes('transfer')) {
+    receiver = payload.arguments?.[0];
+  }
+
+  if (receiver) {
+    const label = labelsMap.get(normalizeAddress(receiver));
+    if (label) {
+      dappName = label.tracked_entities?.name || 'Exchange';
+    }
+  }
 
   return {
     wallet_address: userAddr,
@@ -103,7 +120,14 @@ export async function syncUserTransactions(
     return { count: 0 };
   }
 
-  const normalized = txs.map((tx: any) => classifyAndNormalize(tx, address));
+  // Fetch labels for counterparty identification
+  const labelsMap = new Map();
+  const { data: labelsData } = await supabase.from('address_labels').select('*, tracked_entities(name)');
+  if (labelsData) {
+    labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
+  }
+
+  const normalized = txs.map((tx: any) => classifyAndNormalize(tx, address, labelsMap));
 
   const { error } = await supabase
     .from('transaction_history')

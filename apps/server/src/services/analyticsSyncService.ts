@@ -21,6 +21,7 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
         sender
         timestamp
         entry_function_id_str
+        payload
       }
       fungible_asset_activities {
         transaction_version
@@ -66,6 +67,7 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
         sender
         timestamp
         entry_function_id_str
+        payload
       }
       fungible_asset_activities {
         transaction_version
@@ -98,7 +100,7 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
 /**
  * Deep classifier and humanizer for analytics
  */
-function enrichTransaction(tx: any, walletAddress: string) {
+function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string, any> = new Map()) {
   const ut = tx.user_transaction || {};
   const functionId = ut.entry_function_id_str || '';
 
@@ -166,6 +168,25 @@ function enrichTransaction(tx: any, walletAddress: string) {
       const amt = Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8));
       description = `${action === 'SEND' ? 'Sent' : 'Received'} ${amt.toFixed(2)} ${asset.metadata?.symbol}`;
     }
+
+    // Attempt to identify counterparty from payload for labels
+    if (action === 'SEND') {
+      const payload = ut.payload;
+      let receiver = null;
+      if (payload?.function === '0x1::aptos_account::transfer' || payload?.function === '0x1::coin::transfer') {
+        receiver = payload.arguments?.[0];
+      } else if (payload?.entry_function_id_str?.includes('transfer')) {
+        receiver = payload.arguments?.[0];
+      }
+
+      if (receiver) {
+        const label = labelsMap.get(normalizeAddress(receiver));
+        if (label) {
+          protocol = label.tracked_entities?.name || 'Exchange';
+          description += ` to ${protocol}`;
+        }
+      }
+    }
   }
 
   // 3. Storage Optimization: Strip bloated metadata
@@ -219,6 +240,13 @@ export async function syncFullUserHistory(
   let totalSynced = 0;
 
   console.log(`[DeepSync] 🚀 Starting deep history pull for ${address}...`);
+
+  // Fetch all labels for counterparty identification
+  const labelsMap = new Map();
+  const { data: labelsData } = await supabase.from('address_labels').select('*, tracked_entities(name)');
+  if (labelsData) {
+    labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
+  }
 
   // 1. Fetch current sync status and max/min versions from database
   const { data: statusData } = await supabase
@@ -282,7 +310,7 @@ export async function syncFullUserHistory(
         break;
       }
 
-      const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
+      const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap));
       const { error: upsertError } = await supabase
         .from('user_transaction_history')
         .upsert(enriched, { onConflict: 'user_address,version' });
@@ -334,7 +362,7 @@ export async function syncFullUserHistory(
           break;
         }
 
-        const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
+        const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap));
         const { error: upsertError } = await supabase
           .from('user_transaction_history')
           .upsert(enriched, { onConflict: 'user_address,version' });
