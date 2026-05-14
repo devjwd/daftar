@@ -22,6 +22,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'exchange'>('overview');
 
+  const lastSyncStringRef = React.useRef<string | null>(null);
+  const lastSyncChangeTimeRef = React.useRef<number>(0);
+
   const { profile, loading: profileLoading } = useProfile(walletAddress || null);
   const isVerified = true; 
 
@@ -40,12 +43,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             fetchAnalyticsData();
             clearInterval(interval);
           } else if (data.last_sync_at) {
-            const lastSync = new Date(data.last_sync_at).getTime();
-            if (Date.now() - lastSync > 2 * 60 * 1000) {
-              console.error("Sync timed out (stuck for > 2 mins)");
-              setSyncStatus('error');
-              clearInterval(interval);
-              return;
+            if (data.last_sync_at !== lastSyncStringRef.current) {
+              lastSyncStringRef.current = data.last_sync_at;
+              lastSyncChangeTimeRef.current = Date.now();
+            } else if (lastSyncChangeTimeRef.current > 0) {
+              if (Date.now() - lastSyncChangeTimeRef.current > 2 * 60 * 1000) {
+                console.error("Sync timed out (stuck for > 2 mins client time)");
+                setSyncStatus('error');
+                clearInterval(interval);
+                return;
+              }
             }
           }
           if (data.last_synced_version) {
@@ -76,6 +83,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     if (!walletAddress || !isVerified) return;
     setSyncStatus('syncing');
     setSyncProgress(0);
+    lastSyncStringRef.current = null;
+    lastSyncChangeTimeRef.current = Date.now(); // Start the timer
     try {
       const res = await fetch(`${API_URL}/api/analytics/sync?wallet=${walletAddress}`);
       if (!res.ok) throw new Error("Sync trigger failed");
