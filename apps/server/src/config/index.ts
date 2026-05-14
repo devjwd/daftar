@@ -23,6 +23,11 @@ export interface Config {
     VERIFIED_TTL_MS: number;
     PRICE_TTL_MS: number;
   };
+  TRADEPORT: {
+    API_KEY: string | undefined;
+    API_USER: string | undefined;
+    ENDPOINT: string | undefined;
+  };
 }
 
 export const CONFIG: Config = {
@@ -48,6 +53,12 @@ export const CONFIG: Config = {
   CACHE: {
     VERIFIED_TTL_MS: 15 * 60 * 1000, // 15 minutes
     PRICE_TTL_MS: 10 * 60 * 1000,  // 10 minutes
+  },
+  
+  TRADEPORT: {
+    API_KEY: process.env.TRADEPORT_API_KEY,
+    API_USER: process.env.TRADEPORT_API_USER,
+    ENDPOINT: process.env.INDEXER_XYZ_ENDPOINT || 'https://api.indexer.xyz/graphql',
   }
 };
 
