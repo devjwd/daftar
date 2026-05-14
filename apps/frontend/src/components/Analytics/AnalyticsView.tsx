@@ -31,42 +31,47 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
   useEffect(() => {
-    let interval: any;
-    if (syncStatus === 'syncing' && walletAddress) {
-      interval = setInterval(async () => {
-        try {
-          const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-          if (data.full_history_synced) {
-            setSyncStatus('completed');
+    if (!walletAddress || !isVerified) return;
+    
+    // Instantly fetch analytics data from the database
+    fetchAnalyticsData();
+
+    // Also check sync status to see if initial deep sync is still running
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data.full_history_synced) {
+          setSyncStatus('completed');
+        } else {
+          setSyncStatus('syncing');
+          // If it's still syncing initially, we can poll data every 5s to show progress
+          const interval = setInterval(() => {
             fetchAnalyticsData();
-            clearInterval(interval);
-          } else if (data.last_sync_at) {
-            if (data.last_sync_at !== lastSyncStringRef.current) {
-              lastSyncStringRef.current = data.last_sync_at;
-              lastSyncChangeTimeRef.current = Date.now();
-            } else if (lastSyncChangeTimeRef.current > 0) {
-              if (Date.now() - lastSyncChangeTimeRef.current > 2 * 60 * 1000) {
-                console.error("Sync timed out (stuck for > 2 mins client time)");
-                setSyncStatus('error');
-                clearInterval(interval);
-                return;
-              }
-            }
-          }
-          if (data.last_synced_version) {
-            setSyncProgress(prev => Math.min(prev + 2, 99));
-          }
-        } catch (err) {
-          console.error("Status polling error:", err);
-          setSyncStatus('error');
-          clearInterval(interval);
+            checkSyncCompletion(interval);
+          }, 5000);
+          return () => clearInterval(interval);
         }
-      }, 3000);
-    }
-    return () => clearInterval(interval);
-  }, [syncStatus, walletAddress, API_URL]);
+      } catch (err) {
+        console.error("Status check error:", err);
+      }
+    };
+    checkStatus();
+  }, [walletAddress, isVerified, API_URL]);
+
+  const checkSyncCompletion = async (interval: any) => {
+    try {
+      const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
+      const data = await res.json();
+      if (data.full_history_synced) {
+        setSyncStatus('completed');
+        clearInterval(interval);
+        fetchAnalyticsData(); // Final fetch
+      }
+    } catch (e) {}
+  };
 
   const fetchAnalyticsData = async (tf = timeframe) => {
     if (!walletAddress) return;
@@ -104,15 +109,17 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     );
   }
 
-  const isInitialState = !analyticsData && syncStatus === 'idle';
+  // If we have data and it's not totally empty (or if it's completed syncing but truly empty), show dashboard
+  const hasData = analyticsData && analyticsData.activityHistory && analyticsData.activityHistory.length > 0;
+  const isInitialSyncing = syncStatus === 'syncing' && !hasData;
 
   return (
     <div className="analytics-v5-container">
       <AnimatePresence mode="wait">
-        {isInitialState || syncStatus === 'syncing' || syncStatus === 'error' ? (
+        {isInitialSyncing ? (
           <SyncStateOverlay 
             key="sync-overlay"
-            status={syncStatus} 
+            status={'syncing'} 
             progress={syncProgress} 
             onStartSync={handleStartSync} 
           />
@@ -125,7 +132,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div>
                 <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>Portfolio Intelligence</h2>
-                <p style={{ color: 'var(--text-tertiary)', fontSize: '14px', marginTop: '4px' }}>Real-time analytics engine</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <p style={{ color: 'var(--text-tertiary)', fontSize: '14px' }}>Live from database</p>
+                  {syncStatus === 'syncing' && (
+                    <span style={{ fontSize: '11px', background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                      Syncing history...
+                    </span>
+                  )}
+                </div>
               </div>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

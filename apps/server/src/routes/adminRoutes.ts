@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { verifyAdminRequest } from '../services/adminService.ts';
-import { auditBadgeDefinitions } from '../services/syncService.ts';
+import { auditBadgeDefinitions } from '../services/badgeAuditService.ts';
 import { validateBadgeDefinitionPayload } from '../services/validationService.ts';
 import { normalizeAddress } from '../utils/address.ts';
 import { SupabaseClient } from '@supabase/supabase-js';

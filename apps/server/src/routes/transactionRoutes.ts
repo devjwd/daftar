@@ -21,20 +21,20 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
 
   try {
     let query = supabaseAdmin
-      .from('transaction_history')
+      .from('user_transaction_history')
       .select('*', { count: 'exact' })
-      .eq('wallet_address', wallet)
-      .order('tx_timestamp', { ascending: false });
+      .eq('user_address', wallet)
+      .order('timestamp', { ascending: false });
 
     if (type && type !== 'all') {
       if (type === 'transfers') {
-        query = query.in('tx_type', ['transfer', 'received', 'send']);
+        query = query.in('action', ['TRANSFER', 'SEND', 'RECEIVE']);
       } else if (type === 'lending') {
-        query = query.in('tx_type', ['lend', 'borrow', 'repay', 'deposit', 'withdraw', 'liquidity']);
+        query = query.in('action', ['BORROW', 'DEPOSIT', 'REPAY', 'WITHDRAW']);
       } else if (type === 'staking') {
-        query = query.in('tx_type', ['stake', 'unstake', 'claim']);
+        query = query.in('action', ['STAKE', 'UNSTAKE', 'CLAIM']);
       } else {
-        query = query.eq('tx_type', type);
+        query = query.eq('action', type.toUpperCase());
       }
     }
 
@@ -45,8 +45,20 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
 
     if (error) throw error;
 
+    const mappedData = (data || []).map(tx => ({
+      tx_hash: tx.hash,
+      tx_timestamp: tx.timestamp,
+      tx_type: tx.action ? tx.action.toLowerCase() : 'other',
+      tx_label: tx.action || 'OTHER',
+      dapp_name: tx.protocol || 'Unknown',
+      token_in: tx.asset_in_symbol || null,
+      amount_in: tx.asset_in_amount || null,
+      token_out: tx.asset_out_symbol || null,
+      amount_out: tx.asset_out_amount || null,
+    }));
+
     return res.status(200).json({
-      transactions: data || [],
+      transactions: mappedData,
       total: count || 0,
       page,
       hasMore: (count || 0) > to + 1

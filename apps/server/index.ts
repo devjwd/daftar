@@ -12,11 +12,9 @@ import profileRoutes from './src/routes/profileRoutes.ts';
 import adminRoutes from './src/routes/adminRoutes.ts';
 import configRoutes from './src/routes/configRoutes.ts';
 import transactionRoutes from './src/routes/transactionRoutes.ts';
-
-// Service Imports
-import { syncUserTransactions } from './src/services/syncService.ts';
 import { syncFullUserHistory } from './src/services/analyticsSyncService.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
+import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { handleError } from './src/utils/errors.ts';
 import CONFIG from './src/config/index.ts';
 import { generalLimiter } from './src/middleware/rateLimit.ts';
@@ -61,6 +59,9 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
     // Start background price pitcher
     startPricePitcher(supabaseAdmin);
 
+    // Start 24/7 Background Analytics Worker for Verified Users
+    startAnalyticsWorker(supabaseAdmin);
+
     // Start background analytics price backfiller (every 30 seconds)
     setInterval(async () => {
       if (supabaseAdmin) {
@@ -90,20 +91,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/transactions', transactionRoutes);
 
-// Transactions Sync Route
-app.get('/api/transactions/sync', generalLimiter, async (req: Request, res: Response) => {
-  const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
-  if (!wallet) return res.status(400).json({ error: 'wallet is required' });
-  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
-
-  try {
-    const result = await syncUserTransactions(supabaseAdmin, wallet, 100);
-    return res.status(200).json({ ok: true, ...result });
-  } catch (err: any) {
-    console.error('[Transactions/Sync] Error:', err);
-    return res.status(500).json({ error: err.message || 'Sync failed' });
-  }
-});
+// Transactions Sync Route has been deprecated in favor of background deep sync.
 
 // Advanced Analytics Deep Sync Route
 app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Response) => {
