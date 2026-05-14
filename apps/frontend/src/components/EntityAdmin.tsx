@@ -102,9 +102,10 @@ export default function EntityAdmin() {
     try {
       for (const exchange of exchanges) {
         setCrawlStatus(`Crawling ${exchange.name}...`);
-        let ltVersion = null;
+        let ltVersion: string | null = "9223372036854775807";
         let hasMore = true;
         let checkedTxs = 0;
+        const allDiscoveredForExchange = [];
 
         while (hasMore) {
           setCrawlStatus(`Crawling ${exchange.name}... Checked ${checkedTxs} txs. Discovered ${totalFound} addresses`);
@@ -132,41 +133,35 @@ export default function EntityAdmin() {
           checkedTxs += txs.length;
           setCrawlStatus(`Crawling ${exchange.name}... Checked ${checkedTxs} txs. Discovered ${totalFound} addresses`);
 
-          const discoveredLabels = [];
           for (const tx of txs) {
             const sender = tx.user_transaction?.sender?.toLowerCase();
             if (sender && sender !== exchange.address.toLowerCase() && !knownAddresses.has(sender)) {
-              discoveredLabels.push({
+              allDiscoveredForExchange.push({
                 address: sender,
                 entity_id: exchange.id,
                 label_name: `${exchange.name} Deposit Address`,
                 discovery_method: 'browser_crawl'
               });
               knownAddresses.add(sender); // Don't re-label same address in this session
-            }
-          }
-
-          if (discoveredLabels.length > 0) {
-            // Send discovered labels to backend
-            for (const label of discoveredLabels) {
-              const body = { label, action: 'manage-labels', method: 'POST' };
-              const auth = await createAuth('manage-labels', body);
-              const apiRes = await fetch((import.meta as any).env.VITE_API_URL + '/api/admin/manage-badge', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...auth },
-                body: JSON.stringify(body)
-              });
-              
-              if (apiRes.ok) {
-                totalFound++;
-                setCrawlStatus(`Crawling ${exchange.name}... Checked ${checkedTxs} txs. Discovered ${totalFound} addresses`);
-              }
+              totalFound++;
             }
           }
 
           ltVersion = txs[txs.length - 1].transaction_version;
           if (txs.length < 50) hasMore = false;
           await new Promise(r => setTimeout(r, 100));
+        }
+
+        if (allDiscoveredForExchange.length > 0) {
+          setCrawlStatus(`Saving ${allDiscoveredForExchange.length} addresses for ${exchange.name}... (Please approve signature in your wallet)`);
+          const body = { labels: allDiscoveredForExchange, action: 'manage-labels', method: 'POST' };
+          const auth = await createAuth('manage-labels', body);
+          const apiRes = await fetch((import.meta as any).env.VITE_API_URL + '/api/admin/manage-badge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth },
+            body: JSON.stringify(body)
+          });
+          if (!apiRes.ok) throw new Error('Failed to save bulk labels');
         }
       }
       setMessage({ text: `Crawl complete! Found ${totalFound} new deposit addresses.`, type: 'success' });

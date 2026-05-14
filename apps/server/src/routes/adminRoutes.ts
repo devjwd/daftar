@@ -150,13 +150,27 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
     }
 
     if (action === 'manage-labels') {
-      const { label, address, method } = req.body;
+      const { label, labels, address, method } = req.body;
       
       if (method === 'DELETE') {
         if (!address) return res.status(400).json({ error: 'address required' });
         const { error } = await supabaseAdmin.from('address_labels').delete().eq('address', address);
         if (error) throw error;
         return res.json({ success: true, ok: true, action: 'delete-label', address });
+      }
+
+      if (labels && Array.isArray(labels)) {
+        const payload = labels.map((l: any) => ({
+          address: l.address.toLowerCase(),
+          entity_id: l.entity_id,
+          label_name: l.label_name,
+          discovery_method: l.discovery_method || 'manual'
+        }));
+        if (payload.length > 0) {
+          const { error } = await supabaseAdmin.from('address_labels').upsert(payload, { onConflict: 'address' });
+          if (error) throw error;
+        }
+        return res.json({ success: true, ok: true, action: 'bulk-create-labels', count: payload.length });
       }
 
       if (!label) return res.status(400).json({ error: 'label data required' });
