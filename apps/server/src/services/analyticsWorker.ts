@@ -8,9 +8,14 @@ import { reProcessSuspiciousPrices } from './analyticsPriceService.ts';
  * - Loops through all verified profiles.
  * - Triggers an incremental sync (both forward and backward) via syncFullUserHistory.
  * - Sleeps between users and batches to respect Indexer rate limits.
+ * - Uses exponential backoff on consecutive errors.
  */
 export async function startAnalyticsWorker(supabase: SupabaseClient) {
   console.log('[AnalyticsWorker] 🤖 Starting 24/7 background worker for verified users...');
+
+  const BASE_SLEEP_MS = 5 * 60 * 1000; // 5 minutes
+  const MAX_SLEEP_MS = 30 * 60 * 1000; // 30 minutes max backoff
+  let consecutiveErrors = 0;
 
   // The main loop
   const runLoop = async () => {
@@ -52,12 +57,17 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
         }
       }
 
+      // Reset backoff on successful cycle
+      consecutiveErrors = 0;
+
     } catch (e: any) {
-      console.error('[AnalyticsWorker] Main loop error:', e.message);
+      consecutiveErrors++;
+      console.error(`[AnalyticsWorker] Main loop error (consecutive: ${consecutiveErrors}):`, e.message);
     } finally {
-      // 3. Sleep for 5 minutes before checking for new transactions again
-      console.log('[AnalyticsWorker] 💤 Cycle complete. Sleeping for 5 minutes...');
-      setTimeout(runLoop, 5 * 60 * 1000);
+      // Exponential backoff: 5min, 10min, 15min, ..., max 30min
+      const sleepMs = Math.min(MAX_SLEEP_MS, BASE_SLEEP_MS * (1 + consecutiveErrors));
+      console.log(`[AnalyticsWorker] 💤 Cycle complete. Sleeping for ${Math.round(sleepMs / 60000)} minutes...`);
+      setTimeout(runLoop, sleepMs);
     }
   };
 

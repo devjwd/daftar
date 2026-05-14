@@ -10,6 +10,7 @@ export interface Profile {
   twitter: string;
   telegram: string;
   xp: number;
+  is_verified: boolean;
   created_at?: string;
   updated_at?: string;
 }

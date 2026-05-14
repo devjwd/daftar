@@ -13,7 +13,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <div className="tooltip-date">{label}</div>
         <div className="tooltip-value-row">
           <span className="tooltip-label">Net worth</span>
-          <span className="tooltip-value">${payload[0].value.toFixed(2)}</span>
+          <span className="tooltip-value">${(payload[0].value ?? 0).toFixed(2)}</span>
         </div>
       </div>
     );
@@ -68,7 +68,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
           if (flow.length > 0) {
             const formattedData = flow.map((pt: any) => ({
               time: new Date(pt.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-              value: Math.max(0, pt.value)
+              value: pt.value
             }));
             setHistoricalData(formattedData);
           }
@@ -79,7 +79,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
     };
     
     fetchHistory();
-  }, [walletAddress, timeframe, activeTab, totalValue, lastRefresh]);
+  }, [walletAddress, timeframe, activeTab, lastRefresh]);
 
   const currentBreakdownData = breakdownType === 'Asset' ? assetBreakdown : protocolBreakdown;
 
@@ -92,7 +92,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
   const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
   const isPositive = lastVal >= firstVal;
   const changeUSD = Math.abs(lastVal - firstVal).toFixed(2);
-  const changePercent = firstVal > 0 ? (((lastVal - firstVal) / firstVal) * 100).toFixed(2) : '0.00';
+  const changePercent = Math.abs(firstVal) > 0.01 ? (((lastVal - firstVal) / Math.abs(firstVal)) * 100).toFixed(2) : '0.00';
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
   const gradientId = isPositive ? 'colorGreen' : 'colorRed';
 
@@ -186,7 +186,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   dy={8}
                   minTickGap={40}
                 />
-                <YAxis hide={true} domain={['dataMin - 5', 'dataMax + 5']} />
+                <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
                 <Tooltip
                   content={<CustomTooltip />}
                   cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}

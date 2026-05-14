@@ -26,7 +26,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const lastSyncChangeTimeRef = React.useRef<number>(0);
 
   const { profile, loading: profileLoading } = useProfile(walletAddress || null);
-  const isVerified = true; 
+  const isVerified = profile?.is_verified ?? true; // Default true for public views, gated by profile data
 
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
@@ -35,6 +35,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     
     // Instantly fetch analytics data from the database
     fetchAnalyticsData();
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     // Also check sync status to see if initial deep sync is still running
     const checkStatus = async () => {
@@ -52,18 +54,22 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
           setSyncStatus('completed');
         } else {
           setSyncStatus('syncing');
-          // If it's still syncing initially, we can poll data every 5s to show progress
-          const interval = setInterval(() => {
+          // If it's still syncing initially, poll data every 5s to show progress
+          intervalId = setInterval(() => {
             fetchAnalyticsData();
-            checkSyncCompletion(interval);
+            checkSyncCompletion(intervalId);
           }, 5000);
-          return () => clearInterval(interval);
         }
       } catch (err) {
         console.error("Status check error:", err);
       }
     };
     checkStatus();
+
+    // Proper cleanup: clear interval on unmount or dependency change
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [walletAddress, isVerified, API_URL]);
 
   const checkSyncCompletion = async (interval: any) => {

@@ -737,7 +737,7 @@ const Dashboard = () => {
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                       </svg>
                     </button>
-                    {(userProfile as any)?.is_verified && (
+                    {userProfile?.is_verified && (
                       <span className="verified-tick" title="Verified Profile">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
@@ -804,7 +804,7 @@ const Dashboard = () => {
             assetBreakdown={assetBreakdownData}
             protocolBreakdown={protocolBreakdownData}
             walletAddress={viewingAddress}
-            isVerified={(userProfile as any)?.is_verified}
+            isVerified={userProfile?.is_verified}
           />
         </div>
         {error && <ErrorMessage message={error} onRetry={handleRefresh} />}

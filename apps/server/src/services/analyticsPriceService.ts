@@ -105,9 +105,22 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
     // Try to get price for the primary asset out or in
     let tokenToPrice = null;
     if (tx.asset_out_symbol || tx.asset_in_symbol) {
-      const fa = tx.metadata?.fungible_asset_activities?.[0];
-      const ca = tx.metadata?.coin_activities?.[0];
-      tokenToPrice = fa?.asset_type || ca?.coin_type;
+      // Scan all activities to find the best matching token (not just the first, which may be gas)
+      const allFAs = tx.metadata?.fungible_asset_activities || [];
+      const allCAs = tx.metadata?.coin_activities || [];
+      
+      // Prefer an activity that matches the primary asset symbol
+      const primarySymbol = tx.asset_out_symbol || tx.asset_in_symbol;
+      const matchedFA = allFAs.find((fa: any) => {
+        const sym = fa.metadata?.symbol || '';
+        return sym === primarySymbol;
+      });
+      const matchedCA = allCAs.find((ca: any) => {
+        const coinType = ca.coin_type || '';
+        return coinType.includes(primarySymbol?.toLowerCase() || '');
+      });
+      
+      tokenToPrice = matchedFA?.asset_type || matchedCA?.coin_type || allFAs[0]?.asset_type || allCAs[0]?.coin_type;
     }
     
     if (!tokenToPrice) {
@@ -130,7 +143,7 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
        } else if (tokenToPrice.toLowerCase().includes('btc')) {
          price = 65000.00;
        } else {
-         price = 1.00; // Generic fallback $1
+         price = 0; // Unknown token — don't assign phantom value
        }
     }
     

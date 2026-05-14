@@ -107,12 +107,26 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
   // Combine FA and Coin activities
   const activities = [
     ...(tx.fungible_asset_activities || []),
-    ...(tx.coin_activities || []).map((ca: any) => ({
-      ...ca,
-      type: ca.activity_type,
-      asset_type: ca.coin_type,
-      metadata: { symbol: ca.coin_type.includes('aptos_coin') ? 'APT' : 'MOVE', decimals: 8 }
-    }))
+    ...(tx.coin_activities || []).map((ca: any) => {
+      // Extract actual symbol from coin_type (e.g. "0x1::aptos_coin::AptosCoin" → "MOVE")
+      const coinType = ca.coin_type || '';
+      let symbol = 'MOVE';
+      if (coinType.includes('aptos_coin')) {
+        symbol = 'MOVE';
+      } else {
+        // Try to extract from the last segment: "0xaddr::module::CoinName" → "CoinName"
+        const parts = coinType.split('::');
+        if (parts.length >= 3) {
+          symbol = parts[parts.length - 1].replace(/[<>]/g, '');
+        }
+      }
+      return {
+        ...ca,
+        type: ca.activity_type,
+        asset_type: ca.coin_type,
+        metadata: { symbol, decimals: 8 }
+      };
+    })
   ];
 
   // Protocol Detection Registry (Ported from frontend for consistency)

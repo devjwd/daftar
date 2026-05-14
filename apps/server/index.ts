@@ -149,9 +149,10 @@ app.get('/api/analytics/status', async (req: Request, res: Response) => {
     .from('user_sync_status')
     .select('*')
     .eq('user_address', wallet)
-    .single();
+    .maybeSingle();
 
-  if (error) return res.status(404).json({ error: 'Status not found' });
+  if (error) return res.status(500).json({ error: 'Failed to fetch status' });
+  if (!data) return res.status(200).json({ full_history_synced: false, total_transactions: 0, synced_transactions: 0 });
   return res.status(200).json(data);
 });
 
@@ -239,22 +240,25 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
     });
 
     const protocols = [...new Set(txs.map(tx => tx.protocol))];
+    const PROTOCOL_COLORS = ['#cda169', '#36c690', '#7b68ee', '#e06a6a', '#ffa500', '#00ced1', '#ff69b4', '#9370db', '#20b2aa', '#f0e68c', '#dda0dd', '#87ceeb'];
 
-    const protocolUsage = protocols.map(p => ({
+    const protocolUsage = protocols.map((p, idx) => ({
       name: p,
       value: txs.filter(tx => tx.protocol === p).length,
-      color: p === 'Liquidswap' ? '#cda169' : p === 'Echelon' ? '#36c690' : '#7b68ee'
+      color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length]
     }));
 
-    // Cumulative Volume Chart Data
+    // Cumulative Volume Chart Data — deduplicate by date
     let cumulative = 0;
     let cumulativeFlow = initialFlow;
-    const activityHistory = txs.map(tx => {
-      cumulative += Number(tx.value_usd || 0);
-      return { date: tx.timestamp.split('T')[0], value: cumulative };
-    });
+    const activityByDate = new Map<string, number>();
+    const netFlowByDate = new Map<string, number>();
 
-    const netFlowHistory = txs.map(tx => {
+    txs.forEach(tx => {
+      cumulative += Number(tx.value_usd || 0);
+      const date = tx.timestamp.split('T')[0];
+      activityByDate.set(date, cumulative);
+
       const val = Number(tx.value_usd || 0);
       const action = tx.action || '';
       if (['RECEIVE', 'WITHDRAW', 'CLAIM', 'BRIDGE_IN'].includes(action)) {
@@ -262,8 +266,14 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       } else if (['SEND', 'DEPOSIT', 'BORROW', 'BRIDGE_OUT'].includes(action)) {
         cumulativeFlow -= val;
       }
-      return { date: tx.timestamp.split('T')[0], value: cumulativeFlow };
+      netFlowByDate.set(date, cumulativeFlow);
     });
+
+    const activityHistory = Array.from(activityByDate.entries())
+      .map(([date, value]) => ({ date, value }));
+
+    const netFlowHistory = Array.from(netFlowByDate.entries())
+      .map(([date, value]) => ({ date, value }));
 
     // To prevent empty charts, ensure at least one point exists
     if (netFlowHistory.length === 0) {

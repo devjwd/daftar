@@ -108,8 +108,8 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
       }
 
       // 2. Add to Historical Table (for PNL charts)
-      // We only store specific high-value assets here to avoid DB bloat, or all if requested.
-      // The user specifically mentioned MOVE, BTC, and ETH.
+      // Dedup: only insert if we haven't already inserted today
+      const today = now.split('T')[0];
       const historyEntries = Object.entries(snapshot.prices)
         .filter(([addr]) => {
           // Filters for MOVE (0x1, 0xa), BTC, and ETH
@@ -121,12 +121,26 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
           token_address: addr,
           price: price,
           timestamp: now,
-          granularity: 'daily', // Using daily for the main history table
+          granularity: 'daily',
           source: 'coingecko'
         }));
 
       if (historyEntries.length > 0) {
-        await supabase.from('token_price_history').insert(historyEntries);
+        // Check if we already have entries for today to avoid duplicates
+        const { data: existingToday } = await supabase
+          .from('token_price_history')
+          .select('token_address')
+          .gte('timestamp', `${today}T00:00:00Z`)
+          .lte('timestamp', `${today}T23:59:59Z`)
+          .eq('granularity', 'daily')
+          .eq('source', 'coingecko');
+
+        const existingAddresses = new Set((existingToday || []).map((r: any) => r.token_address));
+        const newEntries = historyEntries.filter(e => !existingAddresses.has(e.token_address));
+
+        if (newEntries.length > 0) {
+          await supabase.from('token_price_history').insert(newEntries);
+        }
       }
     }
 
