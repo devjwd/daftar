@@ -167,8 +167,12 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
           discovery_method: l.discovery_method || 'manual'
         }));
         if (payload.length > 0) {
-          const { error } = await supabaseAdmin.from('address_labels').upsert(payload, { onConflict: 'address' });
-          if (error) throw error;
+          const chunkSize = 1000;
+          for (let i = 0; i < payload.length; i += chunkSize) {
+            const chunk = payload.slice(i, i + chunkSize);
+            const { error } = await supabaseAdmin.from('address_labels').upsert(chunk, { onConflict: 'address' });
+            if (error) throw error;
+          }
         }
         return res.json({ success: true, ok: true, action: 'bulk-create-labels', count: payload.length });
       }
