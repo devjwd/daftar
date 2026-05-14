@@ -33,7 +33,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
         .map(b => validateBadgeDefinitionPayload(b))
         .filter(v => v.ok)
         .map(v => v.badge);
-        
+
       if (validated.length === 0) return res.json({ success: true, count: 0 });
 
       const { error } = await supabaseAdmin.from('badge_definitions').upsert(validated, { onConflict: 'badge_id' });
@@ -47,13 +47,13 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
         .from('badge_definitions')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (!include_deleted) {
         query = query.eq('is_deleted', false);
       }
-      
+
       const { data, error } = await query;
-      
+
       if (error) throw error;
       return res.json({ success: true, action, badges: data });
     }
@@ -85,10 +85,10 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
       const { error } = await supabaseAdmin
         .from('badge_definitions')
-        .update({ 
-          enabled: !!badge.enabled, 
+        .update({
+          enabled: !!badge.enabled,
           is_active: !!badge.enabled,
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString()
         })
         .eq('badge_id', badgeId);
       if (error) throw error;
@@ -100,9 +100,9 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
       const { error } = await supabaseAdmin
         .from('badge_definitions')
-        .update({ 
+        .update({
           is_public: !!badge.is_public,
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString()
         })
         .eq('badge_id', badgeId);
       if (error) throw error;
@@ -111,7 +111,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
     if (action === 'manage-entities') {
       const { entity, id, method } = req.body;
-      
+
       if (method === 'DELETE') {
         if (!id) return res.status(400).json({ error: 'id required' });
         const { error } = await supabaseAdmin.from('tracked_entities').delete().eq('id', id);
@@ -121,7 +121,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
       // Handle POST (Create/Update)
       if (!entity) return res.status(400).json({ error: 'entity data required' });
-      
+
       const payload = {
         address: entity.address.toLowerCase(),
         name: entity.name,
@@ -151,7 +151,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
     if (action === 'manage-labels') {
       const { label, labels, address, method } = req.body;
-      
+
       if (method === 'DELETE') {
         if (!address) return res.status(400).json({ error: 'address required' });
         const { error } = await supabaseAdmin.from('address_labels').delete().eq('address', address);
@@ -178,7 +178,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       }
 
       if (!label) return res.status(400).json({ error: 'label data required' });
-      
+
       const payload = {
         address: label.address.toLowerCase(),
         entity_id: label.entity_id,
@@ -193,10 +193,10 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
     if (action === 'import-allowlist') {
       const { badge_id, addresses, action_type: allowlistAction, wallet_address } = req.body;
-      
+
       if (allowlistAction === 'import') {
         if (!badge_id || !Array.isArray(addresses)) return res.status(400).json({ error: 'badge_id and addresses array required' });
-        
+
         // Use RPC for bulk import if available, or sequential inserts
         const rows = addresses.map(addr => ({
           badge_id,
@@ -231,15 +231,15 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
     if (action === 'manage-users') {
       const { method, address: targetAddress, verified } = req.body;
-      
+
       if (method === 'LIST') {
         const { query } = req.body;
         let dbQuery = supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false });
-        
+
         if (query) {
           dbQuery = dbQuery.or(`username.ilike.%${query}%,wallet_address.ilike.%${query}%`);
         }
-        
+
         const { data, error } = await dbQuery.limit(50);
         if (error) throw error;
         return res.json({ success: true, users: data });
@@ -247,18 +247,18 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
       if (method === 'TOGGLE_VERIFICATION') {
         if (!targetAddress) return res.status(400).json({ error: 'targetAddress required' });
-        
+
         const normalized = normalizeAddress(targetAddress);
         const { data, error } = await supabaseAdmin
           .from('profiles')
-          .upsert({ 
+          .upsert({
             wallet_address: normalized,
-            is_verified: !!verified, 
-            updated_at: new Date().toISOString() 
+            is_verified: !!verified,
+            updated_at: new Date().toISOString()
           }, { onConflict: 'wallet_address' })
           .select()
           .single();
-          
+
         if (error) throw error;
         return res.json({ success: true, user: data });
       }

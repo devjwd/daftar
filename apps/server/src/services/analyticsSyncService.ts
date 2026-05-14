@@ -133,10 +133,18 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
   else if (functionId.includes('0x6a1641')) protocol = 'Joule';
   else if (functionId.includes('0x8f396e') || functionId.includes('0x2712eb') || functionId.includes('0xfbdb3d')) protocol = 'Meridian';
   else if (functionId.includes('0xc4e68f')) protocol = 'Razor';
+  else if (functionId.includes('0x323381')) protocol = 'Interest Protocol';
+  else if (functionId.includes('0x739a88')) protocol = 'Avante';
 
   // Action & Asset Extraction using Event Types
-  const inFlows = activities.filter((a: any) => String(a.type).includes('Deposit') && a.owner_address === walletAddress);
-  const outFlows = activities.filter((a: any) => String(a.type).includes('Withdraw') && a.owner_address === walletAddress);
+  const inFlows = activities.filter((a: any) => {
+    const type = String(a.type).toLowerCase();
+    return (type.includes('deposit') || type.includes('received') || type.includes('credit')) && a.owner_address === walletAddress;
+  });
+  const outFlows = activities.filter((a: any) => {
+    const type = String(a.type).toLowerCase();
+    return (type.includes('withdraw') || type.includes('sent') || type.includes('debit')) && a.owner_address === walletAddress;
+  });
 
   if (functionId.includes('swap')) {
     action = 'SWAP';
@@ -148,10 +156,10 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
       const amtOut = Math.abs(assetOut.amount / Math.pow(10, assetOut.metadata?.decimals || 8));
       description = `Swapped ${amtIn.toFixed(2)} ${assetIn.metadata?.symbol} for ${amtOut.toFixed(2)} ${assetOut.metadata?.symbol}`;
     }
-  } else if (functionId.includes('supply') || functionId.includes('deposit')) {
+  } else if (functionId.includes('supply') || functionId.includes('deposit') || functionId.includes('stake')) {
     action = 'DEPOSIT';
     category = 'DeFi';
-    const asset = outFlows[0];
+    const asset = outFlows[0] || inFlows[0];
     if (asset) {
       const amt = Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8));
       description = `Deposited ${amt.toFixed(2)} ${asset.metadata?.symbol} into ${protocol}`;
@@ -160,7 +168,14 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     action = 'BORROW';
     category = 'DeFi';
     description = `Borrowed assets from ${protocol}`;
-  } else if (functionId.includes('transfer')) {
+  } else if (functionId.includes('claim')) {
+    action = 'CLAIM';
+    category = 'DeFi';
+    const asset = inFlows[0];
+    description = asset 
+      ? `Claimed ${Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8)).toFixed(2)} ${asset.metadata?.symbol} rewards`
+      : `Claimed rewards from ${protocol}`;
+  } else if (functionId.includes('transfer') || functionId.includes('withdraw') || functionId.includes('deposit')) {
     action = outFlows.length > 0 ? 'SEND' : 'RECEIVE';
     category = 'Transfer';
     const asset = outFlows[0] || inFlows[0];
@@ -187,6 +202,10 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
         }
       }
     }
+  } else if (functionId.includes('register')) {
+    action = 'REGISTER';
+    category = 'Account';
+    description = 'Registered new asset/account';
   }
 
   // 3. Storage Optimization: Strip bloated metadata
@@ -248,7 +267,27 @@ export async function syncFullUserHistory(
     labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
   }
 
-  // 1. Fetch current sync status and max/min versions from database
+  // 1. Fetch current sync status and total transaction count from indexer
+  let totalTransactions = 0;
+  try {
+    const countRes = await fetch(MOVEMENT_INDEXER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `query TotalTransactions($address: String!) {
+          account_transactions_aggregate(where: { account_address: { _eq: $address } }) {
+            aggregate { count }
+          }
+        }`,
+        variables: { address }
+      })
+    });
+    const countJson: any = await countRes.json();
+    totalTransactions = countJson.data?.account_transactions_aggregate?.aggregate?.count || 0;
+  } catch (e) {
+    console.warn(`[DeepSync] Could not fetch total count for ${address}`);
+  }
+
   const { data: statusData } = await supabase
     .from('user_sync_status')
     .select('*')
@@ -274,11 +313,13 @@ export async function syncFullUserHistory(
   let maxVersionStr = maxData && maxData.length > 0 ? String(maxData[0].version) : "0";
   let minVersionStr = minData && minData.length > 0 ? String(minData[0].version) : "9223372036854775807";
 
-  // Mark status as currently syncing
+  // Mark status as currently syncing with total count
   await supabase.from('user_sync_status').upsert({
     user_address: address,
     last_sync_at: new Date().toISOString(),
-    full_history_synced: false
+    full_history_synced: false,
+    total_transactions: totalTransactions,
+    synced_transactions: statusData?.synced_transactions || 0
   });
 
   try {
@@ -320,6 +361,18 @@ export async function syncFullUserHistory(
 
       totalSynced += txs.length;
       gtVersion = txs[txs.length - 1].transaction_version;
+
+      // Update progress in DB
+      const { count: currentCount } = await supabase
+        .from('user_transaction_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_address', address);
+
+      await supabase.from('user_sync_status').update({
+        last_synced_version: String(gtVersion),
+        synced_transactions: currentCount || totalSynced,
+        last_sync_at: new Date().toISOString()
+      }).eq('user_address', address);
 
       if (txs.length < BATCH_SIZE) hasMoreForward = false;
       await new Promise(r => setTimeout(r, 200));
@@ -374,9 +427,15 @@ export async function syncFullUserHistory(
         totalSynced += txs.length;
         ltVersion = txs[txs.length - 1].transaction_version;
 
-        // Let frontend know we are still crawling deep
+        // Update progress in DB
+        const { count: currentCount } = await supabase
+          .from('user_transaction_history')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_address', address);
+
         await supabase.from('user_sync_status').update({
           last_synced_version: String(ltVersion),
+          synced_transactions: currentCount || totalSynced,
           last_sync_at: new Date().toISOString()
         }).eq('user_address', address);
 

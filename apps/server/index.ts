@@ -179,7 +179,8 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       .from('user_transaction_history')
       .select('*')
       .eq('user_address', wallet)
-      .order('timestamp', { ascending: true });
+      .order('timestamp', { ascending: true })
+      .limit(10000);
 
     // Timeframe Filtering Fix
     let initialFlow = 0;

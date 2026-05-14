@@ -16,7 +16,7 @@ interface AnalyticsViewProps {
 }
 
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
-  const [timeframe, setTimeframe] = useState('1M');
+  const [timeframe, setTimeframe] = useState('All');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'completed' | 'error'>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
@@ -43,6 +43,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
         if (!res.ok) return;
         const data = await res.json();
         
+        if (data.total_transactions > 0) {
+          const progress = Math.min(100, Math.round((data.synced_transactions / data.total_transactions) * 100));
+          setSyncProgress(progress);
+        }
+
         if (data.full_history_synced) {
           setSyncStatus('completed');
         } else {
@@ -65,6 +70,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     try {
       const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
       const data = await res.json();
+      
+      if (data.total_transactions > 0) {
+        const progress = Math.min(100, Math.round((data.synced_transactions / data.total_transactions) * 100));
+        setSyncProgress(progress);
+      }
+
       if (data.full_history_synced) {
         setSyncStatus('completed');
         clearInterval(interval);
@@ -135,9 +146,15 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                   <p style={{ color: 'var(--text-tertiary)', fontSize: '14px' }}>Live from database</p>
                   {syncStatus === 'syncing' && (
-                    <span style={{ fontSize: '11px', background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                      Syncing history...
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '11px', background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        Syncing history...
+                      </span>
+                      <div style={{ width: '80px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ width: `${syncProgress}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.4s ease' }}></div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600 }}>{syncProgress}%</span>
+                    </div>
                   )}
                 </div>
               </div>

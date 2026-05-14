@@ -1,6 +1,7 @@
 import React from 'react';
 import { AnalyticsData } from '../../types/analytics.types';
 import { Network, Coins, Ghost } from 'lucide-react';
+import { DEFI_PROTOCOL_VISUALS, TOKEN_VISUALS, DEFAULT_PROTOCOL_VISUAL } from '../../config/display';
 
 interface TopEntitiesProps {
   data: AnalyticsData;
@@ -9,6 +10,15 @@ interface TopEntitiesProps {
 const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
   const hasEntities = data.topEntities && data.topEntities.length > 0;
   const hasTokens = data.topTokens && data.topTokens.length > 0;
+
+  const getProtocolVisual = (name: string) => {
+    const key = name.toLowerCase().replace(/\s/g, '');
+    return (DEFI_PROTOCOL_VISUALS as any)[key] || DEFAULT_PROTOCOL_VISUAL;
+  };
+
+  const getTokenVisual = (symbol: string) => {
+    return (TOKEN_VISUALS as any)[symbol] || { logo: null };
+  };
 
   return (
     <div className="overview-grid-v5" style={{ marginTop: '24px' }}>
@@ -25,17 +35,24 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
           </div>
         ) : (
           <div className="entities-list-v5">
-            {data.topEntities.slice(0, 6).map((entity, i) => (
-              <div key={i} className="entity-row-v5">
-                <div className="entity-left">
-                  <div className="entity-avatar">
-                    {entity.name.substring(0, 1).toUpperCase()}
+            {data.topEntities.slice(0, 6).map((entity, i) => {
+              const visual = getProtocolVisual(entity.name);
+              return (
+                <div key={i} className="entity-row-v5">
+                  <div className="entity-left">
+                    <div className="entity-avatar">
+                      {visual.logo ? (
+                        <img src={visual.logo} alt={entity.name} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+                      ) : (
+                        entity.name.substring(0, 1).toUpperCase()
+                      )}
+                    </div>
+                    <span className="entity-name">{entity.name}</span>
                   </div>
-                  <span className="entity-name">{entity.name}</span>
+                  <span className="entity-value">${Math.abs(entity.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                 </div>
-                <span className="entity-value">${Math.abs(entity.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -53,17 +70,24 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
           </div>
         ) : (
           <div className="entities-list-v5">
-            {data.topTokens.slice(0, 6).map((token, i) => (
-              <div key={i} className="entity-row-v5">
-                <div className="entity-left">
-                  <div className="entity-avatar" style={{ background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)' }}>
-                    $
+            {data.topTokens.slice(0, 6).map((token, i) => {
+              const visual = getTokenVisual(token.symbol);
+              return (
+                <div key={i} className="entity-row-v5">
+                  <div className="entity-left">
+                    <div className="entity-avatar" style={{ background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)' }}>
+                      {visual.logo ? (
+                        <img src={visual.logo} alt={token.symbol} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+                      ) : (
+                        '$'
+                      )}
+                    </div>
+                    <span className="entity-name">{token.symbol}</span>
                   </div>
-                  <span className="entity-name">{token.symbol}</span>
+                  <span className="entity-value">${Math.abs(token.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                 </div>
-                <span className="entity-value">${Math.abs(token.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

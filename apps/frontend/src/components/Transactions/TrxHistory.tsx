@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { DEFAULT_TOKEN_COLOR, TOKEN_VISUALS } from '../../config/display';
+import { DEFAULT_TOKEN_COLOR, TOKEN_VISUALS, DEFI_PROTOCOL_VISUALS } from '../../config/display';
 import { checkAccountExists } from '../../services/indexer';
 import { getOrFetchTransactions } from '../../services/transactionService';
 
@@ -297,8 +297,14 @@ const getBadgeClass = (type) => {
 };
 
 const DappIcon = ({ tx }) => {
-  const dappLogo = String(tx?.dapp_logo || '').trim();
-  const txIcon = tx?.tx_icon || '⚙️';
+  const dappNameRaw = String(tx?.dapp_name || '');
+  const dappNameKey = dappNameRaw.toLowerCase().replace(/\s/g, '');
+  const visual = DEFI_PROTOCOL_VISUALS[dappNameKey];
+  
+  const dappLogo = tx?.dapp_logo || visual?.logo;
+  const rawType = String(tx?.tx_type || 'other').toLowerCase();
+  
+  const txIcon = tx?.tx_icon || (rawType === 'swap' ? '🔄' : '⚙️');
   const txBg = tx?.tx_bg || 'rgba(148,163,184,0.1)';
 
   if (dappLogo) {
