@@ -138,18 +138,20 @@ export default function EntityAdmin() {
           }
 
           if (discoveredLabels.length > 0) {
-            const payload = { label: discoveredLabels[0], action: 'manage-labels', method: 'POST' }; // Using first one as template, backend handles upsert
-            // Wait, we need a bulk endpoint ideally, but let's send them one by one or modify backend.
-            // For now, let's send them one by one but in rapid succession.
+            // Send discovered labels to backend
             for (const label of discoveredLabels) {
-              const auth = await createAuth({ label, action: 'manage-labels', method: 'POST' });
-              await fetch((import.meta as any).env.VITE_API_URL + '/api/admin/manage-badge', {
+              const body = { label, action: 'manage-labels', method: 'POST' };
+              const auth = await createAuth('manage-labels', body);
+              const apiRes = await fetch((import.meta as any).env.VITE_API_URL + '/api/admin/manage-badge', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...auth },
-                body: JSON.stringify({ label, action: 'manage-labels', method: 'POST' })
+                body: JSON.stringify(body)
               });
-              totalFound++;
-              setCrawlStatus(`Crawling ${exchange.name}... Discovered ${totalFound} addresses`);
+              
+              if (apiRes.ok) {
+                totalFound++;
+                setCrawlStatus(`Crawling ${exchange.name}... Discovered ${totalFound} addresses`);
+              }
             }
           }
 
@@ -186,12 +188,12 @@ export default function EntityAdmin() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const createAuth = useCallback(async (body) => {
+  const createAuth = useCallback(async (action, body) => {
     if (!account || !signMessage) throw new Error('Connect admin wallet');
     return await createAdminProofHeaders({
       account,
       signMessage,
-      action: 'manage-entities',
+      action,
       body
     });
   }, [account, signMessage]);
@@ -210,7 +212,7 @@ export default function EntityAdmin() {
       const payload: any = { ...formData, address: addr };
       if (editingId) payload.id = editingId;
 
-      const auth = await createAuth({ action: 'manage-entities', method: 'POST', entity: payload });
+      const auth = await createAuth('manage-entities', { action: 'manage-entities', method: 'POST', entity: payload });
       const result = await manageEntity('POST', payload, auth);
 
       if (!result.ok) throw new Error(result.error || 'Failed to save entity');
@@ -244,7 +246,7 @@ export default function EntityAdmin() {
 
     setMessage({ text: 'Deleting...', type: 'info' });
     try {
-      const auth = await createAuth({ action: 'manage-entities', method: 'DELETE', id });
+      const auth = await createAuth('manage-entities', { action: 'manage-entities', method: 'DELETE', id });
       const result = await manageEntity('DELETE', { id }, auth);
 
       if (!result.ok) throw new Error(result.error || 'Failed to delete entity');
@@ -485,7 +487,7 @@ export default function EntityAdmin() {
           setSubmittingLabel(true);
           try {
             const payload = { label: labelFormData, action: 'manage-labels', method: 'POST' };
-            const auth = await createAuth(payload);
+            const auth = await createAuth('manage-labels', payload);
             const res = await fetch((import.meta as any).env?.VITE_API_URL + '/api/admin/manage-badge', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...auth },
@@ -582,7 +584,7 @@ export default function EntityAdmin() {
                       if (!window.confirm('Are you sure you want to delete this label?')) return;
                       try {
                         const payload = { address: label.address, action: 'manage-labels', method: 'DELETE' };
-                        const auth = await createAuth(payload);
+                        const auth = await createAuth('manage-labels', payload);
                         const res = await fetch((import.meta as any).env?.VITE_API_URL + '/api/admin/manage-badge', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...auth },

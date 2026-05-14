@@ -250,7 +250,7 @@ export async function syncFullUserHistory(
   await supabase.from('user_sync_status').upsert({
     user_address: address,
     last_sync_at: new Date().toISOString(),
-    full_history_synced: false 
+    full_history_synced: false
   });
 
   try {
@@ -260,10 +260,10 @@ export async function syncFullUserHistory(
     let hasMoreForward = true;
     let forwardBatchCount = 0;
     const MAX_FORWARD_BATCHES = 50;
-    
+
     while (hasMoreForward && forwardBatchCount < MAX_FORWARD_BATCHES) {
       forwardBatchCount++;
-      
+
       const response = await fetch(MOVEMENT_INDEXER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -275,13 +275,13 @@ export async function syncFullUserHistory(
 
       const json: any = await response.json();
       if (json.errors) throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
-      
+
       const txs = json.data?.account_transactions || [];
       if (txs.length === 0) {
         hasMoreForward = false;
         break;
       }
-      
+
       const enriched = txs.map((tx: any) => enrichTransaction(tx, address));
       const { error: upsertError } = await supabase
         .from('user_transaction_history')
@@ -292,7 +292,7 @@ export async function syncFullUserHistory(
 
       totalSynced += txs.length;
       gtVersion = txs[txs.length - 1].transaction_version;
-      
+
       if (txs.length < BATCH_SIZE) hasMoreForward = false;
       await new Promise(r => setTimeout(r, 200));
     }
@@ -304,7 +304,7 @@ export async function syncFullUserHistory(
 
     // --- PHASE 2: BACKWARD SYNC (Historical Gaps) ---
     let fullyFinishedHistory = isFullySynced;
-    
+
     if (!isFullySynced) {
       console.log(`[DeepSync] Phase 2: Backward Sync from < ${minVersionStr}`);
       let ltVersion = minVersionStr;
@@ -314,7 +314,7 @@ export async function syncFullUserHistory(
 
       while (hasMoreBackward && backwardBatchCount < MAX_BACKWARD_BATCHES) {
         backwardBatchCount++;
-        
+
         const response = await fetch(MOVEMENT_INDEXER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -326,7 +326,7 @@ export async function syncFullUserHistory(
 
         const json: any = await response.json();
         if (json.errors) throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
-        
+
         const txs = json.data?.account_transactions || [];
         if (txs.length === 0) {
           hasMoreBackward = false;
@@ -344,7 +344,7 @@ export async function syncFullUserHistory(
 
         totalSynced += txs.length;
         ltVersion = txs[txs.length - 1].transaction_version;
-        
+
         // Let frontend know we are still crawling deep
         await supabase.from('user_sync_status').update({
           last_synced_version: String(ltVersion)
