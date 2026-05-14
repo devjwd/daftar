@@ -104,10 +104,10 @@ export default function EntityAdmin() {
         setCrawlStatus(`Crawling ${exchange.name}...`);
         let ltVersion = null;
         let hasMore = true;
-        let batchCount = 0;
+        let checkedTxs = 0;
 
-        while (hasMore && batchCount < 20) { // Limit to 20 batches (1000 txs) per exchange for safety
-          batchCount++;
+        while (hasMore) {
+          setCrawlStatus(`Crawling ${exchange.name}... Checked ${checkedTxs} txs. Discovered ${totalFound} addresses`);
           const res = await fetch((import.meta as any).env.VITE_MOVEMENT_INDEXER_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -128,6 +128,9 @@ export default function EntityAdmin() {
             hasMore = false;
             break;
           }
+
+          checkedTxs += txs.length;
+          setCrawlStatus(`Crawling ${exchange.name}... Checked ${checkedTxs} txs. Discovered ${totalFound} addresses`);
 
           const discoveredLabels = [];
           for (const tx of txs) {
@@ -156,7 +159,7 @@ export default function EntityAdmin() {
               
               if (apiRes.ok) {
                 totalFound++;
-                setCrawlStatus(`Crawling ${exchange.name}... Discovered ${totalFound} addresses`);
+                setCrawlStatus(`Crawling ${exchange.name}... Checked ${checkedTxs} txs. Discovered ${totalFound} addresses`);
               }
             }
           }
