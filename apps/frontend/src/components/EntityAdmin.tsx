@@ -23,6 +23,7 @@ export default function EntityAdmin() {
   
   const [isCrawling, setIsCrawling] = useState(false);
   const [crawlStatus, setCrawlStatus] = useState('');
+  const [selectedExchangeId, setSelectedExchangeId] = useState('all');
 
   const [labelFormData, setLabelFormData] = useState({
     address: '',
@@ -84,11 +85,16 @@ export default function EntityAdmin() {
 
   const runLocalCrawl = async () => {
     if (isCrawling) return;
-    const exchanges = entities.filter(e => e.category === 'Exchange');
-    if (exchanges.length === 0) return setMessage({ text: 'No exchange entities registered to crawl', type: 'error' });
+    
+    let exchanges = entities.filter(e => e.category === 'Exchange');
+    if (selectedExchangeId !== 'all') {
+      exchanges = exchanges.filter(e => e.id === selectedExchangeId);
+    }
+
+    if (exchanges.length === 0) return setMessage({ text: 'No exchange entities found for crawling', type: 'error' });
 
     setIsCrawling(true);
-    setMessage({ text: 'Starting local network crawl...', type: 'info' });
+    setMessage({ text: `Starting network crawl for ${exchanges.length === 1 ? exchanges[0].name : 'all exchanges'}...`, type: 'info' });
 
     const knownAddresses = new Set(entities.map(e => e.address.toLowerCase()));
     let totalFound = 0;
@@ -455,6 +461,22 @@ export default function EntityAdmin() {
               {crawlStatus}
             </div>
           )}
+          
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <label style={{ fontSize: '11px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px' }}>Target:</label>
+            <select 
+              value={selectedExchangeId} 
+              onChange={e => setSelectedExchangeId(e.target.value)}
+              disabled={isCrawling}
+              style={{ background: 'transparent', color: '#cda169', border: 'none', fontSize: '13px', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="all">All Exchanges</option>
+              {entities.filter(e => e.category === 'Exchange').map(e => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>
+
           <button
             className={styles.addBtn}
             onClick={runLocalCrawl}
@@ -466,7 +488,7 @@ export default function EntityAdmin() {
               cursor: isCrawling ? 'not-allowed' : 'pointer'
             }}
           >
-            {isCrawling ? '⚡ Scanning...' : '🔄 Scan Network for Deposits'}
+            {isCrawling ? '⚡ Scanning...' : '🔄 Sync & Extract'}
           </button>
           <button
             className={styles.addBtn}
