@@ -327,7 +327,8 @@ export async function syncFullUserHistory(
 
     // Update status to let frontend know we've pulled new items
     await supabase.from('user_sync_status').update({
-      last_synced_version: String(gtVersion)
+      last_synced_version: String(gtVersion),
+      last_sync_at: new Date().toISOString()
     }).eq('user_address', address);
 
     // --- PHASE 2: BACKWARD SYNC (Historical Gaps) ---
@@ -375,7 +376,8 @@ export async function syncFullUserHistory(
 
         // Let frontend know we are still crawling deep
         await supabase.from('user_sync_status').update({
-          last_synced_version: String(ltVersion)
+          last_synced_version: String(ltVersion),
+          last_sync_at: new Date().toISOString()
         }).eq('user_address', address);
 
         if (txs.length < BATCH_SIZE) {

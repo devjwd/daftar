@@ -194,6 +194,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       .order('timestamp', { ascending: true });
 
     // Timeframe Filtering Fix
+    let initialFlow = 0;
     if (timeframe !== 'All') {
       const now = new Date();
       let filterDate = new Date();
@@ -203,6 +204,25 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       else if (timeframe === '1Y') filterDate.setFullYear(now.getFullYear() - 1);
 
       query = query.gte('timestamp', filterDate.toISOString());
+
+      // Pre-calculate initial flow from transactions before the filterDate
+      const { data: pastTxs, error: pastError } = await supabaseAdmin
+        .from('user_transaction_history')
+        .select('value_usd, action')
+        .eq('user_address', wallet)
+        .lt('timestamp', filterDate.toISOString());
+
+      if (!pastError && pastTxs) {
+        pastTxs.forEach(tx => {
+          const val = Number(tx.value_usd || 0);
+          const action = tx.action || '';
+          if (['RECEIVE', 'WITHDRAW', 'CLAIM', 'BRIDGE_IN'].includes(action)) {
+            initialFlow += val;
+          } else if (['SEND', 'DEPOSIT', 'BORROW', 'BRIDGE_OUT'].includes(action)) {
+            initialFlow -= val;
+          }
+        });
+      }
     }
 
     const { data: txs, error } = await query;
@@ -239,7 +259,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
 
     // Cumulative Volume Chart Data
     let cumulative = 0;
-    let cumulativeFlow = 0;
+    let cumulativeFlow = initialFlow;
     const activityHistory = txs.map(tx => {
       cumulative += Number(tx.value_usd || 0);
       return { date: tx.timestamp.split('T')[0], value: cumulative };

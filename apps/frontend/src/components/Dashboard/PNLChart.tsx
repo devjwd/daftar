@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import './PNLChart.css';
 
-const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
+const TIME_FRAMES = ['1W', '1M', '3M', 'All'];
 
 // Mock data generation removed
 
@@ -59,26 +59,18 @@ const PNLChart: React.FC<PNLChartProps> = ({
     const fetchHistory = async () => {
       try {
         const API_URL = (import.meta as any).env?.VITE_API_URL || '';
-        let tf = timeframe;
-        if (tf === '1D') tf = '1W'; // Fallback if 1D not fully supported backend
-        
-        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
+        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${timeframe}`);
         if (!res.ok) return;
         const data = await res.json();
         
         if (data && data.netFlowHistory) {
-          // Reconstruct net worth history by anchoring the end to current totalValue
           const flow = data.netFlowHistory;
           if (flow.length > 0) {
-            const lastFlow = flow[flow.length - 1].value;
-            const diff = totalValue - lastFlow;
-            
-            const reconstructed = flow.map((pt: any) => ({
+            const formattedData = flow.map((pt: any) => ({
               time: new Date(pt.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-              value: Math.max(0, pt.value + diff)
+              value: Math.max(0, pt.value)
             }));
-            
-            setHistoricalData(reconstructed);
+            setHistoricalData(formattedData);
           }
         }
       } catch (err) {
