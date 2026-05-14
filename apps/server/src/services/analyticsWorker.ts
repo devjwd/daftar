@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { syncFullUserHistory } from './analyticsSyncService.ts';
+import { syncFullUserHistory, reProcessUnknownTransactions } from './analyticsSyncService.ts';
+import { reProcessSuspiciousPrices } from './analyticsPriceService.ts';
 
 /**
  * Background worker that continuously syncs verified users.
@@ -14,6 +15,10 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
   // The main loop
   const runLoop = async () => {
     try {
+      // 0. Retroactively fix any Unknown protocols or suspicious prices
+      await reProcessUnknownTransactions(supabase);
+      await reProcessSuspiciousPrices(supabase);
+
       // 1. Fetch all verified users
       // Note: If you have millions of users, you would need cursor-based pagination here.
       // For now, fetching them all or using a limit/offset is fine.

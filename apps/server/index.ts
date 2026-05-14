@@ -343,7 +343,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       const val = Number(tx.value_usd || 0);
       const protocol = tx.protocol || 'Unknown';
       const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
-      
+
       if (isExchange) {
         const action = tx.action || '';
         const date = tx.timestamp.split('T')[0];
@@ -354,7 +354,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
           depMap.set(protocol, (depMap.get(protocol) || 0) + val);
           depCumul += val;
           exchangeUsage.deposits.history.push({ date, value: depCumul });
-        } 
+        }
         // Is it a Withdrawal from Exchange?
         else if (['RECEIVE', 'WITHDRAW', 'CLAIM', 'BRIDGE_IN'].includes(action)) {
           exchangeUsage.withdrawals.total += val;

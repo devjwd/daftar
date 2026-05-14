@@ -120,10 +120,18 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
     
     // Fallback static prices for demo if CoinGecko rate limits
     if (!price) {
-       if (tokenToPrice.includes('aptos_coin')) price = 8.50;
-       else if (tokenToPrice === '0x1' || tokenToPrice === '0xa') price = 12.00; // MOVE
-       else if (tokenToPrice.includes('usd')) price = 1.00;
-       else price = 5.00; // Generic fallback
+       // On Movement, aptos_coin IS the native MOVE token
+       if (tokenToPrice.includes('aptos_coin') || tokenToPrice === '0x1' || tokenToPrice === '0xa') {
+         price = 0.05; // Realistic MOVE price for demo/testnet
+       } else if (tokenToPrice.toLowerCase().includes('usd')) {
+         price = 1.00;
+       } else if (tokenToPrice.toLowerCase().includes('eth')) {
+         price = 3500.00;
+       } else if (tokenToPrice.toLowerCase().includes('btc')) {
+         price = 65000.00;
+       } else {
+         price = 1.00; // Generic fallback $1
+       }
     }
     
     if (price) {
@@ -149,4 +157,32 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
     // Increased delay to 2500ms to stay safely under CoinGecko's 30 calls/minute limit
     await new Promise(resolve => setTimeout(resolve, 2500));
   }
+}
+
+/**
+ * Maintenance function to fix inflated demo prices
+ */
+export async function reProcessSuspiciousPrices(supabase: SupabaseClient) {
+  console.log('[PriceBackfill] 🛠️  Starting cleanup of suspicious prices...');
+  
+  // Find transactions with the old high fallbacks (8.50, 12.00, 5.00)
+  const { data: targets, error } = await supabase
+    .from('user_transaction_history')
+    .select('*')
+    .or('price_usd.eq.8.5,price_usd.eq.12.0,price_usd.eq.5.0');
+
+  if (error || !targets || targets.length === 0) return;
+
+  console.log(`[PriceBackfill] Found ${targets.length} transactions with suspicious prices.`);
+
+  for (const tx of targets) {
+    // Reset to unprocessed to let the main backfill function handle it with new logic
+    await supabase.from('user_transaction_history').update({
+      is_processed: false,
+      price_usd: null,
+      value_usd: null
+    }).eq('id', tx.id);
+  }
+  
+  console.log('[PriceBackfill] ✅ Suspicious prices reset for re-processing.');
 }

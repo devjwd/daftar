@@ -115,26 +115,61 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     }))
   ];
 
+  // Protocol Detection Registry (Ported from frontend for consistency)
+  const PROTOCOLS = [
+    { name: 'Mosaic', addresses: ['0x03f739', '0x26a95d', '0xede23e', '0x3f7399'], keywords: ['mosaic'] },
+    { name: 'Echelon', addresses: ['0x2c7bcc', '0x6a01d5'], keywords: ['echelon'] },
+    { name: 'Aries', addresses: ['0xe399b9'], keywords: ['aries'] },
+    { name: 'Yuzu', addresses: ['0x4bf519', '0x46566b'], keywords: ['yuzu'] },
+    { name: 'LayerBank', addresses: ['0xf257d4'], keywords: ['layerbank'] },
+    { name: 'Canopy', addresses: ['0x717b41', '0xb10bd3', '0x5cd341'], keywords: ['canopy', 'stmove'] },
+    { name: 'MovePosition', addresses: ['0xccd262'], keywords: ['moveposition'] },
+    { name: 'Joule', addresses: ['0x6a1641'], keywords: ['joule'] },
+    { name: 'Meridian', addresses: ['0x8f396e', '0x2712eb', '0xfbdb3d', '0x88def5'], keywords: ['meridian'] },
+    { name: 'Razor', addresses: ['0xc4e68f'], keywords: ['razor'] },
+    { name: 'Interest Protocol', addresses: ['0x323381'], keywords: ['interest'] },
+    { name: 'Avante', addresses: ['0x739a88'], keywords: ['avante'] },
+    { name: 'Liquidswap', addresses: ['0x830462'], keywords: ['liquidswap'] },
+    { name: 'Capygo', addresses: ['0x8b02d2'], keywords: ['capygo', 'mining'] },
+    { name: 'Tradeport', addresses: ['0xf81bea'], keywords: ['tradeport'] },
+    { name: 'BRKT', addresses: ['0xc85e09'], keywords: ['brkt'] },
+    { name: 'Moversmap', addresses: ['0x8c15ae'], keywords: ['moversmap'] },
+    { name: 'Movement Core', addresses: ['0x1::'], keywords: [] }
+  ];
+
   let protocol = 'Unknown';
+  const lowerFn = functionId.toLowerCase();
+
+  // Match by address prefix or keywords
+  for (const p of PROTOCOLS) {
+    if (p.addresses.some(addr => lowerFn.includes(addr)) || p.keywords.some(kw => lowerFn.includes(kw))) {
+      protocol = p.name;
+      break;
+    }
+  }
+
+  // Action Classification (Enhanced)
   let action = 'OTHER';
   let category = 'Transfer';
   let description = 'Unknown transaction';
 
-  // Protocol Detection
-  if (functionId.includes('0x8304621d305021a1')) protocol = 'Liquidswap';
-  else if (functionId.includes('0x2c7bccf7df3d0c01') || functionId.includes('0x6a01d5')) protocol = 'Echelon';
-  else if (functionId.includes('0x1::')) protocol = 'Movement Core';
-  else if (functionId.includes('0xe399b9')) protocol = 'Aries';
-  else if (functionId.includes('0xede23e') || functionId.includes('0x3f7399')) protocol = 'Mosaic';
-  else if (functionId.includes('0x4bf519')) protocol = 'Yuzu';
-  else if (functionId.includes('0xf257d4')) protocol = 'LayerBank';
-  else if (functionId.includes('0x717b41') || functionId.includes('0xb10bd3') || functionId.includes('0x5cd341')) protocol = 'Canopy';
-  else if (functionId.includes('0xccd262')) protocol = 'MovePosition';
-  else if (functionId.includes('0x6a1641')) protocol = 'Joule';
-  else if (functionId.includes('0x8f396e') || functionId.includes('0x2712eb') || functionId.includes('0xfbdb3d')) protocol = 'Meridian';
-  else if (functionId.includes('0xc4e68f')) protocol = 'Razor';
-  else if (functionId.includes('0x323381')) protocol = 'Interest Protocol';
-  else if (functionId.includes('0x739a88')) protocol = 'Avante';
+  const suffix = lowerFn.split('::').pop() || '';
+
+  // Function Suffix Mapping
+  const actionMap: Record<string, string> = {
+    'swap': 'SWAP', 'swap_entry': 'SWAP', 'mosaic_swap_with_fee': 'SWAP',
+    'supply': 'DEPOSIT', 'deposit': 'DEPOSIT', 'stake': 'DEPOSIT', 'lend_v2': 'DEPOSIT', 'lend': 'DEPOSIT',
+    'borrow': 'BORROW', 'borrow_v2': 'BORROW',
+    'repay': 'REPAY', 'repay_v2': 'REPAY',
+    'claim': 'CLAIM', 'harvest': 'CLAIM', 'claim_reward': 'CLAIM', 'collect_reward': 'CLAIM',
+    'withdraw': 'WITHDRAW', 'redeem': 'WITHDRAW', 'redeem_v2': 'WITHDRAW', 'unstake': 'WITHDRAW',
+    'transfer': 'SEND', 'transfer_coins': 'SEND'
+  };
+
+  if (actionMap[suffix]) {
+    action = actionMap[suffix];
+    category = action === 'SEND' ? 'Transfer' : 'DeFi';
+  }
 
   // Action & Asset Extraction using Event Types
   const inFlows = activities.filter((a: any) => {
@@ -146,8 +181,8 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     return (type.includes('withdraw') || type.includes('sent') || type.includes('debit')) && a.owner_address === walletAddress;
   });
 
-  if (functionId.includes('swap')) {
-    action = 'SWAP';
+  // Action-Specific Refinements & Description Generation
+  if (action === 'SWAP') {
     category = 'DeFi';
     const assetIn = outFlows[0];
     const assetOut = inFlows[0];
@@ -155,28 +190,33 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
       const amtIn = Math.abs(assetIn.amount / Math.pow(10, assetIn.metadata?.decimals || 8));
       const amtOut = Math.abs(assetOut.amount / Math.pow(10, assetOut.metadata?.decimals || 8));
       description = `Swapped ${amtIn.toFixed(2)} ${assetIn.metadata?.symbol} for ${amtOut.toFixed(2)} ${assetOut.metadata?.symbol}`;
+    } else {
+      description = `Swapped assets via ${protocol}`;
     }
-  } else if (functionId.includes('supply') || functionId.includes('deposit') || functionId.includes('stake')) {
-    action = 'DEPOSIT';
+  } else if (action === 'DEPOSIT') {
     category = 'DeFi';
     const asset = outFlows[0] || inFlows[0];
     if (asset) {
       const amt = Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8));
       description = `Deposited ${amt.toFixed(2)} ${asset.metadata?.symbol} into ${protocol}`;
+    } else {
+      description = `Deposited assets into ${protocol}`;
     }
-  } else if (functionId.includes('borrow')) {
-    action = 'BORROW';
+  } else if (action === 'BORROW') {
     category = 'DeFi';
     description = `Borrowed assets from ${protocol}`;
-  } else if (functionId.includes('claim')) {
-    action = 'CLAIM';
+  } else if (action === 'CLAIM') {
     category = 'DeFi';
     const asset = inFlows[0];
-    description = asset 
+    description = asset
       ? `Claimed ${Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8)).toFixed(2)} ${asset.metadata?.symbol} rewards`
       : `Claimed rewards from ${protocol}`;
-  } else if (functionId.includes('transfer') || functionId.includes('withdraw') || functionId.includes('deposit')) {
-    action = outFlows.length > 0 ? 'SEND' : 'RECEIVE';
+  } else if (action === 'SEND' || action === 'RECEIVE' || (action === 'OTHER' && (inFlows.length > 0 || outFlows.length > 0))) {
+    // Determine if it's a transfer if not already set
+    if (action === 'OTHER') {
+      action = outFlows.length > 0 ? 'SEND' : 'RECEIVE';
+    }
+
     category = 'Transfer';
     const asset = outFlows[0] || inFlows[0];
     if (asset) {
@@ -202,10 +242,18 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
         }
       }
     }
-  } else if (functionId.includes('register')) {
-    action = 'REGISTER';
+  } else if (action === 'REGISTER') {
     category = 'Account';
     description = 'Registered new asset/account';
+  } else if (action === 'WITHDRAW') {
+    category = 'DeFi';
+    const asset = inFlows[0] || outFlows[0];
+    if (asset) {
+      const amt = Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8));
+      description = `Withdrew ${amt.toFixed(2)} ${asset.metadata?.symbol} from ${protocol}`;
+    } else {
+      description = `Withdrew assets from ${protocol}`;
+    }
   }
 
   // 3. Storage Optimization: Strip bloated metadata
@@ -466,4 +514,72 @@ export async function syncFullUserHistory(
     await supabase.from('user_sync_status').update({ sync_error: err.message }).eq('user_address', address);
     throw err;
   }
+}
+
+/**
+ * Maintenance function to fix "Unknown" protocols in DB
+ */
+export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
+  console.log('[DeepSync] 🛠️  Starting "Unknown" protocol cleanup...');
+
+  // 1. Fetch labels once
+  const labelsMap = new Map();
+  const { data: labelsData } = await supabase.from('address_labels').select('*, tracked_entities(name)');
+  if (labelsData) {
+    labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
+  }
+
+  // 2. Fetch all transactions marked as Unknown (limited batch)
+  const { data: unknowns, error } = await supabase
+    .from('user_transaction_history')
+    .select('*')
+    .eq('protocol', 'Unknown')
+    .limit(500);
+
+  if (error || !unknowns) return;
+
+  console.log(`[DeepSync] Found ${unknowns.length} unknown transactions to re-process.`);
+
+  for (const row of unknowns) {
+    try {
+      const meta = row.metadata || {};
+
+      // Reconstruct a compatible 'tx' object for enrichTransaction
+      const pseudoTx = {
+        transaction_version: row.version,
+        user_transaction: {
+          hash: row.hash,
+          timestamp: row.timestamp,
+          entry_function_id_str: meta.entry_function_id_str || '',
+          payload: meta.payload || {},
+          success: meta.success ?? true
+        },
+        fungible_asset_activities: meta.fungible_asset_activities || [],
+        coin_activities: meta.coin_activities || []
+      };
+
+      const enriched = enrichTransaction(pseudoTx, row.user_address, labelsMap);
+
+      // Update the row
+      await supabase
+        .from('user_transaction_history')
+        .update({
+          protocol: enriched.protocol,
+          action: enriched.action,
+          category: enriched.category,
+          description: enriched.description,
+          asset_in_symbol: enriched.asset_in_symbol,
+          asset_in_amount: enriched.asset_in_amount,
+          asset_out_symbol: enriched.asset_out_symbol,
+          asset_out_amount: enriched.asset_out_amount
+        })
+        .eq('user_address', row.user_address)
+        .eq('version', row.version);
+
+    } catch (err) {
+      console.error(`[DeepSync] Failed to re-process version ${row.version}`);
+    }
+  }
+
+  console.log('[DeepSync] ✅ Cleanup complete.');
 }
