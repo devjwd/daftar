@@ -549,9 +549,6 @@ export default function EntityAdmin() {
           </div>
         </form>
       )}
-
-        </form>
-      )}
     </div>
   );
 }
