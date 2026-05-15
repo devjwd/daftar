@@ -363,8 +363,6 @@ export async function syncFullUserHistory(
     console.warn(`[DeepSync] Could not fetch total count for ${address}, using fallback: ${totalTransactions}`);
   }
 
-  const isFullySynced = statusData?.full_history_synced === true;
-
   const { data: maxData } = await supabase
     .from('user_transaction_history')
     .select('version')
@@ -381,6 +379,18 @@ export async function syncFullUserHistory(
 
   let maxVersionStr = maxData && maxData.length > 0 ? String(maxData[0].version) : "0";
   let minVersionStr = minData && minData.length > 0 ? String(minData[0].version) : "9223372036854775807";
+
+  // CRITICAL FIX: If the history table was cleared manually, reset the sync status
+  let isFullySynced = statusData?.full_history_synced === true;
+  if (maxVersionStr === "0" && isFullySynced) {
+    console.log(`[DeepSync] ⚠️ History was cleared but status was 'synced'. Resetting for ${address}...`);
+    isFullySynced = false;
+    await supabase.from('user_sync_status').update({ 
+      full_history_synced: false, 
+      synced_transactions: 0,
+      total_transactions: totalTransactions // Update with latest discovery
+    }).eq('user_address', address);
+  }
 
   // Mark status as currently syncing with total count
   await supabase.from('user_sync_status').upsert({
