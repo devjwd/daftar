@@ -59,12 +59,12 @@ const PNLChart: React.FC<PNLChartProps> = ({
     const fetchHistory = async () => {
       try {
         const API_URL = (import.meta as any).env?.VITE_API_URL || '';
-        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${timeframe}`);
+        const res = await fetch(`${API_URL}/api/analytics/pnl-precise?wallet=${walletAddress}&timeframe=${timeframe}`);
         if (!res.ok) return;
         const data = await res.json();
         
-        if (data && data.netFlowHistory) {
-          const flow = data.netFlowHistory;
+        if (data && data.history) {
+          const flow = data.history;
           if (flow.length > 0) {
             const formattedData = flow.map((pt: any) => ({
               time: new Date(pt.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),

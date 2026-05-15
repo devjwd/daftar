@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import { normalizeAddress } from '../utils/address.ts';
 import CONFIG from '../config/index.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { reconstructHistoricalBalances } from './portfolioService.ts';
 
 const MOVEMENT_INDEXER_URL = CONFIG.MOVEMENT.INDEXER_URL;
 
@@ -521,6 +522,14 @@ export async function syncFullUserHistory(
     }).eq('user_address', address);
 
     console.log(`[DeepSync] ✅ Sync complete. Total processed this run: ${totalSynced}`);
+    
+    // Trigger portfolio reconstruction to update snapshots
+    try {
+      await reconstructHistoricalBalances(supabase, address);
+    } catch (reconstructErr) {
+      console.error(`[DeepSync] ⚠️ Portfolio reconstruction failed but sync succeeded:`, reconstructErr);
+    }
+
     return { totalSynced };
 
   } catch (err: any) {

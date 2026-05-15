@@ -32,7 +32,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
   useEffect(() => {
     if (!walletAddress || !isVerified) return;
-    
+
     // Instantly fetch analytics data from the database
     fetchAnalyticsData();
 
@@ -44,7 +44,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
         const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
         if (!res.ok) return;
         const data = await res.json();
-        
+
         if (data.total_transactions > 0) {
           const progress = Math.min(100, Math.round((data.synced_transactions / data.total_transactions) * 100));
           setSyncProgress(progress);
@@ -76,7 +76,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     try {
       const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
       const data = await res.json();
-      
+
       if (data.total_transactions > 0) {
         const progress = Math.min(100, Math.round((data.synced_transactions / data.total_transactions) * 100));
         setSyncProgress(progress);
@@ -87,7 +87,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
         clearInterval(interval);
         fetchAnalyticsData(); // Final fetch
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchAnalyticsData = async (tf = timeframe) => {
@@ -120,7 +120,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '100px' }}>
         <div className="radar-pulse-container">
-           <div className="radar-pulse"></div>
+          <div className="radar-pulse"></div>
         </div>
       </div>
     );
@@ -134,16 +134,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     <div className="analytics-v5-container">
       <AnimatePresence mode="wait">
         {isInitialSyncing ? (
-          <SyncStateOverlay 
+          <SyncStateOverlay
             key="sync-overlay"
-            status={'syncing'} 
-            progress={syncProgress} 
-            onStartSync={handleStartSync} 
+            status={'syncing'}
+            progress={syncProgress}
+            onStartSync={handleStartSync}
           />
         ) : (
-          <motion.div 
+          <motion.div
             key="dashboard-content"
-            initial={{ opacity: 0, y: 10 }} 
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -164,24 +164,24 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                   )}
                 </div>
               </div>
-              
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <div className="tabs-container-v5" style={{ margin: 0 }}>
-                  <button 
-                    className={`tab-v5 ${activeTab === 'overview' ? 'active' : ''}`} 
+                  <button
+                    className={`tab-v5 ${activeTab === 'overview' ? 'active' : ''}`}
                     onClick={() => setActiveTab('overview')}
                   >
                     Overview
                   </button>
-                  <button 
-                    className={`tab-v5 ${activeTab === 'exchange' ? 'active' : ''}`} 
+                  <button
+                    className={`tab-v5 ${activeTab === 'exchange' ? 'active' : ''}`}
                     onClick={() => setActiveTab('exchange')}
                   >
                     Exchange Flows
                   </button>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={handleStartSync}
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '10px 20px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
                   onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
@@ -194,13 +194,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
             {analyticsData && (
               activeTab === 'overview' ? (
-                <AnalyticsOverview 
-                  data={analyticsData} 
-                  timeframe={timeframe} 
+                <AnalyticsOverview
+                  data={analyticsData}
+                  timeframe={timeframe}
                   setTimeframe={(tf) => {
                     setTimeframe(tf);
                     fetchAnalyticsData(tf);
-                  }} 
+                  }}
                 />
               ) : (
                 <ExchangeUsageDashboard data={analyticsData} />

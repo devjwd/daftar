@@ -2,6 +2,9 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Route Imports
 import badgeRoutes from './src/routes/badgeRoutes.ts';
@@ -21,6 +24,10 @@ import { generalLimiter } from './src/middleware/rateLimit.ts';
 import { normalizeAddress } from './src/utils/address.ts';
 import { verifyWalletSignature } from './src/utils/crypto.ts';
 import { startPricePitcher } from './src/services/priceService.ts';
+import { reconstructHistoricalBalances } from './src/services/portfolioService.ts';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -107,14 +114,12 @@ app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Respons
       .eq('wallet_address', wallet)
       .maybeSingle();
 
-    /*
     if (profileError || !profile?.is_verified) {
       return res.status(403).json({
         error: 'Unauthorized',
         message: 'Deep sync is only available for verified community members.'
       });
     }
-    */
 
     // 2. Optional: Verify signature if provided to prevent third-party triggering
     const signature = req.query.signature as string;
@@ -154,6 +159,141 @@ app.get('/api/analytics/status', async (req: Request, res: Response) => {
   if (error) return res.status(500).json({ error: 'Failed to fetch status' });
   if (!data) return res.status(200).json({ full_history_synced: false, total_transactions: 0, synced_transactions: 0 });
   return res.status(200).json(data);
+});
+
+// Manual Portfolio Reconstruction Route
+app.get('/api/analytics/reconstruct', generalLimiter, async (req: Request, res: Response) => {
+  const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
+  if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
+
+  try {
+    const result = await reconstructHistoricalBalances(supabaseAdmin, wallet);
+    return res.status(200).json({
+      ok: true,
+      message: 'Portfolio history reconstructed successfully',
+      ...result
+    });
+  } catch (err: any) {
+    console.error('[Analytics/Reconstruct] Error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to reconstruct portfolio' });
+  }
+});
+
+// Precise PNL API Endpoint
+app.get('/api/analytics/pnl-precise', async (req: Request, res: Response) => {
+  const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
+  const timeframe = (req.query.timeframe as string) || '1M'; // 1W, 1M, 3M, 1Y, All
+
+  if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
+
+  try {
+    // 1. Fetch balance snapshots from DB
+    const { data: snapshots, error: snapError } = await supabaseAdmin
+      .from('user_balance_snapshots')
+      .select('*')
+      .eq('user_address', wallet)
+      .order('snapshot_date', { ascending: true });
+
+    if (snapError) throw snapError;
+    if (!snapshots || snapshots.length === 0) {
+      return res.json({ history: [], performance: { changeUsd: 0, changePercent: 0 } });
+    }
+
+    // 2. Load Price Data from local JSON files
+    const dataPath = path.join(__dirname, 'src', 'data');
+    const loadPriceFile = async (name: string) => {
+      try {
+        const content = await fs.readFile(path.join(dataPath, name), 'utf-8');
+        return JSON.parse(content).prices;
+      } catch (e) {
+        return [];
+      }
+    };
+
+    const [movePrices, ethPrices, btcPrices] = await Promise.all([
+      loadPriceFile('movement_prices_1y.json'),
+      loadPriceFile('ethereum_prices_1y.json'),
+      loadPriceFile('bitcoin_prices_1y.json')
+    ]);
+
+    // Helper to find price for a specific date (Y-m-d)
+    const findPrice = (priceArray: any[], dateStr: string) => {
+      const targetTs = new Date(dateStr).getTime();
+      // Find the closest point that is <= targetTs
+      let closest = priceArray[0];
+      for (const p of priceArray) {
+        if (p[0] <= targetTs) closest = p;
+        else break;
+      }
+      return closest ? closest[1] : 0;
+    };
+
+    // 3. Aggregate daily portfolio value
+    const dailyValues: Map<string, number> = new Map();
+    const dates = [...new Set(snapshots.map(s => s.snapshot_date))].sort();
+
+    dates.forEach(date => {
+      let dailyTotal = 0;
+      const daySnapshots = snapshots.filter(s => s.snapshot_date === date);
+
+      daySnapshots.forEach(s => {
+        const symbol = (s.symbol || '').toUpperCase();
+        let price = 0;
+
+        if (symbol === 'MOVE' || s.asset_type === '0x1' || s.asset_type === '0xa' || s.asset_type.includes('aptos_coin')) {
+          price = findPrice(movePrices, date);
+        } else if (symbol === 'ETH' || symbol === 'WETH' || s.asset_type.includes('ethereum')) {
+          price = findPrice(ethPrices, date);
+        } else if (symbol === 'BTC' || symbol === 'WBTC' || s.asset_type.includes('bitcoin')) {
+          price = findPrice(btcPrices, date);
+        } else {
+          // Fallback to a default if price is unknown (e.g. 0 for demo)
+          price = 0;
+        }
+
+        dailyTotal += Number(s.amount) * price;
+      });
+
+      dailyValues.set(date, dailyTotal);
+    });
+
+    // 4. Filter by timeframe
+    let filteredDates = dates;
+    if (timeframe !== 'All') {
+      const now = new Date();
+      let limit = new Date();
+      if (timeframe === '1W') limit.setDate(now.getDate() - 7);
+      else if (timeframe === '1M') limit.setMonth(now.getMonth() - 1);
+      else if (timeframe === '3M') limit.setMonth(now.getMonth() - 3);
+      else if (timeframe === '1Y') limit.setFullYear(now.getFullYear() - 1);
+      
+      const limitStr = limit.toISOString().split('T')[0];
+      filteredDates = dates.filter(d => d >= limitStr);
+    }
+
+    const history = filteredDates.map(date => ({
+      date,
+      value: dailyValues.get(date) || 0
+    }));
+
+    // 5. Calculate Performance
+    const firstVal = history[0]?.value || 0;
+    const lastVal = history[history.length - 1]?.value || 0;
+    const changeUsd = lastVal - firstVal;
+    const changePercent = firstVal > 0 ? (changeUsd / firstVal) * 100 : 0;
+
+    return res.json({
+      history,
+      performance: {
+        changeUsd: Math.round(changeUsd * 100) / 100,
+        changePercent: Math.round(changePercent * 100) / 100
+      }
+    });
+
+  } catch (err: any) {
+    console.error('[Analytics/PNL-Precise] Error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to calculate precise PNL' });
+  }
 });
 
 // Analytics Data Aggregation
