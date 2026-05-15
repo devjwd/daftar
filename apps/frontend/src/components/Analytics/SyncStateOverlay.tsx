@@ -54,14 +54,22 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
             
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
               <div style={{ width: '300px', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '100px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  style={{ height: '100%', background: 'linear-gradient(90deg, #cda169 0%, #ffcc8d 100%)', boxShadow: '0 0 15px rgba(205,161,105,0.4)' }}
-                ></motion.div>
+                {progress > 0 ? (
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    style={{ height: '100%', background: 'linear-gradient(90deg, #cda169 0%, #ffcc8d 100%)', boxShadow: '0 0 15px rgba(205,161,105,0.4)' }}
+                  ></motion.div>
+                ) : (
+                  <motion.div 
+                    animate={{ x: [-300, 300] }}
+                    transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                    style={{ width: '150px', height: '100%', background: 'linear-gradient(90deg, transparent 0%, #cda169 50%, transparent 100%)' }}
+                  ></motion.div>
+                )}
               </div>
               <span style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', fontVariantNumeric: 'tabular-nums' }}>
-                {progress > 0 ? `${progress}%` : 'Discovering...'}
+                {progress > 0 ? `${progress}%` : 'Scanning...'}
               </span>
             </div>
           </div>

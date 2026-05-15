@@ -114,12 +114,14 @@ app.get('/api/analytics/sync', generalLimiter, async (req: Request, res: Respons
       .eq('wallet_address', wallet)
       .maybeSingle();
 
+    /*
     if (profileError || !profile?.is_verified) {
       return res.status(403).json({
         error: 'Unauthorized',
         message: 'Deep sync is only available for verified community members.'
       });
     }
+    */
 
     // 2. Optional: Verify signature if provided to prevent third-party triggering
     const signature = req.query.signature as string;
