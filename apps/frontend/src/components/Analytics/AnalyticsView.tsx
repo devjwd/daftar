@@ -126,9 +126,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     );
   }
 
-  // If we have data and it's not totally empty (or if it's completed syncing but truly empty), show dashboard
+  // If we have data and it's not totally empty, show dashboard
+  // We keep the overlay visible until we have at least some activity history to render
   const hasData = analyticsData && analyticsData.activityHistory && analyticsData.activityHistory.length > 0;
-  const isInitialSyncing = syncStatus === 'syncing' && !hasData;
+  
+  // Transition logic: stay in syncing state until we have real data to show
+  const isInitialSyncing = (syncStatus === 'syncing' || syncStatus === 'idle') && !hasData;
 
   return (
     <div className="analytics-v5-container">

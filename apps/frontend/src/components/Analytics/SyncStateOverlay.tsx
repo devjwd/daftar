@@ -40,14 +40,28 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
             <div className="radar-pulse"></div>
             <Radar size={48} className="radar-icon" strokeWidth={1.5} />
           </div>
-          <div>
-            <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>Extracting Data...</h2>
-            <p style={{ color: 'var(--text-tertiary)', fontSize: '15px' }}>
-              Analyzing history and computing metrics.
+          <div style={{ textAlign: 'center' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', marginBottom: '4px' }}>
+              {progress < 100 ? 'Extracting History...' : 'Reconstructing Portfolio...'}
+            </h2>
+            <p style={{ color: 'var(--text-tertiary)', fontSize: '15px', marginBottom: '24px' }}>
+              {progress < 100 
+                ? 'Downloading transaction data from Movement Indexer.' 
+                : 'Finalizing PNL metrics and historical snapshots.'}
             </p>
-          </div>
-          <div style={{ width: '200px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
-            <div style={{ width: `${progress}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.3s ease' }}></div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '300px', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '100px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  style={{ height: '100%', background: 'linear-gradient(90deg, #cda169 0%, #ffcc8d 100%)', boxShadow: '0 0 15px rgba(205,161,105,0.4)' }}
+                ></motion.div>
+              </div>
+              <span style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', fontVariantNumeric: 'tabular-nums' }}>
+                {progress}%
+              </span>
+            </div>
           </div>
         </>
       )}
