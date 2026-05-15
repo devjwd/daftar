@@ -22,7 +22,6 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
         sender
         timestamp
         entry_function_id_str
-        payload
       }
       fungible_asset_activities {
         transaction_version
@@ -68,7 +67,6 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
         sender
         timestamp
         entry_function_id_str
-        payload
       }
       fungible_asset_activities {
         transaction_version
@@ -261,9 +259,9 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
       description = `${action === 'SEND' ? 'Sent' : 'Received'} ${amt.toFixed(2)} ${asset.metadata?.symbol}`;
     }
 
-    // Attempt to identify counterparty from payload for labels
+    // Attempt to identify counterparty from payload for labels (if available)
     if (action === 'SEND') {
-      const payload = ut.payload;
+      const payload = ut.payload || null;
       let receiver = null;
       if (payload?.function === '0x1::aptos_account::transfer' || payload?.function === '0x1::coin::transfer') {
         receiver = payload.arguments?.[0];
@@ -612,7 +610,6 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
           hash: row.hash,
           timestamp: row.timestamp,
           entry_function_id_str: meta.entry_function_id_str || '',
-          payload: meta.payload || {},
           success: meta.success ?? true
         },
         fungible_asset_activities: meta.fungible_asset_activities || [],

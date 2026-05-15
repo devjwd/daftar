@@ -9,6 +9,7 @@ interface NFTTableProps {
   hideValues: boolean;
   convertUSD: (val: number) => number;
   formatCurrencyValue: (val: number) => string;
+  movePrice: number;
 }
 
 const NFTTable: React.FC<NFTTableProps> = ({
@@ -18,7 +19,8 @@ const NFTTable: React.FC<NFTTableProps> = ({
   viewingAddress,
   hideValues,
   convertUSD,
-  formatCurrencyValue
+  formatCurrencyValue,
+  movePrice
 }) => {
   return (
     <section className="grid-section">
@@ -81,16 +83,16 @@ const NFTTable: React.FC<NFTTableProps> = ({
                     <td className="text-right">{col.count}</td>
                     <td className="text-right">
                       <div className="price-stack">
-                        <span className="native-price">{col.floorPrice > 0 ? `${col.floorPrice.toFixed(2)} MOVE` : '-'}</span>
-                        {col.totalUsdValue > 0 && (
+                        <span className="native-price">{col.floorPrice > 0 ? `${col.floorPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE` : '-'}</span>
+                        {col.floorPrice > 0 && movePrice > 0 && (
                           <span className="usd-price">
-                            {hideValues ? '***' : formatCurrencyValue(convertUSD(col.totalUsdValue))}
+                            {hideValues ? '***' : formatCurrencyValue(convertUSD(col.floorPrice * movePrice))}
                           </span>
                         )}
                       </div>
                     </td>
                     <td className="text-right">
-                      <span className="native-price">{col.topBid > 0 ? `${col.topBid.toFixed(2)} MOVE` : '-'}</span>
+                      <span className="native-price">{col.topBid > 0 ? `${col.topBid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE` : '-'}</span>
                     </td>
                     <td className="text-center">
                       <a

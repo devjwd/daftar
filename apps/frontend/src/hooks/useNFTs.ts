@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getUserNFTHoldings } from '../services/indexer';
-import { getCollectionStats } from '../services/tradeport';
+import { getNFTCollectionStats } from '../services/api';
 import { devLog } from '../utils/devLogger';
 
 export interface NFTAsset {
@@ -60,11 +60,9 @@ export const useNFTs = (address: string | null, movePrice: number = 0) => {
           .filter(id => !!id)
       )) as string[];
 
-      // Fetch floor prices and top bids from Tradeport
-      if (collectionIds.length > 0) {
-        const stats = await getCollectionStats(collectionIds);
-        setCollectionStats(stats);
-      }
+      // Fetch pitched floor prices and top bids from our server
+      const stats = await getNFTCollectionStats();
+      setCollectionStats(stats);
 
       setNfts(holdings);
     } catch (err) {

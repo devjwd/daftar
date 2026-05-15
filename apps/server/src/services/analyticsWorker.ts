@@ -24,38 +24,50 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
       await reProcessUnknownTransactions(supabase);
       await reProcessSuspiciousPrices(supabase);
 
-      // 1. Fetch all verified users
-      // Note: If you have millions of users, you would need cursor-based pagination here.
-      // For now, fetching them all or using a limit/offset is fine.
-      const { data: verifiedUsers, error } = await supabase
-        .from('profiles')
-        .select('wallet_address')
-        .eq('is_verified', true);
+      // 1. Fetch all verified users using cursor-based pagination
+      let hasMoreUsers = true;
+      let page = 0;
+      const USERS_PER_PAGE = 100;
+      let totalProcessed = 0;
 
-      if (error) {
-        console.error('[AnalyticsWorker] Failed to fetch verified users:', error);
-        throw error;
-      }
+      while (hasMoreUsers) {
+        const { data: verifiedUsers, error } = await supabase
+          .from('profiles')
+          .select('wallet_address')
+          .eq('is_verified', true)
+          .range(page * USERS_PER_PAGE, (page + 1) * USERS_PER_PAGE - 1);
 
-      if (verifiedUsers && verifiedUsers.length > 0) {
-        console.log(`[AnalyticsWorker] 🔄 Found ${verifiedUsers.length} verified users. Beginning sync cycle.`);
+        if (error) {
+          console.error('[AnalyticsWorker] Failed to fetch verified users:', error);
+          throw error;
+        }
 
-        // 2. Iterate through each verified user sequentially
-        for (const user of verifiedUsers) {
-          if (!user.wallet_address) continue;
+        if (verifiedUsers && verifiedUsers.length > 0) {
+          if (page === 0) console.log(`[AnalyticsWorker] 🔄 Beginning sync cycle. Fetching in batches...`);
           
-          try {
-             // syncFullUserHistory already handles forward sync (new txs) and backward sync.
-             // It also already has a 200ms delay between batch requests internally.
-             await syncFullUserHistory(supabase, user.wallet_address);
-          } catch (syncErr: any) {
-             console.error(`[AnalyticsWorker] Error syncing user ${user.wallet_address}:`, syncErr.message);
-          }
+          // 2. Iterate through each verified user sequentially
+          for (const user of verifiedUsers) {
+            if (!user.wallet_address) continue;
+            
+            try {
+               await syncFullUserHistory(supabase, user.wallet_address);
+            } catch (syncErr: any) {
+               console.error(`[AnalyticsWorker] Error syncing user ${user.wallet_address}:`, syncErr.message);
+            }
 
-          // Sleep 1 second between different users to ensure healthy connection & no rate limits
-          await new Promise(resolve => setTimeout(resolve, 1000));
+            // Sleep 1 second between different users to ensure healthy connection & no rate limits
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            totalProcessed++;
+          }
+          
+          page++;
+          if (verifiedUsers.length < USERS_PER_PAGE) hasMoreUsers = false;
+        } else {
+          hasMoreUsers = false;
         }
       }
+      
+      console.log(`[AnalyticsWorker] ✅ Sync cycle complete. Total users processed: ${totalProcessed}`);
 
       // Reset backoff on successful cycle
       consecutiveErrors = 0;

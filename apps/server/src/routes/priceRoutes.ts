@@ -34,5 +34,28 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
   return res.json({ ...cachedSnapshot, source: 'stale-cache', warning: 'Live refresh failed' });
 });
 
+router.get('/nft', generalLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = req.app.get('supabaseAdmin');
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase client not initialized' });
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('nft_collection_stats')
+      .select('*');
+
+    if (error) throw error;
+
+    return res.json({
+      collections: data || [],
+      updatedAt: data && data.length > 0 ? data[0].updated_at : null
+    });
+  } catch (err: any) {
+    console.error('[PriceRoutes/NFT] Error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
 

@@ -47,6 +47,28 @@ async function fetchHistoricalPriceFromCG(geckoId: string, timestamp: string): P
 }
 
 /**
+ * Fetch a price from DexScreener (current price, as historical is harder on DS without pro API, 
+ * but better than static fallback for unknown tokens).
+ */
+async function fetchPriceFromDexScreener(tokenAddress: string): Promise<number | null> {
+  try {
+    const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`;
+    const response = await fetch(url);
+    const json: any = await response.json();
+    
+    if (json.pairs && json.pairs.length > 0) {
+      // Get highest liquidity pair
+      const bestPair = json.pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+      return bestPair.priceUsd ? Number(bestPair.priceUsd) : null;
+    }
+    return null;
+  } catch (err) {
+    console.error(`[PriceBackfill] DexScreener Error for ${tokenAddress}:`, err);
+    return null;
+  }
+}
+
+/**
  * Get price from cache or fetch new one
  */
 async function getHistoricalPrice(
@@ -55,7 +77,7 @@ async function getHistoricalPrice(
   timestamp: string
 ): Promise<number | null> {
   const geckoId = TOKEN_GEKO_MAP[tokenAddress];
-  if (!geckoId) return null;
+  // We don't return null if !geckoId anymore, because we can try DexScreener
 
   // 1. Check our Cache Table
   const dateOnly = new Date(timestamp).toISOString().split('T')[0];
@@ -71,7 +93,17 @@ async function getHistoricalPrice(
   if (cached) return Number(cached.price);
 
   // 2. Not in cache, fetch from CoinGecko
-  const price = await fetchHistoricalPriceFromCG(geckoId, timestamp);
+  let price = null;
+  
+  if (geckoId) {
+    price = await fetchHistoricalPriceFromCG(geckoId, timestamp);
+  }
+  
+  // 3. Fallback to DexScreener if CoinGecko failed or no geckoId
+  if (!price) {
+    console.log(`[PriceBackfill] Falling back to DexScreener for ${tokenAddress}`);
+    price = await fetchPriceFromDexScreener(tokenAddress);
+  }
   
   if (price) {
     // Save to cache for future use
@@ -79,7 +111,8 @@ async function getHistoricalPrice(
       token_address: tokenAddress,
       price: price,
       timestamp: `${dateOnly}T12:00:00Z`, // Mid-day snapshot
-      granularity: 'daily'
+      granularity: 'daily',
+      source: geckoId && price ? 'coingecko' : 'dexscreener'
     });
   }
 

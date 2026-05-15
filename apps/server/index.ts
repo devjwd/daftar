@@ -25,6 +25,7 @@ import { normalizeAddress } from './src/utils/address.ts';
 import { verifyWalletSignature } from './src/utils/crypto.ts';
 import { startPricePitcher } from './src/services/priceService.ts';
 import { reconstructHistoricalBalances } from './src/services/portfolioService.ts';
+import { startNFTPriceWorker } from './src/services/nftPriceWorker.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,6 +69,9 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
 
     // Start 24/7 Background Analytics Worker for Verified Users
     startAnalyticsWorker(supabaseAdmin);
+
+    // Start hourly NFT floor price pitcher
+    startNFTPriceWorker(supabaseAdmin);
 
     // Start background analytics price backfiller (every 30 seconds)
     setInterval(async () => {
@@ -318,14 +322,45 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
   }
 
   try {
-    let query = supabaseAdmin
-      .from('user_transaction_history')
-      .select('*')
-      .eq('user_address', wallet)
-      .order('timestamp', { ascending: true })
-      .limit(10000);
+    // Fetch all transactions using pagination to bypass PostgREST max_rows limit
+    let txs: any[] = [];
+    let hasMore = true;
+    let page = 0;
+    const PAGE_SIZE = 1000; // Match standard PostgREST limit
 
-    // Timeframe Filtering Fix
+    while (hasMore) {
+      let query = supabaseAdmin
+        .from('user_transaction_history')
+        .select('*')
+        .eq('user_address', wallet)
+        .order('timestamp', { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      // Timeframe Filtering Fix
+      if (timeframe !== 'All') {
+        const now = new Date();
+        let filterDate = new Date();
+        if (timeframe === '1W') filterDate.setDate(now.getDate() - 7);
+        else if (timeframe === '1M') filterDate.setMonth(now.getMonth() - 1);
+        else if (timeframe === '3M') filterDate.setMonth(now.getMonth() - 3);
+        else if (timeframe === '1Y') filterDate.setFullYear(now.getFullYear() - 1);
+
+        query = query.gte('timestamp', filterDate.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        txs = txs.concat(data);
+        page++;
+        if (data.length < PAGE_SIZE) hasMore = false;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    // Pre-calculate initial flow from transactions before the filterDate
     let initialFlow = 0;
     if (timeframe !== 'All') {
       const now = new Date();
@@ -335,9 +370,6 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       else if (timeframe === '3M') filterDate.setMonth(now.getMonth() - 3);
       else if (timeframe === '1Y') filterDate.setFullYear(now.getFullYear() - 1);
 
-      query = query.gte('timestamp', filterDate.toISOString());
-
-      // Pre-calculate initial flow from transactions before the filterDate
       const { data: pastTxs, error: pastError } = await supabaseAdmin
         .from('user_transaction_history')
         .select('value_usd, action')
@@ -356,10 +388,6 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
         });
       }
     }
-
-    const { data: txs, error } = await query;
-
-    if (error) throw error;
 
     const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
     const totalGasUsd = txs.reduce((sum, tx) => sum + Number(tx.gas_usd || 0), 0);

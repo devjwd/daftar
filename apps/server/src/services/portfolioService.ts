@@ -23,34 +23,102 @@ export async function reconstructHistoricalBalances(
   const address = normalizeAddress(walletAddress);
   console.log(`[Portfolio] 🛠️ Reconstructing history for ${address}...`);
 
-  // 1. Fetch all processed transactions for this user (Chronological)
-  const { data: txs, error: txError } = await supabase
+  // 1. Fetch the latest snapshot date to enable incremental reconstruction
+  const { data: latestSnapshot, error: snapError } = await supabase
+    .from('user_balance_snapshots')
+    .select('snapshot_date')
+    .eq('user_address', address)
+    .order('snapshot_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (snapError && snapError.code !== 'PGRST116') {
+    console.error(`[Portfolio] Error fetching latest snapshot:`, snapError);
+  }
+
+  let lastDateStr = latestSnapshot?.snapshot_date;
+  const balances: BalanceState = {};
+
+  // 2. Load existing balances if we have a previous snapshot
+  if (lastDateStr) {
+    const { data: existingBalances } = await supabase
+      .from('user_balance_snapshots')
+      .select('*')
+      .eq('user_address', address)
+      .eq('snapshot_date', lastDateStr);
+
+    if (existingBalances) {
+      existingBalances.forEach(b => {
+        balances[b.asset_type] = { amount: Number(b.amount), symbol: b.symbol };
+      });
+    }
+  }
+
+  // 3. Fetch transactions (incremental if possible)
+  let txQuery = supabase
     .from('user_transaction_history')
     .select('*')
     .eq('user_address', address)
     .order('timestamp', { ascending: true });
 
-  if (txError) throw txError;
-  if (!txs || txs.length === 0) {
-    console.log(`[Portfolio] No transactions found for ${address}.`);
-    return;
+  if (lastDateStr) {
+    // Fetch transactions strictly after the last snapshot date (end of that day)
+    const nextDay = new Date(lastDateStr);
+    nextDay.setDate(nextDay.getDate() + 1);
+    txQuery = txQuery.gte('timestamp', nextDay.toISOString());
   }
 
-  const balances: BalanceState = {};
+  // Handle potential 1k limit by paginating transaction fetch
+  let txs: any[] = [];
+  let hasMore = true;
+  let page = 0;
+  const PAGE_SIZE = 1000;
+  
+  while (hasMore) {
+    const { data, error: txError } = await txQuery.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (txError) throw txError;
+    
+    if (data && data.length > 0) {
+      txs = txs.concat(data);
+      page++;
+      if (data.length < PAGE_SIZE) hasMore = false;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  if (txs.length === 0) {
+    console.log(`[Portfolio] No new transactions found for ${address} since ${lastDateStr || 'beginning'}.`);
+    // If there are no new transactions but we have previous balances, we should carry them forward to today
+    if (!lastDateStr) return { snapshotsCount: 0 };
+  }
+
   const snapshots: any[] = [];
-  
-  // 2. Identify the date range
-  const firstTxDate = new Date(txs[0].timestamp);
   const today = new Date();
-  
-  // Set time to midnight for consistent daily snapshots
-  const startDate = new Date(firstTxDate.getFullYear(), firstTxDate.getMonth(), firstTxDate.getDate());
   const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-  let currentTxIndex = 0;
-  let currentDate = new Date(startDate);
+  let currentDate: Date;
+  if (txs.length > 0) {
+    const firstNewTxDate = new Date(txs[0].timestamp);
+    const candidateStartDate = new Date(firstNewTxDate.getFullYear(), firstNewTxDate.getMonth(), firstNewTxDate.getDate());
+    
+    if (lastDateStr) {
+      const dayAfterLast = new Date(lastDateStr);
+      dayAfterLast.setDate(dayAfterLast.getDate() + 1);
+      // Start from the day after the last snapshot, or the first new tx date if it's later
+      currentDate = dayAfterLast > candidateStartDate ? dayAfterLast : candidateStartDate;
+    } else {
+      currentDate = candidateStartDate;
+    }
+  } else {
+     // No new txs, just carry forward balances from day after last snapshot to today
+     currentDate = new Date(lastDateStr!);
+     currentDate.setDate(currentDate.getDate() + 1);
+  }
 
-  // 3. Iterate day by day from the first transaction to today
+  let currentTxIndex = 0;
+
+  // 4. Iterate day by day
   while (currentDate <= endDate) {
     const dateStr = currentDate.toISOString().split('T')[0];
     const nextDay = new Date(currentDate);
@@ -70,7 +138,7 @@ export async function reconstructHistoricalBalances(
         if (!balances[assetType]) balances[assetType] = { amount: 0, symbol: tx.asset_in_symbol };
         
         // Inflows: tokens received by the user
-        if (['RECEIVE', 'CLAIM', 'UNSTAKE', 'REPAY', 'SWAP', 'BORROW', 'BRIDGE_IN', 'WITHDRAW'].includes(action)) {
+        if (['RECEIVE', 'CLAIM', 'UNSTAKE', 'SWAP', 'BORROW', 'BRIDGE_IN', 'WITHDRAW'].includes(action)) {
           balances[assetType].amount += Number(tx.asset_in_amount);
         }
       }
@@ -83,7 +151,7 @@ export async function reconstructHistoricalBalances(
         if (!balances[assetType]) balances[assetType] = { amount: 0, symbol: tx.asset_out_symbol };
         
         // Outflows: tokens spent or locked by the user
-        if (['SEND', 'DEPOSIT', 'STAKE', 'SWAP', 'LEND', 'BRIDGE_OUT'].includes(action)) {
+        if (['SEND', 'DEPOSIT', 'STAKE', 'SWAP', 'LEND', 'REPAY', 'BRIDGE_OUT'].includes(action)) {
           balances[assetType].amount -= Number(tx.asset_out_amount);
         }
       }

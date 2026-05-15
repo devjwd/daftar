@@ -1163,6 +1163,7 @@ const Dashboard = () => {
                 hideValues={hideValues}
                 convertUSD={convertUSD}
                 formatCurrencyValue={formatCurrencyValue}
+                movePrice={movePrice}
               />
             </Suspense>
           )}
