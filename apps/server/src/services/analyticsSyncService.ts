@@ -330,8 +330,15 @@ export async function syncFullUserHistory(
     labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
   }
 
-  // 1. Fetch current sync status and total transaction count from indexer
-  let totalTransactions = 0;
+  // 1. Fetch current sync status
+  const { data: statusData } = await supabase
+    .from('user_sync_status')
+    .select('*')
+    .eq('user_address', address)
+    .maybeSingle();
+
+  // 2. Fetch total transaction count from indexer
+  let totalTransactions = statusData?.total_transactions || 0;
   try {
     const countRes = await fetch(MOVEMENT_INDEXER_URL, {
       method: 'POST',
@@ -346,16 +353,15 @@ export async function syncFullUserHistory(
       })
     });
     const countJson: any = await countRes.json();
-    totalTransactions = countJson.data?.account_transactions_aggregate?.aggregate?.count || 0;
+    const indexerCount = countJson.data?.account_transactions_aggregate?.aggregate?.count || 0;
+    
+    // Only update if indexerCount is greater to prevent progress resetting
+    if (indexerCount > totalTransactions) {
+      totalTransactions = indexerCount;
+    }
   } catch (e) {
-    console.warn(`[DeepSync] Could not fetch total count for ${address}`);
+    console.warn(`[DeepSync] Could not fetch total count for ${address}, using fallback: ${totalTransactions}`);
   }
-
-  const { data: statusData } = await supabase
-    .from('user_sync_status')
-    .select('*')
-    .eq('user_address', address)
-    .maybeSingle();
 
   const isFullySynced = statusData?.full_history_synced === true;
 

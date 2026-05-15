@@ -42,12 +42,14 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
           </div>
           <div style={{ textAlign: 'center' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', marginBottom: '4px' }}>
-              {progress < 100 ? 'Extracting History...' : 'Reconstructing Portfolio...'}
+              {progress === 0 ? 'Scanning Movement Network...' : progress < 100 ? 'Extracting History...' : 'Reconstructing Portfolio...'}
             </h2>
             <p style={{ color: 'var(--text-tertiary)', fontSize: '15px', marginBottom: '24px' }}>
-              {progress < 100 
-                ? 'Downloading transaction data from Movement Indexer.' 
-                : 'Finalizing PNL metrics and historical snapshots.'}
+              {progress === 0 
+                ? 'Locating your transactions on the indexer.'
+                : progress < 100 
+                  ? 'Downloading transaction data from Movement Indexer.' 
+                  : 'Finalizing PNL metrics and historical snapshots.'}
             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
@@ -59,7 +61,7 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
                 ></motion.div>
               </div>
               <span style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', fontVariantNumeric: 'tabular-nums' }}>
-                {progress}%
+                {progress > 0 ? `${progress}%` : 'Discovering...'}
               </span>
             </div>
           </div>
