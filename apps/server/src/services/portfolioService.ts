@@ -64,25 +64,26 @@ export async function reconstructHistoricalBalances(
       const tx = txs[currentTxIndex];
       const action = tx.action || '';
       
-      // Handle Incoming Assets
+      // Handle Incoming Assets (user received tokens)
       if (tx.asset_in_symbol && tx.asset_in_amount > 0) {
-        // Try to get asset_type from metadata if possible, fallback to symbol
         const assetType = tx.metadata?.fungible_asset_activities?.[0]?.asset_type || tx.asset_in_symbol;
         if (!balances[assetType]) balances[assetType] = { amount: 0, symbol: tx.asset_in_symbol };
         
-        // Logical Inflows
-        if (['RECEIVE', 'WITHDRAW', 'CLAIM', 'BRIDGE_IN', 'SWAP', 'UNSTAKE'].includes(action)) {
+        // Inflows: tokens received by the user
+        if (['RECEIVE', 'CLAIM', 'UNSTAKE', 'REPAY', 'SWAP', 'BORROW', 'BRIDGE_IN', 'WITHDRAW'].includes(action)) {
           balances[assetType].amount += Number(tx.asset_in_amount);
         }
       }
 
-      // Handle Outgoing Assets
+      // Handle Outgoing Assets (user spent/locked tokens)
       if (tx.asset_out_symbol && tx.asset_out_amount > 0) {
-        const assetType = tx.metadata?.fungible_asset_activities?.find((a: any) => a.type?.toLowerCase().includes('withdraw') || a.type?.toLowerCase().includes('sent'))?.asset_type || tx.asset_out_symbol;
+        const assetType = tx.metadata?.fungible_asset_activities?.find((a: any) => 
+          a.type?.toLowerCase().includes('withdraw') || a.type?.toLowerCase().includes('sent')
+        )?.asset_type || tx.asset_out_symbol;
         if (!balances[assetType]) balances[assetType] = { amount: 0, symbol: tx.asset_out_symbol };
         
-        // Logical Outflows
-        if (['SEND', 'DEPOSIT', 'BORROW', 'BRIDGE_OUT', 'SWAP', 'STAKE'].includes(action)) {
+        // Outflows: tokens spent or locked by the user
+        if (['SEND', 'DEPOSIT', 'STAKE', 'SWAP', 'LEND', 'BRIDGE_OUT'].includes(action)) {
           balances[assetType].amount -= Number(tx.asset_out_amount);
         }
       }

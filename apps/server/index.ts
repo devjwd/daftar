@@ -268,7 +268,7 @@ app.get('/api/analytics/pnl-precise', async (req: Request, res: Response) => {
       else if (timeframe === '1M') limit.setMonth(now.getMonth() - 1);
       else if (timeframe === '3M') limit.setMonth(now.getMonth() - 3);
       else if (timeframe === '1Y') limit.setFullYear(now.getFullYear() - 1);
-      
+
       const limitStr = limit.toISOString().split('T')[0];
       filteredDates = dates.filter(d => d >= limitStr);
     }

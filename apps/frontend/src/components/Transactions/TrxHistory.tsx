@@ -550,7 +550,6 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0 }) {
               type="button"
               className={cn(styles.filterTab, activeFilter === filter.value && styles.filterTabActive)}
               onClick={() => setActiveFilter(filter.value)}
-              disabled={filter.value !== 'all'}
             >
               {filter.label}
             </button>

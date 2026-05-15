@@ -31,19 +31,37 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
   useEffect(() => {
-    if (!walletAddress || !isVerified) return;
+    if (!walletAddress) return;
 
-    // Instantly fetch analytics data from the database
-    fetchAnalyticsData();
+    let isMounted = true;
+    let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 
-    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const stopPolling = () => {
+      if (pollIntervalId) {
+        clearInterval(pollIntervalId);
+        pollIntervalId = null;
+      }
+    };
 
-    // Also check sync status to see if initial deep sync is still running
-    const checkStatus = async () => {
+    const doFetchAnalytics = async (tf = timeframe) => {
+      if (!isMounted) return;
+      try {
+        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted) setAnalyticsData(data);
+      } catch (err) {
+        console.error('Fetch analytics error:', err);
+      }
+    };
+
+    const doCheckStatus = async () => {
+      if (!isMounted) return;
       try {
         const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
         if (!res.ok) return;
         const data = await res.json();
+        if (!isMounted) return;
 
         if (data.total_transactions > 0) {
           const progress = Math.min(100, Math.round((data.synced_transactions / data.total_transactions) * 100));
@@ -52,23 +70,40 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
         if (data.full_history_synced) {
           setSyncStatus('completed');
-        } else {
+          stopPolling();
+          doFetchAnalytics();
+        } else if (data.synced_transactions > 0 || data.last_sync_at) {
+          // A sync has run — keep showing data even if not 100%
           setSyncStatus('syncing');
-          // If it's still syncing initially, poll data every 5s to show progress
-          intervalId = setInterval(() => {
-            fetchAnalyticsData();
-            checkSyncCompletion(intervalId);
-          }, 5000);
         }
       } catch (err) {
-        console.error("Status check error:", err);
+        console.error('Status check error:', err);
       }
     };
-    checkStatus();
 
-    // Proper cleanup: clear interval on unmount or dependency change
+    // 1. Immediately fetch whatever data exists
+    doFetchAnalytics();
+
+    // 2. Check current sync status
+    doCheckStatus().then(() => {
+      if (!isMounted) return;
+      // 3. Poll every 6 seconds to update progress and data
+      pollIntervalId = setInterval(async () => {
+        await doFetchAnalytics();
+        await doCheckStatus();
+      }, 6000);
+    });
+
+    // 4. Auto-trigger sync if not verified-only gated (for first-time users)
+    // Fire-and-forget so it doesn't block the UI
+    if (isVerified) {
+      fetch(`${API_URL}/api/analytics/sync?wallet=${walletAddress}`).catch(() => {});
+      setSyncStatus('syncing');
+    }
+
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      isMounted = false;
+      stopPolling();
     };
   }, [walletAddress, isVerified, API_URL]);
 
@@ -92,6 +127,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
   const fetchAnalyticsData = async (tf = timeframe) => {
     if (!walletAddress) return;
+
     try {
       const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
       const data = await res.json();
@@ -127,11 +163,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   }
 
   // If we have data and it's not totally empty, show dashboard
-  // We keep the overlay visible until we have at least some activity history to render
-  const hasData = analyticsData && analyticsData.activityHistory && analyticsData.activityHistory.length > 0;
+  // Only show the full-page overlay if we have received NO response from the server at all
+  const hasData = analyticsData !== null;
+  const hasActivity = analyticsData?.activityHistory && analyticsData.activityHistory.length > 0;
   
-  // Transition logic: stay in syncing state until we have real data to show
-  const isInitialSyncing = (syncStatus === 'syncing' || syncStatus === 'idle') && !hasData;
+  // Show overlay only while first sync is actively running and we've never gotten any server data
+  const isInitialSyncing = syncStatus === 'syncing' && !hasData;
 
   return (
     <div className="analytics-v5-container">

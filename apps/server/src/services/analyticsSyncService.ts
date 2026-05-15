@@ -170,15 +170,37 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
 
   const suffix = lowerFn.split('::').pop() || '';
 
-  // Function Suffix Mapping
+  // Function Suffix Mapping - must be consistent with transactionRoutes.ts ACTION_TO_TX_TYPE
   const actionMap: Record<string, string> = {
+    // Swaps
     'swap': 'SWAP', 'swap_entry': 'SWAP', 'mosaic_swap_with_fee': 'SWAP',
-    'supply': 'DEPOSIT', 'deposit': 'DEPOSIT', 'stake': 'DEPOSIT', 'lend_v2': 'DEPOSIT', 'lend': 'DEPOSIT',
+    'swap_exact_in_stable_entry': 'SWAP', 'swap_exact_in_metastable_entry': 'SWAP',
+    'swap_exact_in_weighted_entry': 'SWAP', 'swap_exact_in_router_entry': 'SWAP',
+    'swap_exact_coin_for_fa_multi_hops': 'SWAP',
+    // Lending/Supply (user deposits to earn yield)
+    'supply': 'LEND', 'lend_v2': 'LEND', 'lend': 'LEND',
+    // Staking (user locks tokens)
+    'stake': 'STAKE', 'add_stake': 'STAKE', 'reactivate_stake': 'STAKE', 'stake_and_mint': 'STAKE',
+    'deposit_fa_with_coin_type': 'STAKE',
+    // Deposits to protocols (not lending, not staking)
+    'deposit': 'DEPOSIT', 'deposit_fa': 'DEPOSIT', 'deposit_coin': 'DEPOSIT',
+    'add_liquidity': 'DEPOSIT', 'add_liquidity_stable_entry': 'DEPOSIT', 'add_liquidity_weighted_entry': 'DEPOSIT',
+    // Borrows
     'borrow': 'BORROW', 'borrow_v2': 'BORROW',
+    // Repayments
     'repay': 'REPAY', 'repay_v2': 'REPAY',
+    // Claims/Rewards
     'claim': 'CLAIM', 'harvest': 'CLAIM', 'claim_reward': 'CLAIM', 'collect_reward': 'CLAIM',
-    'withdraw': 'WITHDRAW', 'redeem': 'WITHDRAW', 'redeem_v2': 'WITHDRAW', 'unstake': 'WITHDRAW',
-    'transfer': 'SEND', 'transfer_coins': 'SEND'
+    'collect_multi_rewards': 'CLAIM', 'collect_fee': 'CLAIM',
+    // Withdrawals (getting back deposited assets)
+    'withdraw': 'WITHDRAW', 'redeem': 'WITHDRAW', 'redeem_v2': 'WITHDRAW',
+    'withdraw_fa': 'WITHDRAW', 'withdraw_coin': 'WITHDRAW',
+    'remove_liquidity': 'WITHDRAW', 'remove_liquidity_entry': 'WITHDRAW',
+    // Unstaking
+    'unstake': 'UNSTAKE', 'unlock': 'UNSTAKE', 'withdraw_pending_inactive': 'UNSTAKE',
+    'withdraw_stake': 'UNSTAKE',
+    // Transfers
+    'transfer': 'SEND', 'transfer_coins': 'SEND', 'batch_transfer_coins': 'SEND',
   };
 
   if (actionMap[suffix]) {
