@@ -13,8 +13,13 @@ interface AnalyticsOverviewProps {
 const TIME_FRAMES = ['1W', '1M', '3M', '1Y', 'All'];
 
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
-  const hasHistory = data.activityHistory && data.activityHistory.length > 0;
+  const chartData = data.networthHistory && data.networthHistory.length > 0 ? data.networthHistory : data.activityHistory;
+  const hasHistory = chartData && chartData.length > 0;
   const hasProtocols = data.protocolUsage && data.protocolUsage.length > 0;
+
+  // Calculate current performance if using networthHistory
+  const currentNetworth = chartData[chartData.length - 1]?.value || 0;
+  const isNetworthMode = !!data.networthHistory?.length;
 
   return (
     <div className="analytics-overview-v5">
@@ -23,13 +28,13 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
         <div className="bento-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
             <div>
-              <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>Total Capital Flow</span>
-              <div className="hero-value">${Math.abs(data.totalVolume).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+              <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>{isNetworthMode ? 'Current Net Worth' : 'Total Capital Flow'}</span>
+              <div className="hero-value">${(isNetworthMode ? currentNetworth : data.totalVolume).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
               <div style={{ marginTop: '8px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
                 <span style={{ background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
-                  {data.activeMonths} Months
+                  {isNetworthMode ? 'Live Snapshots' : `${data.activeMonths} Months`}
                 </span>
-                {' '} of tracked activity
+                {' '} {isNetworthMode ? 'Including DeFi & LP' : 'of tracked activity'}
               </div>
             </div>
             <div className="tabs-container-v5" style={{ marginBottom: 0 }}>
@@ -54,7 +59,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.activityHistory}>
+                <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="pnlGradV5" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4} />
@@ -62,13 +67,26 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-quaternary)', fontSize: 11 }} minTickGap={40} dy={10} />
-                  <YAxis hide domain={['dataMin', 'dataMax']} />
+                  <XAxis 
+                    dataKey="date" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: 'var(--text-quaternary)', fontSize: 11 }} 
+                    minTickGap={40} 
+                    dy={10} 
+                    tickFormatter={(val) => {
+                      const d = new Date(val);
+                      return isNetworthMode ? `${d.getHours()}:00` : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    }}
+                  />
+                  <YAxis hide domain={['auto', 'auto']} />
                   <Tooltip 
+                    labelFormatter={(label) => new Date(label).toLocaleString()}
                     contentStyle={{ background: 'rgba(26,26,26,0.8)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', fontWeight: 700 }} 
                     itemStyle={{ color: 'var(--primary)' }}
+                    formatter={(value: any) => [`$${Number(value).toLocaleString()}`, 'Value']}
                   />
-                  <Area type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#pnlGradV5)" />
+                  <Area type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#pnlGradV5)" isAnimationActive={true} />
                 </AreaChart>
               </ResponsiveContainer>
             )}

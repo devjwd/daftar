@@ -185,6 +185,49 @@ app.get('/api/analytics/reconstruct', generalLimiter, async (req: Request, res: 
   }
 });
 
+// Hourly Networth History Endpoint
+app.get('/api/analytics/networth', async (req: Request, res: Response) => {
+  const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
+  if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
+
+  try {
+    const { data: snapshots, error } = await supabaseAdmin
+      .from('user_networth_snapshots')
+      .select('*')
+      .eq('user_address', wallet)
+      .order('timestamp', { ascending: true })
+      .limit(168); // Last 7 days of hourly snapshots
+
+    if (error) throw error;
+    return res.json({ snapshots });
+  } catch (err: any) {
+    console.error('[Analytics/Networth] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch networth history' });
+  }
+});
+
+// Set PNL Baseline Endpoint
+app.post('/api/analytics/baseline', async (req: Request, res: Response) => {
+  const { walletAddress, signature, signedMessage } = req.body;
+  const wallet = normalizeAddress(walletAddress);
+  
+  if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
+  if (!signature || !signedMessage) return res.status(401).json({ error: 'Signature required' });
+
+  // Verify Signature
+  const isValid = verifyWalletSignature(wallet, signedMessage, signature);
+  if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
+
+  try {
+    const { setPNLBaseline } = await import('./src/services/networthService.ts');
+    const baseline = await setPNLBaseline(supabaseAdmin, wallet);
+    return res.json({ ok: true, baseline });
+  } catch (err: any) {
+    console.error('[Analytics/Baseline] Error:', err);
+    return res.status(500).json({ error: 'Failed to set baseline' });
+  }
+});
+
 // Precise PNL API Endpoint
 app.get('/api/analytics/pnl-precise', async (req: Request, res: Response) => {
   const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
@@ -553,6 +596,19 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
+    // 4. Fetch Hourly Networth History
+    const { data: networthSnaps } = await supabaseAdmin
+      .from('user_networth_snapshots')
+      .select('total_networth_usd, timestamp')
+      .eq('user_address', wallet)
+      .order('timestamp', { ascending: true })
+      .limit(200);
+
+    const networthHistory = (networthSnaps || []).map(s => ({
+      date: s.timestamp,
+      value: Number(s.total_networth_usd)
+    }));
+
     return res.status(200).json({
       totalVolume,
       totalGasUsd,
@@ -564,6 +620,7 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       protocolUsage,
       activityHistory,
       netFlowHistory,
+      networthHistory, // Added new high-resolution history
       topEntities,
       topTokens,
       exchangeUsage,

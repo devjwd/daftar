@@ -24,6 +24,7 @@ export interface AnalyticsData {
   activeMonths: number;
   activityHistory: Array<{ date: string; value: number }>;
   netFlowHistory: Array<{ date: string; value: number }>;
+  networthHistory?: Array<{ date: string; value: number }>;
   protocolUsage: Array<{ name: string; value: number; color: string }>;
   topEntities: Array<{ name: string; value: number; count?: number }>;
   topTokens: Array<{ symbol: string; value: number }>;
