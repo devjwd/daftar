@@ -10,7 +10,7 @@ interface AnalyticsOverviewProps {
   setTimeframe: (tf: string) => void;
 }
 
-const TIME_FRAMES = ['1W', '1M', '3M', '1Y', 'All'];
+const TIME_FRAMES = ['1D', '1W', '1M', '3M', '1Y', 'All'];
 
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
   const chartData = data.networthHistory && data.networthHistory.length > 0 ? data.networthHistory : data.activityHistory;

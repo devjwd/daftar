@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import './PNLChart.css';
 
-const TIME_FRAMES = ['1W', '1M', '3M', 'All'];
+const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
 
 // Mock data generation removed
 
@@ -10,10 +10,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="history-tooltip">
-        <div className="tooltip-date">{label}</div>
+        <div className="tooltip-date">{new Date(label).toLocaleString()}</div>
         <div className="tooltip-value-row">
           <span className="tooltip-label">Net worth</span>
-          <span className="tooltip-value">${(payload[0].value ?? 0).toFixed(2)}</span>
+          <span className="tooltip-value">${(payload[0].value ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
         </div>
       </div>
     );
@@ -67,7 +67,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
           const flow = data.history;
           if (flow.length > 0) {
             const formattedData = flow.map((pt: any) => ({
-              time: new Date(pt.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+              time: pt.date,
               value: pt.value
             }));
             setHistoricalData(formattedData);
@@ -185,6 +185,11 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   tick={{ fill: 'rgba(255, 255, 255, 0.28)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
                   dy={8}
                   minTickGap={40}
+                  tickFormatter={(val) => {
+                    const d = new Date(val);
+                    if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
+                    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                  }}
                 />
                 <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
                 <Tooltip

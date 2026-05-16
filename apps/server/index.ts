@@ -231,105 +231,42 @@ app.post('/api/analytics/baseline', async (req: Request, res: Response) => {
 // Precise PNL API Endpoint
 app.get('/api/analytics/pnl-precise', async (req: Request, res: Response) => {
   const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
-  const timeframe = (req.query.timeframe as string) || '1M'; // 1W, 1M, 3M, 1Y, All
+  const timeframe = (req.query.timeframe as string) || '1M';
 
   if (!wallet || !supabaseAdmin) return res.status(400).json({ error: 'wallet required' });
 
   try {
-    // 1. Fetch balance snapshots from DB
+    const startDate = new Date();
+    if (timeframe === '1D') startDate.setHours(startDate.getHours() - 24);
+    else if (timeframe === '1W') startDate.setDate(startDate.getDate() - 7);
+    else if (timeframe === '1M') startDate.setMonth(startDate.getMonth() - 1);
+    else if (timeframe === '3M') startDate.setMonth(startDate.getMonth() - 3);
+    else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+    else startDate.setFullYear(startDate.getFullYear() - 5);
+
+    // Fetch Hourly Networth Snapshots
     const { data: snapshots, error: snapError } = await supabaseAdmin
-      .from('user_balance_snapshots')
-      .select('*')
+      .from('user_networth_snapshots')
+      .select('total_networth_usd, timestamp')
       .eq('user_address', wallet)
-      .order('snapshot_date', { ascending: true });
+      .gte('timestamp', startDate.toISOString())
+      .order('timestamp', { ascending: true });
 
     if (snapError) throw snapError;
+
     if (!snapshots || snapshots.length === 0) {
-      return res.json({ history: [], performance: { changeUsd: 0, changePercent: 0 } });
+       return res.json({ history: [], performance: { changeUsd: 0, changePercent: 0 } });
     }
 
-    // 2. Load Price Data from local JSON files
-    const dataPath = path.join(__dirname, 'src', 'data');
-    const loadPriceFile = async (name: string) => {
-      try {
-        const content = await fs.readFile(path.join(dataPath, name), 'utf-8');
-        return JSON.parse(content).prices;
-      } catch (e) {
-        return [];
-      }
-    };
-
-    const [movePrices, ethPrices, btcPrices] = await Promise.all([
-      loadPriceFile('movement_prices_1y.json'),
-      loadPriceFile('ethereum_prices_1y.json'),
-      loadPriceFile('bitcoin_prices_1y.json')
-    ]);
-
-    // Helper to find price for a specific date (Y-m-d)
-    const findPrice = (priceArray: any[], dateStr: string) => {
-      const targetTs = new Date(dateStr).getTime();
-      // Find the closest point that is <= targetTs
-      let closest = priceArray[0];
-      for (const p of priceArray) {
-        if (p[0] <= targetTs) closest = p;
-        else break;
-      }
-      return closest ? closest[1] : 0;
-    };
-
-    // 3. Aggregate daily portfolio value
-    const dailyValues: Map<string, number> = new Map();
-    const dates = [...new Set(snapshots.map(s => s.snapshot_date))].sort();
-
-    dates.forEach(date => {
-      let dailyTotal = 0;
-      const daySnapshots = snapshots.filter(s => s.snapshot_date === date);
-
-      daySnapshots.forEach(s => {
-        const symbol = (s.symbol || '').toUpperCase();
-        let price = 0;
-
-        if (symbol === 'MOVE' || s.asset_type === '0x1' || s.asset_type === '0xa' || s.asset_type.includes('aptos_coin')) {
-          price = findPrice(movePrices, date);
-        } else if (symbol === 'ETH' || symbol === 'WETH' || s.asset_type.includes('ethereum')) {
-          price = findPrice(ethPrices, date);
-        } else if (symbol === 'BTC' || symbol === 'WBTC' || s.asset_type.includes('bitcoin')) {
-          price = findPrice(btcPrices, date);
-        } else {
-          // Fallback to a default if price is unknown (e.g. 0 for demo)
-          price = 0;
-        }
-
-        dailyTotal += Number(s.amount) * price;
-      });
-
-      dailyValues.set(date, dailyTotal);
-    });
-
-    // 4. Filter by timeframe
-    let filteredDates = dates;
-    if (timeframe !== 'All') {
-      const now = new Date();
-      let limit = new Date();
-      if (timeframe === '1W') limit.setDate(now.getDate() - 7);
-      else if (timeframe === '1M') limit.setMonth(now.getMonth() - 1);
-      else if (timeframe === '3M') limit.setMonth(now.getMonth() - 3);
-      else if (timeframe === '1Y') limit.setFullYear(now.getFullYear() - 1);
-
-      const limitStr = limit.toISOString().split('T')[0];
-      filteredDates = dates.filter(d => d >= limitStr);
-    }
-
-    const history = filteredDates.map(date => ({
-      date,
-      value: dailyValues.get(date) || 0
+    const history = snapshots.map(s => ({
+      date: s.timestamp,
+      value: Number(s.total_networth_usd)
     }));
 
-    // 5. Calculate Performance
-    const firstVal = history[0]?.value || 0;
-    const lastVal = history[history.length - 1]?.value || 0;
+    const firstVal = history[0].value;
+    const lastVal = history[history.length - 1].value;
     const changeUsd = lastVal - firstVal;
-    const changePercent = firstVal > 0 ? (changeUsd / firstVal) * 100 : 0;
+    const changePercent = firstVal !== 0 ? (changeUsd / Math.abs(firstVal)) * 100 : 0;
 
     return res.json({
       history,
@@ -338,10 +275,9 @@ app.get('/api/analytics/pnl-precise', async (req: Request, res: Response) => {
         changePercent: Math.round(changePercent * 100) / 100
       }
     });
-
   } catch (err: any) {
     console.error('[Analytics/PNL-Precise] Error:', err);
-    return res.status(500).json({ error: err.message || 'Failed to calculate precise PNL' });
+    return res.status(500).json({ error: 'Failed to fetch PNL history' });
   }
 });
 
@@ -383,11 +319,12 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       if (timeframe !== 'All') {
         const now = new Date();
         let filterDate = new Date();
-        if (timeframe === '1W') filterDate.setDate(now.getDate() - 7);
+        if (timeframe === '1D') filterDate.setHours(now.getHours() - 24);
+        else if (timeframe === '1W') filterDate.setDate(now.getDate() - 7);
         else if (timeframe === '1M') filterDate.setMonth(now.getMonth() - 1);
         else if (timeframe === '3M') filterDate.setMonth(now.getMonth() - 3);
         else if (timeframe === '1Y') filterDate.setFullYear(now.getFullYear() - 1);
-
+        
         query = query.gte('timestamp', filterDate.toISOString());
       }
 
@@ -597,12 +534,25 @@ app.get('/api/analytics/data', async (req: Request, res: Response) => {
       .sort((a, b) => b.value - a.value);
 
     // 4. Fetch Hourly Networth History
-    const { data: networthSnaps } = await supabaseAdmin
+    let networthQuery = supabaseAdmin
       .from('user_networth_snapshots')
       .select('total_networth_usd, timestamp')
       .eq('user_address', wallet)
-      .order('timestamp', { ascending: true })
-      .limit(200);
+      .order('timestamp', { ascending: true });
+
+    if (timeframe !== 'All') {
+      const now = new Date();
+      let filterDate = new Date();
+      if (timeframe === '1D') filterDate.setHours(now.getHours() - 24);
+      else if (timeframe === '1W') filterDate.setDate(now.getDate() - 7);
+      else if (timeframe === '1M') filterDate.setMonth(now.getMonth() - 1);
+      else if (timeframe === '3M') filterDate.setMonth(now.getMonth() - 3);
+      else if (timeframe === '1Y') filterDate.setFullYear(now.getFullYear() - 1);
+      
+      networthQuery = networthQuery.gte('timestamp', filterDate.toISOString());
+    }
+
+    const { data: networthSnaps } = await networthQuery.limit(500);
 
     const networthHistory = (networthSnaps || []).map(s => ({
       date: s.timestamp,
