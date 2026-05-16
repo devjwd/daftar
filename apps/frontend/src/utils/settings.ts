@@ -2,13 +2,13 @@ export const GLOBAL_SETTINGS_KEY = 'settings_global';
 export const DEFAULT_HIDE_POSITION_THRESHOLD = 0;
 export const HIDE_POSITION_THRESHOLD_OPTIONS = [0, 0.01, 0.1, 1, 10];
 
-export const getSettingsStorageKey = (accountAddress) => {
+export const getSettingsStorageKey = (accountAddress: string | { toString(): string } | null | undefined): string => {
   if (!accountAddress) return GLOBAL_SETTINGS_KEY;
 
   return `settings_${typeof accountAddress === 'string' ? accountAddress : accountAddress.toString()}`;
 };
 
-const normalizeHidePositionThreshold = (value) => {
+const normalizeHidePositionThreshold = (value: unknown): number => {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
     return DEFAULT_HIDE_POSITION_THRESHOLD;
@@ -18,7 +18,7 @@ const normalizeHidePositionThreshold = (value) => {
   return matchedOption ?? DEFAULT_HIDE_POSITION_THRESHOLD;
 };
 
-export const readStoredSettings = (settingsKey = GLOBAL_SETTINGS_KEY) => {
+export const readStoredSettings = (settingsKey: string = GLOBAL_SETTINGS_KEY): Record<string, unknown> => {
   if (typeof window === 'undefined') return {};
 
   try {
@@ -29,7 +29,11 @@ export const readStoredSettings = (settingsKey = GLOBAL_SETTINGS_KEY) => {
   }
 };
 
-export const writeStoredSettings = (settingsKey = GLOBAL_SETTINGS_KEY, updates = {}, mirrorToGlobal = false) => {
+export const writeStoredSettings = (
+  settingsKey: string = GLOBAL_SETTINGS_KEY,
+  updates: Record<string, unknown> = {},
+  mirrorToGlobal: boolean = false
+): Record<string, unknown> => {
   if (typeof window === 'undefined') return {};
 
   const nextScopedSettings = {
@@ -51,7 +55,7 @@ export const writeStoredSettings = (settingsKey = GLOBAL_SETTINGS_KEY, updates =
   return nextScopedSettings;
 };
 
-export const getStoredHidePositionThreshold = (settingsKey = null) => {
+export const getStoredHidePositionThreshold = (settingsKey: string | null = null): number => {
   if (typeof window === 'undefined') return DEFAULT_HIDE_POSITION_THRESHOLD;
 
   if (settingsKey) {
@@ -65,8 +69,9 @@ export const getStoredHidePositionThreshold = (settingsKey = null) => {
   return normalizeHidePositionThreshold(globalSettings.hidePositionThreshold);
 };
 
-export const formatHidePositionThresholdLabel = (threshold) => {
+export const formatHidePositionThresholdLabel = (threshold: number): string => {
   if (threshold === 0) return 'Show All';
   if (threshold < 1) return `Under $${threshold.toFixed(2)}`;
   return `Under $${threshold.toFixed(0)}`;
 };
+

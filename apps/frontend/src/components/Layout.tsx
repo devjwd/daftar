@@ -118,7 +118,7 @@ export default function Layout({ children }) {
 
       // Prevent saving very short or meaningless names as recent searches
       if (!displayName || displayName.length < 2) {
-         displayName = formatAddress(address, 8, 6);
+        displayName = formatAddress(address, 8, 6);
       }
 
       // Remove if already exists (by address)
@@ -649,8 +649,8 @@ export default function Layout({ children }) {
                     <>
                       <div className="search-suggestion-header">
                         <span>{t(language, 'recentSearches')}</span>
-                        <button 
-                          className="search-clear-all-btn" 
+                        <button
+                          className="search-clear-all-btn"
                           onMouseDown={handleClearRecentSearches}
                           type="button"
                         >

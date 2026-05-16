@@ -67,10 +67,10 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
 
   // 3. Nonce Check (Replay Protection)
   const supabase = req.app.get('supabaseAdmin') as SupabaseClient;
-  
+
   // Extract nonce from message (if constructing) or from header if available
   // For robustness, we check the database for the exact (address, timestamp, nonce) triplet
-  const nonce = String(req.headers['x-admin-nonce'] || 'none'); 
+  const nonce = String(req.headers['x-admin-nonce'] || 'none');
 
   if (supabase) {
     const { data: existingNonce } = await supabase
@@ -102,12 +102,12 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
   // Message format: "daftar-admin:${action}:${timestamp}:${nonce}:${jsonBodyHash}"
   const bodyToHash = { ...req.body };
   delete bodyToHash.adminAuth; // Exclude auth headers if they were passed in body
-  
+
   const bodyHash = createHash('sha256').update(stableStringify(bodyToHash)).digest('hex');
   const messageStr = `daftar-admin:${action}:${timestamp}:${nonce}:${bodyHash}`;
-  
+
   const fullMessageB64 = String(req.headers['x-admin-full-message-b64'] || '');
-  
+
   try {
     const signatureBytes = hexToBytes(signature);
     const publicKeyBytes = hexToBytes(publicKey || address);

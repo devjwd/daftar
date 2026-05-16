@@ -2,17 +2,19 @@ import fetch from 'node-fetch';
 import { SupabaseClient } from '@supabase/supabase-js';
 import CONFIG from '../config/index.ts';
 
-const TRADEPORT_ENDPOINT = process.env.INDEXER_XYZ_ENDPOINT || 'https://api.indexer.xyz/graphql';
-const TRADEPORT_API_KEY = process.env.VITE_TRADEPORT_API_KEY;
-const TRADEPORT_API_USER = process.env.VITE_TRADEPORT_API_USER;
+const TRADEPORT_ENDPOINT = CONFIG.TRADEPORT.ENDPOINT || 'https://api.indexer.xyz/graphql';
+const TRADEPORT_API_KEY = CONFIG.TRADEPORT.API_KEY;
+const TRADEPORT_API_USER = CONFIG.TRADEPORT.API_USER;
 
 const GET_ALL_COLLECTIONS_STATS = `
   query GetAllCollectionsStats {
-    collections(where: { network: { _eq: "movement" } }) {
-      collection_id
-      name
-      floor_price
-      top_bid
+    movement {
+      collections {
+        id
+        slug
+        title
+        floor
+      }
     }
   }
 `;
@@ -43,17 +45,17 @@ export async function updateNFTFloorPrices(supabase: SupabaseClient) {
       throw new Error(`Tradeport API error: ${JSON.stringify(json.errors)}`);
     }
 
-    const collections = json.data?.collections || [];
+    const collections = json.data?.movement?.collections || [];
     console.log(`[NFTPriceService] Found ${collections.length} collections on Movement.`);
 
     if (collections.length === 0) return;
 
     // Map to database format
     const stats = collections.map((c: any) => ({
-      collection_id: c.collection_id,
-      name: c.name,
-      floor_price: Number(c.floor_price || 0) / 100_000_000, // Convert from Octas to MOVE
-      top_bid: Number(c.top_bid || 0) / 100_000_000,
+      collection_id: c.slug, // Using slug as the address/id for matching
+      name: c.title,
+      floor_price: Number(c.floor || 0) / 100_000_000, // Convert from Octas to MOVE
+      top_bid: 0, // Top bid not available in the current schema
       updated_at: new Date().toISOString()
     }));
 

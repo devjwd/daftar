@@ -58,10 +58,10 @@ export const getCollectionStats = async (collectionIds: string[]): Promise<Recor
   const query = `
     query getCollectionStats($ids: [String!]) {
       movement {
-        collections(where: { collection_id: { _in: $ids } }) {
-          collection_id
+        collections(where: { slug: { _in: $ids } }) {
+          id
+          slug
           floor
-          top_bid
         }
       }
     }
@@ -79,10 +79,10 @@ export const getCollectionStats = async (collectionIds: string[]): Promise<Recor
 
     const statsMap: Record<string, { floor: number; topBid: number }> = {};
     collections.forEach((col: any) => {
-      if (col.collection_id) {
-        statsMap[col.collection_id] = {
+      if (col.slug) {
+        statsMap[col.slug] = {
           floor: (col.floor || 0) / 100_000_000,
-          topBid: (col.top_bid || 0) / 100_000_000
+          topBid: 0
         };
       }
     });

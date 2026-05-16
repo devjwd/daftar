@@ -15,8 +15,6 @@ import { useMovementClient } from "../hooks/useMovementClient";
 import { useProfile } from "../hooks/useProfile";
 import { useTokenPrices } from "../hooks/useTokenPrices";
 import { useUserLevel } from "../hooks/useUserLevel";
-import { useBadges } from "../hooks/useBadges";
-import useUserBadges from "../hooks/useUserBadges";
 import { useDeFiPositions } from "../hooks/useDeFiPositions";
 import { useNFTs } from "../hooks/useNFTs";
 import { getWalletAge, getUserNFTHoldings, getUserTokenBalances, getYuzuLiquidityPositions } from "../services/indexer";
@@ -37,6 +35,8 @@ import LiquidityCard from "../components/Dashboard/LiquidityCard";
 import TokenCard from "../components/Dashboard/TokenCard";
 import StakingCard from "../components/Dashboard/StakingCard";
 import PNLChart from "../components/Dashboard/PNLChart";
+import ProfileModal from "../components/Dashboard/ProfileModal";
+import PortfolioTabs, { PORTFOLIO_TABS } from "../components/Dashboard/PortfolioTabs";
 import {
   SkeletonCard,
   LiquiditySkeleton,
@@ -60,12 +60,7 @@ const TrxHistory = lazy(() => import("../components/Transactions/TrxHistory"));
 const NFTTable = lazy(() => import("../components/NFTs/NFTTable"));
 const AnalyticsView = lazy(() => import("../components/Analytics/AnalyticsView"));
 
-const PORTFOLIO_TABS = {
-  OVERVIEW: "overview",
-  TRX: "trx",
-  NFT: "nfts",
-  ANALYTICS: "analytics",
-};
+// PORTFOLIO_TABS imported from PortfolioTabs component
 
 const LP_DISCOVERY_CACHE_TTL_MS = 90 * 1000;
 
@@ -100,8 +95,8 @@ const Dashboard = () => {
   }, [splat]);
 
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
-  const [error, setError] = useState(null);
-  const [viewingAddress, setViewingAddress] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [viewingAddress, setViewingAddress] = useState<string | null>(null);
 
   useEffect(() => {
     if (urlAddress === 'null' || urlAddress === 'undefined') {
@@ -109,13 +104,13 @@ const Dashboard = () => {
     }
   }, [urlAddress, navigate]);
 
-  const [walletAge, setWalletAge] = useState(null);
+  const [walletAge, setWalletAge] = useState<{ firstTxTimestamp?: string } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [hidePositionThreshold, setHidePositionThreshold] = useState(0);
   const meridianPoolInfoCacheRef = useRef(new Map());
   const yuzuDiscoveryCacheRef = useRef(new Map());
 
-  const getAddressString = (accountObj) => {
+  const getAddressString = (accountObj: { address?: string | { toString(): string; hex?(): string; data?: Uint8Array | number[] } } | null | undefined): string | null => {
     if (!accountObj || !accountObj.address) return null;
 
     const addr = accountObj.address;
@@ -222,7 +217,7 @@ const Dashboard = () => {
 
     syncHidePositionThreshold();
 
-    const onStorage = (event) => {
+    const onStorage = (event: StorageEvent) => {
       if (!event?.key || event.key === 'settings_global' || event.key === settingsKey) {
         syncHidePositionThreshold();
       }
@@ -309,8 +304,6 @@ const Dashboard = () => {
   const { level: viewingLevel } = useUserLevel(viewingAddress);
   const { label: addressLabel } = useAddressLabel(viewingAddress);
 
-  const modalProfileAddress = showProfileModal ? viewingAddress : null;
-  const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(modalProfileAddress);
   const entityBranding = useMemo(() => resolveEntityBranding(viewingAddress), [viewingAddress]);
 
   const userAvatarSrc = entityBranding?.logo || getLevelBasedPfp({
@@ -319,19 +312,14 @@ const Dashboard = () => {
     preferredPfp: userProfile?.avatar_url,
   });
 
-  const modalAvatarSrc = getLevelBasedPfp({
-    level,
-    address: viewingAddress,
-    preferredPfp: userProfile?.avatar_url,
-  });
 
   useEffect(() => {
     const syncLanguage = () => {
       setLanguage(getStoredLanguagePreference());
     };
 
-    const onLanguageChange = (event) => {
-      const nextLanguage = event?.detail?.language;
+    const onLanguageChange = (event: Event) => {
+      const nextLanguage = (event as CustomEvent)?.detail?.language;
       if (nextLanguage) {
         setLanguage(nextLanguage);
       } else {
@@ -370,15 +358,6 @@ const Dashboard = () => {
   }, [location.search, navigate]);
 
   const currentNetwork = DEFAULT_NETWORK;
-  const { client: movementClient, loading: movementClientLoading } = useMovementClient(currentNetwork.rpc);
-
-  const modalBadgeAddress = modalProfileAddress;
-  const { badges: onchainBadges, loading: onchainBadgesLoading } = useBadges(modalBadgeAddress, {
-    client: movementClient,
-    clientLoading: movementClientLoading,
-    enablePolling: false,
-  });
-  const { earnedBadges: persistedBadges } = useUserBadges(modalBadgeAddress);
 
   const portfolio24hChange = useMemo(() => {
     if (!priceChanges || combinedNetWorth === 0) {
@@ -519,7 +498,7 @@ const Dashboard = () => {
     }
   }, [account, connected, navigate, urlAddress]);
   useEffect(() => {
-    if (viewingAddress && (!account || viewingAddress !== account.address)) {
+    if (viewingAddress && (!account || viewingAddress !== getAddressString(account))) {
       devLog("Viewing searched address:", viewingAddress, "(indexer will fetch)");
     }
   }, [viewingAddress, account]);
@@ -594,7 +573,7 @@ const Dashboard = () => {
     canonical.setAttribute('href', window.location.href);
   }, [userProfile, viewingAddress, activeTab, splat]);
 
-  const formatWalletAge = (ageData) => {
+  const formatWalletAge = (ageData: { firstTxTimestamp?: string } | null): string | null => {
     if (!ageData?.firstTxTimestamp) return null;
 
     const firstDate = new Date(ageData.firstTxTimestamp);
@@ -610,10 +589,8 @@ const Dashboard = () => {
 
 
   // eslint-disable-next-line no-unused-vars
-  const handleViewExplorer = (token) => {
-
+  const handleViewExplorer = (token: { address?: string }) => {
     if (token?.address) window.open(`${currentNetwork.explorer}/account/${token.address}`, "_blank");
-
   };
 
 
@@ -889,47 +866,12 @@ const Dashboard = () => {
         </AnimatePresence>
       </section>
 
-      <section className="portfolio-tabs-row fade-in">
-        <button
-          type="button"
-          className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.OVERVIEW ? 'active' : ''}`}
-          onClick={() => navigate(`/profile/${urlAddress}`)}
-        >
-          {t(language, 'navPortfolio')}
-        </button>
-        <button
-          type="button"
-          className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.TRX ? 'active' : ''}`}
-          onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.TRX}`)}
-        >
-          {t(language, 'portfolioTabTrxHistory')}
-        </button>
-        <button
-          type="button"
-          className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.NFT ? 'active' : ''}`}
-          onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.NFT}`)}
-        >
-          NFTS
-        </button>
-
-        {canEditProfile && (
-          <button
-            type="button"
-            className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
-            onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`)}
-            style={{ marginLeft: 'auto' }}
-          >
-            <div className="analytics-btn-content">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-              </svg>
-              Analytics
-            </div>
-          </button>
-        )}
-      </section>
+      <PortfolioTabs
+        activeTab={activeTab}
+        urlAddress={urlAddress}
+        canEditProfile={canEditProfile}
+        language={language}
+      />
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -1241,111 +1183,12 @@ const Dashboard = () => {
       </AnimatePresence>
 
       {showProfileModal && (
-        <div className="profile-modal-overlay" onClick={() => setShowProfileModal(false)}>
-          <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowProfileModal(false)}>x</button>
-
-            <div className="profile-modal-content">
-              <div className="profile-modal-main">
-                <div className="modal-avatar-section">
-                  <img
-                    src={modalAvatarSrc}
-                    alt="User"
-                    className="modal-avatar-image"
-                  />
-                </div>
-                <div className="modal-info-section">
-                  <h2 className="modal-username">{userProfile?.username || t(language, 'dashAnonymousUser')}</h2>
-                  <div className="modal-address">
-                    {viewingAddress && (
-                      <>
-                        <span>{viewingAddress.slice(0, 6)}...{viewingAddress.slice(-4)}</span>
-                        <button
-                          className="modal-copy-btn"
-                          onClick={(e) => {
-                            navigator.clipboard.writeText(viewingAddress);
-                            const btn = e.currentTarget;
-                            btn.classList.add('copied');
-                            setTimeout(() => btn.classList.remove('copied'), 1000);
-                          }}
-                          title="Copy address"
-                        >
-                          <img src="/copy.png" alt="Copy" className="copy-icon-img" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {userProfile?.bio && (
-                    <p className="modal-bio">{userProfile.bio}</p>
-                  )}
-                  {canEditProfile && (
-                    <button
-                      className="modal-edit-btn"
-                      onClick={() => {
-                        setShowProfileModal(false);
-                        navigate('/profile');
-                      }}
-                    >
-                      {t(language, 'dashEditProfile')}
-                    </button>
-                  )}
-                </div>
-                {!levelLoading && (
-                  <div className="modal-level-section">
-                    <div className="modal-level-row">
-                      <span className="modal-level-label">{t(language, 'dashCurrentLevel')}</span>
-                      <span className="modal-level-value">{level}</span>
-                    </div>
-                    <div className="modal-xp-row">
-                      <span className="modal-xp-label">{t(language, 'dashExpPoints')}</span>
-                      <span className="modal-xp-value">{xp} / {nextLevelXP}</span>
-                    </div>
-                    <div className="modal-xp-bar-container">
-                      <div className="modal-xp-bar-fill" style={{ width: `${xpProgress}%` }} />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="modal-badges-section">
-                <h3 className="modal-badges-title">{t(language, 'dashCollectedBadges')} ({userBadges.length})</h3>
-                <div className="modal-onchain-badges">
-                  {onchainBadgesLoading ? (
-                    <div className="modal-onchain-loading">{t(language, 'dashLoadingBadges')}</div>
-                  ) : onchainBadges && onchainBadges.filter(b => b.earned).length > 0 && (
-                    <div className="modal-onchain-badges-grid">
-                      {onchainBadges.filter(b => b.earned).map((b) => (
-                        <div key={b.id} className="modal-onchain-badge owned" title={b.name}>
-                          <div className="modal-onchain-badge-icon">
-                            {b.imageUrl ? (
-                              <img src={b.imageUrl} alt={b.name} onError={(e) => { (e.target as HTMLElement).style.display = 'none' }} />
-                            ) : (
-                              <span className="badge-fallback-letter">{b.name ? b.name[0] : 'B'}</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {((persistedBadges && persistedBadges.length > 0 ? persistedBadges : userBadges).filter(b => b.earned !== false).length > 0) ? (
-                  <div className="modal-badges-grid">
-                    {(persistedBadges && persistedBadges.length > 0 ? persistedBadges : userBadges)
-                      .filter(b => b.earned !== false)
-                      .map(badge => (
-                        <div key={badge.id} className="modal-badge-item collection-style" title={`${badge.name}: ${badge.description}`}>
-                          <div className="modal-badge-icon-box">
-                            <span className="modal-badge-icon">{badge.icon || 'Badge'}</span>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <p className="modal-no-badges">{t(language, 'dashNoBadgesEarned')}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ProfileModal
+          viewingAddress={viewingAddress}
+          canEditProfile={canEditProfile}
+          language={language}
+          onClose={() => setShowProfileModal(false)}
+        />
       )}
 
     </>

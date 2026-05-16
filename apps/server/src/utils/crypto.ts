@@ -1,11 +1,21 @@
 import { Ed25519PublicKey, Ed25519Signature } from '@aptos-labs/ts-sdk';
 import { normalizeAddress } from './address.ts';
 
-export const parseSignaturePayload = (signature: any): any => {
-  if (signature && typeof signature === 'object') return signature;
+interface SignaturePayload {
+  publicKey?: string;
+  public_key?: string;
+  public_key_hex?: string;
+  signature?: string | { signature?: string };
+  sig?: string;
+  sig_hex?: string;
+  [key: string]: unknown;
+}
+
+export const parseSignaturePayload = (signature: unknown): SignaturePayload | null => {
+  if (signature && typeof signature === 'object') return signature as SignaturePayload;
   if (typeof signature !== 'string') return null;
   try {
-    return JSON.parse(signature);
+    return JSON.parse(signature) as SignaturePayload;
   } catch {
     return null;
   }
@@ -14,7 +24,7 @@ export const parseSignaturePayload = (signature: any): any => {
 export const verifyWalletSignature = (
   walletAddress: string,
   message: string,
-  signaturePayload: any,
+  signaturePayload: unknown,
   maxAgeMinutes: number = 5
 ): boolean => {
   const parsed = parseSignaturePayload(signaturePayload);
@@ -77,17 +87,18 @@ export const verifyWalletSignature = (
 
   try {
     // Ensure we have strings for the SDK
-    const finalizeHex = (val: any): string => {
+    const finalizeHex = (val: unknown): string => {
       if (typeof val === 'string') return val.trim();
-      if (val instanceof Uint8Array || (val && typeof val === 'object' && val.constructor?.name === 'Uint8Array')) {
+      if (val instanceof Uint8Array || (val && typeof val === 'object' && (val as { constructor?: { name?: string } }).constructor?.name === 'Uint8Array')) {
         return Array.from(val as Uint8Array).map(b => b.toString(16).padStart(2, '0')).join('');
       }
       if (val && typeof val === 'object') {
         // Handle indexed object {0: 1, 1: 2...} which can happen if JSON.stringified Uint8Array
-        const keys = Object.keys(val).filter(k => !isNaN(Number(k)));
+        const record = val as Record<string, number>;
+        const keys = Object.keys(record).filter(k => !isNaN(Number(k)));
         if (keys.length > 0) {
           const arr = new Uint8Array(keys.length);
-          keys.forEach(k => { arr[Number(k)] = val[k]; });
+          keys.forEach(k => { arr[Number(k)] = record[k]; });
           return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
         }
       }
@@ -126,8 +137,9 @@ export const verifyWalletSignature = (
     }
 
     return match;
-  } catch (err: any) {
-    console.error('[Verification] Crypto error:', err.message, '| Stack:', err.stack);
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error('[Verification] Crypto error:', error.message, '| Stack:', error.stack);
     return false;
   }
 };

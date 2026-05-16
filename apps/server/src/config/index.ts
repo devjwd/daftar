@@ -56,8 +56,8 @@ export const CONFIG: Config = {
   },
   
   TRADEPORT: {
-    API_KEY: process.env.TRADEPORT_API_KEY,
-    API_USER: process.env.TRADEPORT_API_USER,
+    API_KEY: process.env.TRADEPORT_API_KEY || process.env.VITE_TRADEPORT_API_KEY,
+    API_USER: process.env.TRADEPORT_API_USER || process.env.VITE_TRADEPORT_API_USER || 'daftar',
     ENDPOINT: process.env.INDEXER_XYZ_ENDPOINT || 'https://api.indexer.xyz/graphql',
   }
 };
