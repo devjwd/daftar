@@ -63,7 +63,7 @@ const parseTimestampDate = (value) => {
   return new Date(value);
 };
 
-const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal, pageSize = TRANSACTIONS_PAGE_SIZE }) => {
+const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal, pageSize = TRANSACTIONS_PAGE_SIZE, isVerified = false }) => {
   const params = new URLSearchParams({
     wallet: walletAddress,
     page: String(page),
@@ -73,19 +73,22 @@ const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal
 
   try {
     // Attempt 1: Backend Database (Fastest for Profile Users)
-    const baseUrl = import.meta.env.VITE_API_URL || '';
-    const response = await fetch(`${baseUrl}/api/transactions?${params.toString()}`, {
-      signal,
-    });
+    // Only attempt backend fetch if user is verified to preserve the frontend history engine for non-verified users
+    if (isVerified) {
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${baseUrl}/api/transactions?${params.toString()}`, {
+        signal,
+      });
 
-    if (response.ok) {
-      const json = await response.json();
-      // If we got valid transactions from the DB, return them
-      if (Array.isArray(json.transactions) && json.transactions.length > 0) {
-        return { ...EMPTY_RESPONSE, ...json };
+      if (response.ok) {
+        const json = await response.json();
+        // If we got valid transactions from the DB, return them
+        if (Array.isArray(json.transactions) && json.transactions.length > 0) {
+          return { ...EMPTY_RESPONSE, ...json };
+        }
       }
     }
-  } catch (backendError) {
+  } catch (backendError: any) {
     console.warn('[TrxHistory] Backend fetch failed, falling back to indexer:', backendError.message);
   }
 
@@ -371,7 +374,7 @@ const SkeletonRows = ({ count = 5 }) => (
   </>
 );
 
-export default function TrxHistory({ walletAddress, refreshTrigger = 0 }) {
+export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerified = false }) {
   const mountedRef = useRef(true);
   const paginationAbortRef = useRef(null);
   const [activeFilter, setActiveFilter] = useState('all');
@@ -422,6 +425,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0 }) {
           activeFilter,
           page: 1,
           signal: controller.signal,
+          isVerified
         });
 
         if (!disposed) {
@@ -510,6 +514,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0 }) {
         activeFilter,
         page: nextPage,
         signal: controller.signal,
+        isVerified
       });
 
       const payload = { ...EMPTY_RESPONSE, ...json };

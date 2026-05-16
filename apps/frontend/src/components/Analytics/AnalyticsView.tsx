@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import { AnalyticsData } from '../../types/analytics.types';
 
@@ -13,14 +14,23 @@ import './AnalyticsV5.css';
 
 interface AnalyticsViewProps {
   walletAddress?: string;
+  initialSubTab?: string;
 }
 
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSubTab }) => {
+  const navigate = useNavigate();
   const [timeframe, setTimeframe] = useState('All');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'completed' | 'error'>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'exchange'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'exchange'>(
+    initialSubTab === 'exchange' ? 'exchange' : 'overview'
+  );
+
+  useEffect(() => {
+    if (initialSubTab === 'exchange') setActiveTab('exchange');
+    else setActiveTab('overview');
+  }, [initialSubTab]);
 
   const lastSyncStringRef = React.useRef<string | null>(null);
   const lastSyncChangeTimeRef = React.useRef<number>(0);
@@ -209,13 +219,21 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                 <div className="tabs-container-v5" style={{ margin: 0 }}>
                   <button
                     className={`tab-v5 ${activeTab === 'overview' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('overview')}
+                    onClick={() => {
+                      if (!walletAddress) return;
+                      setActiveTab('overview');
+                      navigate(`/profile/${walletAddress}/analytics/overview`);
+                    }}
                   >
                     Overview
                   </button>
                   <button
                     className={`tab-v5 ${activeTab === 'exchange' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('exchange')}
+                    onClick={() => {
+                      if (!walletAddress) return;
+                      setActiveTab('exchange');
+                      navigate(`/profile/${walletAddress}/analytics/exchange`);
+                    }}
                   >
                     Exchange Flows
                   </button>

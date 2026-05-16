@@ -412,8 +412,9 @@ export default function Layout({ children }) {
                   type="button"
                   className="nav-link-btn"
                   onClick={() => {
-                    if (connected && account) {
-                      navigate(`/profile/${account.address}`);
+                    const addr = account?.address ? String(account.address) : null;
+                    if (connected && addr && addr !== "null" && addr !== "undefined") {
+                      navigate(`/profile/${addr}`);
                     } else {
                       navigate("/");
                     }

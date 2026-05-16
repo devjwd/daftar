@@ -19,9 +19,12 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
     ) {
       transaction_version
       user_transaction {
+        hash
         sender
         timestamp
         entry_function_id_str
+        gas_used
+        gas_unit_price
       }
       fungible_asset_activities {
         transaction_version
@@ -64,9 +67,12 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
     ) {
       transaction_version
       user_transaction {
+        hash
         sender
         timestamp
         entry_function_id_str
+        gas_used
+        gas_unit_price
       }
       fungible_asset_activities {
         transaction_version
@@ -98,37 +104,58 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
 
 /**
  * Deep classifier and humanizer for analytics
+ * Mirrors the "fineist" frontend historyEngine.ts for server-side consistency
  */
 function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string, any> = new Map()) {
+  const userAddr = walletAddress.toLowerCase();
   const ut = tx.user_transaction || {};
   const functionId = ut.entry_function_id_str || '';
+  
+  // 1. Internal Constants & Mapping (Mirrored from frontend historyEngine.ts)
+  const TX_TYPES = {
+    SWAP: "SWAP", SEND: "SEND", RECEIVE: "RECEIVE",
+    STAKE: "STAKE", UNSTAKE: "UNSTAKE",
+    LEND: "LEND", BORROW: "BORROW", REPAY: "REPAY",
+    DEPOSIT: "DEPOSIT", WITHDRAW: "WITHDRAW",
+    CLAIM: "CLAIM", BRIDGE: "BRIDGE",
+    NFT_MINT: "NFT_MINT", NFT_TRANSFER: "NFT_TRANSFER",
+    LIQUIDITY: "LIQUIDITY", OTHER: "OTHER",
+  };
 
-  // Combine FA and Coin activities
-  const activities = [
-    ...(tx.fungible_asset_activities || []),
-    ...(tx.coin_activities || []).map((ca: any) => {
-      // Extract actual symbol from coin_type (e.g. "0x1::aptos_coin::AptosCoin" → "MOVE")
-      const coinType = ca.coin_type || '';
-      let symbol = 'MOVE';
-      if (coinType.includes('aptos_coin')) {
-        symbol = 'MOVE';
-      } else {
-        // Try to extract from the last segment: "0xaddr::module::CoinName" → "CoinName"
-        const parts = coinType.split('::');
-        if (parts.length >= 3) {
-          symbol = parts[parts.length - 1].replace(/[<>]/g, '');
-        }
-      }
-      return {
-        ...ca,
-        type: ca.activity_type,
-        asset_type: ca.coin_type,
-        metadata: { symbol, decimals: 8 }
-      };
-    })
-  ];
+  const EVENT_SCHEMAS: Record<string, any> = {
+    "pool::SwapEvent": { amount_in: "amount_in", amount_out: "amount_out", token_in: "metadata_0", token_out: "metadata_1", type: TX_TYPES.SWAP },
+    "liquidity_pool::SwapEvent": { amount_in: "amount_in", amount_out: "amount_out", type: TX_TYPES.SWAP },
+    "router::SwapEvent": { amount_in: "input_amount", amount_out: "output_amount", token_in: "input_asset", token_out: "output_asset", type: TX_TYPES.SWAP },
+    "router::SwapStepEvent": { amount_in: "input_amount", amount_out: "output_amount", token_in: "input_asset", token_out: "output_asset", type: TX_TYPES.SWAP },
+    "lending::SupplyEvent": { amount: "amount", type: TX_TYPES.LEND },
+    "lending::WithdrawEvent": { amount: "amount", type: TX_TYPES.WITHDRAW },
+    "pool::LendEvent": { amount: "amount", type: TX_TYPES.LEND },
+    "supply_logic::Supply": { amount: "amount", type: TX_TYPES.LEND },
+    "vault::Deposit": { amount: "amount", type: TX_TYPES.DEPOSIT },
+    "lend::LendEvent": { amount: "amount", type: TX_TYPES.LEND },
+    "lend::RedeemEvent": { amount: "amount", type: TX_TYPES.WITHDRAW },
+    "lend::BorrowEvent": { amount: "amount", type: TX_TYPES.BORROW },
+    "lend::RepayEvent": { amount: "amount", type: TX_TYPES.REPAY },
+    "listings_v2::BuyEvent": { amount: "price", type: TX_TYPES.SWAP },
+  };
 
-  // Protocol Detection Registry (Ported from frontend for consistency)
+  const FUNC_MAP: Record<string, any> = {
+    swap: TX_TYPES.SWAP, swap_entry: TX_TYPES.SWAP, mosaic_swap_with_fee: TX_TYPES.SWAP,
+    swap_exact_in_stable_entry: TX_TYPES.SWAP, swap_exact_in_metastable_entry: TX_TYPES.SWAP,
+    swap_exact_in_weighted_entry: TX_TYPES.SWAP, swap_exact_in_router_entry: TX_TYPES.SWAP,
+    swap_exact_coin_for_fa_multi_hops: TX_TYPES.SWAP,
+    supply: TX_TYPES.LEND, lend_v2: TX_TYPES.LEND, lend: TX_TYPES.LEND,
+    stake: TX_TYPES.STAKE, add_stake: TX_TYPES.STAKE, reactivate_stake: TX_TYPES.STAKE, stake_and_mint: TX_TYPES.STAKE,
+    deposit_fa_with_coin_type: TX_TYPES.STAKE,
+    deposit: TX_TYPES.DEPOSIT, deposit_fa: TX_TYPES.DEPOSIT, deposit_coin: TX_TYPES.DEPOSIT,
+    borrow: TX_TYPES.BORROW, borrow_v2: TX_TYPES.BORROW,
+    repay: TX_TYPES.REPAY, repay_v2: TX_TYPES.REPAY,
+    claim: TX_TYPES.CLAIM, harvest: TX_TYPES.CLAIM, claim_reward: TX_TYPES.CLAIM, collect_reward: TX_TYPES.CLAIM,
+    withdraw: TX_TYPES.WITHDRAW, redeem: TX_TYPES.WITHDRAW, redeem_v2: TX_TYPES.WITHDRAW,
+    unstake: TX_TYPES.UNSTAKE, unlock: TX_TYPES.UNSTAKE, withdraw_stake: TX_TYPES.UNSTAKE,
+    transfer: TX_TYPES.SEND, transfer_coins: TX_TYPES.SEND, batch_transfer_coins: TX_TYPES.SEND,
+  };
+
   const PROTOCOLS = [
     { name: 'Mosaic', addresses: ['0x03f739', '0x26a95d', '0xede23e', '0x3f7399'], keywords: ['mosaic'] },
     { name: 'Echelon', addresses: ['0x2c7bcc', '0x6a01d5'], keywords: ['echelon'] },
@@ -139,21 +166,73 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     { name: 'MovePosition', addresses: ['0xccd262'], keywords: ['moveposition'] },
     { name: 'Joule', addresses: ['0x6a1641'], keywords: ['joule'] },
     { name: 'Meridian', addresses: ['0x8f396e', '0x2712eb', '0xfbdb3d', '0x88def5'], keywords: ['meridian'] },
-    { name: 'Razor', addresses: ['0xc4e68f'], keywords: ['razor'] },
-    { name: 'Interest Protocol', addresses: ['0x323381'], keywords: ['interest'] },
-    { name: 'Avante', addresses: ['0x739a88'], keywords: ['avante'] },
-    { name: 'Liquidswap', addresses: ['0x830462'], keywords: ['liquidswap'] },
-    { name: 'Capygo', addresses: ['0x8b02d2'], keywords: ['capygo', 'mining'] },
     { name: 'Tradeport', addresses: ['0xf81bea'], keywords: ['tradeport'] },
-    { name: 'BRKT', addresses: ['0xc85e09'], keywords: ['brkt'] },
-    { name: 'Moversmap', addresses: ['0x8c15ae'], keywords: ['moversmap'] },
-    { name: 'Movement Core', addresses: ['0x1::'], keywords: [] }
+    { name: 'Moversmap', addresses: ['0x8c15ae'], keywords: ['moversmap'] }
   ];
 
+  // 2. Helpers
+  const getSuffix = (fn: string) => fn.includes('::') ? fn.split('::').pop() || '' : fn;
+  const suffix = getSuffix(functionId.toLowerCase());
+
+  const resolveSymbol = (assetType: string) => {
+    if (!assetType) return 'Unknown';
+    if (assetType.includes('aptos_coin')) return 'MOVE';
+    return assetType.split('::').pop()?.replace(/[<>]/g, '') || 'Token';
+  };
+
+  const normalizeActivity = (act: any) => {
+    const type = String(act.type || act.activity_type || '').toLowerCase();
+    const owner = String(act.owner_address || act.owner || '').toLowerCase();
+    const isUser = owner === userAddr;
+    
+    let direction: 'in' | 'out' | null = null;
+    if (type.includes('deposit') || type.includes('received') || type.includes('credit') || type.includes('mint')) {
+      direction = isUser ? 'in' : null;
+    } else if (type.includes('withdraw') || type.includes('sent') || type.includes('debit') || type.includes('burn')) {
+      direction = isUser ? 'out' : null;
+    } else if (type.includes('transfer')) {
+      // Logic for generic transfers
+      direction = isUser ? (type.includes('withdraw') ? 'out' : 'in') : null;
+    }
+
+    const decimals = act.metadata?.decimals || 8;
+    const amount = Math.abs(Number(act.amount || 0)) / Math.pow(10, decimals);
+    const symbol = act.metadata?.symbol || resolveSymbol(act.asset_type || act.coin_type || '');
+
+    return { direction, amount, symbol, assetType: act.asset_type || act.coin_type };
+  };
+
+  // 3. Process Activities
+  const rawActivities = [
+    ...(tx.fungible_asset_activities || []),
+    ...(tx.coin_activities || [])
+  ];
+  
+  const activities = rawActivities.map(normalizeActivity).filter(a => a && a.direction);
+  const inFlows = activities.filter(a => a?.direction === 'in');
+  const outFlows = activities.filter(a => a?.direction === 'out');
+
+  // 4. Decode Events for Richer Context
+  const events = [
+    ...(tx.fungible_asset_activities || []),
+    ...(tx.coin_activities || []),
+    ...(tx.events || [])
+  ];
+  
+  let eventTypeOverride = null;
+  for (const evt of events) {
+    const evtType = String(evt.type || '').toLowerCase();
+    for (const [schemaKey, schema] of Object.entries(EVENT_SCHEMAS)) {
+      if (evtType.includes(schemaKey.toLowerCase())) {
+        eventTypeOverride = schema.type;
+        break;
+      }
+    }
+  }
+
+  // 5. Classification
   let protocol = 'Unknown';
   const lowerFn = functionId.toLowerCase();
-
-  // Match by address prefix or keywords
   for (const p of PROTOCOLS) {
     if (p.addresses.some(addr => lowerFn.includes(addr)) || p.keywords.some(kw => lowerFn.includes(kw))) {
       protocol = p.name;
@@ -161,154 +240,41 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     }
   }
 
-  // Action Classification (Enhanced)
-  let action = 'OTHER';
-  let category = 'Transfer';
-  let description = 'Unknown transaction';
+  let action = eventTypeOverride || FUNC_MAP[suffix] || TX_TYPES.OTHER;
+  let category = (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) ? 'Transfer' : 'DeFi';
 
-  const suffix = lowerFn.split('::').pop() || '';
-
-  // Function Suffix Mapping - must be consistent with transactionRoutes.ts ACTION_TO_TX_TYPE
-  const actionMap: Record<string, string> = {
-    // Swaps
-    'swap': 'SWAP', 'swap_entry': 'SWAP', 'mosaic_swap_with_fee': 'SWAP',
-    'swap_exact_in_stable_entry': 'SWAP', 'swap_exact_in_metastable_entry': 'SWAP',
-    'swap_exact_in_weighted_entry': 'SWAP', 'swap_exact_in_router_entry': 'SWAP',
-    'swap_exact_coin_for_fa_multi_hops': 'SWAP',
-    // Lending/Supply (user deposits to earn yield)
-    'supply': 'LEND', 'lend_v2': 'LEND', 'lend': 'LEND',
-    // Staking (user locks tokens)
-    'stake': 'STAKE', 'add_stake': 'STAKE', 'reactivate_stake': 'STAKE', 'stake_and_mint': 'STAKE',
-    'deposit_fa_with_coin_type': 'STAKE',
-    // Deposits to protocols (not lending, not staking)
-    'deposit': 'DEPOSIT', 'deposit_fa': 'DEPOSIT', 'deposit_coin': 'DEPOSIT',
-    'add_liquidity': 'DEPOSIT', 'add_liquidity_stable_entry': 'DEPOSIT', 'add_liquidity_weighted_entry': 'DEPOSIT',
-    // Borrows
-    'borrow': 'BORROW', 'borrow_v2': 'BORROW',
-    // Repayments
-    'repay': 'REPAY', 'repay_v2': 'REPAY',
-    // Claims/Rewards
-    'claim': 'CLAIM', 'harvest': 'CLAIM', 'claim_reward': 'CLAIM', 'collect_reward': 'CLAIM',
-    'collect_multi_rewards': 'CLAIM', 'collect_fee': 'CLAIM',
-    // Withdrawals (getting back deposited assets)
-    'withdraw': 'WITHDRAW', 'redeem': 'WITHDRAW', 'redeem_v2': 'WITHDRAW',
-    'withdraw_fa': 'WITHDRAW', 'withdraw_coin': 'WITHDRAW',
-    'remove_liquidity': 'WITHDRAW', 'remove_liquidity_entry': 'WITHDRAW',
-    // Unstaking
-    'unstake': 'UNSTAKE', 'unlock': 'UNSTAKE', 'withdraw_pending_inactive': 'UNSTAKE',
-    'withdraw_stake': 'UNSTAKE',
-    // Transfers
-    'transfer': 'SEND', 'transfer_coins': 'SEND', 'batch_transfer_coins': 'SEND',
-  };
-
-  if (actionMap[suffix]) {
-    action = actionMap[suffix];
-    category = action === 'SEND' ? 'Transfer' : 'DeFi';
+  // Fallback to direction-based classification if OTHER
+  if (action === TX_TYPES.OTHER) {
+    if (inFlows.length > 0 && outFlows.length > 0) action = TX_TYPES.SWAP;
+    else if (inFlows.length > 0) action = TX_TYPES.RECEIVE;
+    else if (outFlows.length > 0) action = TX_TYPES.SEND;
   }
 
-  // Action & Asset Extraction using Event Types
-  const inFlows = activities.filter((a: any) => {
-    const type = String(a.type).toLowerCase();
-    return (type.includes('deposit') || type.includes('received') || type.includes('credit')) && a.owner_address === walletAddress;
-  });
-  const outFlows = activities.filter((a: any) => {
-    const type = String(a.type).toLowerCase();
-    return (type.includes('withdraw') || type.includes('sent') || type.includes('debit')) && a.owner_address === walletAddress;
-  });
+  // 6. Generate Description & Metadata
+  let description = 'Contract interaction';
+  const primaryIn = inFlows[0];
+  const primaryOut = outFlows[0];
 
-  // Action-Specific Refinements & Description Generation
-  if (action === 'SWAP') {
-    category = 'DeFi';
-    const assetIn = outFlows[0];
-    const assetOut = inFlows[0];
-    if (assetIn && assetOut) {
-      const amtIn = Math.abs(assetIn.amount / Math.pow(10, assetIn.metadata?.decimals || 8));
-      const amtOut = Math.abs(assetOut.amount / Math.pow(10, assetOut.metadata?.decimals || 8));
-      description = `Swapped ${amtIn.toFixed(2)} ${assetIn.metadata?.symbol} for ${amtOut.toFixed(2)} ${assetOut.metadata?.symbol}`;
+  if (action === TX_TYPES.SWAP) {
+    if (primaryIn && primaryOut) {
+      description = `Swapped ${primaryOut.amount.toFixed(2)} ${primaryOut.symbol} for ${primaryIn.amount.toFixed(2)} ${primaryIn.symbol}`;
     } else {
       description = `Swapped assets via ${protocol}`;
     }
-  } else if (action === 'DEPOSIT') {
-    category = 'DeFi';
-    const asset = outFlows[0] || inFlows[0];
+  } else if (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) {
+    const asset = primaryOut || primaryIn;
     if (asset) {
-      const amt = Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8));
-      description = `Deposited ${amt.toFixed(2)} ${asset.metadata?.symbol} into ${protocol}`;
-    } else {
-      description = `Deposited assets into ${protocol}`;
+      description = `${action === TX_TYPES.SEND ? 'Sent' : 'Received'} ${asset.amount.toFixed(2)} ${asset.symbol}`;
     }
-  } else if (action === 'BORROW') {
-    category = 'DeFi';
-    description = `Borrowed assets from ${protocol}`;
-  } else if (action === 'CLAIM') {
-    category = 'DeFi';
-    const asset = inFlows[0];
-    description = asset
-      ? `Claimed ${Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8)).toFixed(2)} ${asset.metadata?.symbol} rewards`
-      : `Claimed rewards from ${protocol}`;
-  } else if (action === 'SEND' || action === 'RECEIVE' || (action === 'OTHER' && (inFlows.length > 0 || outFlows.length > 0))) {
-    // Determine if it's a transfer if not already set
-    if (action === 'OTHER') {
-      action = outFlows.length > 0 ? 'SEND' : 'RECEIVE';
-    }
-
-    category = 'Transfer';
-    const asset = outFlows[0] || inFlows[0];
-    if (asset) {
-      const amt = Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8));
-      description = `${action === 'SEND' ? 'Sent' : 'Received'} ${amt.toFixed(2)} ${asset.metadata?.symbol}`;
-    }
-
-    // Attempt to identify counterparty from payload for labels (if available)
-    if (action === 'SEND') {
-      const payload = ut.payload || null;
-      let receiver = null;
-      if (payload?.function === '0x1::aptos_account::transfer' || payload?.function === '0x1::coin::transfer') {
-        receiver = payload.arguments?.[0];
-      } else if (payload?.entry_function_id_str?.includes('transfer')) {
-        receiver = payload.arguments?.[0];
-      }
-
-      if (receiver) {
-        const label = labelsMap.get(normalizeAddress(receiver));
-        if (label) {
-          protocol = label.tracked_entities?.name || 'Exchange';
-          description += ` to ${protocol}`;
-        }
-      }
-    }
-  } else if (action === 'REGISTER') {
-    category = 'Account';
-    description = 'Registered new asset/account';
-  } else if (action === 'WITHDRAW') {
-    category = 'DeFi';
-    const asset = inFlows[0] || outFlows[0];
-    if (asset) {
-      const amt = Math.abs(asset.amount / Math.pow(10, asset.metadata?.decimals || 8));
-      description = `Withdrew ${amt.toFixed(2)} ${asset.metadata?.symbol} from ${protocol}`;
-    } else {
-      description = `Withdrew assets from ${protocol}`;
-    }
+  } else if (action === TX_TYPES.LEND || action === TX_TYPES.DEPOSIT) {
+    const asset = primaryOut || primaryIn;
+    description = asset ? `Deposited ${asset.amount.toFixed(2)} ${asset.symbol} into ${protocol}` : `Deposited into ${protocol}`;
+  } else if (action === TX_TYPES.CLAIM) {
+    const asset = primaryIn;
+    description = asset ? `Claimed ${asset.amount.toFixed(2)} ${asset.symbol} rewards` : `Claimed rewards from ${protocol}`;
+  } else {
+    description = `${action.charAt(0) + action.slice(1).toLowerCase().replace('_', ' ')} via ${protocol}`;
   }
-
-  // 3. Storage Optimization: Strip bloated metadata
-  const optimizedMetadata = {
-    hash: ut.hash || `v${tx.transaction_version}`,
-    entry_function_id_str: functionId,
-    success: tx.user_transaction?.success ?? true,
-    // Only keep essential activity info
-    fungible_asset_activities: (tx.fungible_asset_activities || []).map((a: any) => ({
-      amount: a.amount,
-      asset_type: a.asset_type,
-      type: a.type,
-      metadata: a.metadata
-    })),
-    coin_activities: (tx.coin_activities || []).map((a: any) => ({
-      amount: a.amount,
-      coin_type: a.coin_type,
-      activity_type: a.activity_type
-    }))
-  };
 
   return {
     user_address: walletAddress,
@@ -319,16 +285,21 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     action,
     category,
     description,
-    asset_in_symbol: inFlows[0]?.metadata?.symbol || null,
-    asset_in_amount: inFlows[0] ? Math.abs(inFlows[0].amount / Math.pow(10, inFlows[0].metadata?.decimals || 8)) : null,
-    asset_out_symbol: outFlows[0]?.metadata?.symbol || null,
-    asset_out_amount: outFlows[0] ? Math.abs(outFlows[0].amount / Math.pow(10, outFlows[0].metadata?.decimals || 8)) : null,
-    metadata: optimizedMetadata,
+    asset_in_symbol: primaryIn?.symbol || null,
+    asset_in_amount: primaryIn?.amount || null,
+    asset_out_symbol: primaryOut?.symbol || null,
+    asset_out_amount: primaryOut?.amount || null,
+    gas_usd: ut.gas_used ? (Number(ut.gas_used) * Number(ut.gas_unit_price || 0)) / 1e8 : null,
+    metadata: {
+      hash: ut.hash,
+      entry_function_id_str: functionId,
+      success: ut.success ?? tx.user_transaction?.success ?? true,
+      fungible_asset_activities: tx.fungible_asset_activities || [],
+      coin_activities: tx.coin_activities || []
+    },
     is_processed: false
   };
 }
-
-
 
 /**
  * Main deep sync loop

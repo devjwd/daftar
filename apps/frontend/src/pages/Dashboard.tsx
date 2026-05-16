@@ -91,12 +91,23 @@ const Dashboard = () => {
   const { account, connected } = useWallet();
   const navigate = useNavigate();
   const location = useLocation();
-  const { address: urlAddress } = useParams();
+  const { address: urlAddress, "*": splat } = useParams();
+  const activeTab = useMemo(() => {
+    if (!splat) return PORTFOLIO_TABS.OVERVIEW;
+    const segments = splat.split("/").filter(Boolean);
+    if (segments.length === 0) return PORTFOLIO_TABS.OVERVIEW;
+    return Object.values(PORTFOLIO_TABS).includes(segments[0]) ? segments[0] : PORTFOLIO_TABS.OVERVIEW;
+  }, [splat]);
 
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
   const [error, setError] = useState(null);
   const [viewingAddress, setViewingAddress] = useState(null);
-  const [activeTab, setActiveTab] = useState(PORTFOLIO_TABS.OVERVIEW);
+
+  useEffect(() => {
+    if (urlAddress === 'null' || urlAddress === 'undefined') {
+      navigate('/', { replace: true });
+    }
+  }, [urlAddress, navigate]);
 
   const [walletAge, setWalletAge] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -144,8 +155,8 @@ const Dashboard = () => {
         console.warn("Error converting address object:", e);
       }
     }
-    const str = String(addr).trim();
-    if (str && str !== "[object Object]") {
+    const str = addr ? String(addr).trim() : "";
+    if (str && str !== "[object Object]" && str !== "null" && str !== "undefined") {
       return str;
     }
 
@@ -345,10 +356,10 @@ const Dashboard = () => {
   }, [urlAddress, connected]);
 
   useEffect(() => {
-    if (!canEditProfile && activeTab === PORTFOLIO_TABS.ANALYTICS) {
-      setActiveTab(PORTFOLIO_TABS.OVERVIEW);
+    if (viewingAddress && !canEditProfile && activeTab === PORTFOLIO_TABS.ANALYTICS) {
+      navigate(`/profile/${urlAddress}`, { replace: true });
     }
-  }, [canEditProfile, activeTab]);
+  }, [canEditProfile, activeTab, viewingAddress, urlAddress, navigate]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -493,7 +504,7 @@ const Dashboard = () => {
     if (account && connected) {
       const addressString = getAddressString(account);
       if (addressString) {
-        if (!urlAddress || urlAddress.toLowerCase() === addressString.toLowerCase()) {
+        if (!urlAddress && isValidAddress(addressString)) {
           setViewingAddress(addressString);
           navigate(`/profile/${addressString}`, { replace: true });
         }
@@ -534,6 +545,55 @@ const Dashboard = () => {
 
     fetchWalletData();
   }, [viewingAddress]);
+
+  useEffect(() => {
+    if (!viewingAddress) return;
+
+    const name = userProfile?.username || (
+      viewingAddress.startsWith("0x") 
+        ? `${viewingAddress.slice(0, 6)}...${viewingAddress.slice(-4)}` 
+        : viewingAddress
+    );
+
+    let tabLabel = "";
+    if (activeTab === PORTFOLIO_TABS.TRX) tabLabel = " - Transactions";
+    else if (activeTab === PORTFOLIO_TABS.NFT) tabLabel = " - NFTs";
+    else if (activeTab === PORTFOLIO_TABS.ANALYTICS) {
+      const subTab = splat?.split('/').filter(Boolean)[1];
+      tabLabel = subTab === 'exchange' ? " - Exchange Analytics" : " - Analytics";
+    }
+
+    document.title = `${name}${tabLabel} | Daftar`;
+
+    // Update SEO Meta Tags
+    const metaDesc = `View ${name}'s portfolio on the Movement Network. Real-time net worth, transaction history, NFTs, and portfolio analytics.`;
+    
+    const updateMeta = (name: string, content: string, attr = 'name') => {
+      let el = document.querySelector(`meta[${attr}="${name}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    updateMeta('description', metaDesc);
+    updateMeta('og:title', `${name}${tabLabel} | Daftar`, 'property');
+    updateMeta('og:description', metaDesc, 'property');
+    updateMeta('twitter:title', `${name}${tabLabel} | Daftar`);
+    updateMeta('twitter:description', metaDesc);
+
+    // Update Canonical URL
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute('href', window.location.href);
+  }, [userProfile, viewingAddress, activeTab, splat]);
+
   const formatWalletAge = (ageData) => {
     if (!ageData?.firstTxTimestamp) return null;
 
@@ -833,21 +893,21 @@ const Dashboard = () => {
         <button
           type="button"
           className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.OVERVIEW ? 'active' : ''}`}
-          onClick={() => setActiveTab(PORTFOLIO_TABS.OVERVIEW)}
+          onClick={() => navigate(`/profile/${urlAddress}`)}
         >
           {t(language, 'navPortfolio')}
         </button>
         <button
           type="button"
           className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.TRX ? 'active' : ''}`}
-          onClick={() => setActiveTab(PORTFOLIO_TABS.TRX)}
+          onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.TRX}`)}
         >
           {t(language, 'portfolioTabTrxHistory')}
         </button>
         <button
           type="button"
           className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.NFT ? 'active' : ''}`}
-          onClick={() => setActiveTab(PORTFOLIO_TABS.NFT)}
+          onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.NFT}`)}
         >
           NFTS
         </button>
@@ -856,7 +916,7 @@ const Dashboard = () => {
           <button
             type="button"
             className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
-            onClick={() => setActiveTab(PORTFOLIO_TABS.ANALYTICS)}
+            onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`)}
             style={{ marginLeft: 'auto' }}
           >
             <div className="analytics-btn-content">
@@ -1148,6 +1208,7 @@ const Dashboard = () => {
                 <TrxHistory
                   walletAddress={viewingAddress}
                   refreshTrigger={lastRefresh}
+                  isVerified={userProfile?.is_verified}
                 />
               </Suspense>
             </section>
@@ -1170,7 +1231,10 @@ const Dashboard = () => {
 
           {activeTab === PORTFOLIO_TABS.ANALYTICS && (
             <Suspense fallback={<div className="loading-indicator">Analyzing history...</div>}>
-              <AnalyticsView walletAddress={viewingAddress} />
+              <AnalyticsView 
+                walletAddress={urlAddress} 
+                initialSubTab={splat?.split('/').filter(Boolean)[1]} 
+              />
             </Suspense>
           )}
         </motion.div>

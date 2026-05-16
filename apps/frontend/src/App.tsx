@@ -84,7 +84,9 @@ const WalletProviderShell: React.FC<WalletProviderShellProps> = ({ children }) =
 
 const getDocumentTitle = (pathname: string): string => {
   const path = String(pathname || "").toLowerCase();
+  const segments = path.split("/").filter(Boolean);
 
+  if (path === "/") return "Daftar | Home";
   if (path.startsWith("/swap")) return "Daftar | Swap";
   if (path.startsWith("/badges")) return "Daftar | Badges";
   if (path.startsWith("/leaderboard")) return "Daftar | Leaderboard";
@@ -93,9 +95,28 @@ const getDocumentTitle = (pathname: string): string => {
   if (path.startsWith("/level")) return "Daftar | Level";
   if (path.startsWith("/terms")) return "Daftar | Terms";
   if (path.startsWith("/privacy")) return "Daftar | Privacy";
-  if (path.startsWith("/profile/") && path !== "/profile/") return "Daftar | Portfolio";
-  if (path === "/profile") return "Daftar | Profile";
 
+  // Profile / Dashboard logic
+  if (segments[0] === "profile" && segments[1]) {
+    const address = segments[1];
+    const shortAddr = address.startsWith("0x") 
+      ? `${address.slice(0, 6)}...${address.slice(-4)}` 
+      : address;
+    
+    const tab = segments[2];
+    let tabLabel = "";
+    if (tab === "trx") tabLabel = " - Transactions";
+    if (tab === "nfts") tabLabel = " - NFTs";
+    if (tab === "analytics") {
+      const subTab = segments[3];
+      tabLabel = subTab === "exchange" ? " - Exchange Analytics" : " - Analytics";
+    }
+
+    return `${shortAddr}${tabLabel} | Daftar`;
+  }
+
+  if (path === "/profile") return "Daftar | Profile";
+  
   return "Daftar";
 };
 
@@ -166,7 +187,7 @@ export default function App() {
                 <Layout>
                   <Routes>
                     <Route path="/wallet/:address" element={<WalletRedirect />} />
-                    <Route path="/profile/:address" element={<Dashboard />} />
+                    <Route path="/profile/:address/*" element={<Dashboard />} />
                     <Route
                       path="/swap"
                       element={SWAP_ENABLED ? <SwapPageWrapper /> : <Navigate to="/" replace />}
