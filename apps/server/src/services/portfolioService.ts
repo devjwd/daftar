@@ -38,34 +38,45 @@ export async function reconstructHistoricalBalances(
 
   let lastDateStr = latestSnapshot?.snapshot_date;
   const balances: BalanceState = {};
+  let recalcStartDateStr: string | null = null;
+  let balanceLoadDateStr: string | null = null;
 
-  // 2. Load existing balances if we have a previous snapshot
   if (lastDateStr) {
+    // Shift recalcStartDate back by 1 day to catch retroactive and same-day transactions
+    const recalcDate = new Date(lastDateStr);
+    recalcDate.setDate(recalcDate.getDate() - 1);
+    recalcStartDateStr = recalcDate.toISOString().split('T')[0];
+
+    // Load balances from the day strictly before the recalculation start date (2 days before lastDateStr)
+    const balanceLoadDate = new Date(lastDateStr);
+    balanceLoadDate.setDate(balanceLoadDate.getDate() - 2);
+    balanceLoadDateStr = balanceLoadDate.toISOString().split('T')[0];
+  }
+
+  // 2. Load existing balances if we have a previous snapshot date
+  if (balanceLoadDateStr) {
     const { data: existingBalances } = await supabase
       .from('user_balance_snapshots')
       .select('*')
       .eq('user_address', address)
-      .eq('snapshot_date', lastDateStr);
+      .eq('snapshot_date', balanceLoadDateStr);
 
-    if (existingBalances) {
+    if (existingBalances && existingBalances.length > 0) {
       existingBalances.forEach(b => {
         balances[b.asset_type] = { amount: Number(b.amount), symbol: b.symbol };
       });
     }
   }
 
-  // 3. Fetch transactions (incremental if possible)
+  // 3. Fetch transactions (incremental starting from recalcStartDateStr)
   let txQuery = supabase
     .from('user_transaction_history')
     .select('*')
     .eq('user_address', address)
     .order('timestamp', { ascending: true });
 
-  if (lastDateStr) {
-    // Fetch transactions strictly after the last snapshot date (end of that day)
-    const nextDay = new Date(lastDateStr);
-    nextDay.setDate(nextDay.getDate() + 1);
-    txQuery = txQuery.gte('timestamp', nextDay.toISOString());
+  if (recalcStartDateStr) {
+    txQuery = txQuery.gte('timestamp', `${recalcStartDateStr}T00:00:00.000Z`);
   }
 
   // Handle potential 1k limit by paginating transaction fetch
@@ -102,18 +113,20 @@ export async function reconstructHistoricalBalances(
     const firstNewTxDate = new Date(txs[0].timestamp);
     const candidateStartDate = new Date(firstNewTxDate.getFullYear(), firstNewTxDate.getMonth(), firstNewTxDate.getDate());
     
-    if (lastDateStr) {
-      const dayAfterLast = new Date(lastDateStr);
-      dayAfterLast.setDate(dayAfterLast.getDate() + 1);
-      // Start from the day after the last snapshot, or the first new tx date if it's later
-      currentDate = dayAfterLast > candidateStartDate ? dayAfterLast : candidateStartDate;
+    if (recalcStartDateStr) {
+      const recalcStart = new Date(recalcStartDateStr);
+      currentDate = recalcStart > candidateStartDate ? recalcStart : candidateStartDate;
     } else {
       currentDate = candidateStartDate;
     }
   } else {
-     // No new txs, just carry forward balances from day after last snapshot to today
-     currentDate = new Date(lastDateStr!);
-     currentDate.setDate(currentDate.getDate() + 1);
+     // No new txs, just carry forward balances from day after balanceLoadDateStr to today
+     if (balanceLoadDateStr) {
+       currentDate = new Date(balanceLoadDateStr);
+       currentDate.setDate(currentDate.getDate() + 1);
+     } else {
+       currentDate = new Date();
+     }
   }
 
   let currentTxIndex = 0;
@@ -134,7 +147,16 @@ export async function reconstructHistoricalBalances(
       
       // Handle Incoming Assets (user received tokens)
       if (tx.asset_in_symbol && tx.asset_in_amount > 0) {
-        const assetType = tx.metadata?.fungible_asset_activities?.[0]?.asset_type || tx.asset_in_symbol;
+        const rawActivities = [
+          ...(tx.metadata?.fungible_asset_activities || []),
+          ...(tx.metadata?.coin_activities || [])
+        ];
+        const matched = rawActivities.find((a: any) => {
+          const sym = a.metadata?.symbol || a.symbol || '';
+          return sym.toLowerCase() === tx.asset_in_symbol.toLowerCase();
+        });
+        const assetType = matched?.asset_type || matched?.coin_type || tx.asset_in_symbol;
+
         if (!balances[assetType]) balances[assetType] = { amount: 0, symbol: tx.asset_in_symbol };
         
         // Inflows: tokens received by the user
@@ -145,9 +167,16 @@ export async function reconstructHistoricalBalances(
 
       // Handle Outgoing Assets (user spent/locked tokens)
       if (tx.asset_out_symbol && tx.asset_out_amount > 0) {
-        const assetType = tx.metadata?.fungible_asset_activities?.find((a: any) => 
-          a.type?.toLowerCase().includes('withdraw') || a.type?.toLowerCase().includes('sent')
-        )?.asset_type || tx.asset_out_symbol;
+        const rawActivities = [
+          ...(tx.metadata?.fungible_asset_activities || []),
+          ...(tx.metadata?.coin_activities || [])
+        ];
+        const matched = rawActivities.find((a: any) => {
+          const sym = a.metadata?.symbol || a.symbol || '';
+          return sym.toLowerCase() === tx.asset_out_symbol.toLowerCase();
+        });
+        const assetType = matched?.asset_type || matched?.coin_type || tx.asset_out_symbol;
+
         if (!balances[assetType]) balances[assetType] = { amount: 0, symbol: tx.asset_out_symbol };
         
         // Outflows: tokens spent or locked by the user

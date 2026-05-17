@@ -10,6 +10,10 @@ interface NFTTableProps {
   convertUSD: (val: number) => number;
   formatCurrencyValue: (val: number) => string;
   movePrice: number;
+  valuationMethod: 'topBid' | 'floor';
+  setValuationMethod: (method: 'topBid' | 'floor') => void;
+  totalWorthMove: number;
+  totalWorthUSD: number;
 }
 
 const NFTTable: React.FC<NFTTableProps> = ({
@@ -20,7 +24,11 @@ const NFTTable: React.FC<NFTTableProps> = ({
   hideValues,
   convertUSD,
   formatCurrencyValue,
-  movePrice
+  movePrice,
+  valuationMethod,
+  setValuationMethod,
+  totalWorthMove,
+  totalWorthUSD
 }) => {
   return (
     <section className="grid-section">
@@ -29,6 +37,42 @@ const NFTTable: React.FC<NFTTableProps> = ({
           <h3 className="section-title">NFT Portfolio</h3>
           <div className="section-header-value">
             {userNFTs.length} Assets
+          </div>
+        </div>
+
+        <div className="valuation-controls-wrapper">
+          <div className="valuation-controls-row">
+            {userNFTs.length > 0 && (
+              <div className="valuation-summary">
+                <span className="summary-label">Total Value:</span>
+                <span className="summary-value-move">{totalWorthMove.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE</span>
+                <span className="summary-value-usd">
+                  ({hideValues ? '***' : formatCurrencyValue(convertUSD(totalWorthUSD))})
+                </span>
+              </div>
+            )}
+
+            <div className="valuation-toggle-container">
+              <button 
+                className={`valuation-toggle-btn ${valuationMethod === 'topBid' ? 'active' : ''}`}
+                onClick={() => setValuationMethod('topBid')}
+                title="Valuation based on top active bids (instant sell / exit value)"
+              >
+                Top Bid
+              </button>
+              <button 
+                className={`valuation-toggle-btn ${valuationMethod === 'floor' ? 'active' : ''}`}
+                onClick={() => setValuationMethod('floor')}
+                title="Valuation based on floor price"
+              >
+                Floor Price
+              </button>
+            </div>
+          </div>
+          <div className="valuation-note">
+            {valuationMethod === 'topBid' 
+              ? "* Valued by instant exit bids (backed by real capital)" 
+              : "* Valued by floor listings (minimum ask price)"}
           </div>
         </div>
       </div>
@@ -83,7 +127,13 @@ const NFTTable: React.FC<NFTTableProps> = ({
                     <td className="text-right">{col.count}</td>
                     <td className="text-right">
                       <div className="price-stack">
-                        <span className="native-price">{col.floorPrice > 0 ? `${col.floorPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE` : '-'}</span>
+                        <span className="native-price">
+                          {col.floorPrice > 0 ? (
+                            `${col.floorPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE`
+                          ) : (
+                            <span className="empty-placeholder">--</span>
+                          )}
+                        </span>
                         {col.floorPrice > 0 && movePrice > 0 && (
                           <span className="usd-price">
                             {hideValues ? '***' : formatCurrencyValue(convertUSD(col.floorPrice * movePrice))}
@@ -92,16 +142,25 @@ const NFTTable: React.FC<NFTTableProps> = ({
                       </div>
                     </td>
                     <td className="text-right">
-                      <span className="native-price">{col.topBid > 0 ? `${col.topBid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE` : '-'}</span>
+                      <span className="native-price">
+                        {col.topBid > 0 ? (
+                          `${col.topBid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE`
+                        ) : (
+                          <span className="empty-placeholder">--</span>
+                        )}
+                      </span>
                     </td>
                     <td className="text-center">
                       <a
                         href={tradeportUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="list-btn"
+                        className="tradeport-link-icon"
+                        title="View Collection on Tradeport"
                       >
-                        View on Tradeport
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
                       </a>
                     </td>
                   </tr>

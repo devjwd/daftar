@@ -30,12 +30,12 @@
 
 .segmented-control {
   display: flex;
-  background: rgba(26, 22, 20, 0.82);
-  border: 1px solid rgba(205, 161, 105, 0.22);
+  background: var(--glass-strong, rgba(26, 22, 20, 0.82));
+  border: 1px solid var(--border-subtle, rgba(205, 161, 105, 0.22));
   border-radius: 999px;
   padding: 3px;
   gap: 3px;
-  box-shadow: inset 0 0 0 1px rgba(205, 161, 105, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
 .segment-btn {
@@ -46,19 +46,19 @@
   border-radius: 999px;
   border: none;
   background: transparent;
-  color: #deb884;
+  color: var(--text-secondary, #deb884);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .segment-btn:hover:not(.active) {
-  background: rgba(205, 161, 105, 0.12);
-  color: #ffe3c1;
+  background: rgba(205, 161, 105, 0.08);
+  color: var(--text-primary, #ffe3c1);
 }
 
 .segment-btn.active {
-  background: linear-gradient(135deg, #cda169 0%, #deb884 100%);
-  color: #14110f;
+  background: var(--gradient-primary, linear-gradient(135deg, #cda169 0%, #deb884 100%));
+  color: var(--bg-primary, #14110f);
   box-shadow: 0 4px 12px rgba(205, 161, 105, 0.35);
 }
 
@@ -253,10 +253,15 @@
 }
 
 .donut-total-value {
-  font-size: 14px;
+  font-size: clamp(10px, 1.8vw, 14px);
   font-weight: 700;
   color: #fff;
   line-height: 1;
+  max-width: 68px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .breakdown-legend {
@@ -354,4 +359,82 @@
   color: #fff;
   font-size: 14px;
   font-weight: 700;
+}
+
+/* ---- Loading Overlay ---- */
+.pnl-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 15, 12, 0.4);
+  border-radius: 12px;
+}
+
+.chart-loading-shimmer {
+  width: 32px;
+  height: 32px;
+  border: 3.5px solid rgba(205, 161, 105, 0.1);
+  border-top-color: var(--primary, #cda169);
+  border-radius: 50%;
+  animation: pnlSpin 1s linear infinite;
+}
+
+@keyframes pnlSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Error Overlay ---- */
+.pnl-error-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 15, 12, 0.85);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
+}
+
+.pnl-error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 16px;
+  color: #e06a6a;
+  max-width: 280px;
+}
+
+.pnl-error-content span {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.pnl-retry-btn {
+  background: rgba(224, 106, 106, 0.1);
+  border: 1px solid rgba(224, 106, 106, 0.3);
+  color: #e06a6a;
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pnl-retry-btn:hover {
+  background: rgba(224, 106, 106, 0.2);
+  border-color: #e06a6a;
+}
+
+.pnl-retry-btn:active {
+  transform: scale(0.96);
 }

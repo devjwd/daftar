@@ -9,11 +9,14 @@ const TRADEPORT_API_USER = CONFIG.TRADEPORT.API_USER;
 const GET_ALL_COLLECTIONS_STATS = `
   query GetAllCollectionsStats {
     movement {
-      collections {
+      collections(where: { floor: { _gt: 0 } }, limit: 500) {
         id
         slug
         title
         floor
+        bids(order_by: { price: desc }, limit: 1) {
+          price
+        }
       }
     }
   }
@@ -51,13 +54,16 @@ export async function updateNFTFloorPrices(supabase: SupabaseClient) {
     if (collections.length === 0) return;
 
     // Map to database format
-    const stats = collections.map((c: any) => ({
-      collection_id: c.slug, // Using slug as the address/id for matching
-      name: c.title,
-      floor_price: Number(c.floor || 0) / 100_000_000, // Convert from Octas to MOVE
-      top_bid: 0, // Top bid not available in the current schema
-      updated_at: new Date().toISOString()
-    }));
+    const stats = collections.map((c: any) => {
+      const topBidOctas = c.bids?.[0]?.price || 0;
+      return {
+        collection_id: c.slug, // Using c.slug (which Tradeport populates as the hex address) for matching
+        name: c.title,
+        floor_price: Number(c.floor || 0) / 100_000_000, // Convert from Octas to MOVE
+        top_bid: Number(topBidOctas) / 100_000_000, // Convert from Octas to MOVE
+        updated_at: new Date().toISOString()
+      };
+    });
 
     // Upsert into database
     const { error } = await supabase

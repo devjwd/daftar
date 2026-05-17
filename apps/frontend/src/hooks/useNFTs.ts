@@ -35,7 +35,7 @@ export interface GroupedNFTCollection {
   totalUsdValue: number;
 }
 
-export const useNFTs = (address: string | null, movePrice: number = 0) => {
+export const useNFTs = (address: string | null, movePrice: number = 0, valuationMethod: 'topBid' | 'floor' = 'topBid') => {
   const [nfts, setNfts] = useState<NFTAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +114,10 @@ export const useNFTs = (address: string | null, movePrice: number = 0) => {
         const collectionId = nft.current_token_data?.collection_id;
         const stats = collectionStats[collectionId] || { floor: 0, topBid: 0 };
         const amount = parseFloat(nft.amount) || 1;
-        const usdValue = stats.floor * amount * movePrice;
+        
+        // Select price based on the selected valuation method, falling back to the other if one is zero
+        const price = valuationMethod === 'topBid' ? (stats.topBid || stats.floor) : (stats.floor || stats.topBid);
+        const usdValue = price * amount * movePrice;
 
         return {
           ...nft,
@@ -162,10 +165,20 @@ export const useNFTs = (address: string | null, movePrice: number = 0) => {
     return nftsWithValues.reduce((sum, nft) => sum + (nft.usdValue || 0), 0);
   }, [nftsWithValues]);
 
+  const totalWorthMove = useMemo(() => {
+    return nftsWithValues.reduce((sum, nft) => {
+      const stats = collectionStats[nft.current_token_data?.collection_id] || { floor: 0, topBid: 0 };
+      const price = valuationMethod === 'topBid' ? (stats.topBid || stats.floor) : (stats.floor || stats.topBid);
+      const amount = parseFloat(nft.amount) || 1;
+      return sum + (price * amount);
+    }, 0);
+  }, [nftsWithValues, collectionStats, valuationMethod]);
+
   return {
     nfts: nftsWithValues,
     groupedCollections,
     totalWorth,
+    totalWorthMove,
     loading,
     error,
     refresh: fetchNFTs

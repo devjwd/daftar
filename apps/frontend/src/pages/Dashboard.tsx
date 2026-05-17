@@ -51,7 +51,6 @@ import {
   humanizeAssetName,
   renderColoredTokenText,
   TokenIcon,
-  getAssetChange,
   processBalances,
   getTokenPriceFromMap
 } from "../utils/dashboardUtils";
@@ -186,13 +185,16 @@ const Dashboard = () => {
 
   const movePrice = useMemo(() => getTokenPriceFromMap('MOVE', priceMap) || 0, [priceMap]);
 
+  const [valuationMethod, setValuationMethod] = useState<'topBid' | 'floor'>('topBid');
+
   const {
     nfts: userNFTs,
     groupedCollections,
     totalWorth: nftsTotalWorth,
+    totalWorthMove: nftsTotalWorthMove,
     loading: nftsLoading,
     refresh: refreshNFTs
-  } = useNFTs(viewingAddress, movePrice);
+  } = useNFTs(viewingAddress, movePrice, valuationMethod);
 
   const settingsKey = useMemo(() => getSettingsStorageKey(account?.address), [account?.address]);
 
@@ -359,64 +361,7 @@ const Dashboard = () => {
 
   const currentNetwork = DEFAULT_NETWORK;
 
-  const portfolio24hChange = useMemo(() => {
-    if (!priceChanges || combinedNetWorth === 0) {
-      return null;
-    }
 
-    let weightedChangeSum = 0;
-    let totalWeightValue = 0;
-
-
-    if (balances && balances.length > 0) {
-      balances.forEach(token => {
-        const usdValue = token.usdValue || 0;
-        if (usdValue <= 0) return;
-
-        const change = getAssetChange(token.address, token.symbol, priceChanges);
-        if (change !== undefined) {
-          weightedChangeSum += change * usdValue;
-          totalWeightValue += usdValue;
-        }
-      });
-    }
-
-    if (visibleDeFiPositions && visibleDeFiPositions.length > 0) {
-      visibleDeFiPositions.forEach(pos => {
-        const usdValue = pos.numericValue || 0;
-        if (usdValue <= 0) return;
-
-        const change = getAssetChange(pos.address, pos.symbol || pos.underlying, priceChanges);
-        if (change !== undefined) {
-          weightedChangeSum += change * usdValue;
-          totalWeightValue += usdValue;
-        }
-      });
-    }
-
-    if (visibleLiquidityPositions && visibleLiquidityPositions.length > 0) {
-      visibleLiquidityPositions.forEach(pos => {
-        const usdValue = pos.numericValue || 0;
-        if (usdValue <= 0) return;
-
-        const change = getAssetChange(pos.address, pos.symbol || pos.underlying, priceChanges);
-        if (change !== undefined) {
-          weightedChangeSum += change * usdValue;
-          totalWeightValue += usdValue;
-        }
-      });
-    }
-
-    if (totalWeightValue > 0) {
-      return weightedChangeSum / totalWeightValue;
-    }
-
-    if (combinedNetWorth > 0) {
-      return 0;
-    }
-
-    return null;
-  }, [balances, visibleDeFiPositions, visibleLiquidityPositions, priceChanges, combinedNetWorth]);
 
   // Actual Breakdown Data Calculations
   const assetBreakdownData = useMemo(() => {
@@ -741,16 +686,7 @@ const Dashboard = () => {
                 }
               </div>
 
-              {!assetsLoading && portfolio24hChange !== null && (
-                <div className={`hero-v3-sub-value ${portfolio24hChange >= 0 ? 'positive' : 'negative'}`}>
-                  <span className="change-arrow">{portfolio24hChange >= 0 ? '▲' : '▼'}</span>
-                  <span className="change-usd">
-                    {hideValues ? '*****' : `${portfolio24hChange >= 0 ? '+' : '-'}${formatCurrencyValue(convertUSD(Math.abs(combinedNetWorth * (portfolio24hChange / 100))))}`}
-                  </span>
-                  <span className="change-percent">({hideValues ? '*****' : Math.abs(portfolio24hChange).toFixed(2)}%)</span>
-                  <span className="change-label">{t(language, 'profileToday')}</span>
-                </div>
-              )}
+
             </div>
 
             <div className="hero-v3-meta">
@@ -1167,6 +1103,10 @@ const Dashboard = () => {
                 convertUSD={convertUSD}
                 formatCurrencyValue={formatCurrencyValue}
                 movePrice={movePrice}
+                valuationMethod={valuationMethod}
+                setValuationMethod={setValuationMethod}
+                totalWorthMove={nftsTotalWorthMove || 0}
+                totalWorthUSD={nftsTotalWorth || 0}
               />
             </Suspense>
           )}

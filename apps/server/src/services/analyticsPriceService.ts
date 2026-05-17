@@ -191,13 +191,29 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
         is_processed: true
       }).eq('id', tx.id);
     } else {
-      // Mark as processed with a failure flag (-1) to avoid infinite loop
-      await supabase.from('user_transaction_history').update({
-        price_usd: -1,
-        value_usd: 0,
-        gas_usd: 0.05,
-        is_processed: true
-      }).eq('id', tx.id);
+      const metadata = tx.metadata || {};
+      const retryCount = Number(metadata.retry_count || 0);
+
+      if (retryCount < 3) {
+        // Increment retry count and keep is_processed = false
+        const updatedMetadata = {
+          ...metadata,
+          retry_count: retryCount + 1
+        };
+        await supabase.from('user_transaction_history').update({
+          metadata: updatedMetadata
+        }).eq('id', tx.id);
+        console.log(`[PriceBackfill] Temporary pricing failure for ${tokenToPrice} on version ${tx.version}. Retrying later (Attempt ${retryCount + 1}/3)...`);
+      } else {
+        // Exceeded retries, mark as processed with a safe fallback of 0 (avoid -1 which inverts PNL charts)
+        await supabase.from('user_transaction_history').update({
+          price_usd: 0,
+          value_usd: 0,
+          gas_usd: 0.05,
+          is_processed: true
+        }).eq('id', tx.id);
+        console.warn(`[PriceBackfill] Failed to price ${tokenToPrice} on version ${tx.version} after 3 attempts. Storing fallback 0.`);
+      }
     }
 
     // Increased delay to 2500ms to stay safely under CoinGecko's 30 calls/minute limit

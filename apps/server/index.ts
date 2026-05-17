@@ -64,12 +64,16 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
     startNFTPriceWorker(supabaseAdmin);
 
     // Start background analytics price backfiller (every 30 seconds)
+    let isPriceBackfillRunning = false;
     setInterval(async () => {
-      if (supabaseAdmin) {
+      if (supabaseAdmin && !isPriceBackfillRunning) {
+        isPriceBackfillRunning = true;
         try {
           await backfillTransactionPrices(supabaseAdmin, 50);
         } catch (err) {
           console.error('[Server] Analytics Backfill Loop Error:', err);
+        } finally {
+          isPriceBackfillRunning = false;
         }
       }
     }, 30000);

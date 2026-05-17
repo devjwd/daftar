@@ -180,6 +180,8 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     return assetType.split('::').pop()?.replace(/[<>]/g, '') || 'Token';
   };
 
+  const nativeGasAmount = ut.gas_used ? (Number(ut.gas_used) * Number(ut.gas_unit_price || 0)) / 1e8 : 0;
+
   const normalizeActivity = (act: any) => {
     const type = String(act.type || act.activity_type || '').toLowerCase();
     const owner = String(act.owner_address || act.owner || '').toLowerCase();
@@ -197,9 +199,16 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
 
     const decimals = act.metadata?.decimals || 8;
     const amount = Math.abs(Number(act.amount || 0)) / Math.pow(10, decimals);
-    const symbol = act.metadata?.symbol || resolveSymbol(act.asset_type || act.coin_type || '');
+    const assetType = act.asset_type || act.coin_type || '';
 
-    return { direction, amount, symbol, assetType: act.asset_type || act.coin_type };
+    // Filter out native gas fee deductions from activity flows to prevent false swaps
+    const isGasFee = (assetType.includes('aptos_coin') || assetType === '0x1' || assetType === '0xa') && 
+                      Math.abs(amount - nativeGasAmount) < 0.00005;
+    if (isGasFee) return null;
+
+    const symbol = act.metadata?.symbol || resolveSymbol(assetType);
+
+    return { direction, amount, symbol, assetType };
   };
 
   // 3. Process Activities

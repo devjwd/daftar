@@ -5,9 +5,10 @@
 
 const TRADEPORT_ENDPOINT = "https://api.indexer.xyz/graphql";
 
-// These should ideally be in .env, but we'll use fallbacks or placeholders for now
-const API_KEY = import.meta.env.VITE_TRADEPORT_API_KEY || "";
-const API_USER = import.meta.env.VITE_TRADEPORT_API_USER || "";
+// Direct client-side querying is deprecated.
+// All NFT collection statistics are securely crawled and cached by the backend server.
+const API_KEY = "";
+const API_USER = "";
 
 /**
  * Execute a GraphQL query against Tradeport Indexer

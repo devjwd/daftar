@@ -51,35 +51,75 @@ const PNLChart: React.FC<PNLChartProps> = ({
   const [breakdownType, setBreakdownType] = useState('Asset');
   const [activeIndex, setActiveIndex] = useState(-1);
   const [historicalData, setHistoricalData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch real historical data from analytics endpoint
   React.useEffect(() => {
-    if (!walletAddress || activeTab !== 'History') return;
+    if (!walletAddress || activeTab !== 'History' || !isVerified) {
+      setHistoricalData([]);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
     
+    const controller = new AbortController();
     const fetchHistory = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
         const API_URL = (import.meta as any).env?.VITE_API_URL || '';
-        const res = await fetch(`${API_URL}/api/analytics/pnl-precise?wallet=${walletAddress}&timeframe=${timeframe}`);
-        if (!res.ok) return;
+        const res = await fetch(`${API_URL}/api/analytics/pnl-precise?wallet=${walletAddress}&timeframe=${timeframe}`, {
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          throw new Error("Failed to load history");
+        }
         const data = await res.json();
         
         if (data && data.history) {
           const flow = data.history;
-          if (flow.length > 0) {
-            const formattedData = flow.map((pt: any) => ({
-              time: pt.date,
-              value: pt.value
-            }));
-            setHistoricalData(formattedData);
-          }
+          const formattedData = flow.map((pt: any) => ({
+            time: pt.date,
+            value: pt.value
+          }));
+          setHistoricalData(formattedData);
+        } else {
+          setHistoricalData([]);
         }
-      } catch (err) {
-        console.error("Failed to fetch PNL history:", err);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error("Failed to fetch PNL history:", err);
+          setError(err.message || "Failed to load history");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     };
     
+    // Clear old data immediately to avoid "ghost wallet" visual leak
+    setHistoricalData([]);
     fetchHistory();
-  }, [walletAddress, timeframe, activeTab, lastRefresh]);
+    
+    return () => {
+      controller.abort();
+    };
+  }, [walletAddress, timeframe, activeTab, lastRefresh, isVerified]);
+
+  // Compact number formatter for donut center value to prevent text spill
+  const formatDonutValue = (val: number): string => {
+    if (val === 0) return '$0.00';
+    const absVal = Math.abs(val);
+    const sign = val < 0 ? '-' : '';
+    if (absVal >= 1.0e9) {
+      return `${sign}$${(absVal / 1.0e9).toFixed(2)}B`;
+    }
+    if (absVal >= 1.0e6) {
+      return `${sign}$${(absVal / 1.0e6).toFixed(2)}M`;
+    }
+    return `$${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  };
 
   const currentBreakdownData = breakdownType === 'Asset' ? assetBreakdown : protocolBreakdown;
 
@@ -159,14 +199,35 @@ const PNLChart: React.FC<PNLChartProps> = ({
             <span className="pnl-change-percent">({isPositive ? '+' : ''}{changePercent}%)</span>
           </div>
           <div className="pnl-chart-wrapper-v4">
-            {!isVerified && (
+            {!isVerified ? (
               <div className="pnl-restricted-overlay">
                 <div className="restricted-content">
                   <p>Verify this profile to unlock historical analytics</p>
                 </div>
               </div>
+            ) : (
+              <>
+                {isLoading && (
+                  <div className="pnl-loading-overlay">
+                    <div className="chart-loading-shimmer" />
+                  </div>
+                )}
+                {error && (
+                  <div className="pnl-error-overlay">
+                    <div className="pnl-error-content">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <span>{error}</span>
+                      <button onClick={handleRefresh} className="pnl-retry-btn">Retry</button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
-            <ResponsiveContainer width="99%" height="100%" className={!isVerified ? 'blurred-chart' : ''}>
+            <ResponsiveContainer width="99%" height="100%" className={!isVerified || isLoading || error ? 'blurred-chart' : ''}>
               <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
@@ -263,20 +324,35 @@ const PNLChart: React.FC<PNLChartProps> = ({
               </span>
               <span className="donut-total-value">
                 {activeIndex === -1
-                  ? `$${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-                  : `$${(currentBreakdownData[activeIndex]?.rawValue || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                  ? formatDonutValue(totalValue)
+                  : formatDonutValue(currentBreakdownData[activeIndex]?.rawValue || 0)
                 }
               </span>
             </div>
           </div>
 
-          <div className={`breakdown-legend ${activeIndex !== -1 ? 'is-hovering' : ''}`}>
+          <div 
+            className={`breakdown-legend ${activeIndex !== -1 ? 'is-hovering' : ''}`}
+            role="tablist"
+            aria-label="Portfolio asset breakdown legend"
+          >
             {currentBreakdownData.map((item, index) => (
               <div
                 className={`breakdown-legend-item ${activeIndex === index ? 'active' : ''}`}
                 key={item.name}
+                role="tab"
+                tabIndex={0}
+                aria-selected={activeIndex === index}
                 onMouseEnter={() => setActiveIndex(index)}
                 onMouseLeave={() => setActiveIndex(-1)}
+                onFocus={() => setActiveIndex(index)}
+                onBlur={() => setActiveIndex(-1)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveIndex(index);
+                  }
+                }}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="breakdown-legend-left">
