@@ -15,8 +15,15 @@ const getAssetInfo = (assetName: string) => {
   
   if (name.includes("SUSDE") || name.includes("USDC") || name.includes("USDT")) {
     return { 
-      symbol: name.includes("SUSDE") ? "sUSDe" : name.includes("USDC") ? "USDC" : "USDT", 
+      symbol: name.includes("SUSDE") ? "sUSDe" : name.includes("USDC") ? "USDC.e" : "USDT.e", 
       decimals: 6 
+    };
+  }
+
+  if (name.includes("WETH") || name.includes("WBTC")) {
+    return {
+      symbol: name.includes("WETH") ? "WETH.e" : "WBTC.e",
+      decimals: 8
     };
   }
   

@@ -8,9 +8,16 @@ const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    const formattedDate = label === 'Start' || label === 'Now' 
+      ? label 
+      : (() => {
+          const d = new Date(label);
+          return isNaN(d.getTime()) ? '' : d.toLocaleString();
+        })();
+
     return (
       <div className="history-tooltip">
-        <div className="tooltip-date">{new Date(label).toLocaleString()}</div>
+        <div className="tooltip-date">{formattedDate}</div>
         <div className="tooltip-value-row">
           <span className="tooltip-label">Net worth</span>
           <span className="tooltip-value">${(payload[0].value ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -243,11 +250,13 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   dataKey="time"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: 'rgba(255, 255, 255, 0.28)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
+                  tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
                   dy={8}
                   minTickGap={40}
                   tickFormatter={(val) => {
+                    if (val === 'Start' || val === 'Now') return val;
                     const d = new Date(val);
+                    if (isNaN(d.getTime())) return '';
                     if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
                     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                   }}

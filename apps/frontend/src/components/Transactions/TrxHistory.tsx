@@ -43,6 +43,10 @@ const TYPE_LABELS = {
   nft_mint: 'NFT MINT',
   nft_transfer: 'NFT TRANSFER',
   liquidity: 'LIQUIDITY',
+  nft_sale: 'ACCEPT BID',
+  nft_buy: 'BUY NFT',
+  nft_list: 'LIST NFT',
+  nft_bid: 'NFT BID',
   other: 'OTHER',
 };
 
@@ -282,6 +286,10 @@ const getTokenVisual = (symbol) => {
 const getBadgeClass = (type) => {
   const normalized = String(type || 'other').toLowerCase();
   if (normalized === 'swap') return styles.badgeSwap;
+  if (normalized === 'nft_sale') return styles.badgeNftSale;
+  if (normalized === 'nft_buy') return styles.badgeNftBuy;
+  if (normalized === 'nft_list') return styles.badgeNftList;
+  if (normalized === 'nft_bid') return styles.badgeNftBid;
   if (normalized === 'lend') return styles.badgeLend;
   if (normalized === 'borrow') return styles.badgeBorrow;
   if (normalized === 'repay') return styles.badgeRepay;
@@ -303,10 +311,10 @@ const DappIcon = ({ tx }) => {
   const dappNameRaw = String(tx?.dapp_name || '');
   const dappNameKey = dappNameRaw.toLowerCase().replace(/\s/g, '');
   const visual = DEFI_PROTOCOL_VISUALS[dappNameKey];
-  
+
   const dappLogo = tx?.dapp_logo || visual?.logo;
   const rawType = String(tx?.tx_type || 'other').toLowerCase();
-  
+
   const txIcon = tx?.tx_icon || (rawType === 'swap' ? '🔄' : '⚙️');
   const txBg = tx?.tx_bg || 'rgba(148,163,184,0.1)';
 
@@ -596,9 +604,9 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
                   const tokenIn = normalizeDisplayToken(tx.token_in);
                   const tokenOut = normalizeDisplayToken(tx.token_out);
                   const rawType = String(tx.tx_type || 'other').toLowerCase();
-                  
+
                   const isSwap = rawType === 'swap';
-                  
+
                   let hasTokenIn = Boolean(tokenIn?.label);
                   let hasTokenOut = Boolean(tokenOut?.label);
 
@@ -611,14 +619,14 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
                       hasTokenOut = false;
                     }
                   }
-                  
+
                   const displayAmounts = getDisplayAmounts(tx);
                   const hasAmountIn = displayAmounts.length > 0;
                   const hasAmountOut = displayAmounts.length > 1 && (isSwap || displayAmounts[1] !== displayAmounts[0]);
-                  
+
                   const amountTone = getAmountTone(tx);
                   const dappName = String(tx.dapp_name || 'Wallet');
-                  
+
                   const typeLabel = tx.tx_label || TYPE_LABELS[rawType] || rawType.toUpperCase();
                   const typeTitle = tx.dapp_contract
                     ? `${dappName} · ${typeLabel} · ${tx.dapp_contract}`

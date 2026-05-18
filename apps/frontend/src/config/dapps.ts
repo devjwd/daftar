@@ -386,13 +386,13 @@ export const TRACKED_DAPPS = [
     key: "nightly",
     protocol: { name: "Nightly Wallet", type: "Wallet" },
     logo: "/nightly.png",
-    keywords: ["transfer", "nightly"],
+    keywords: ["nightly"],
   }),
   createDapp({
     key: "movement_bridge",
     protocol: { name: "Movement Bridge", type: "Bridge" },
     logo: "/movement-logo.svg",
-    keywords: ["bridge", "transfer"],
+    keywords: ["bridge"],
   }),
   createDapp({
     key: "doubleup",
@@ -411,6 +411,18 @@ export const TRACKED_DAPPS = [
     protocol: { name: "Ethena", type: "DeFi" },
     logo: "/ethena.png",
     keywords: ["swap", "mint", "ethena"],
+  }),
+  createDapp({
+    key: "movematch",
+    protocol: DEFI_PROTOCOLS.MOVEMATCH,
+    logo: "/movematch.jpg",
+    contracts: [
+      "0xf598f059a0353b0d9ea80c9fd9d1c3e15b71ff4535388dd79acf813b567c5b47",
+    ],
+    modulePrefixes: [
+      "0xf598f059a0353b0d9ea80c9fd9d1c3e15b71ff4535388dd79acf813b567c5b47::fantasy_epl::",
+    ],
+    keywords: ["movematch", "move match", "fantasy_epl", "register_team", "buy_title", "reroll_title", "buy_guild", "reroll_guild"],
   }),
 ];
 

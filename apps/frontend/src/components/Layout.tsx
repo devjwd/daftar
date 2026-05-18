@@ -44,6 +44,7 @@ export default function Layout({ children }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
   const [recentSearches, setRecentSearches] = useState(() => {
@@ -59,10 +60,53 @@ export default function Layout({ children }) {
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
   const searchTimeoutRef = useRef(null);
   const latestQueryRef = useRef("");
+  const blurTimeoutRef = useRef(null);
   const passAddress = account?.address ? String(account.address) : null;
   const { level: passLevel, loading: passLevelLoading } = useUserLevel(passAddress);
 
+  // Monitor wallet connections and switches
+  const [wasConnected, setWasConnected] = useState(connected);
+  const lastConnectedRef = useRef(account?.address ? String(account.address) : null);
+
+  useEffect(() => {
+    const currentAddress = account?.address ? String(account.address) : null;
+    const lastConnectedAddress = lastConnectedRef.current;
+
+    if (connected && currentAddress) {
+      const isViewingProfile = location.pathname.startsWith('/profile/');
+      const justConnected = !wasConnected;
+      const addressChanged = lastConnectedAddress !== null && lastConnectedAddress !== currentAddress;
+
+      if (justConnected || addressChanged) {
+        if (isViewingProfile || addressChanged) {
+          navigate(`/profile/${currentAddress}`);
+        }
+      }
+
+      lastConnectedRef.current = currentAddress;
+    } else if (wasConnected && !connected) {
+      // User just disconnected their wallet
+      navigate('/');
+    }
+
+    setWasConnected(connected);
+  }, [connected, account?.address, location.pathname, navigate, wasConnected]);
+
+  const isValidAvatarUrl = (url) => {
+    if (!url) return false;
+    const normalized = String(url).trim().toLowerCase();
+    return normalized.startsWith('http://') || normalized.startsWith('https://') || normalized.startsWith('/');
+  };
+
   const currentLogo = activeTheme === 'light' ? '/logo dark.png' : '/logo.png';
+
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const syncTheme = () => {
@@ -224,8 +268,8 @@ export default function Layout({ children }) {
     setSearchError(null);
   }, [navigate, saveRecentSearch]);
 
-  const buildLocalSearchResults = useCallback(async (query) => {
-    const remoteProfiles = await searchProfilesAsync(query);
+  const buildLocalSearchResults = useCallback(async (query, signal?: AbortSignal) => {
+    const remoteProfiles = await searchProfilesAsync(query, signal);
     const profiles = Array.isArray(remoteProfiles) && remoteProfiles.length > 0
       ? remoteProfiles
       : searchProfiles(query);
@@ -244,11 +288,12 @@ export default function Layout({ children }) {
       type: 'platform',
       address: entity.address,
       username: entity.name,
-      pfp: entity.logo_url || '/movement-logo.svg'
+      pfp: entity.logo_url || '/movement-logo.svg',
+      category: entity.category || 'Platform'
     }));
 
-    // Combine results, prioritizing entities
-    const combinedResults = [...entityMatches, ...profileMatches];
+    // Combine results, prioritizing entities, up to a maximum of 5 matches
+    const combinedResults = [...entityMatches, ...profileMatches].slice(0, 5);
 
     if (isValidAddress(query)) {
       const alreadyInResults = combinedResults.some(
@@ -267,13 +312,13 @@ export default function Layout({ children }) {
 
       return {
         isAddress: true,
-        profileMatches,
+        profileMatches: combinedResults,
         alreadyInResults,
-        results: immediateResults,
+        results: immediateResults.slice(0, 5),
       };
     }
 
-    const resolved = await resolveAddressOrUsernameAsync(query) || resolveAddressOrUsername(query);
+    const resolved = await resolveAddressOrUsernameAsync(query, signal) || resolveAddressOrUsername(query);
     if (resolved && !profileMatches.some((p) => p.address?.toLowerCase() === resolved.toLowerCase())) {
       const existingProfile = await getProfileAsync(resolved) || getProfile(resolved);
       profileMatches.unshift({
@@ -306,25 +351,32 @@ export default function Layout({ children }) {
     if (!query) {
       setSearchResults([]);
       setSearchLoading(false);
+      setActiveSuggestionIndex(-1);
       return;
     }
 
+    const controller = new AbortController();
+    const signal = controller.signal;
+
     searchTimeoutRef.current = setTimeout(async () => {
+      let localResults = [];
       try {
-        const local = await buildLocalSearchResults(query);
-        if (latestQueryRef.current !== query) {
+        const local = await buildLocalSearchResults(query, signal);
+        if (latestQueryRef.current !== query || signal.aborted) {
           return;
         }
+        localResults = local.results;
 
         if (!local.isAddress) {
-          setSearchResults(local.results);
+          setSearchResults(localResults);
           setSearchLoading(false);
+          setActiveSuggestionIndex(-1);
           return;
         }
 
         setSearchLoading(true);
-        const { exists, txCount } = await checkAccountExists(query);
-        if (latestQueryRef.current !== query) {
+        const { exists, txCount } = await checkAccountExists(query, signal);
+        if (latestQueryRef.current !== query || signal.aborted) {
           return;
         }
 
@@ -337,20 +389,16 @@ export default function Layout({ children }) {
             verified: exists,
           });
         }
-        setSearchResults(results);
+        setSearchResults(results.slice(0, 5));
         setSearchLoading(false);
+        setActiveSuggestionIndex(-1);
       } catch (err) {
+        if (err.name === 'AbortError') return;
         console.warn("Blockchain/profile lookup error:", err);
-        if (latestQueryRef.current === query) {
-          try {
-            const local = await buildLocalSearchResults(query);
-            if (latestQueryRef.current === query) {
-              setSearchResults(local.results);
-            }
-          } catch {
-            setSearchResults([]);
-          }
+        if (latestQueryRef.current === query && !signal.aborted) {
+          setSearchResults(localResults);
           setSearchLoading(false);
+          setActiveSuggestionIndex(-1);
         }
       }
     }, 400);
@@ -360,6 +408,7 @@ export default function Layout({ children }) {
         clearTimeout(searchTimeoutRef.current);
         searchTimeoutRef.current = null;
       }
+      controller.abort();
     };
   }, [searchQuery, buildLocalSearchResults]);
 
@@ -594,6 +643,7 @@ export default function Layout({ children }) {
                     const nextValue = e.target.value;
                     setSearchQuery(nextValue);
                     setSearchError(null);
+                    setActiveSuggestionIndex(-1);
                     const query = nextValue.trim();
                     if (!query) {
                       setSearchResults([]);
@@ -603,15 +653,51 @@ export default function Layout({ children }) {
                     }
                     if (!showSuggestions) setShowSuggestions(true);
                   }}
-                  onFocus={() => setShowSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
+                  onFocus={() => {
+                    if (blurTimeoutRef.current) {
+                      clearTimeout(blurTimeoutRef.current);
+                      blurTimeoutRef.current = null;
+                    }
+                    setShowSuggestions(true);
+                    setActiveSuggestionIndex(-1);
+                  }}
+                  onBlur={() => {
+                    blurTimeoutRef.current = setTimeout(() => {
+                      setShowSuggestions(false);
+                      setActiveSuggestionIndex(-1);
+                    }, 250);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      handleSearch();
+                      const currentSuggestions = searchQuery.trim() ? searchResults : recentSearches;
+                      if (showSuggestions && activeSuggestionIndex >= 0 && activeSuggestionIndex < currentSuggestions.length) {
+                        const selected = currentSuggestions[activeSuggestionIndex];
+                        goToWallet(selected.address, selected.username);
+                      } else {
+                        handleSearch();
+                      }
+                    }
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      if (!showSuggestions) {
+                        setShowSuggestions(true);
+                        return;
+                      }
+                      const currentSuggestions = searchQuery.trim() ? searchResults : recentSearches;
+                      if (currentSuggestions.length === 0) return;
+                      setActiveSuggestionIndex((prev) => (prev + 1) % currentSuggestions.length);
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      if (!showSuggestions) return;
+                      const currentSuggestions = searchQuery.trim() ? searchResults : recentSearches;
+                      if (currentSuggestions.length === 0) return;
+                      setActiveSuggestionIndex((prev) => (prev <= 0 ? currentSuggestions.length - 1 : prev - 1));
                     }
                     if (e.key === "Escape") {
                       setShowSuggestions(false);
+                      setActiveSuggestionIndex(-1);
                       (e.target as HTMLElement).blur();
                     }
                   }}
@@ -660,10 +746,11 @@ export default function Layout({ children }) {
                       {recentSearches.map((item, i) => {
                         const address = typeof item === 'string' ? item : item.address;
                         const displayName = typeof item === 'string' ? formatAddress(item, 8, 6) : item.name;
+                        const isHighlighted = activeSuggestionIndex === i;
                         return (
                           <button
                             key={`recent-${address}-${i}`}
-                            className="search-suggestion-item recent-search"
+                            className={`search-suggestion-item recent-search ${isHighlighted ? 'highlighted' : ''}`}
                             onMouseDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -693,33 +780,37 @@ export default function Layout({ children }) {
                         </div>
                       )}
                       {searchResults.length > 0 ? (
-                        searchResults.map((result, i) => (
-                          <button
-                            key={`${result.type}-${result.address}-${i}`}
-                            className="search-suggestion-item"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              goToWallet(result.address, result.username);
-                            }}
-                          >
-                            <div className="suggestion-avatar">
-                              <img src={result.pfp || '/pfp/default.png'} alt={`${result.username} profile`} className="suggestion-pfp" />
-                            </div>
-                            <div className="suggestion-info">
-                              <div className="suggestion-main">
-                                <span className="suggestion-name">{result.username}</span>
-                                <span className={`suggestion-badge ${result.type}`}>
-                                  {result.type === 'blockchain' ? `✓ ${t(language, 'onChain')}`
-                                    : result.type === 'profile' ? t(language, 'profile')
-                                      : result.type === 'platform' ? 'Platform'
-                                        : t(language, 'address')}
-                                </span>
+                        searchResults.map((result, i) => {
+                          const isHighlighted = activeSuggestionIndex === i;
+                          const hasValidAvatar = isValidAvatarUrl(result.pfp);
+                          return (
+                            <button
+                              key={`${result.type}-${result.address}-${i}`}
+                              className={`search-suggestion-item ${isHighlighted ? 'highlighted' : ''}`}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                goToWallet(result.address, result.username);
+                              }}
+                            >
+                              <div className="suggestion-avatar">
+                                <img src={hasValidAvatar ? result.pfp : '/pfp/default.png'} alt={`${result.username} profile`} className="suggestion-pfp" />
                               </div>
-                              <span className="suggestion-address">{formatAddress(result.address, 10, 6)}</span>
-                            </div>
-                          </button>
-                        ))
+                              <div className="suggestion-info">
+                                <div className="suggestion-main">
+                                  <span className="suggestion-name">{result.username}</span>
+                                  <span className={`suggestion-badge ${result.type}`}>
+                                    {result.type === 'blockchain' ? `✓ ${t(language, 'onChain')}`
+                                      : result.type === 'profile' ? t(language, 'profile')
+                                        : result.type === 'platform' ? (result.category || 'Platform')
+                                          : t(language, 'address')}
+                                  </span>
+                                </div>
+                                <span className="suggestion-address">{formatAddress(result.address, 10, 6)}</span>
+                              </div>
+                            </button>
+                          );
+                        })
                       ) : !searchLoading ? (
                         <div className="search-suggestion-empty">
                           {isValidAddress(searchQuery.trim()) ? (

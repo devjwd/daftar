@@ -104,7 +104,7 @@ export const searchEntities = (query) => {
 
   for (const entity of entitiesCache.values()) {
     if (
-      entity.name.toLowerCase().includes(q) ||
+      entity.name.toLowerCase().trim() === q ||
       entity.address.toLowerCase() === q
     ) {
       results.push(entity);

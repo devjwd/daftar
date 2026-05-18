@@ -121,7 +121,12 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
     if (query) {
       const sanitized = String(query).replace(/[^a-zA-Z0-9\s\-_x]/g, '').slice(0, 100);
       if (sanitized) {
-        supabaseQuery = supabaseQuery.or(`username.ilike.%${sanitized}%,wallet_address.ilike.%${sanitized}%`);
+        const isAddressSearch = sanitized.toLowerCase().startsWith('0x');
+        if (isAddressSearch) {
+          supabaseQuery = supabaseQuery.or(`username.ilike.%${sanitized}%,wallet_address.ilike.%${sanitized}%`);
+        } else {
+          supabaseQuery = supabaseQuery.ilike('username', `%${sanitized}%`);
+        }
       }
     }
 

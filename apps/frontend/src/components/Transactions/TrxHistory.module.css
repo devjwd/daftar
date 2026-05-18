@@ -152,6 +152,22 @@
   color: #9ca3af;
 }
 
+.badgeNftSale {
+  color: #10B981;
+}
+
+.badgeNftBuy {
+  color: #3B82F6;
+}
+
+.badgeNftList {
+  color: #EC4899;
+}
+
+.badgeNftBid {
+  color: #F59E0B;
+}
+
 .badgeLend, .badgeBorrow, .badgeRepay, .badgeDeposit, .badgeWithdraw {
   color: #9ca3af;
 }

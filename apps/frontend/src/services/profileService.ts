@@ -12,6 +12,7 @@ const PROFILE_PREFIX = 'move_profile_';
 const PROFILES_INDEX = 'move_profiles_index';
 const PROFILE_EDIT_KEY_PREFIX = 'move_profile_edit_key_';
 const API_BASE = '';
+let cachedAllProfiles = null;
 
 /**
  * Request Deduping & Caching
@@ -163,6 +164,9 @@ export const saveProfile = async (profileData) => {
     // Update profiles index
     updateProfilesIndex(normalizedAddress);
 
+    // Invalidate local in-memory cache
+    cachedAllProfiles = null;
+
     return profile;
   } catch (error) {
     devLog('Error saving profile:', error);
@@ -191,14 +195,16 @@ const updateProfilesIndex = (address) => {
  * Get all profiles
  */
 export const getAllProfiles = () => {
+  if (cachedAllProfiles) return cachedAllProfiles;
   try {
     const indexData = localStorage.getItem(PROFILES_INDEX);
     if (!indexData) return [];
 
     const addresses = JSON.parse(indexData);
-    return addresses
+    cachedAllProfiles = addresses
       .map(addr => getProfile(addr))
       .filter(profile => profile !== null);
+    return cachedAllProfiles;
   } catch (error) {
     devLog('Error getting all profiles:', error);
     return [];
@@ -232,6 +238,9 @@ export const deleteProfile = (address) => {
       // ignore sessionStorage cleanup failures
     }
 
+    // Invalidate local in-memory cache
+    cachedAllProfiles = null;
+
     return true;
   } catch (error) {
     devLog('Error deleting profile:', error);
@@ -246,14 +255,16 @@ export const searchProfiles = (query) => {
   if (!query) return [];
 
   const allProfiles = getAllProfiles();
-  const lowerQuery = query.toLowerCase();
+  const lowerQuery = query.toLowerCase().trim();
 
   return allProfiles.filter(profile => {
-    return (
-      profile.username?.toLowerCase().includes(lowerQuery) ||
-      profile.address?.toLowerCase().includes(lowerQuery) ||
-      profile.bio?.toLowerCase().includes(lowerQuery)
-    );
+    const usernameMatch = profile.username?.toLowerCase().includes(lowerQuery);
+    
+    // Only match by address if the user is explicitly searching by address (starts with 0x)
+    const isSearchingAddress = lowerQuery.startsWith('0x');
+    const addressMatch = isSearchingAddress && profile.address?.toLowerCase().includes(lowerQuery);
+
+    return usernameMatch || addressMatch;
   });
 };
 
@@ -675,32 +686,33 @@ export const getAllProfilesAsync = async () => {
   return getAllProfiles();
 };
 
-export const searchProfilesAsync = async (query) => {
+export const searchProfilesAsync = async (query, signal?: AbortSignal) => {
   if (!query) return [];
 
   try {
     const qs = new URLSearchParams({ query, limit: '20' });
-    const res = await fetch(`${API_BASE}/api/profiles?${qs.toString()}`);
+    const res = await fetch(`${API_BASE}/api/profiles?${qs.toString()}`, { signal });
     const remote = await safeJson(res);
     if (Array.isArray(remote)) {
       cacheProfiles(remote);
       return remote;
     }
   } catch (error) {
+    if (error.name === 'AbortError') throw error;
     devLog('searchProfilesAsync remote search failed:', error);
   }
 
   return searchProfiles(query);
 };
 
-export const getProfileByUsernameAsync = async (username) => {
+export const getProfileByUsernameAsync = async (username, signal?: AbortSignal) => {
   if (!username) return null;
   const lowerUsername = username.toLowerCase();
-  const results = await searchProfilesAsync(username);
+  const results = await searchProfilesAsync(username, signal);
   return results.find((profile) => profile.username?.toLowerCase() === lowerUsername) || null;
 };
 
-export const resolveAddressOrUsernameAsync = async (query) => {
+export const resolveAddressOrUsernameAsync = async (query, signal?: AbortSignal) => {
   if (!query) return null;
 
   const trimmedQuery = query.trim();
@@ -708,6 +720,6 @@ export const resolveAddressOrUsernameAsync = async (query) => {
     return normalizeAddress(trimmedQuery);
   }
 
-  const profile = await getProfileByUsernameAsync(trimmedQuery);
+  const profile = await getProfileByUsernameAsync(trimmedQuery, signal);
   return profile ? profile.address : null;
 };

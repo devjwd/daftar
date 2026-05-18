@@ -9,7 +9,7 @@
 export const WHITELIST_PROTOCOLS = new Set([
   'Liquidswap', 'Echelon', 'Movement Core', 'Aries', 'Mosaic',
   'Yuzu', 'LayerBank', 'Canopy', 'MovePosition', 'Joule',
-  'Meridian', 'Razor'
+  'Meridian', 'Razor', 'Move Match'
 ]);
 
 /** Known Centralized Exchanges */

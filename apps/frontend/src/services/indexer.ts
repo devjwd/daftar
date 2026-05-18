@@ -18,7 +18,7 @@ export const getIndexerEndpoint = (): string => {
 /**
  * Execute a GraphQL query against the Movement Indexer
  */
-export const queryIndexer = async (query: string, variables: Record<string, any> = {}): Promise<any> => {
+export const queryIndexer = async (query: string, variables: Record<string, any> = {}, signal?: AbortSignal): Promise<any> => {
   const endpoint = getIndexerEndpoint();
   const response = await fetch(endpoint, {
     method: "POST",
@@ -29,6 +29,7 @@ export const queryIndexer = async (query: string, variables: Record<string, any>
       query,
       variables,
     }),
+    signal,
   });
 
   if (!response.ok) {
@@ -47,7 +48,7 @@ export const queryIndexer = async (query: string, variables: Record<string, any>
 /**
  * Check if an account exists on chain (has any transactions or balances)
  */
-export const checkAccountExists = async (address: string): Promise<{exists: boolean, txCount: number}> => {
+export const checkAccountExists = async (address: string, signal?: AbortSignal): Promise<{exists: boolean, txCount: number}> => {
   const normalizedAddr = normalizeAddress(address);
   if (!normalizedAddr || normalizedAddr === "0x") {
     return { exists: false, txCount: 0 };
@@ -66,10 +67,11 @@ export const checkAccountExists = async (address: string): Promise<{exists: bool
   `;
 
   try {
-    const data = await queryIndexer(query, { address: normalizedAddr });
+    const data = await queryIndexer(query, { address: normalizedAddr }, signal);
     const txCount = data?.account_transactions_aggregate?.aggregate?.count || 0;
     return { exists: txCount > 0, txCount };
   } catch (error) {
+    if (error.name === 'AbortError') throw error;
     devLog("checkAccountExists error:", error);
     return { exists: false, txCount: 0 };
   }

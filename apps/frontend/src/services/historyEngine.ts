@@ -1,5 +1,10 @@
 import { findTrackedDappMatch } from "../config/dapps";
 import { getTokenInfo } from "../config/tokens";
+import {
+  NFT_TX_TYPES,
+  NFT_TX_VISUALS,
+  TRADEPORT_SUFFIX_MAP
+} from "./nft/tradeportDetector";
 
 /**
  * Transaction History Engine v2
@@ -15,6 +20,7 @@ export const TX_TYPES = {
   CLAIM: "claim", BRIDGE: "bridge",
   NFT_MINT: "nft_mint", NFT_TRANSFER: "nft_transfer",
   LIQUIDITY: "liquidity",
+  ...NFT_TX_TYPES,
   OTHER: "other",
 };
 
@@ -35,6 +41,7 @@ export const TX_VISUALS = {
   [TX_TYPES.NFT_MINT]: { label: "NFT Mint", icon: "🎨", color: "#A855F7", bg: "rgba(168,85,247,0.1)" },
   [TX_TYPES.NFT_TRANSFER]: { label: "NFT Transfer", icon: "🖼️", color: "#EC4899", bg: "rgba(236,72,153,0.1)" },
   [TX_TYPES.LIQUIDITY]: { label: "Liquidity", icon: "💧", color: "#0EA5E9", bg: "rgba(14,165,233,0.1)" },
+  ...NFT_TX_VISUALS,
   [TX_TYPES.OTHER]: { label: "Contract", icon: "⚙️", color: "#94A3B8", bg: "rgba(148,163,184,0.1)" },
 };
 
@@ -76,16 +83,9 @@ const FUNC_MAP = {
   // CapyGo
   sell_miner: { type: TX_TYPES.OTHER, label: "Sell Miner" },
   // Tradeport NFT
-  buy_tokens_v2: { type: TX_TYPES.SWAP, label: "Buy NFT" },
-  mosaic_swap_with_fee: { type: TX_TYPES.SWAP, label: "Swap Assets" },
-  list_tokens_v2: { type: TX_TYPES.NFT_MINT, label: "List NFT" },
-  unlist_token: { type: TX_TYPES.OTHER, label: "Unlist NFT" },
-  collection_bid: { type: TX_TYPES.NFT_MINT, label: "Place Bid" },
-  collection_bids: { type: TX_TYPES.NFT_MINT, label: "Place Bids" },
-  token_bids: { type: TX_TYPES.NFT_MINT, label: "Place Bid" },
-  cancel_collection_bid: { type: TX_TYPES.OTHER, label: "Cancel Bid" },
-  cancel_token_bid: { type: TX_TYPES.OTHER, label: "Cancel Bid" },
+  ...TRADEPORT_SUFFIX_MAP,
   transfer_tokens_v2: { type: TX_TYPES.NFT_TRANSFER, label: "Transfer NFT" },
+  mosaic_swap_with_fee: { type: TX_TYPES.SWAP, label: "Swap Assets" },
   // BRKT Prediction
   sell: { type: TX_TYPES.SWAP, label: "Sell Shares" },
   // Moversmap
@@ -116,6 +116,21 @@ const FUNC_MAP = {
   cancel_order: { type: TX_TYPES.OTHER, label: "Cancel Order" },
   // Pyth
   update_price_feeds_with_funder: { type: TX_TYPES.OTHER, label: "Update Oracle" },
+  // Move Match (fantasy_epl)
+  register_team: { type: TX_TYPES.DEPOSIT, label: "Register Team" },
+  buy_title: { type: TX_TYPES.SWAP, label: "Buy Title" },
+  reroll_title: { type: TX_TYPES.SWAP, label: "Reroll Title" },
+  buy_guild: { type: TX_TYPES.SWAP, label: "Buy Guild" },
+  reroll_guild: { type: TX_TYPES.SWAP, label: "Reroll Guild" },
+  claim_prize: { type: TX_TYPES.CLAIM, label: "Claim Winnings" },
+  admin_sponsor_prize_pool: { type: TX_TYPES.LEND, label: "Sponsor Prize Pool" },
+  create_gameweek: { type: TX_TYPES.OTHER, label: "Create Gameweek" },
+  close_gameweek: { type: TX_TYPES.OTHER, label: "Close Gameweek" },
+  reopen_gameweek: { type: TX_TYPES.OTHER, label: "Reopen Gameweek" },
+  submit_player_stats: { type: TX_TYPES.OTHER, label: "Submit Player Stats" },
+  calculate_results: { type: TX_TYPES.OTHER, label: "Calculate Results" },
+  calculate_results_v2: { type: TX_TYPES.OTHER, label: "Calculate Results" },
+  calculate_results_v3: { type: TX_TYPES.OTHER, label: "Calculate Results" },
   // System
   rotate_authentication_key: { type: TX_TYPES.OTHER, label: "Rotate Auth Key" },
   publish_package_txn: { type: TX_TYPES.OTHER, label: "Publish Package" },
@@ -157,11 +172,14 @@ const EVENT_SCHEMAS = {
   "borrow::BorrowEvent": { amount: "amount", type: TX_TYPES.BORROW },
   // Tradeport NFT
   "listings_v2::BuyEvent": { amount: "price", type: TX_TYPES.SWAP },
-  "listings_v2::InsertListingEvent": { type: TX_TYPES.NFT_MINT },
+  "listings_v2::InsertListingEvent": { type: TX_TYPES.OTHER },
   "listings_v2::DeleteListingEvent": { type: TX_TYPES.OTHER },
-  "biddings_v2::InsertCollectionBidEvent": { amount: "price", type: TX_TYPES.NFT_MINT },
-  "biddings_v2::InsertTokenBidEvent": { amount: "price", type: TX_TYPES.NFT_MINT },
+  "biddings_v2::InsertCollectionBidEvent": { amount: "price", type: TX_TYPES.OTHER },
+  "biddings_v2::InsertTokenBidEvent": { amount: "price", type: TX_TYPES.OTHER },
   "biddings_v2::DeleteCollectionBidEvent": { type: TX_TYPES.OTHER },
+  "biddings_v2::DeleteTokenBidEvent": { type: TX_TYPES.OTHER },
+  "biddings_v2::AcceptCollectionBidEvent": { amount: "price", type: TX_TYPES.SWAP },
+  "biddings_v2::AcceptTokenBidEvent": { amount: "price", type: TX_TYPES.SWAP },
   // Moversmap
   "memory_nft::MemoryMinted": { type: TX_TYPES.NFT_MINT },
   "gift_ledger::GiftSent": { amount: "amount", type: TX_TYPES.SEND },
@@ -170,6 +188,12 @@ const EVENT_SCHEMAS = {
   "conquest_ledger::WarriorMoved": { type: TX_TYPES.OTHER },
   "pin_registry::PinRegistered": { type: TX_TYPES.OTHER },
   "mining::MinerSold": { amount: "price", type: TX_TYPES.OTHER },
+  // Move Match (fantasy_epl)
+  "fantasy_epl::TitleAssigned": { type: TX_TYPES.SWAP },
+  "fantasy_epl::GuildAssigned": { type: TX_TYPES.SWAP },
+  "fantasy_epl::GameweekClosed": { type: TX_TYPES.OTHER },
+  "fantasy_epl::PrizeClaimed": { amount: "amount", type: TX_TYPES.CLAIM },
+  "fantasy_epl::PrizePoolSponsored": { amount: "amount", type: TX_TYPES.LEND },
 };
 
 // ─── Keyword Fallback ────────────────────────────────────────
@@ -194,7 +218,7 @@ const getFuncSuffix = (fn) => {
   return lower.includes("::") ? lower.split("::").pop() : lower;
 };
 
-const resolveSymbol = (assetType, activity) => {
+const resolveSymbol = (assetType: string, activity?: any) => {
   const sym = activity?.metadata?.symbol || activity?.symbol;
   if (sym) return String(sym).toUpperCase();
 
@@ -224,7 +248,7 @@ const resolveSymbol = (assetType, activity) => {
   return null;
 };
 
-const resolveDecimals = (assetType, activity) => {
+const resolveDecimals = (assetType: string, activity?: any) => {
   if (activity?.metadata?.decimals != null) return Number(activity.metadata.decimals);
   const info = getTokenInfo(assetType);
   if (info?.decimals != null) return info.decimals;
@@ -268,11 +292,12 @@ const normalizeActivity = (activity, userAddr) => {
 
 // ─── Event Decoder ───────────────────────────────────────────
 const decodeEvents = (events = []) => {
-  const decoded = { type: null, amount_in: null, amount_out: null, token_in: null, token_out: null, amounts: [] };
+  const decoded = { type: null, amount_in: null, amount_out: null, token_in: null, token_out: null, amount: null, amounts: [] };
 
   for (const evt of events) {
     const evtType = String(evt.type || "").toLowerCase();
-    for (const [schemaKey, schema] of Object.entries(EVENT_SCHEMAS)) {
+    for (const [schemaKey, schemaRaw] of Object.entries(EVENT_SCHEMAS)) {
+      const schema = schemaRaw as any;
       if (evtType.includes(schemaKey.toLowerCase())) {
         const data = evt.data || {};
         if (schema.type && !decoded.type) decoded.type = schema.type;
@@ -280,7 +305,10 @@ const decodeEvents = (events = []) => {
         if (schema.amount_out && data[schema.amount_out]) decoded.amount_out = Number(data[schema.amount_out]);
         if (schema.token_in && data[schema.token_in]) decoded.token_in = data[schema.token_in];
         if (schema.token_out && data[schema.token_out]) decoded.token_out = data[schema.token_out];
-        if (schema.amount && data[schema.amount]) decoded.amounts.push(Number(data[schema.amount]));
+        if (schema.amount && data[schema.amount]) {
+          decoded.amount = Number(data[schema.amount]);
+          decoded.amounts.push(Number(data[schema.amount]));
+        }
         break;
       }
     }
@@ -324,7 +352,7 @@ export const classifyTransaction = (functionName, activities, dapp, eventData) =
 };
 
 // ─── Metadata Extractor ──────────────────────────────────────
-export const extractMetadata = (activities, eventData) => {
+export const extractMetadata = (activities: any[], eventData: any, dapp?: any, functionName = "", type = "", suffix = "", allRawActivities: any[] = []) => {
   const incoming = activities.filter(a => a.direction === "in" && a.amount > 0 && !a.isGas);
   const outgoing = activities.filter(a => a.direction === "out" && a.amount > 0);
 
@@ -350,8 +378,11 @@ export const extractMetadata = (activities, eventData) => {
     return b.amount - a.amount;
   });
 
-  const primaryIn = sortActivities(finalIncoming.length > 0 ? finalIncoming : incoming)[0];
-  const primaryOut = sortActivities(finalOutgoing.length > 0 ? finalOutgoing : outgoing)[0];
+  const nonGasIncoming = incoming.filter(a => !a.isGas);
+  const nonGasOutgoing = outgoing.filter(a => !a.isGas);
+
+  const primaryIn = sortActivities(finalIncoming.length > 0 ? finalIncoming : nonGasIncoming)[0];
+  const primaryOut = sortActivities(finalOutgoing.length > 0 ? finalOutgoing : nonGasOutgoing)[0];
 
   let tokenIn = primaryOut?.symbol;
   if (!tokenIn && eventData?.token_in) tokenIn = resolveSymbol(eventData.token_in);
@@ -360,17 +391,62 @@ export const extractMetadata = (activities, eventData) => {
   if (!tokenOut && eventData?.token_out) tokenOut = resolveSymbol(eventData.token_out);
 
   // Decimal resolution for eventData
-  const getEventAmount = (val, assetType) => {
+  const getEventAmount = (val, assetType?: string) => {
     if (!val) return null;
-    const dec = resolveDecimals(assetType);
+    const dec = resolveDecimals(assetType || "0x1::aptos_coin::AptosCoin");
     return val / Math.pow(10, dec);
   };
+
+  let amountIn = primaryOut?.amount || getEventAmount(eventData?.amount_in, eventData?.token_in);
+  let amountOut = primaryIn?.amount || getEventAmount(eventData?.amount_out, eventData?.token_out);
+
+  // High-fidelity overrides for Tradeport NFT Buy/Accept Bid transactions
+  const isTradeport = dapp?.key === "tradeport" || functionName.includes("biddings_v2") || functionName.includes("listings_v2");
+  if (isTradeport) {
+    const isBuy = suffix.includes("buy");
+    const isAccept = suffix.includes("accept");
+
+    // Sum all MOVE deposits globally to get the exact gross sale/bid price
+    const moveDeposits = allRawActivities.filter(ra => {
+      const isDeposit = String(ra.type || ra.activity_type || "").toLowerCase().includes("deposit");
+      const assetType = String(ra.asset_type || ra.coin_type || "").toLowerCase();
+      const isMove = assetType.includes("aptos_coin") || assetType === "0x1" || assetType === "0x000000000000000000000000000000000000000000000000000000000000000a";
+      return isDeposit && isMove;
+    });
+
+    const grossPrice = moveDeposits.reduce((sum, ra) => {
+      const decStr = ra.metadata?.decimals || ra.data?.metadata?.decimals;
+      const dec = decStr != null ? Number(decStr) : 8;
+      const amountRaw = ra.amount || ra.data?.amount || ra.data?.value || 0;
+      const amount = Number(amountRaw) / Math.pow(10, dec);
+      if (amount < 0.005) return sum;
+      return sum + amount;
+    }, 0);
+
+    if (isBuy) {
+      tokenIn = "MOVE";
+      tokenOut = "NFT";
+      amountIn = grossPrice || amountIn || amountOut;
+      amountOut = 1;
+    } else if (isAccept) {
+      tokenIn = "NFT";
+      tokenOut = "MOVE";
+      amountIn = 1;
+      amountOut = grossPrice || amountOut || amountIn;
+    } else if (suffix.includes("bid")) {
+      // For token_bid / collection_bid, the MOVE deposit is the bid escrow amount
+      amountIn = grossPrice || amountIn || amountOut;
+      tokenIn = "MOVE";
+      amountOut = null;
+      tokenOut = null;
+    }
+  }
 
   return {
     token_in: tokenIn || null,
     token_out: tokenOut || null,
-    amount_in: primaryOut?.amount || getEventAmount(eventData?.amount_in, eventData?.token_in),
-    amount_out: primaryIn?.amount || getEventAmount(eventData?.amount_out, eventData?.token_out),
+    amount_in: amountIn || null,
+    amount_out: amountOut || null,
   };
 };
 
@@ -393,7 +469,20 @@ export const markTransaction = (tx, walletAddress, dynamicEntities = []) => {
       metadata: e.data?.metadata || null, data: e.data,
     })),
   ];
-  const activities = allRaw.map(ra => normalizeActivity(ra, userAddr)).filter(Boolean);
+
+  // De-duplicate activities by owner and amount to prevent double-counting due to coin-to-fungible-asset mirroring
+  const seenRaw = new Set<string>();
+  const deDuplicatedRaw = allRaw.filter(ra => {
+    const owner = String(ra.owner_address || ra.owner || '').toLowerCase();
+    const amt = String(ra.amount || 0);
+    if (!owner) return true; // Keep items without owners
+    const key = `${owner}:${amt}`;
+    if (seenRaw.has(key)) return false;
+    seenRaw.add(key);
+    return true;
+  });
+
+  const activities = deDuplicatedRaw.map(ra => normalizeActivity(ra, userAddr)).filter(Boolean);
 
   // Decode events for rich data
   const eventData = decodeEvents(events);
@@ -412,7 +501,7 @@ export const markTransaction = (tx, walletAddress, dynamicEntities = []) => {
   });
 
   const type = classifyTransaction(functionName, activities, dapp, eventData);
-  const metadata = extractMetadata(activities, eventData);
+  const metadata = extractMetadata(activities, eventData, dapp, functionName, type, suffix, deDuplicatedRaw);
   const visuals = TX_VISUALS[type] || TX_VISUALS[TX_TYPES.OTHER];
   const label = FUNC_MAP[suffix]?.label || visuals.label;
 

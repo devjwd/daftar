@@ -20,6 +20,16 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
     return (TOKEN_VISUALS as any)[symbol] || { logo: null };
   };
 
+  const formatVolumeValue = (val: number): string => {
+    const absVal = Math.abs(val);
+    if (absVal === 0) return '$0';
+    if (absVal < 0.001) return `$${val.toFixed(6)}`;
+    if (absVal < 0.01) return `$${val.toFixed(4)}`;
+    if (absVal < 1) return `$${val.toFixed(3)}`;
+    if (absVal < 10) return `$${val.toFixed(2)}`;
+    return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  };
+
   return (
     <div className="overview-grid-v5" style={{ marginTop: '24px' }}>
       <div className="bento-card">
@@ -49,7 +59,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
                     </div>
                     <span className="entity-name">{entity.name}</span>
                   </div>
-                  <span className="entity-value">${Math.abs(entity.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  <span className="entity-value">{formatVolumeValue(entity.value)}</span>
                 </div>
               );
             })}
@@ -84,7 +94,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
                     </div>
                     <span className="entity-name">{token.symbol}</span>
                   </div>
-                  <span className="entity-value">${Math.abs(token.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  <span className="entity-value">{formatVolumeValue(token.value)}</span>
                 </div>
               );
             })}

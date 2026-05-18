@@ -7,7 +7,8 @@ import { getTokenInfo } from "../config/tokens";
  * @returns {Object} Token metadata
  */
 export function parseCoinType(coinType) {
-  const match = coinType.match(/<(.+)>/);
+  if (!coinType) return null;
+  const match = String(coinType).match(/<(.+)>/);
   if (!match) return null;
 
   const fullType = match[1];
@@ -54,8 +55,10 @@ export function getTokenDecimals(coinType, tokenMeta = null) {
     return tokenMeta.tokenInfo.decimals;
   }
 
+  if (!coinType) return 8;
+
   // Try to get from token registry by parsing the address
-  const match = coinType.match(/<(.+)>/);
+  const match = String(coinType).match(/<(.+)>/);
   if (match) {
     const fullType = match[1];
     const parts = fullType.split("::");
@@ -110,9 +113,11 @@ export function formatAddress(address, startChars = 6, endChars = 4) {
 export function isValidAddress(address) {
   if (!address) return false;
   const trimmed = String(address).trim();
-  // Movement Network supports both short (0x1, 0xa) and full (64 hex chars) addresses
-  // Supports optional 0x prefix and 1-64 hex characters
-  const addressPattern = /^(0x)?[a-fA-F0-9]{1,64}$/;
-  return addressPattern.test(trimmed);
+  // Enforce standard protocol validation:
+  // 1. Explicitly starts with '0x' followed by 1 to 64 hex characters (case-insensitive), OR
+  // 2. A full-length 64-character hex string (case-insensitive).
+  const hasPrefix = /^0x[a-fA-F0-9]{1,64}$/i;
+  const fullLengthNoPrefix = /^[a-fA-F0-9]{64}$/i;
+  return hasPrefix.test(trimmed) || fullLengthNoPrefix.test(trimmed);
 }
 

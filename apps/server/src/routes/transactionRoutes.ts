@@ -20,6 +20,10 @@ const ACTION_TO_TX_TYPE: Record<string, string> = {
   CLAIM: 'claim',
   BRIDGE_IN: 'bridge',
   BRIDGE_OUT: 'bridge',
+  NFT_SALE: 'nft_sale',
+  NFT_BUY: 'nft_buy',
+  NFT_LIST: 'nft_list',
+  NFT_BID: 'nft_bid',
   OTHER: 'other',
 };
 
@@ -37,6 +41,10 @@ const TX_VISUALS: Record<string, { label: string; icon: string; color: string; b
   withdraw: { label: 'Withdraw', icon: '📤', color: '#F97316', bg: 'rgba(249,115,22,0.1)' },
   claim:    { label: 'Claim',    icon: '🎁', color: '#FACC15', bg: 'rgba(250,204,21,0.1)' },
   bridge:   { label: 'Bridge',   icon: '🌉', color: '#64748B', bg: 'rgba(100,116,139,0.1)' },
+  nft_sale: { label: 'Accept Bid', icon: '🎨', color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
+  nft_buy:  { label: 'Buy NFT',    icon: '🖼️', color: '#3B82F6', bg: 'rgba(59,130,246,0.1)' },
+  nft_list: { label: 'List NFT',   icon: '🏷️', color: '#EC4899', bg: 'rgba(236,72,153,0.1)' },
+  nft_bid:  { label: 'Place Bid',  icon: '📥', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
   other:    { label: 'Contract', icon: '⚙️', color: '#94A3B8', bg: 'rgba(148,163,184,0.1)' },
 };
 
@@ -99,7 +107,10 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
         // token_out is what user RECEIVED (inflow = asset_in)
         token_out: tx.asset_in_symbol || null,
         amount_out: tx.asset_in_amount != null ? Number(tx.asset_in_amount) : null,
-        gas_fee: tx.gas_usd || null,
+        gas_fee: tx.metadata?.gas_used != null && tx.metadata?.gas_unit_price != null
+          ? (Number(tx.metadata.gas_used) * Number(tx.metadata.gas_unit_price)) / 1e8
+          : (tx.gas_usd != null && Number(tx.gas_usd) < 0.1 ? Number(tx.gas_usd) : null),
+        gas_fee_usd: tx.gas_usd || null,
         status: tx.metadata?.success === false ? 'failed' : 'success',
       };
     });

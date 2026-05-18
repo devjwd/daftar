@@ -214,6 +214,12 @@ body[data-theme='light'] .home-page {
 /* ===== Search Form ===== */
 .home-search-form {
   margin-bottom: 32px;
+  position: relative;
+}
+
+.home-search-suggestions {
+  margin-top: 8px;
+  max-height: 280px;
 }
 
 .home-search-wrapper {
@@ -804,4 +810,18 @@ body[data-theme='light'] .home-search-input::placeholder {
   .home-action-section {
     margin-bottom: 60px;
   }
+}
+
+/* ===== Home Search Loading Spinner ===== */
+.home-search-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(20, 17, 15, 0.25);
+  border-top-color: #14110f;
+  border-radius: 50%;
+  animation: homeSpin 0.7s linear infinite;
+}
+
+@keyframes homeSpin {
+  to { transform: rotate(360deg); }
 }

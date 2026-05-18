@@ -114,6 +114,8 @@ export const normalizeMosaicSwapSettings = (rawSettings = {}) => {
   const normalizedRoutingMode = VALID_ROUTING_MODES.includes(routingMode) ? routingMode : "mosaic";
 
   const enabledLiquiditySources = normalizeSourceIds(rawSettings.enabledLiquiditySources);
+  const mosaicApiKey = String(rawSettings.mosaicApiKey || "").trim();
+  const paused = Boolean(rawSettings.paused ?? false);
 
   return {
     feeInBps,
@@ -121,9 +123,10 @@ export const normalizeMosaicSwapSettings = (rawSettings = {}) => {
     chargeFeeBy,
     isFeeIn,
     defaultSlippagePercent,
-
     routingMode: normalizedRoutingMode,
     enabledLiquiditySources,
+    mosaicApiKey,
+    paused,
   };
 };
 

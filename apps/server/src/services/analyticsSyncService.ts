@@ -3,6 +3,11 @@ import { normalizeAddress } from '../utils/address.ts';
 import CONFIG from '../config/index.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { reconstructHistoricalBalances } from './portfolioService.ts';
+import {
+  TRADEPORT_SUFFIX_MAP,
+  processTradeportAssets,
+  generateTradeportDescription
+} from './nft/tradeportDetector.ts';
 
 const MOVEMENT_INDEXER_URL = CONFIG.MOVEMENT.INDEXER_URL;
 
@@ -19,12 +24,9 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
     ) {
       transaction_version
       user_transaction {
-        hash
         sender
         timestamp
         entry_function_id_str
-        gas_used
-        gas_unit_price
       }
       fungible_asset_activities {
         transaction_version
@@ -67,12 +69,9 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
     ) {
       transaction_version
       user_transaction {
-        hash
         sender
         timestamp
         entry_function_id_str
-        gas_used
-        gas_unit_price
       }
       fungible_asset_activities {
         transaction_version
@@ -102,12 +101,48 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
   }
 `;
 
+
+/**
+ * Pagination helper to fetch all address labels from Supabase, bypassing the 1000 records limit
+ */
+async function fetchAllAddressLabels(supabase: SupabaseClient): Promise<any[]> {
+  let allLabels: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('address_labels')
+      .select('*, tracked_entities(name)')
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) {
+      console.error('[fetchAllAddressLabels] Error:', error);
+      break;
+    }
+
+    if (!data || data.length === 0) {
+      hasMore = false;
+    } else {
+      allLabels.push(...data);
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+  }
+
+  return allLabels;
+}
+
 /**
  * Deep classifier and humanizer for analytics
  * Mirrors the "fineist" frontend historyEngine.ts for server-side consistency
  */
 function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string, any> = new Map()) {
-  const userAddr = walletAddress.toLowerCase();
+  const userAddr = normalizeAddress(walletAddress);
   const ut = tx.user_transaction || {};
   const functionId = ut.entry_function_id_str || '';
   
@@ -119,7 +154,12 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     DEPOSIT: "DEPOSIT", WITHDRAW: "WITHDRAW",
     CLAIM: "CLAIM", BRIDGE: "BRIDGE",
     NFT_MINT: "NFT_MINT", NFT_TRANSFER: "NFT_TRANSFER",
-    LIQUIDITY: "LIQUIDITY", OTHER: "OTHER",
+    LIQUIDITY: "LIQUIDITY",
+    NFT_SALE: "NFT_SALE",
+    NFT_BUY: "NFT_BUY",
+    NFT_LIST: "NFT_LIST",
+    NFT_BID: "NFT_BID",
+    OTHER: "OTHER",
   };
 
   const EVENT_SCHEMAS: Record<string, any> = {
@@ -136,7 +176,21 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     "lend::RedeemEvent": { amount: "amount", type: TX_TYPES.WITHDRAW },
     "lend::BorrowEvent": { amount: "amount", type: TX_TYPES.BORROW },
     "lend::RepayEvent": { amount: "amount", type: TX_TYPES.REPAY },
-    "listings_v2::BuyEvent": { amount: "price", type: TX_TYPES.SWAP },
+    "listings_v2::BuyEvent": { amount: "price", type: TX_TYPES.NFT_BUY },
+    "listings_v2::InsertListingEvent": { type: TX_TYPES.NFT_LIST },
+    "listings_v2::DeleteListingEvent": { type: TX_TYPES.NFT_LIST },
+    "biddings_v2::InsertCollectionBidEvent": { amount: "price", type: TX_TYPES.NFT_BID },
+    "biddings_v2::InsertTokenBidEvent": { amount: "price", type: TX_TYPES.NFT_BID },
+    "biddings_v2::DeleteCollectionBidEvent": { type: TX_TYPES.NFT_BID },
+    "biddings_v2::DeleteTokenBidEvent": { type: TX_TYPES.NFT_BID },
+    "biddings_v2::AcceptCollectionBidEvent": { amount: "price", type: TX_TYPES.NFT_SALE },
+    "biddings_v2::AcceptTokenBidEvent": { amount: "price", type: TX_TYPES.NFT_SALE },
+    // Move Match (fantasy_epl)
+    "fantasy_epl::TitleAssigned": { type: TX_TYPES.SWAP },
+    "fantasy_epl::GuildAssigned": { type: TX_TYPES.SWAP },
+    "fantasy_epl::GameweekClosed": { type: TX_TYPES.OTHER },
+    "fantasy_epl::PrizeClaimed": { amount: "amount", type: TX_TYPES.CLAIM },
+    "fantasy_epl::PrizePoolSponsored": { amount: "amount", type: TX_TYPES.LEND },
   };
 
   const FUNC_MAP: Record<string, any> = {
@@ -154,6 +208,16 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     withdraw: TX_TYPES.WITHDRAW, redeem: TX_TYPES.WITHDRAW, redeem_v2: TX_TYPES.WITHDRAW,
     unstake: TX_TYPES.UNSTAKE, unlock: TX_TYPES.UNSTAKE, withdraw_stake: TX_TYPES.UNSTAKE,
     transfer: TX_TYPES.SEND, transfer_coins: TX_TYPES.SEND, batch_transfer_coins: TX_TYPES.SEND,
+    // Tradeport NFT
+    ...TRADEPORT_SUFFIX_MAP,
+    // Move Match (fantasy_epl)
+    register_team: TX_TYPES.DEPOSIT,
+    buy_title: TX_TYPES.SWAP,
+    reroll_title: TX_TYPES.SWAP,
+    buy_guild: TX_TYPES.SWAP,
+    reroll_guild: TX_TYPES.SWAP,
+    claim_prize: TX_TYPES.CLAIM,
+    admin_sponsor_prize_pool: TX_TYPES.LEND,
   };
 
   const PROTOCOLS = [
@@ -167,7 +231,8 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     { name: 'Joule', addresses: ['0x6a1641'], keywords: ['joule'] },
     { name: 'Meridian', addresses: ['0x8f396e', '0x2712eb', '0xfbdb3d', '0x88def5'], keywords: ['meridian'] },
     { name: 'Tradeport', addresses: ['0xf81bea'], keywords: ['tradeport'] },
-    { name: 'Moversmap', addresses: ['0x8c15ae'], keywords: ['moversmap'] }
+    { name: 'Moversmap', addresses: ['0x8c15ae'], keywords: ['moversmap'] },
+    { name: 'Move Match', addresses: ['0xf598f0'], keywords: ['movematch', 'fantasy_epl'] }
   ];
 
   // 2. Helpers
@@ -221,6 +286,30 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
   const inFlows = activities.filter(a => a?.direction === 'in');
   const outFlows = activities.filter(a => a?.direction === 'out');
 
+  // Resolve Counterparty Address & Label
+  let counterpartyAddress = null;
+  let counterpartyLabel = null;
+
+  for (const act of rawActivities) {
+    const owner = normalizeAddress(act.owner_address || act.owner);
+    if (owner && owner !== userAddr && owner !== '0x1' && owner !== '0x3' && owner !== '0xa' && owner !== '0x0000000000000000000000000000000000000000000000000000000000000001') {
+      counterpartyAddress = owner;
+      break;
+    }
+  }
+
+  if (!counterpartyAddress) {
+    const sender = normalizeAddress(tx.user_transaction?.sender);
+    if (sender && sender !== userAddr) {
+      counterpartyAddress = sender;
+    }
+  }
+
+  if (counterpartyAddress && labelsMap.has(counterpartyAddress)) {
+    const labelObj = labelsMap.get(counterpartyAddress);
+    counterpartyLabel = labelObj.tracked_entities?.name || labelObj.label || null;
+  }
+
   // 4. Decode Events for Richer Context
   const events = [
     ...(tx.fungible_asset_activities || []),
@@ -249,6 +338,11 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     }
   }
 
+  // Fallback to counterparty label if protocol is Unknown or Movement Core (e.g. for transfers to exchanges)
+  if ((protocol === 'Unknown' || protocol === 'Movement Core') && counterpartyLabel) {
+    protocol = counterpartyLabel;
+  }
+
   let action = eventTypeOverride || FUNC_MAP[suffix] || TX_TYPES.OTHER;
   let category = (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) ? 'Transfer' : 'DeFi';
 
@@ -261,10 +355,41 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
 
   // 6. Generate Description & Metadata
   let description = 'Contract interaction';
-  const primaryIn = inFlows[0];
-  const primaryOut = outFlows[0];
+  let primaryIn = inFlows[0];
+  let primaryOut = outFlows[0];
 
-  if (action === TX_TYPES.SWAP) {
+  // Custom high-fidelity override for Tradeport NFT Buy/Accept Bid transactions on backend
+  if (protocol === 'Tradeport') {
+    const tradeportFlow = processTradeportAssets(suffix, events, primaryIn, primaryOut);
+    primaryIn = tradeportFlow.primaryIn;
+    primaryOut = tradeportFlow.primaryOut;
+  }
+
+  if (protocol === 'Move Match') {
+    if (suffix === 'register_team') {
+      description = `Registered Fantasy Squad in Move Match`;
+    } else if (suffix === 'buy_title') {
+      description = `Purchased Player Title on Move Match`;
+    } else if (suffix === 'reroll_title') {
+      description = `Rerolled Player Title on Move Match`;
+    } else if (suffix === 'buy_guild') {
+      description = `Purchased Guild on Move Match`;
+    } else if (suffix === 'reroll_guild') {
+      description = `Rerolled Guild on Move Match`;
+    } else if (suffix === 'claim_prize') {
+      const prizeClaimedEvt = events.find(e => String(e.type || '').toLowerCase().includes('prizeclaimed'));
+      const amount = primaryIn?.amount || (prizeClaimedEvt?.data?.amount ? Number(prizeClaimedEvt.data.amount) / 1e8 : null);
+      description = amount ? `Claimed ${amount.toFixed(2)} MOVE prize winnings from Move Match` : `Claimed prize winnings from Move Match`;
+    } else if (suffix === 'admin_sponsor_prize_pool') {
+      const prizeSponsoredEvt = events.find(e => String(e.type || '').toLowerCase().includes('prizepoolsponsored'));
+      const amount = primaryOut?.amount || (prizeSponsoredEvt?.data?.amount ? Number(prizeSponsoredEvt.data.amount) / 1e8 : null);
+      description = amount ? `Sponsored ${amount.toFixed(2)} MOVE to Move Match prize pool` : `Sponsored prize pool for Move Match`;
+    } else {
+      description = `${suffix.charAt(0).toUpperCase() + suffix.slice(1).replace(/_/g, ' ')} via Move Match`;
+    }
+  } else if (protocol === 'Tradeport') {
+    description = generateTradeportDescription(suffix, events, primaryIn, primaryOut);
+  } else if (action === TX_TYPES.SWAP) {
     if (primaryIn && primaryOut) {
       description = `Swapped ${primaryOut.amount.toFixed(2)} ${primaryOut.symbol} for ${primaryIn.amount.toFixed(2)} ${primaryIn.symbol}`;
     } else {
@@ -273,7 +398,11 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
   } else if (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) {
     const asset = primaryOut || primaryIn;
     if (asset) {
-      description = `${action === TX_TYPES.SEND ? 'Sent' : 'Received'} ${asset.amount.toFixed(2)} ${asset.symbol}`;
+      if (counterpartyLabel) {
+        description = `${action === TX_TYPES.SEND ? 'Sent' : 'Received'} ${asset.amount.toFixed(2)} ${asset.symbol} ${action === TX_TYPES.SEND ? 'to' : 'from'} ${counterpartyLabel}`;
+      } else {
+        description = `${action === TX_TYPES.SEND ? 'Sent' : 'Received'} ${asset.amount.toFixed(2)} ${asset.symbol}`;
+      }
     }
   } else if (action === TX_TYPES.LEND || action === TX_TYPES.DEPOSIT) {
     const asset = primaryOut || primaryIn;
@@ -303,6 +432,8 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
       hash: ut.hash,
       entry_function_id_str: functionId,
       success: ut.success ?? tx.user_transaction?.success ?? true,
+      gas_used: ut.gas_used != null ? Number(ut.gas_used) : null,
+      gas_unit_price: ut.gas_unit_price != null ? Number(ut.gas_unit_price) : null,
       fungible_asset_activities: tx.fungible_asset_activities || [],
       coin_activities: tx.coin_activities || []
     },
@@ -325,10 +456,8 @@ export async function syncFullUserHistory(
 
   // Fetch all labels for counterparty identification
   const labelsMap = new Map();
-  const { data: labelsData } = await supabase.from('address_labels').select('*, tracked_entities(name)');
-  if (labelsData) {
-    labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
-  }
+  const labelsData = await fetchAllAddressLabels(supabase);
+  labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
 
   // 1. Fetch current sync status
   const { data: statusData } = await supabase
@@ -563,10 +692,8 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
 
   // 1. Fetch labels once
   const labelsMap = new Map();
-  const { data: labelsData } = await supabase.from('address_labels').select('*, tracked_entities(name)');
-  if (labelsData) {
-    labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
-  }
+  const labelsData = await fetchAllAddressLabels(supabase);
+  labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
 
   // 2. Fetch all transactions marked as Unknown (limited batch)
   const { data: unknowns, error } = await supabase

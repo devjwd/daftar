@@ -46,6 +46,18 @@ const devLog = (...args) => {
   if (import.meta.env.DEV) console.log(...args);
 };
 
+const getWalletLogo = (name) => {
+  if (!name) return null;
+  const lowerName = name.toLowerCase();
+  if (lowerName.includes('okx')) return '/okx.png';
+  if (lowerName.includes('leap')) return '/leap.png';
+  if (lowerName.includes('razor')) return '/razor.png';
+  if (lowerName.includes('nightly')) return '/nightly.png';
+  if (lowerName.includes('petra')) return '/logo.png';
+  if (lowerName.includes('motion')) return '/motion.png';
+  return null;
+};
+
 const normalizeTokenSymbol = (symbol) => {
   const normalized = String(symbol || "").trim().toUpperCase().replace(/\.E$/i, "");
   if (normalized === "ETH") return "WETH";
@@ -127,7 +139,7 @@ const collectAddressLikeValues = (value, output = []) => {
   return output;
 };
 
-const isQuotePayloadConsistent = ({ payload, bestRoute, accountAddress }) => {
+const isQuotePayloadConsistent = ({ payload, bestRoute, accountAddress, availableTokens }) => {
   const tx = bestRoute?.quoteData?.tx;
   if (!tx) return false;
 
@@ -148,7 +160,39 @@ const isQuotePayloadConsistent = ({ payload, bestRoute, accountAddress }) => {
   const lowerAccount = String(accountAddress || "").toLowerCase();
   if (lowerAccount && ADDRESS_PATTERN.test(lowerAccount)) {
     const addresses = collectAddressLikeValues(payload.functionArguments);
-    if (addresses.length > 0 && !addresses.includes(lowerAccount)) {
+    const normalizedUser = lowerAccount.replace(/^0x0*/, "0x");
+
+    // Gather all registered token addresses to filter them out of user recipient validations
+    const tokenAddresses = new Set(
+      (availableTokens || []).map((t) => {
+        const addr = extractAddressFromType(t.address || t.fullType);
+        return addr ? addr.trim().toLowerCase().replace(/^0x0*/, "0x") : "";
+      }).filter(Boolean)
+    );
+
+    // Standard system addresses to ignore
+    const systemAddresses = new Set([
+      "0x1",
+      "0x2",
+      "0x3",
+      "0x4",
+      "0x0",
+      "0xa",
+      "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "0x000000000000000000000000000000000000000000000000000000000000000a",
+    ]);
+
+    // Find any external user-space addresses that don't match the active user
+    const foreignAddresses = addresses.filter((addr) => {
+      const normAddr = addr.replace(/^0x0*/, "0x");
+      if (normAddr === normalizedUser) return false;
+      if (systemAddresses.has(normAddr)) return false;
+      if (tokenAddresses.has(normAddr)) return false;
+      return true;
+    });
+
+    if (foreignAddresses.length > 0) {
+      devLog("Security alert: Foreign recipient/authority address detected in payload", foreignAddresses);
       return false;
     }
   }
@@ -162,7 +206,7 @@ const isQuotePayloadConsistent = ({ payload, bestRoute, accountAddress }) => {
 
 const formatDisplayAmount = (symbol, quantity) => {
   const value = Number(quantity) || 0;
-  const isHighValueToken = ["BTC", "WBTC", "ETH", "WETH"].includes(String(symbol || "").toUpperCase());
+  const isHighValueToken = ["BTC", "WBTC", "ETH", "WETH"].includes(String(symbol || "").toUpperCase().replace(/\.E$/i, ""));
 
   if (isHighValueToken && value < 0.01) {
     return value.toLocaleString(undefined, {
@@ -197,8 +241,13 @@ const Swap = ({ balances, onSwapSuccess }) => {
     return () => window.removeEventListener("languagechange", handleLanguageChange);
   }, []);
 
-  const { account, connected, signAndSubmitTransaction } = useWallet();
+  const { account, connected, signAndSubmitTransaction, connect, wallets } = useWallet();
   const { prices: priceMap } = useTokenPrices();
+  const priceMapRef = useRef(priceMap);
+  useEffect(() => {
+    priceMapRef.current = priceMap;
+  }, [priceMap]);
+
   const [swapSettings, setSwapSettings] = useState(() => normalizeMosaicSwapSettings(getSwapSettings()));
 
   // ---- State ----
@@ -208,6 +257,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
   const [toAmount, setToAmount] = useState("");
   const [showFromSelector, setShowFromSelector] = useState(false);
   const [showToSelector, setShowToSelector] = useState(false);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
   const [swapping, setSwapping] = useState(false);
   const [error, setError] = useState(null);
   const [slippage, setSlippage] = useState(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE);
@@ -284,13 +334,13 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
     const directCandidates = [
       token.price,
-      priceMap[addr],
-      priceMap[String(token.address || "").toLowerCase()],
-      priceMap[fullType],
+      priceMapRef.current[addr],
+      priceMapRef.current[String(token.address || "").toLowerCase()],
+      priceMapRef.current[fullType],
     ];
 
     if (symbol === "MOVE") {
-      directCandidates.push(priceMap["0xa"], priceMap["0x1"]);
+      directCandidates.push(priceMapRef.current["0xa"], priceMapRef.current["0x1"]);
     }
 
     for (const candidate of directCandidates) {
@@ -301,12 +351,13 @@ const Swap = ({ balances, onSwapSuccess }) => {
     }
 
     // Stablecoins are displayed as $1 fallback when market price is unavailable.
-    if (symbol === "USDC" || symbol === "USDT") {
+    const upperSym = String(symbol || "").toUpperCase();
+    if (upperSym === "USDC" || upperSym === "USDT" || upperSym === "USDC.E" || upperSym === "USDT.E") {
       return 1;
     }
 
     return 0;
-  }, [priceMap]);
+  }, []);
 
   // ---- Available Tokens ----
 
@@ -449,8 +500,8 @@ const Swap = ({ balances, onSwapSuccess }) => {
         devLog("✅ Mosaic route:", result.selectedSource, "→", outputValue);
 
         // Calculate price impact
-        const fromPrice = fromToken.price || priceMap[fromToken.address] || 0;
-        const toPrice = toToken.price || priceMap[toToken.address] || 0;
+        const fromPrice = fromToken.price || priceMapRef.current[fromToken.address] || 0;
+        const toPrice = toToken.price || priceMapRef.current[toToken.address] || 0;
         if (fromPrice > 0 && toPrice > 0) {
           const expectedOut = (parseFloat(fromAmount) * fromPrice) / toPrice;
           const impact = ((expectedOut - outputValue) / expectedOut) * 100;
@@ -460,11 +511,12 @@ const Swap = ({ balances, onSwapSuccess }) => {
         }
       } else if (result.error) {
         // Fallback: price-based estimate
-        const fromPrice = fromToken.price || priceMap[fromToken.address] || 0;
-        const toPrice = toToken.price || priceMap[toToken.address] || 0;
+        const fromPrice = fromToken.price || priceMapRef.current[fromToken.address] || 0;
+        const toPrice = toToken.price || priceMapRef.current[toToken.address] || 0;
         if (fromPrice > 0 && toPrice > 0) {
           const estimated = ((parseFloat(fromAmount) * fromPrice) / toPrice) * 0.997;
-          setToAmount(estimated.toFixed(6));
+          const precision = getDecimals(toToken);
+          setToAmount(estimated.toFixed(Math.min(precision, 8)).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1"));
           setPriceImpact(0.3);
         } else {
           setError("Unable to get quote. Please try again.");
@@ -477,7 +529,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
     } finally {
       setIsQuoting(false);
     }
-  }, [fromToken, toToken, fromAmount, slippage, account, getDecimals, priceMap, routeSettings, swapSettings.paused]);
+  }, [fromToken, toToken, fromAmount, slippage, account, getDecimals, routeSettings, swapSettings.paused]);
 
   // Debounced quote fetch
   useEffect(() => {
@@ -530,9 +582,9 @@ const Swap = ({ balances, onSwapSuccess }) => {
     }
   }, [availableTokens, fromToken, toToken]);
 
-  // Auto-dismiss terminal toasts.
+  // Auto-dismiss terminal toasts (except critical errors or pending states).
   useEffect(() => {
-    if (!txToast || txToast.type === "pending") return;
+    if (!txToast || txToast.type === "pending" || txToast.type === "error") return;
     const timer = setTimeout(() => setTxToast(null), TOAST_DISMISS_MS);
     return () => clearTimeout(timer);
   }, [txToast]);
@@ -577,8 +629,10 @@ const Swap = ({ balances, onSwapSuccess }) => {
   // ---- Swap Execution ----
 
   const handleSwap = async () => {
-    if (!connected || !account) return setError("Please connect your wallet");
-    if (!signAndSubmitTransaction) return setError("Wallet does not support transactions");
+    if (!connected || !account) {
+      setShowWalletPicker(true);
+      return;
+    }
     if (swapSettings.paused) return setError("Swaps are currently paused");
     if (!fromToken || !toToken || !fromAmount || parseFloat(fromAmount) <= 0) return setError("Please enter a valid amount");
     if (fromToken.id === toToken.id) return setError("Cannot swap the same token");
@@ -618,6 +672,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
         payload,
         bestRoute: routingResult.best,
         accountAddress: account?.address?.toString?.() || account?.address,
+        availableTokens,
       })) {
         throw new Error("Quote consistency check failed. Please refresh quote.");
       }
@@ -665,6 +720,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
           const fromNumeric = Number.parseFloat(fromAmount) || 0;
           const toNumeric = Number.parseFloat(toAmount) || 0;
           const rate = fromNumeric > 0 ? toNumeric / fromNumeric : 0;
+          const targetDecimals = getDecimals(toToken);
 
           const details = {
             txHash: response.hash,
@@ -678,13 +734,18 @@ const Swap = ({ balances, onSwapSuccess }) => {
             slippage,
             priceImpact: Number.isFinite(priceImpact) ? Number(priceImpact.toFixed(2)) : 0,
             networkCostLabel: "~0.001 MOVE",
-            rateLabel: rate > 0 ? `1 ${fromToken.symbol} ≈ ${rate.toFixed(6)} ${toToken.symbol}` : "Rate unavailable",
+            rateLabel: rate > 0 ? `1 ${fromToken.symbol} ≈ ${rate.toFixed(Math.min(targetDecimals, 8))} ${toToken.symbol}` : "Rate unavailable",
             completedAt: new Date().toISOString(),
             explorerBase: DEFAULT_NETWORK.explorer,
           };
 
           setSwapComplete(details);
           setTxToast(null);
+
+          // Fire awards progression change immediately (no backend logging blocks!)
+          devLog("On-chain swap validated. Refreshing progression...");
+          emit("awards:changed");
+
           try {
             sessionStorage.setItem(SWAP_DETAILS_STORAGE_KEY, JSON.stringify(details));
           } catch {
@@ -711,8 +772,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
               }),
             })
               .then(() => {
-                devLog("Swap record saved. Refreshing level...");
-                emit("awards:changed");
+                devLog("Swap record saved on database.");
               })
               .catch((recordErr) => devLog("Swap record failed (non-blocking):", recordErr));
           } catch (recordErr) {
@@ -792,7 +852,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
   const buttonState = useMemo(() => {
     if (swapping) return { text: "Swapping...", disabled: true };
-    if (!connected) return { text: "Connect Wallet", disabled: true };
+    if (!connected) return { text: "Connect Wallet", disabled: false };
     if (swapSettings.paused) return { text: "Swaps Paused", disabled: true };
     if (!fromToken || !toToken) return { text: "Select Tokens", disabled: true };
     if (fromToken.id === toToken.id) return { text: "Select Different Tokens", disabled: true };
@@ -805,8 +865,9 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
   const minReceived = useMemo(() => {
     const output = parseFloat(toAmount) || 0;
-    return (output * (1 - slippage / 100)).toFixed(6);
-  }, [toAmount, slippage]);
+    const targetDecimals = getDecimals(toToken);
+    return (output * (1 - slippage / 100)).toFixed(Math.min(targetDecimals, 8));
+  }, [toAmount, slippage, toToken, getDecimals]);
 
   // ---- Settings Modal ----
 
@@ -951,20 +1012,8 @@ const Swap = ({ balances, onSwapSuccess }) => {
             </button>
           </div>
         </div>
-        {/* Connect Prompt */}
-        {!connected && (
-          <div className="swap-connect-prompt">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="connect-icon">
-              <circle cx="12" cy="5" r="3" />
-              <path d="M12 13v6M6 15l-3-2M18 15l3-2M8 17H4v2c0 1.1.9 2 2 2h2M20 17h4v2c0 1.1-.9 2-2 2h-2" />
-              <line x1="12" y1="13" x2="12" y2="18" />
-            </svg>
-            <p>{t(lang, 'swapConnectPrompt')}</p>
-          </div>
-        )}
-
         {/* Empty State */}
-        {connected && availableTokens.length === 0 && (
+        {availableTokens.length === 0 && (
           <div className="swap-empty-state">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="empty-icon">
               <path d="M8 6h12M8 10h12M8 14h8M3 4h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
@@ -977,11 +1026,11 @@ const Swap = ({ balances, onSwapSuccess }) => {
         )}
 
         {/* Main Swap Interface */}
-        {connected && availableTokens.length > 0 && (
+        {availableTokens.length > 0 && (
           <>
             {/* From Token Input */}
             <div className="swap-input-group">
-              <div className="swap-input-label">
+              <div className="swap-input-header-row">
                 <span>From</span>
                 {fromToken && <span className="swap-balance">Balance: {fromToken.amount}</span>}
               </div>
@@ -995,23 +1044,21 @@ const Swap = ({ balances, onSwapSuccess }) => {
                   onChange={handleAmountChange}
                 />
                 <div className="swap-input-right">
-                  <div className="quick-fill-group" aria-label="Quick amount selector">
-                    <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(25)}>25%</button>
-                    <span className="quick-fill-separator" aria-hidden="true">-</span>
-                    <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(50)}>50%</button>
-                    <span className="quick-fill-separator" aria-hidden="true">-</span>
-                    <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(100)}>100%</button>
-                  </div>
+                  {fromToken && (
+                    <div className="quick-fill-group" aria-label="Quick amount selector">
+                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(25)}>25%</button>
+                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(50)}>50%</button>
+                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(100)}>Max</button>
+                    </div>
+                  )}
                   <button className="swap-token-selector" onClick={() => setShowFromSelector(true)}>
                     <TokenBadge token={fromToken} getTokenLogo={getTokenLogo} />
                   </button>
                 </div>
               </div>
-              {fromToken && fromAmount && (
-                <div className="swap-input-footer">
-                  <span className="swap-usd-value">{formatUsd(fromAmount, resolveTokenPrice(fromToken))}</span>
-                </div>
-              )}
+              <div className="swap-input-footer">
+                <span className="swap-usd-value">{fromAmount ? formatUsd(fromAmount, resolveTokenPrice(fromToken)) : "≈ $0.00"}</span>
+              </div>
             </div>
 
             {/* Swap Direction Button */}
@@ -1023,7 +1070,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
             {/* To Token Input */}
             <div className="swap-input-group">
-              <div className="swap-input-label">
+              <div className="swap-input-header-row">
                 <span>{t(lang, 'swapTo')}</span>
                 {toToken && <span className="swap-balance">{t(lang, 'swapBalance', { amount: toToken.amount })}</span>}
               </div>
@@ -1041,11 +1088,9 @@ const Swap = ({ balances, onSwapSuccess }) => {
                   </button>
                 </div>
               </div>
-              {toToken && toAmount && (
-                <div className="swap-input-footer">
-                  <span className="swap-usd-value">{formatUsd(toAmount, resolveTokenPrice(toToken))}</span>
-                </div>
-              )}
+              <div className="swap-input-footer">
+                <span className="swap-usd-value">{toAmount ? formatUsd(toAmount, resolveTokenPrice(toToken)) : "≈ $0.00"}</span>
+              </div>
             </div>
 
             {/* Error */}
@@ -1069,12 +1114,12 @@ const Swap = ({ balances, onSwapSuccess }) => {
             </button>
 
             {/* Swap Details */}
-            {fromToken && toToken && fromAmount && toAmount && !error && (
+            {fromToken && toToken && fromAmount && toAmount && parseFloat(fromAmount) > 0 && !error && (
               <div className="swap-info">
                 <div className="swap-info-row">
                   <span>{t(lang, 'swapRate')}</span>
                   <span>
-                    1 {fromToken.symbol} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(6)} {toToken.symbol}
+                    1 {fromToken.symbol} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(Math.min(getDecimals(toToken), 8))} {toToken.symbol}
                   </span>
                 </div>
                 <div className="swap-info-row">
@@ -1131,6 +1176,55 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
       {/* Settings Modal */}
       {renderSettings()}
+
+      {/* Wallet Selector Modal */}
+      {showWalletPicker && (
+        <div className="token-selector-overlay" onClick={() => setShowWalletPicker(false)}>
+          <div className="token-selector-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="token-selector-header">
+              <h3>Connect a Wallet</h3>
+              <button className="close-btn" onClick={() => setShowWalletPicker(false)}>×</button>
+            </div>
+            <div className="token-list" style={{ marginTop: "1rem" }}>
+              {wallets?.length === 0 ? (
+                <div className="empty-tokens">No wallets available. Please install a compatible wallet.</div>
+              ) : (
+                wallets?.map((walletOption) => {
+                  const logo = getWalletLogo(walletOption.name);
+                  return (
+                    <div
+                      key={walletOption.name}
+                      className="token-option"
+                      onClick={async () => {
+                        try {
+                          await connect(walletOption.name);
+                          setShowWalletPicker(false);
+                        } catch (err) {
+                          console.error("Wallet connection failed", err);
+                          setError("Failed to connect wallet: " + (err.message || String(err)));
+                        }
+                      }}
+                      style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                    >
+                      <div className="token-option-left" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        {logo ? (
+                          <img src={logo} alt={`${walletOption.name} logo`} style={{ width: "32px", height: "32px", borderRadius: "8px" }} />
+                        ) : (
+                          <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: "bold" }}>
+                            {walletOption.name.charAt(0)}
+                          </div>
+                        )}
+                        <span style={{ fontWeight: "600", fontSize: "15px" }}>{walletOption.name}</span>
+                      </div>
+                      <span className="aggregator-badge" style={{ fontSize: "11px" }}>Installable</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <TransactionToast
         toast={txToast}

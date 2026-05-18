@@ -797,8 +797,13 @@ body[data-theme='light'] .language-badge {
   gap: 10px;
 }
 
-.search-suggestion-item:hover {
+.search-suggestion-item:hover,
+.search-suggestion-item.highlighted {
   background: rgba(255, 255, 255, 0.05);
+}
+
+body[data-theme='light'] .search-suggestion-item.highlighted {
+  background: rgba(15, 23, 42, 0.05);
 }
 
 /* Avatar */
@@ -862,6 +867,7 @@ body[data-theme='light'] .language-badge {
   border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
+  opacity: 0.5; /* Lower opacity by 50% */
 }
 
 .suggestion-badge.blockchain {
@@ -880,6 +886,11 @@ body[data-theme='light'] .language-badge {
 }
 
 .suggestion-badge.recent {
+  background: rgba(205, 161, 105, 0.15);
+  color: #cda169;
+}
+
+.suggestion-badge.platform {
   background: rgba(205, 161, 105, 0.15);
   color: #cda169;
 }

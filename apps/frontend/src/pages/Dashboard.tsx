@@ -364,15 +364,16 @@ const Dashboard = () => {
 
 
   // Actual Breakdown Data Calculations
+  // Actual Breakdown Data Calculations
   const assetBreakdownData = useMemo(() => {
     const total = combinedNetWorth;
     if (total <= 0) return [];
     
     const data = [
       { name: 'Wallet', value: Math.round((totalUsdValueRounded / total) * 100), color: '#cda169', rawValue: totalUsdValueRounded },
-      { name: 'DeFi', value: Math.round((defiNetValue / total) * 100), color: '#7b68ee', rawValue: defiNetValue },
-      { name: 'LP', value: Math.round((liquidityTotalValue / total) * 100), color: '#36c690', rawValue: liquidityTotalValue },
-      { name: 'NFTs', value: Math.round(((nftsTotalWorth || 0) / total) * 100), color: '#e06a6a', rawValue: nftsTotalWorth || 0 },
+      { name: 'DeFi', value: Math.round((defiNetValue / total) * 100), color: '#b2854f', rawValue: defiNetValue },
+      { name: 'LP', value: Math.round((liquidityTotalValue / total) * 100), color: '#e5be8a', rawValue: liquidityTotalValue },
+      { name: 'NFTs', value: Math.round(((nftsTotalWorth || 0) / total) * 100), color: '#895f2d', rawValue: nftsTotalWorth || 0 },
     ].filter(d => d.rawValue > 0);
     
     // Normalize to 100%
@@ -390,12 +391,20 @@ const Dashboard = () => {
     [...visibleDeFiPositions, ...visibleLiquidityPositions].forEach(p => {
        const proto = p.protocolName || p.platform || 'Unknown';
        protocolMap.set(proto, (protocolMap.get(proto) || 0) + (p.numericValue || 0));
-    });
+     });
     
     const total = combinedNetWorth;
     if (total <= 0) return [];
 
-    const colors = ['#cda169', '#7b68ee', '#36c690', '#e06a6a', '#9ca3af', '#4ade80', '#facc15'];
+    const colors = [
+      '#cda169', // Main Brand Gold
+      '#b2854f', // Deep Bronze
+      '#e5be8a', // Warm Amber
+      '#895f2d', // Copper Brown
+      '#f4d9b1', // Champagne
+      '#6b5233', // Deep Chocolate Earth
+      '#9ca3af'  // Neutral Slate
+    ];
     
     const sorted = Array.from(protocolMap.entries())
       .map(([name, value], idx) => ({ 

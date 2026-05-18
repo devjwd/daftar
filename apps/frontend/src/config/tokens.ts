@@ -21,8 +21,8 @@ export const MOVEMENT_TOKENS = {
   },
   // USDT on Movement Mainnet
   "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d": {
-    symbol: "USDT",
-    name: "Tether USD",
+    symbol: "USDT.e",
+    name: "Bridged Tether USD",
     decimals: 6,
     address: "0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d",
     isNative: false,
@@ -30,8 +30,8 @@ export const MOVEMENT_TOKENS = {
   },
   // USDC on Movement Mainnet
   "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39": {
-    symbol: "USDC",
-    name: "USD Coin",
+    symbol: "USDC.e",
+    name: "Bridged USD Coin",
     decimals: 6,
     address: "0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39",
     isNative: false,
@@ -48,8 +48,8 @@ export const MOVEMENT_TOKENS = {
   },
   // WETH on Movement Mainnet
   "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376": {
-    symbol: "WETH",
-    name: "Wrapped Ether",
+    symbol: "WETH.e",
+    name: "Bridged Wrapped Ether",
     decimals: 8,
     address: "0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376",
     isNative: false,
@@ -57,8 +57,8 @@ export const MOVEMENT_TOKENS = {
   },
   // WBTC on Movement Mainnet
   "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c": {
-    symbol: "WBTC",
-    name: "Wrapped Bitcoin",
+    symbol: "WBTC.e",
+    name: "Bridged Wrapped Bitcoin",
     decimals: 8,
     address: "0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c",
     isNative: false,
@@ -229,7 +229,8 @@ export function isKnownToken(address) {
 export function getTokenAddressBySymbol(symbol) {
   if (!symbol) return null;
 
-  const normalized = String(symbol).toUpperCase().replace(/\.E$/i, "").trim();
+  const upper = String(symbol).toUpperCase().trim();
+  const normalized = upper.replace(/\.E$/i, "");
   const alias = {
     ETH: "WETH",
     BTC: "WBTC",
@@ -237,7 +238,8 @@ export function getTokenAddressBySymbol(symbol) {
   const target = alias[normalized] || normalized;
 
   for (const [address, token] of Object.entries(MOVEMENT_TOKENS)) {
-    if (token?.symbol?.toUpperCase() === target) {
+    const tokenSymbolUpper = token?.symbol?.toUpperCase();
+    if (tokenSymbolUpper === upper || tokenSymbolUpper === target || tokenSymbolUpper?.replace(/\.E$/i, "") === target) {
       return address;
     }
   }

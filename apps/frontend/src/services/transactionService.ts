@@ -322,10 +322,10 @@ const getTokenMeta = (assetType) => {
 
   const parsedCoin = parseCoinType(`0x1::coin::CoinStore<${value}>`);
   const tokenInfo = getTokenInfo(value) || parsedCoin?.tokenInfo || null;
-  const symbol = tokenInfo?.symbol || parsedCoin?.symbol || value.split("::").pop() || null;
+  const symbol = tokenInfo?.symbol || (parsedCoin?.symbol ? String(parsedCoin.symbol).toUpperCase() : null) || (value.split("::").pop() ? String(value.split("::").pop()).toUpperCase() : null);
   const decimals = tokenInfo?.decimals || getTokenDecimals(`0x1::coin::CoinStore<${value}>`, parsedCoin);
 
-  return { symbol: symbol ? String(symbol).toUpperCase() : null, decimals };
+  return { symbol, decimals };
 };
 
 const rawAmountToDisplay = (rawAmount, decimals = 8) => {
@@ -345,7 +345,7 @@ const normalizeActivity = (activity) => {
   const indexerSymbol = activity.metadata?.symbol || null;
   const indexerDecimals = activity.metadata?.decimals ?? null;
   const { symbol: resolvedSymbol, decimals: resolvedDecimals } = getTokenMeta(assetType);
-  const symbol = indexerSymbol || resolvedSymbol;
+  const symbol = resolvedSymbol || indexerSymbol;
   const decimals = indexerDecimals ?? resolvedDecimals;
   const amount = rawAmountToDisplay(
     activity.amount ?? activity.data?.amount ?? activity.data?.value,

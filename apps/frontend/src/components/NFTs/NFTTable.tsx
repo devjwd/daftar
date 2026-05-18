@@ -53,14 +53,14 @@ const NFTTable: React.FC<NFTTableProps> = ({
             )}
 
             <div className="valuation-toggle-container">
-              <button 
+              <button
                 className={`valuation-toggle-btn ${valuationMethod === 'topBid' ? 'active' : ''}`}
                 onClick={() => setValuationMethod('topBid')}
                 title="Valuation based on top active bids (instant sell / exit value)"
               >
                 Top Bid
               </button>
-              <button 
+              <button
                 className={`valuation-toggle-btn ${valuationMethod === 'floor' ? 'active' : ''}`}
                 onClick={() => setValuationMethod('floor')}
                 title="Valuation based on floor price"
@@ -70,8 +70,8 @@ const NFTTable: React.FC<NFTTableProps> = ({
             </div>
           </div>
           <div className="valuation-note">
-            {valuationMethod === 'topBid' 
-              ? "* Valued by instant exit bids (backed by real capital)" 
+            {valuationMethod === 'topBid'
+              ? "* Valued by instant exit bids (backed by real capital)"
               : "* Valued by floor listings (minimum ask price)"}
           </div>
         </div>
@@ -98,7 +98,7 @@ const NFTTable: React.FC<NFTTableProps> = ({
             <tbody>
               {groupedCollections.map((col) => {
                 const tradeportUrl = `https://www.tradeport.xyz/movement/collection/${col.collectionId}`;
-                
+
                 return (
                   <tr key={col.collectionId}>
                     <td className="collection-cell">

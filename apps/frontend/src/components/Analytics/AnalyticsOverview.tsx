@@ -12,6 +12,15 @@ interface AnalyticsOverviewProps {
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', '1Y', 'All'];
 
+const GOLD_DONUT_COLORS = [
+  '#cda169', // Main Brand Gold
+  '#e5be8a', // Light Warm Amber
+  '#b2854f', // Deep Bronze
+  '#895f2d', // Copper Brown
+  '#f4d9b1', // Champagne
+  '#5b3d1b', // Dark Earth Gold
+];
+
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
   const chartData = data.networthHistory && data.networthHistory.length > 0 ? data.networthHistory : data.activityHistory;
   const hasHistory = chartData && chartData.length > 0;
@@ -21,6 +30,16 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
   const currentNetworth = chartData[chartData.length - 1]?.value || 0;
   const isNetworthMode = !!data.networthHistory?.length;
 
+  const formatVolumeValue = (val: number): string => {
+    const absVal = Math.abs(val);
+    if (absVal === 0) return '$0';
+    if (absVal < 0.001) return `$${val.toFixed(6)}`;
+    if (absVal < 0.01) return `$${val.toFixed(4)}`;
+    if (absVal < 1) return `$${val.toFixed(3)}`;
+    if (absVal < 10) return `$${val.toFixed(2)}`;
+    return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  };
+
   return (
     <div className="analytics-overview-v5">
       <div className="overview-grid-v5">
@@ -29,7 +48,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
             <div>
               <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>{isNetworthMode ? 'Current Net Worth' : 'Total Capital Flow'}</span>
-              <div className="hero-value">${(isNetworthMode ? currentNetworth : data.totalVolume).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+              <div className="hero-value">{formatVolumeValue(isNetworthMode ? currentNetworth : data.totalVolume)}</div>
               <div style={{ marginTop: '8px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
                 <span style={{ background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
                   {isNetworthMode ? 'Live Snapshots' : `${data.activeMonths} Months`}
@@ -71,17 +90,21 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                     dataKey="date" 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fill: 'var(--text-quaternary)', fontSize: 11 }} 
+                    tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 11 }} 
                     minTickGap={40} 
                     dy={10} 
                     tickFormatter={(val) => {
                       const d = new Date(val);
+                      if (isNaN(d.getTime())) return '';
                       return isNetworthMode ? `${d.getHours()}:00` : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                     }}
                   />
                   <YAxis hide domain={['auto', 'auto']} />
                   <Tooltip 
-                    labelFormatter={(label) => new Date(label).toLocaleString()}
+                    labelFormatter={(label) => {
+                      const d = new Date(label);
+                      return isNaN(d.getTime()) ? '' : d.toLocaleString();
+                    }}
                     contentStyle={{ background: 'rgba(26,26,26,0.8)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', fontWeight: 700 }} 
                     itemStyle={{ color: 'var(--primary)' }}
                     formatter={(value: any) => [`$${Number(value).toLocaleString()}`, 'Value']}
@@ -100,14 +123,14 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
               <Droplets size={16} color="#36c690" />
               <span className="mini-stat-label">Inflow</span>
             </div>
-            <span className="mini-stat-value positive">+${data.totalInflow.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            <span className="mini-stat-value positive">{formatVolumeValue(data.totalInflow).replace('$', '+$')}</span>
           </div>
           <div className="mini-stat-v5">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Droplets size={16} color="#ff4b4b" style={{ transform: 'rotate(180deg)' }} />
               <span className="mini-stat-label">Outflow</span>
             </div>
-            <span className="mini-stat-value negative">-${data.totalOutflow.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            <span className="mini-stat-value negative">{formatVolumeValue(data.totalOutflow).replace('$', '-$')}</span>
           </div>
           <div className="mini-stat-v5">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -134,7 +157,10 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                       <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
                       <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: 'var(--text-secondary)' }} />
                       <Pie data={data.protocolUsage} innerRadius={60} outerRadius={75} paddingAngle={6} dataKey="value" stroke="none" nameKey="name">
-                        {data.protocolUsage.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color || '#fff'} />))}
+                        {data.protocolUsage.map((entry, index) => {
+                          const fillCol = GOLD_DONUT_COLORS[index % GOLD_DONUT_COLORS.length];
+                          return <Cell key={`cell-${index}`} fill={fillCol} />;
+                        })}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>

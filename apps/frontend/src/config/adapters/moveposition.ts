@@ -9,10 +9,10 @@ const MOVEPOSITION_CONTRACT = "0xccd2621d2897d407e06d18e6ebe3be0e6d9b61f1e809dd4
 
 const MOVEPOSITION_TOKENS = {
   MOVE: { symbol: "MOVE", coinType: `${MOVEPOSITION_CONTRACT}::coins::MOVE`, decimals: 8 },
-  USDC: { symbol: "USDC", coinType: `${MOVEPOSITION_CONTRACT}::coins::USDC`, decimals: 6 },
-  USDT: { symbol: "USDT", coinType: `${MOVEPOSITION_CONTRACT}::coins::USDT`, decimals: 6 },
-  WETH: { symbol: "WETH", coinType: `${MOVEPOSITION_CONTRACT}::coins::WETH`, decimals: 8 },
-  WBTC: { symbol: "WBTC", coinType: `${MOVEPOSITION_CONTRACT}::coins::WBTC`, decimals: 8 },
+  USDC: { symbol: "USDC.e", coinType: `${MOVEPOSITION_CONTRACT}::coins::USDC`, decimals: 6 },
+  USDT: { symbol: "USDT.e", coinType: `${MOVEPOSITION_CONTRACT}::coins::USDT`, decimals: 6 },
+  WETH: { symbol: "WETH.e", coinType: `${MOVEPOSITION_CONTRACT}::coins::WETH`, decimals: 8 },
+  WBTC: { symbol: "WBTC.e", coinType: `${MOVEPOSITION_CONTRACT}::coins::WBTC`, decimals: 8 },
 };
 
 const decodeTokenInfo = (hexString: string) => {
@@ -25,8 +25,9 @@ const decodeTokenInfo = (hexString: string) => {
     }
     const match = decoded.match(/::coins::(\w+)>/);
     if (match) {
-      const symbol = match[1];
-      const coinType = `${MOVEPOSITION_CONTRACT}::coins::${symbol}`;
+      const rawSymbol = match[1];
+      const symbol = rawSymbol === "USDC" ? "USDC.e" : rawSymbol === "USDT" ? "USDT.e" : rawSymbol === "WETH" ? "WETH.e" : rawSymbol === "WBTC" ? "WBTC.e" : rawSymbol;
+      const coinType = `${MOVEPOSITION_CONTRACT}::coins::${rawSymbol}`;
       return { symbol, coinType };
     }
     return null;
@@ -36,7 +37,7 @@ const decodeTokenInfo = (hexString: string) => {
 };
 
 const getDecimals = (symbol: string) => {
-  const s = symbol.toUpperCase();
+  const s = symbol.toUpperCase().replace(/\.E$/i, "");
   if (s === "USDC" || s === "USDT") return 6;
   return 8;
 };

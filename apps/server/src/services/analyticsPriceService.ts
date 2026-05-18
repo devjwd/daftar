@@ -156,9 +156,25 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
       tokenToPrice = matchedFA?.asset_type || matchedCA?.coin_type || allFAs[0]?.asset_type || allCAs[0]?.coin_type;
     }
     
+    // Calculate precise gas fee in USD based on actual historical MOVE price
+    let finalGasUsd = 0.05;
+    const gasUsed = tx.metadata?.gas_used;
+    const gasUnitPrice = tx.metadata?.gas_unit_price;
+    if (gasUsed != null && gasUnitPrice != null) {
+      const gasNative = (Number(gasUsed) * Number(gasUnitPrice)) / 1e8;
+      const movePrice = await getHistoricalPrice(supabase, '0x1', tx.timestamp) || 0.05;
+      finalGasUsd = gasNative * movePrice;
+    } else if (tx.gas_usd != null && Number(tx.gas_usd) < 0.1) {
+      const movePrice = await getHistoricalPrice(supabase, '0x1', tx.timestamp) || 0.05;
+      finalGasUsd = Number(tx.gas_usd) * movePrice;
+    }
+
     if (!tokenToPrice) {
       // If no assets to price (e.g. gas only), mark as processed
-      await supabase.from('user_transaction_history').update({ is_processed: true, gas_usd: 0.05 }).eq('id', tx.id);
+      await supabase.from('user_transaction_history').update({ 
+        is_processed: true, 
+        gas_usd: finalGasUsd 
+      }).eq('id', tx.id);
       continue;
     }
 
@@ -187,7 +203,7 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
       await supabase.from('user_transaction_history').update({
         price_usd: price,
         value_usd: totalValue,
-        gas_usd: 0.05,
+        gas_usd: finalGasUsd,
         is_processed: true
       }).eq('id', tx.id);
     } else {
@@ -209,7 +225,7 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
         await supabase.from('user_transaction_history').update({
           price_usd: 0,
           value_usd: 0,
-          gas_usd: 0.05,
+          gas_usd: finalGasUsd,
           is_processed: true
         }).eq('id', tx.id);
         console.warn(`[PriceBackfill] Failed to price ${tokenToPrice} on version ${tx.version} after 3 attempts. Storing fallback 0.`);

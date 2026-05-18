@@ -7,12 +7,29 @@ interface ExchangeUsageDashboardProps {
   data: AnalyticsData;
 }
 
-const COLORS = ['#cda169', '#36c690', '#7b68ee', '#ff4b4b', '#ffa500', '#00ced1'];
+const COLORS = [
+  '#cda169', // Main Brand Gold
+  '#b2854f', // Deep Bronze
+  '#e5be8a', // Warm Amber
+  '#895f2d', // Copper Brown
+  '#f4d9b1', // Champagne
+  '#6b5233'  // Deep Chocolate Earth
+];
 
 const ExchangeUsageDashboard: React.FC<ExchangeUsageDashboardProps> = ({ data }) => {
   const { deposits, withdrawals } = data.exchangeUsage;
   const hasDeposits = deposits.total > 0;
   const hasWithdrawals = withdrawals.total > 0;
+
+  const formatVolumeValue = (val: number): string => {
+    const absVal = Math.abs(val);
+    if (absVal === 0) return '$0';
+    if (absVal < 0.001) return `$${val.toFixed(6)}`;
+    if (absVal < 0.01) return `$${val.toFixed(4)}`;
+    if (absVal < 1) return `$${val.toFixed(3)}`;
+    if (absVal < 10) return `$${val.toFixed(2)}`;
+    return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  };
 
   return (
     <div className="exchange-grid-v5">
@@ -26,7 +43,7 @@ const ExchangeUsageDashboard: React.FC<ExchangeUsageDashboardProps> = ({ data })
             </h3>
             <span className="exchange-label">Volume In</span>
           </div>
-          <span className="exchange-total">${deposits.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+          <span className="exchange-total">{formatVolumeValue(deposits.total)}</span>
         </div>
 
         {!hasDeposits ? (
@@ -68,7 +85,7 @@ const ExchangeUsageDashboard: React.FC<ExchangeUsageDashboardProps> = ({ data })
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[i % COLORS.length] }}></div>
                       <span className="entity-name">{ex.name}</span>
                     </div>
-                    <span className="entity-value" style={{ fontSize: '13px' }}>${ex.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    <span className="entity-value" style={{ fontSize: '13px' }}>{formatVolumeValue(ex.value)}</span>
                   </div>
                 ))}
               </div>
@@ -87,7 +104,7 @@ const ExchangeUsageDashboard: React.FC<ExchangeUsageDashboardProps> = ({ data })
             </h3>
             <span className="exchange-label">Volume Out</span>
           </div>
-          <span className="exchange-total">${withdrawals.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+          <span className="exchange-total">{formatVolumeValue(withdrawals.total)}</span>
         </div>
 
         {!hasWithdrawals ? (
@@ -129,7 +146,7 @@ const ExchangeUsageDashboard: React.FC<ExchangeUsageDashboardProps> = ({ data })
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[i % COLORS.length] }}></div>
                       <span className="entity-name">{ex.name}</span>
                     </div>
-                    <span className="entity-value" style={{ fontSize: '13px' }}>${ex.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    <span className="entity-value" style={{ fontSize: '13px' }}>{formatVolumeValue(ex.value)}</span>
                   </div>
                 ))}
               </div>

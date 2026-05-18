@@ -96,5 +96,13 @@ export const DEFI_PROTOCOLS = {
     website: "https://yuzu.swap",
     keywords: ["yuzu", "yuzlp", "yuz-lp", "liquidity position"],
   },
+  MOVEMATCH: {
+    name: "Move Match",
+    address: "0xf598f059a0353b0d9ea80c9fd9d1c3e15b71ff4535388dd79acf813b567c5b47",
+    addresses: ["0xf598f059a0353b0d9ea80c9fd9d1c3e15b71ff4535388dd79acf813b567c5b47"],
+    type: "Gaming/Fantasy Sports",
+    website: "https://movematch.xyz",
+    keywords: ["move match", "movematch", "fantasy_epl"],
+  },
 };
 

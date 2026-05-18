@@ -57,7 +57,6 @@ export interface IndexerBalance {
   metadata: any;
   isNative: boolean;
   type: string;
-  type: string;
 }
 
 const CACHE_PREFIX = "indexer_balances_";
@@ -85,7 +84,7 @@ interface UseIndexerBalancesResult {
   balances: IndexerBalance[];
   loading: boolean;
   error: string | null;
-  refetch: () => Promise<void>;
+  refetch: () => Promise<IndexerBalance[] | void>;
 }
 
 export const useIndexerBalances = (address: string | null): UseIndexerBalancesResult => {
@@ -130,16 +129,16 @@ export const useIndexerBalances = (address: string | null): UseIndexerBalancesRe
               } as any;
             }
             
-            // Determine token metadata - prioritize indexer metadata, then registry, then defaults
+            // Determine token metadata - prioritize registry if known/verified, then indexer metadata, then defaults
             const symbol = nativeMove
               ? "MOVE"
-              : (hasMetadata ? item.metadata.symbol : (tokenInfo?.symbol || "Unknown"));
+              : (tokenInfo?.symbol ? tokenInfo.symbol : (hasMetadata ? item.metadata.symbol : "Unknown"));
             const name = nativeMove
               ? "Movement"
-              : (hasMetadata ? item.metadata.name : (tokenInfo?.name || symbol));
-            const decimals = hasMetadata && item.metadata.decimals !== undefined 
-              ? item.metadata.decimals 
-              : (tokenInfo?.decimals || 8);
+              : (tokenInfo?.name ? tokenInfo.name : (hasMetadata ? item.metadata.name : symbol));
+            const decimals = tokenInfo?.decimals !== undefined
+              ? tokenInfo.decimals
+              : (hasMetadata && item.metadata.decimals !== undefined ? item.metadata.decimals : 8);
             
             // Token is "known" if it's in our registry
             const isKnown = !!tokenInfo;
@@ -153,7 +152,7 @@ export const useIndexerBalances = (address: string | null): UseIndexerBalancesRe
             }
 
             // Smart formatting for different token types
-            const isHighValueToken = ['BTC', 'WBTC', 'ETH', 'WETH'].includes(symbol?.toUpperCase());
+            const isHighValueToken = ['BTC', 'WBTC', 'ETH', 'WETH'].includes(symbol?.toUpperCase().replace(/\.E$/i, ''));
             
             let formattedAmount;
             if (isHighValueToken && quantity < 0.01) {

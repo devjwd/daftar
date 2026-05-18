@@ -34,6 +34,7 @@ export const DEFI_PROTOCOL_VISUALS = {
   yuzu: { logo: "/yuzu.png", name: "Yuzu Swap", color: "#eab308", gradient: "linear-gradient(135deg, #eab308, #facc15)" },
   tradeport: { logo: "/tradeport.png", name: "Tradeport", color: "#6366f1", gradient: "linear-gradient(135deg, #6366f1, #818cf8)" },
   moversmap: { logo: "/moversmap.png", name: "Moversmap", color: "#10b981", gradient: "linear-gradient(135deg, #10b981, #059669)" },
+  movematch: { logo: "/movematch.jpg", name: "Move Match", color: "#f7b91c", gradient: "linear-gradient(135deg, #f7b91c, #ffd54f)" },
 };
 
 export const DEFAULT_PROTOCOL_VISUAL = {

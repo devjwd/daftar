@@ -108,7 +108,7 @@ function mapCriterionToRule(criterionType) {
 // ─── Event Emitter ───────────────────────────────────────────────────
 const listeners = new Map();
 
-export function emit(event, data) {
+export function emit(event: string, data?: any) {
   const handlers = listeners.get(event) || [];
   handlers.forEach(fn => {
     try { fn(data); } catch (e) { console.warn('[badgeStore] listener error:', e); }
