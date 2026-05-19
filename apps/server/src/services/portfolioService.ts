@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAddress } from '../utils/address.ts';
+import { INFLOW_ACTIONS, OUTFLOW_ACTIONS } from '../config/whitelists.ts';
 
 /**
  * Portfolio Reconstruction Service
@@ -233,6 +234,162 @@ export async function reconstructHistoricalBalances(
     }
   }
 
+  // 6. Trigger backfilling of historical net worth snapshots
+  try {
+    await backfillHistoricalNetworth(supabase, address);
+  } catch (err: any) {
+    console.error(`[Portfolio] Failed to backfill historical net worth:`, err.message);
+  }
+
   console.log(`[Portfolio] ✅ Reconstruction complete for ${address}.`);
   return { snapshotsCount: snapshots.length };
+}
+
+/**
+ * Backfills user_networth_snapshots using daily user_balance_snapshots and historical token prices.
+ */
+export async function backfillHistoricalNetworth(supabase: SupabaseClient, walletAddress: string) {
+  const address = normalizeAddress(walletAddress);
+  console.log(`[Portfolio] 📈 Backfilling historical net worth snapshots for ${address}...`);
+
+  // 1. Fetch all balance snapshots
+  const { data: balSnaps, error: balErr } = await supabase
+    .from('user_balance_snapshots')
+    .select('*')
+    .eq('user_address', address)
+    .order('snapshot_date', { ascending: true });
+
+  if (balErr || !balSnaps || balSnaps.length === 0) {
+    console.log(`[Portfolio] No balance snapshots found for ${address}. Cannot backfill net worth.`);
+    return;
+  }
+
+  // Group balance snapshots by date
+  const snapsByDate: Record<string, typeof balSnaps> = {};
+  balSnaps.forEach(snap => {
+    const date = snap.snapshot_date;
+    if (!snapsByDate[date]) snapsByDate[date] = [];
+    snapsByDate[date].push(snap);
+  });
+
+  const uniqueDates = Object.keys(snapsByDate).sort();
+  const assetTypes = Array.from(new Set(balSnaps.map(snap => snap.asset_type)));
+
+  // 2. Fetch all transaction history to compute daily cumulative net deposits
+  const { data: txs, error: txErr } = await supabase
+    .from('user_transaction_history')
+    .select('timestamp, action, value_usd')
+    .eq('user_address', address)
+    .order('timestamp', { ascending: true });
+
+  if (txErr) {
+    console.error(`[Portfolio] Error fetching txs for net deposits:`, txErr);
+    return;
+  }
+
+  // 3. Fetch all price cache as a fallback for current prices
+  const { data: cachedPrices } = await supabase.from('price_cache').select('token_id, price_usd');
+  const fallbackPrices: Record<string, number> = {};
+  if (cachedPrices) {
+    cachedPrices.forEach(p => fallbackPrices[p.token_id] = Number(p.price_usd));
+  }
+
+  // For historical prices, query token_price_history for these assets
+  const { data: histPrices } = await supabase
+    .from('token_price_history')
+    .select('token_address, price, timestamp')
+    .in('token_address', assetTypes);
+
+  // Map: token_address -> date -> price
+  const priceHistoryMap: Record<string, Record<string, number>> = {};
+  if (histPrices) {
+    histPrices.forEach(hp => {
+      const token = hp.token_address;
+      const date = new Date(hp.timestamp).toISOString().split('T')[0];
+      if (!priceHistoryMap[token]) priceHistoryMap[token] = {};
+      priceHistoryMap[token][date] = Number(hp.price);
+    });
+  }
+
+  // Helper to resolve price on a specific date
+  const getPriceOnDate = (token: string, date: string): number => {
+    if (priceHistoryMap[token]?.[date]) {
+      return priceHistoryMap[token][date];
+    }
+    const targetDate = new Date(date);
+    for (let i = 1; i <= 3; i++) {
+      const prevDate = new Date(targetDate);
+      prevDate.setDate(prevDate.getDate() - i);
+      const prevDateStr = prevDate.toISOString().split('T')[0];
+      if (priceHistoryMap[token]?.[prevDateStr]) {
+        return priceHistoryMap[token][prevDateStr];
+      }
+    }
+    if (fallbackPrices[token]) return fallbackPrices[token];
+    if (token.includes('aptos_coin') || token === '0x1') return fallbackPrices['0x1'] || 0.05;
+    return 0;
+  };
+
+  // 4. Calculate daily cumulative net deposits
+  const dailyNetDeposits: Record<string, number> = {};
+  let runningNetDeposits = 0;
+  let txIndex = 0;
+
+  // Map each unique date to its cumulative net deposits at the end of that day
+  uniqueDates.forEach(dateStr => {
+    const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
+    while (txIndex < (txs?.length || 0) && new Date(txs![txIndex].timestamp) <= endOfDay) {
+      const tx = txs![txIndex];
+      const action = tx.action || '';
+      const val = Number(tx.value_usd || 0);
+      if (INFLOW_ACTIONS.includes(action as any)) {
+        runningNetDeposits += val;
+      } else if (OUTFLOW_ACTIONS.includes(action as any)) {
+        runningNetDeposits -= val;
+      }
+      txIndex++;
+    }
+    dailyNetDeposits[dateStr] = runningNetDeposits;
+  });
+
+  // 5. Construct user_networth_snapshots records
+  const networthSnapshots: any[] = [];
+  uniqueDates.forEach(dateStr => {
+    const daySnaps = snapsByDate[dateStr];
+    let walletUsd = 0;
+    
+    daySnaps.forEach(snap => {
+      const price = getPriceOnDate(snap.asset_type, dateStr);
+      walletUsd += Number(snap.amount) * price;
+    });
+
+    const netDepositsUsd = dailyNetDeposits[dateStr] || 0;
+    const timestampISO = `${dateStr}T23:00:00.000Z`;
+
+    networthSnapshots.push({
+      user_address: address,
+      total_networth_usd: walletUsd,
+      wallet_usd: walletUsd,
+      defi_usd: 0,
+      nft_usd: 0,
+      net_deposits_usd: netDepositsUsd,
+      timestamp: timestampISO
+    });
+  });
+
+  // 6. Batch Upsert Snapshots
+  console.log(`[Portfolio] Saving ${networthSnapshots.length} historical networth snapshots for ${address}...`);
+  const BATCH_SIZE = 500;
+  for (let i = 0; i < networthSnapshots.length; i += BATCH_SIZE) {
+    const batch = networthSnapshots.slice(i, i + BATCH_SIZE);
+    const { error: upsertError } = await supabase
+      .from('user_networth_snapshots')
+      .upsert(batch, { onConflict: 'user_address,timestamp' });
+
+    if (upsertError) {
+      console.error(`[Portfolio] Failed to save historical networth snapshot batch:`, upsertError.message);
+    }
+  }
+
+  console.log(`[Portfolio] ✅ Completed backfilling historical networth for ${address}.`);
 }

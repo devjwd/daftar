@@ -74,13 +74,18 @@ async function fetchPriceFromDexScreener(tokenAddress: string): Promise<number |
 async function getHistoricalPrice(
   supabase: SupabaseClient, 
   tokenAddress: string, 
-  timestamp: string
+  timestamp: string,
+  cacheMap: Record<string, number | null>
 ): Promise<number | null> {
   const geckoId = TOKEN_GEKO_MAP[tokenAddress];
-  // We don't return null if !geckoId anymore, because we can try DexScreener
+  const dateOnly = new Date(timestamp).toISOString().split('T')[0];
+  const cacheKey = `${tokenAddress}_${dateOnly}`;
+
+  if (cacheKey in cacheMap) {
+    return cacheMap[cacheKey];
+  }
 
   // 1. Check our Cache Table
-  const dateOnly = new Date(timestamp).toISOString().split('T')[0];
   const { data: cached } = await supabase
     .from('token_price_history')
     .select('price')
@@ -90,7 +95,11 @@ async function getHistoricalPrice(
     .limit(1)
     .single();
 
-  if (cached) return Number(cached.price);
+  if (cached) {
+    const price = Number(cached.price);
+    cacheMap[cacheKey] = price;
+    return price;
+  }
 
   // 2. Not in cache, fetch from CoinGecko
   let price = null;
@@ -116,6 +125,7 @@ async function getHistoricalPrice(
     });
   }
 
+  cacheMap[cacheKey] = price;
   return price;
 }
 
@@ -133,6 +143,10 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
   if (error || !pending || pending.length === 0) return;
 
   console.log(`[PriceBackfill] Processing ${pending.length} transactions...`);
+
+  // Batch-level cache map to avoid duplicate DB checks for the same token + day
+  const batchPriceCache: Record<string, number | null> = {};
+  const updatedTxs: any[] = [];
 
   for (const tx of pending) {
     // Try to get price for the primary asset out or in
@@ -159,19 +173,18 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
     const gasUnitPrice = tx.metadata?.gas_unit_price;
     if (gasUsed != null && gasUnitPrice != null) {
       const gasNative = (Number(gasUsed) * Number(gasUnitPrice)) / 1e8;
-      const movePrice = await getHistoricalPrice(supabase, '0x1', tx.timestamp) || 0.05;
+      const movePrice = await getHistoricalPrice(supabase, '0x1', tx.timestamp, batchPriceCache) || 0.05;
       finalGasUsd = gasNative * movePrice;
     } else if (tx.gas_usd != null && Number(tx.gas_usd) < 0.1) {
-      const movePrice = await getHistoricalPrice(supabase, '0x1', tx.timestamp) || 0.05;
+      const movePrice = await getHistoricalPrice(supabase, '0x1', tx.timestamp, batchPriceCache) || 0.05;
       finalGasUsd = Number(tx.gas_usd) * movePrice;
     }
 
     if (!tokenToPriceOut && !tokenToPriceIn) {
       // If no assets to price (e.g. gas only), mark as processed
-      await supabase.from('user_transaction_history').update({ 
-        is_processed: true, 
-        gas_usd: finalGasUsd 
-      }).eq('id', tx.id);
+      tx.is_processed = true;
+      tx.gas_usd = finalGasUsd;
+      updatedTxs.push(tx);
       continue;
     }
 
@@ -179,12 +192,12 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
     let amount = 0;
 
     if (tokenToPriceOut) {
-      price = await getHistoricalPrice(supabase, tokenToPriceOut, tx.timestamp);
+      price = await getHistoricalPrice(supabase, tokenToPriceOut, tx.timestamp, batchPriceCache);
       if (price) amount = tx.asset_out_amount;
     }
 
     if (!price && tokenToPriceIn) {
-      price = await getHistoricalPrice(supabase, tokenToPriceIn, tx.timestamp);
+      price = await getHistoricalPrice(supabase, tokenToPriceIn, tx.timestamp, batchPriceCache);
       if (price) amount = tx.asset_in_amount;
     }
     
@@ -208,41 +221,44 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
     
     if (price) {
       const totalValue = price * Number(amount);
-
-      await supabase.from('user_transaction_history').update({
-        price_usd: price,
-        value_usd: totalValue,
-        gas_usd: finalGasUsd,
-        is_processed: true
-      }).eq('id', tx.id);
+      tx.price_usd = price;
+      tx.value_usd = totalValue;
+      tx.gas_usd = finalGasUsd;
+      tx.is_processed = true;
     } else {
       const metadata = tx.metadata || {};
       const retryCount = Number(metadata.retry_count || 0);
 
       if (retryCount < 3) {
-        // Increment retry count and keep is_processed = false
-        const updatedMetadata = {
+        tx.metadata = {
           ...metadata,
           retry_count: retryCount + 1
         };
-        await supabase.from('user_transaction_history').update({
-          metadata: updatedMetadata
-        }).eq('id', tx.id);
-        console.log(`[PriceBackfill] Temporary pricing failure for ${tokenToPriceOut || tokenToPriceIn} on version ${tx.version}. Retrying later (Attempt ${retryCount + 1}/3)...`);
       } else {
-        // Exceeded retries, mark as processed with a safe fallback of 0 (avoid -1 which inverts PNL charts)
-        await supabase.from('user_transaction_history').update({
-          price_usd: 0,
-          value_usd: 0,
-          gas_usd: finalGasUsd,
-          is_processed: true
-        }).eq('id', tx.id);
-        console.warn(`[PriceBackfill] Failed to price ${tokenToPriceOut || tokenToPriceIn} on version ${tx.version} after 3 attempts. Storing fallback 0.`);
+        tx.price_usd = 0;
+        tx.value_usd = 0;
+        tx.gas_usd = finalGasUsd;
+        tx.is_processed = true;
       }
     }
 
-    // Increased delay to 2500ms to stay safely under CoinGecko's 30 calls/minute limit
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    updatedTxs.push(tx);
+
+    // Sleep 100ms to throttle external CoinGecko calls if it has to fall back
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  // Bulk update all processed transactions in a single query
+  if (updatedTxs.length > 0) {
+    const { error: upsertError } = await supabase
+      .from('user_transaction_history')
+      .upsert(updatedTxs);
+
+    if (upsertError) {
+      console.error('[PriceBackfill] Failed to bulk update transaction history:', upsertError.message);
+    } else {
+      console.log(`[PriceBackfill] ✅ Successfully bulk updated ${updatedTxs.length} transactions in 1 request.`);
+    }
   }
 }
 
