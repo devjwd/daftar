@@ -5,7 +5,7 @@ import './PNLChart.css';
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
 const DEBOUNCE_MS = 200;
 
-const CustomTooltip = ({ active, payload, label, chartMode }: any) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const formattedDate = label === 'Start' || label === 'Now' 
       ? label 
@@ -14,16 +14,26 @@ const CustomTooltip = ({ active, payload, label, chartMode }: any) => {
           return isNaN(d.getTime()) ? '' : d.toLocaleString();
         })();
 
-    const value = payload[0].value ?? 0;
-    const sign = value < 0 ? '-' : '';
-    const formattedVal = `${sign}$${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    const netWorth = payload[0].payload.value ?? 0;
+    const netDeposits = payload[0].payload.netDeposits ?? 0;
+    const pnl = netWorth - netDeposits;
+
+    const nwSign = netWorth < 0 ? '-' : '';
+    const formattedNW = `${nwSign}$${Math.abs(netWorth).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+    const pnlSign = pnl < 0 ? '-' : '';
+    const formattedPNL = `${pnlSign}$${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
     return (
-      <div className="history-tooltip">
+      <div className="history-tooltip" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div className="tooltip-date">{formattedDate}</div>
         <div className="tooltip-value-row">
-          <span className="tooltip-label">{chartMode === 'pnl' ? 'PNL (Profit)' : 'Net worth'}</span>
-          <span className="tooltip-value">{formattedVal}</span>
+          <span className="tooltip-label">Net Worth</span>
+          <span className="tooltip-value">{formattedNW}</span>
+        </div>
+        <div className="tooltip-value-row">
+          <span className="tooltip-label">PNL (Profit)</span>
+          <span className="tooltip-value" style={{ color: pnl >= 0 ? '#36c690' : '#e06a6a' }}>{formattedPNL}</span>
         </div>
       </div>
     );
@@ -163,11 +173,9 @@ const PNLChart: React.FC<PNLChartProps> = ({
     return `$${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   };
 
-  const [chartMode, setChartMode] = useState<'pnl' | 'networth'>('pnl');
-
   const currentBreakdownData = breakdownType === 'Asset' ? assetBreakdown : protocolBreakdown;
 
-  // Map dataToRender based on chartMode (PNL vs Net Worth)
+  // Map dataToRender (always show Net Worth on the chart line)
   const dataToRender = useMemo(() => {
     const rawData = historicalData.length > 1 
       ? historicalData 
@@ -175,25 +183,23 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
     return rawData.map(pt => ({
       ...pt,
-      displayValue: chartMode === 'pnl' ? (pt.value - (pt.netDeposits || 0)) : pt.value
+      displayValue: pt.value
     }));
-  }, [historicalData, chartMode, totalValue]);
+  }, [historicalData, totalValue]);
 
-  const firstVal = dataToRender[0]?.displayValue ?? 0;
-  const lastVal = dataToRender[dataToRender.length - 1]?.displayValue ?? 0;
+  const firstVal = dataToRender[0]?.value ?? totalValue;
+  const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
   
-  const rawChangeUsd = lastVal - firstVal;
+  const firstDep = dataToRender[0]?.netDeposits ?? 0;
+  const lastDep = dataToRender[dataToRender.length - 1]?.netDeposits ?? 0;
+  
+  // Calculate PNL change (Net Worth change minus Net Deposit change)
+  const rawChangeUsd = (lastVal - firstVal) - (lastDep - firstDep);
   const isPositive = rawChangeUsd >= 0;
   const changeUSD = Math.abs(rawChangeUsd).toFixed(2);
   
   // Base value for percentage change calculations
-  const firstRawVal = dataToRender[0]?.value ?? totalValue;
-  const lastDep = dataToRender[dataToRender.length - 1]?.netDeposits ?? 0;
-  const firstDep = dataToRender[0]?.netDeposits ?? 0;
-  const baseValue = chartMode === 'networth'
-    ? (firstRawVal > 0 ? firstRawVal : 0.01)
-    : (firstRawVal > 0 ? firstRawVal : Math.max(lastDep - firstDep, 0.01));
-
+  const baseValue = firstVal > 0 ? firstVal : Math.max(lastDep - firstDep, 0.01);
   const changePercent = baseValue > 0.01 ? ((rawChangeUsd / baseValue) * 100).toFixed(2) : '0.00';
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
   const gradientId = isPositive ? 'colorGreen' : 'colorRed';
@@ -224,40 +230,17 @@ const PNLChart: React.FC<PNLChartProps> = ({
         </div>
 
         {activeTab === 'History' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div className="segmented-control" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', padding: '2px', borderRadius: '8px', display: 'flex' }}>
+          <div className="timeframe-selectors-v4">
+            {TIME_FRAMES.map((tf) => (
               <button
-                className={`segment-btn ${chartMode === 'pnl' ? 'active' : ''}`}
-                onClick={() => setChartMode('pnl')}
-                style={{ fontSize: '11px', padding: '4px 10px', height: '24px', display: 'flex', alignItems: 'center' }}
-                title="Profit & Loss"
+                key={tf}
+                className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''}`}
+                onClick={() => handleTimeframeChange(tf)}
                 disabled={!isVerified}
               >
-                PNL
+                {tf}
               </button>
-              <button
-                className={`segment-btn ${chartMode === 'networth' ? 'active' : ''}`}
-                onClick={() => setChartMode('networth')}
-                style={{ fontSize: '11px', padding: '4px 10px', height: '24px', display: 'flex', alignItems: 'center' }}
-                title="Net Worth Valuation"
-                disabled={!isVerified}
-              >
-                Net Worth
-              </button>
-            </div>
-            
-            <div className="timeframe-selectors-v4">
-              {TIME_FRAMES.map((tf) => (
-                <button
-                  key={tf}
-                  className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''}`}
-                  onClick={() => handleTimeframeChange(tf)}
-                  disabled={!isVerified}
-                >
-                  {tf}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         )}
 
@@ -363,7 +346,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                       />
                       <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
                       <Tooltip
-                        content={<CustomTooltip chartMode={chartMode} />}
+                        content={<CustomTooltip />}
                         cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
                       />
                       <Area

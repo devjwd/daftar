@@ -231,23 +231,40 @@ export async function aggregateAnalyticsData(
   const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
   const totalGasUsd = txs.reduce((sum, tx) => sum + Number(tx.gas_usd || 0), 0);
 
-  // --- Inflow & Outflow ---
+  // --- Inflow & Outflow (Excluding DeFi protocols and contract interactions) ---
+  const DEFI_PROTOCOLS = new Set([
+    'Liquidswap', 'Echelon', 'Aries', 'Mosaic', 'Yuzu', 'LayerBank', 
+    'Canopy', 'MovePosition', 'Joule', 'Meridian', 'Razor', 'Move Match', 'Tradeport'
+  ]);
+
   let totalInflow = 0;
   let totalOutflow = 0;
   txs.forEach(tx => {
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
-    if (isInflowAction(action)) totalInflow += val;
-    else if (isOutflowAction(action)) totalOutflow += val;
+    const protocol = tx.protocol || 'Unknown';
+
+    if (DEFI_PROTOCOLS.has(protocol)) return;
+
+    if (action === 'RECEIVE') {
+      totalInflow += val;
+    } else if (action === 'SEND') {
+      totalOutflow += val;
+    }
   });
 
-  // --- Protocol Usage ---
+  // --- Protocol Usage (Sorted by usage frequency descending) ---
   const protocols = [...new Set(txs.map(tx => tx.protocol))];
-  const protocolUsage: ProtocolUsageItem[] = protocols.map((p, idx) => ({
-    name: p,
-    value: txs.filter(tx => tx.protocol === p).length,
-    color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
-  }));
+  const protocolUsage: ProtocolUsageItem[] = protocols
+    .map(p => ({
+      name: p,
+      value: txs.filter(tx => tx.protocol === p).length,
+    }))
+    .sort((a, b) => b.value - a.value)
+    .map((item, idx) => ({
+      ...item,
+      color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
+    }));
 
   // --- Cumulative Volume & Net Flow History ---
   let cumulative = 0;
@@ -262,8 +279,15 @@ export async function aggregateAnalyticsData(
 
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
-    if (isInflowAction(action)) cumulativeFlow += val;
-    else if (isOutflowAction(action)) cumulativeFlow -= val;
+    const protocol = tx.protocol || 'Unknown';
+
+    if (!DEFI_PROTOCOLS.has(protocol)) {
+      if (action === 'RECEIVE') {
+        cumulativeFlow += val;
+      } else if (action === 'SEND') {
+        cumulativeFlow -= val;
+      }
+    }
     netFlowByDate.set(date, cumulativeFlow);
   });
 

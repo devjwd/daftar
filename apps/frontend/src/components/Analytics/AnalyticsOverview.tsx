@@ -23,13 +23,9 @@ const GOLD_DONUT_COLORS = [
 
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const chartData = data.networthHistory && data.networthHistory.length > 0 ? data.networthHistory : data.activityHistory;
+  const chartData = data.activityHistory && data.activityHistory.length > 0 ? data.activityHistory : [];
   const hasHistory = chartData && chartData.length > 0;
   const hasProtocols = data.protocolUsage && data.protocolUsage.length > 0;
-
-  // Calculate current performance if using networthHistory
-  const currentNetworth = chartData[chartData.length - 1]?.value || 0;
-  const isNetworthMode = !!data.networthHistory?.length;
 
   const formatVolumeValue = (val: number): string => {
     const absVal = Math.abs(val);
@@ -48,13 +44,13 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
         <div className="bento-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
             <div>
-              <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>{isNetworthMode ? 'Current Net Worth' : 'Total Capital Flow'}</span>
-              <div className="hero-value">{formatVolumeValue(isNetworthMode ? currentNetworth : data.totalVolume)}</div>
+              <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>Total Capital Flow</span>
+              <div className="hero-value">{formatVolumeValue(data.totalVolume)}</div>
               <div style={{ marginTop: '8px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
                 <span style={{ background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
-                  {isNetworthMode ? 'Live Snapshots' : `${data.activeMonths} Months`}
+                  {data.activeMonths} Months
                 </span>
-                {' '} {isNetworthMode ? 'Including DeFi & LP' : 'of tracked activity'}
+                {' '} of tracked activity
               </div>
             </div>
             <div className="tabs-container-v5" style={{ marginBottom: 0 }}>
@@ -104,7 +100,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                     tickFormatter={(val) => {
                       const d = new Date(val);
                       if (isNaN(d.getTime())) return '';
-                      return isNetworthMode ? `${d.getHours()}:00` : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                     }}
                   />
                   <YAxis hide domain={['auto', 'auto']} />
@@ -143,7 +139,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
           <div className="mini-stat-v5">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Activity size={16} color="var(--primary)" />
-              <span className="mini-stat-label">Interactions</span>
+              <span className="mini-stat-label">Total Transactions</span>
             </div>
             <span className="mini-stat-value">{data.interactionCount}</span>
           </div>
