@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
 import { Activity, Droplets, LayoutTemplate, Ghost } from 'lucide-react';
@@ -22,6 +22,7 @@ const GOLD_DONUT_COLORS = [
 ];
 
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const chartData = data.networthHistory && data.networthHistory.length > 0 ? data.networthHistory : data.activityHistory;
   const hasHistory = chartData && chartData.length > 0;
   const hasProtocols = data.protocolUsage && data.protocolUsage.length > 0;
@@ -61,7 +62,14 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                 <button 
                   key={tf} 
                   className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
-                  onClick={() => setTimeframe(tf)}
+                  onClick={() => {
+                    if (tf !== timeframe) {
+                      setIsTransitioning(true);
+                      setTimeframe(tf);
+                      // Clear transition after data should have loaded
+                      setTimeout(() => setIsTransitioning(false), 400);
+                    }
+                  }}
                   style={{ padding: '6px 14px', fontSize: '12px' }}
                 >
                   {tf}
@@ -70,7 +78,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
             </div>
           </div>
 
-          <div style={{ height: '320px', width: '100%', marginLeft: '-12px' }}>
+          <div style={{ height: '320px', width: '100%', marginLeft: '-12px', transition: 'opacity 0.3s ease, filter 0.3s ease', opacity: isTransitioning ? 0.4 : 1, filter: isTransitioning ? 'blur(1px)' : 'none' }}>
             {!hasHistory ? (
                <div className="empty-state-v5" style={{ height: '100%' }}>
                   <Ghost size={32} className="empty-state-icon" />
@@ -109,7 +117,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                     itemStyle={{ color: 'var(--primary)' }}
                     formatter={(value: any) => [`$${Number(value).toLocaleString()}`, 'Value']}
                   />
-                  <Area type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#pnlGradV5)" isAnimationActive={true} />
+                  <Area type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#pnlGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
                 </AreaChart>
               </ResponsiveContainer>
             )}

@@ -1,12 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import './PNLChart.css';
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
+const DEBOUNCE_MS = 200;
 
-// Mock data generation removed
-
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, chartMode }: any) => {
   if (active && payload && payload.length) {
     const formattedDate = label === 'Start' || label === 'Now' 
       ? label 
@@ -15,12 +14,16 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           return isNaN(d.getTime()) ? '' : d.toLocaleString();
         })();
 
+    const value = payload[0].value ?? 0;
+    const sign = value < 0 ? '-' : '';
+    const formattedVal = `${sign}$${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
     return (
       <div className="history-tooltip">
         <div className="tooltip-date">{formattedDate}</div>
         <div className="tooltip-value-row">
-          <span className="tooltip-label">Net worth</span>
-          <span className="tooltip-value">${(payload[0].value ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <span className="tooltip-label">{chartMode === 'pnl' ? 'PNL (Profit)' : 'Net worth'}</span>
+          <span className="tooltip-value">{formattedVal}</span>
         </div>
       </div>
     );
@@ -60,8 +63,26 @@ const PNLChart: React.FC<PNLChartProps> = ({
   const [historicalData, setHistoricalData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chartFading, setChartFading] = useState(false);
+
+  // Track previous wallet to clear data on wallet switch
+  const prevWalletRef = useRef<string | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchIdRef = useRef(0);
+
+  // Debounced timeframe setter to prevent rapid-fire API calls
+  const handleTimeframeChange = useCallback((tf: string) => {
+    setTimeframe(tf);
+  }, []);
 
   React.useEffect(() => {
+    // Clear stale data immediately when wallet changes
+    if (prevWalletRef.current !== walletAddress) {
+      prevWalletRef.current = walletAddress;
+      setHistoricalData([]);
+      setError(null);
+    }
+
     if (!walletAddress || activeTab !== 'History' || !isVerified) {
       setHistoricalData([]);
       setIsLoading(false);
@@ -70,7 +91,17 @@ const PNLChart: React.FC<PNLChartProps> = ({
     }
     
     const controller = new AbortController();
-    const fetchHistory = async () => {
+    const currentFetchId = ++fetchIdRef.current;
+
+    // Debounce the fetch to prevent rapid timeframe switches
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Start fade-out immediately for smooth transition
+    setChartFading(true);
+
+    debounceTimerRef.current = setTimeout(async () => {
       setIsLoading(true);
       setError(null);
       try {
@@ -83,35 +114,38 @@ const PNLChart: React.FC<PNLChartProps> = ({
         }
         const data = await res.json();
         
-        if (data && data.history) {
-          const flow = data.history;
-          const formattedData = flow.map((pt: any) => ({
-            time: pt.date,
-            value: pt.value,
-            netDeposits: pt.netDeposits || 0
-          }));
-          setHistoricalData(formattedData);
-        } else {
-          setHistoricalData([]);
+        // Only update if this is still the latest fetch
+        if (currentFetchId === fetchIdRef.current && !controller.signal.aborted) {
+          if (data && data.history) {
+            const flow = data.history;
+            const formattedData = flow.map((pt: any) => ({
+              time: pt.date,
+              value: pt.value,
+              netDeposits: pt.netDeposits || 0
+            }));
+            setHistoricalData(formattedData);
+          } else {
+            setHistoricalData([]);
+          }
         }
       } catch (err: any) {
-        if (err.name !== 'AbortError') {
+        if (err.name !== 'AbortError' && currentFetchId === fetchIdRef.current) {
           console.error("Failed to fetch PNL history:", err);
           setError(err.message || "Failed to load history");
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (currentFetchId === fetchIdRef.current && !controller.signal.aborted) {
           setIsLoading(false);
+          setChartFading(false);
         }
       }
-    };
-    
-    // Clear old data immediately to avoid "ghost wallet" visual leak
-    setHistoricalData([]);
-    fetchHistory();
+    }, DEBOUNCE_MS);
     
     return () => {
       controller.abort();
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
   }, [walletAddress, timeframe, activeTab, lastRefresh, isVerified]);
 
@@ -129,24 +163,37 @@ const PNLChart: React.FC<PNLChartProps> = ({
     return `$${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   };
 
+  const [chartMode, setChartMode] = useState<'pnl' | 'networth'>('pnl');
+
   const currentBreakdownData = breakdownType === 'Asset' ? assetBreakdown : protocolBreakdown;
 
-  // Use historicalData, or a flat line at current value if no history
-  const dataToRender = historicalData.length > 1 
-    ? historicalData 
-    : [{ time: 'Start', value: totalValue }, { time: 'Now', value: totalValue }];
+  // Map dataToRender based on chartMode (PNL vs Net Worth)
+  const dataToRender = useMemo(() => {
+    const rawData = historicalData.length > 1 
+      ? historicalData 
+      : [{ time: 'Start', value: totalValue, netDeposits: 0 }, { time: 'Now', value: totalValue, netDeposits: 0 }];
 
-  const firstVal = dataToRender[0]?.value ?? totalValue;
-  const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
+    return rawData.map(pt => ({
+      ...pt,
+      displayValue: chartMode === 'pnl' ? (pt.value - (pt.netDeposits || 0)) : pt.value
+    }));
+  }, [historicalData, chartMode, totalValue]);
+
+  const firstVal = dataToRender[0]?.displayValue ?? 0;
+  const lastVal = dataToRender[dataToRender.length - 1]?.displayValue ?? 0;
   
-  const firstDep = dataToRender[0]?.netDeposits ?? 0;
-  const lastDep = dataToRender[dataToRender.length - 1]?.netDeposits ?? 0;
-  
-  const rawChangeUsd = (lastVal - firstVal) - (lastDep - firstDep);
+  const rawChangeUsd = lastVal - firstVal;
   const isPositive = rawChangeUsd >= 0;
   const changeUSD = Math.abs(rawChangeUsd).toFixed(2);
   
-  const baseValue = firstVal > 0 ? firstVal : Math.max(lastDep - firstDep, 0.01);
+  // Base value for percentage change calculations
+  const firstRawVal = dataToRender[0]?.value ?? totalValue;
+  const lastDep = dataToRender[dataToRender.length - 1]?.netDeposits ?? 0;
+  const firstDep = dataToRender[0]?.netDeposits ?? 0;
+  const baseValue = chartMode === 'networth'
+    ? (firstRawVal > 0 ? firstRawVal : 0.01)
+    : (firstRawVal > 0 ? firstRawVal : Math.max(lastDep - firstDep, 0.01));
+
   const changePercent = baseValue > 0.01 ? ((rawChangeUsd / baseValue) * 100).toFixed(2) : '0.00';
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
   const gradientId = isPositive ? 'colorGreen' : 'colorRed';
@@ -177,16 +224,37 @@ const PNLChart: React.FC<PNLChartProps> = ({
         </div>
 
         {activeTab === 'History' && (
-          <div className="timeframe-selectors-v4">
-            {TIME_FRAMES.map((tf) => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="segmented-control" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', padding: '2px', borderRadius: '8px', display: 'flex' }}>
               <button
-                key={tf}
-                className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''}`}
-                onClick={() => setTimeframe(tf)}
+                className={`segment-btn ${chartMode === 'pnl' ? 'active' : ''}`}
+                onClick={() => setChartMode('pnl')}
+                style={{ fontSize: '11px', padding: '4px 10px', height: '24px', display: 'flex', alignItems: 'center' }}
+                title="Profit & Loss"
               >
-                {tf}
+                PNL
               </button>
-            ))}
+              <button
+                className={`segment-btn ${chartMode === 'networth' ? 'active' : ''}`}
+                onClick={() => setChartMode('networth')}
+                style={{ fontSize: '11px', padding: '4px 10px', height: '24px', display: 'flex', alignItems: 'center' }}
+                title="Net Worth Valuation"
+              >
+                Net Worth
+              </button>
+            </div>
+            
+            <div className="timeframe-selectors-v4">
+              {TIME_FRAMES.map((tf) => (
+                <button
+                  key={tf}
+                  className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''}`}
+                  onClick={() => handleTimeframeChange(tf)}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -223,7 +291,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
             ) : (
               <>
                 {isLoading && (
-                  <div className="pnl-loading-overlay">
+                  <div className="pnl-loading-overlay pnl-loading-subtle">
                     <div className="chart-loading-shimmer" />
                   </div>
                 )}
@@ -242,50 +310,55 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 )}
               </>
             )}
-            <ResponsiveContainer width="99%" height="100%" className={!isVerified || isLoading || error ? 'blurred-chart' : ''}>
-              <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorRed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#e06a6a" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#e06a6a" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="time"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
-                  dy={8}
-                  minTickGap={40}
-                  tickFormatter={(val) => {
-                    if (val === 'Start' || val === 'Now') return val;
-                    const d = new Date(val);
-                    if (isNaN(d.getTime())) return '';
-                    if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
-                    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                  }}
-                />
-                <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
-                <Tooltip
-                  content={<CustomTooltip />}
-                  cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={strokeColor}
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill={`url(#${gradientId})`}
-                  activeDot={{ r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 }}
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${!isVerified || error ? 'blurred-chart' : ''}`}>
+              <ResponsiveContainer width="99%" height="100%">
+                <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorRed" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#e06a6a" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#e06a6a" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="time"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
+                    dy={8}
+                    minTickGap={40}
+                    tickFormatter={(val) => {
+                      if (val === 'Start' || val === 'Now') return val;
+                      const d = new Date(val);
+                      if (isNaN(d.getTime())) return '';
+                      if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
+                      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    }}
+                  />
+                  <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
+                  <Tooltip
+                    content={<CustomTooltip chartMode={chartMode} />}
+                    cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="displayValue"
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill={`url(#${gradientId})`}
+                    activeDot={{ r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 }}
+                    dot={false}
+                    isAnimationActive={true}
+                    animationDuration={600}
+                    animationEasing="ease-in-out"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       )}

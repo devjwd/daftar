@@ -45,6 +45,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
 
     let isMounted = true;
     let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+    let syncComplete = false;
 
     const stopPolling = () => {
       if (pollIntervalId) {
@@ -79,11 +80,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
         }
 
         if (data.full_history_synced) {
+          syncComplete = true;
           setSyncStatus('completed');
           stopPolling();
           doFetchAnalytics();
         } else if (data.synced_transactions > 0 || data.last_sync_at) {
-          // A sync has run — keep showing data even if not 100%
           setSyncStatus('syncing');
         }
       } catch (err) {
@@ -94,22 +95,27 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
     // 1. Immediately fetch whatever data exists
     doFetchAnalytics();
 
-    // 2. Check current sync status
-    doCheckStatus().then(() => {
-      if (!isMounted) return;
-      // 3. Poll every 6 seconds to update progress and data
-      pollIntervalId = setInterval(async () => {
-        await doFetchAnalytics();
-        await doCheckStatus();
-      }, 6000);
-    });
-
-    // 4. Auto-trigger sync if not verified-only gated (for first-time users)
-    // Fire-and-forget so it doesn't block the UI
+    // 2. Auto-trigger sync if verified (fire-and-forget)
     if (isVerified) {
       fetch(`${API_URL}/api/analytics/sync?wallet=${walletAddress}`).catch(() => {});
       setSyncStatus('syncing');
     }
+
+    // 3. Start polling immediately, check sync status inside the interval
+    //    This avoids the race condition where doCheckStatus resolves before setInterval
+    const doPoll = async () => {
+      if (!isMounted || syncComplete) return;
+      await doCheckStatus();
+      if (!syncComplete && isMounted) {
+        await doFetchAnalytics();
+      }
+    };
+
+    // Initial status check
+    doPoll();
+
+    // Set up polling every 6 seconds
+    pollIntervalId = setInterval(doPoll, 6000);
 
     return () => {
       isMounted = false;

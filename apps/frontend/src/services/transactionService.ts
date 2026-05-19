@@ -464,6 +464,24 @@ const isDistinctAssetPair = (leftActivity, rightActivity) => {
   return Boolean(leftSymbol && rightSymbol && leftSymbol !== rightSymbol);
 };
 
+const getCounterpartyAddress = (rawTx, activities, userAddress) => {
+  const normalizedUser = normalizeAddress(userAddress);
+
+  for (const act of activities) {
+    const owner = normalizeAddress(act.owner);
+    if (owner && owner !== normalizedUser && owner !== '0x1' && owner !== '0x3' && owner !== '0xa' && owner !== '0x0000000000000000000000000000000000000000000000000000000000000001') {
+      return owner;
+    }
+  }
+
+  const sender = normalizeAddress(rawTx?.sender || rawTx?.user_transaction?.sender);
+  if (sender && sender !== normalizedUser) {
+    return sender;
+  }
+
+  return null;
+};
+
 const buildStructuredTransaction = async (rawTx, activities, walletAddress = "") => {
   // Ensure dynamic entities are loaded before matching
   const entities = await getTrackedEntities();
@@ -496,6 +514,7 @@ const buildStructuredTransaction = async (rawTx, activities, walletAddress = "")
     gas_fee: calculateGasFeeInMove(rawTx?.gas_used, rawTx?.gas_unit_price),
     tx_timestamp: rawTx?.tx_timestamp || rawTx?.timestamp || rawTx?.transaction_timestamp || null,
     status: marked.status,
+    counterparty_address: getCounterpartyAddress(rawTx, activities, walletAddress),
   };
 };
 
@@ -841,63 +860,64 @@ const fetchCoinGeckoHistoricalPrice = async (tokenSymbol, date) => {
 
 const enrichTransactionsWithUsd = async (walletAddress, transactions) => {
   const normalizedAddress = normalizeAddress(walletAddress);
-  const enriched = [];
 
+  // Batch: collect all unique (token, date) pairs first
+  const priceLookups = new Map();
   for (const tx of transactions) {
-    try {
-      const priceDate = tx?.tx_timestamp || tx?.timestamp || new Date().toISOString();
-      const amountInUsd = tx?.token_in ? (toNumber(tx.amount_in) * await getTokenPrice(tx.token_in, priceDate)) : 0;
-      const amountOutUsd = tx?.token_out ? (toNumber(tx.amount_out) * await getTokenPrice(tx.token_out, priceDate)) : 0;
-      const pnlUsd = tx.tx_type === "swap" ? amountOutUsd - amountInUsd : 0;
-
-      enriched.push({
-        wallet_address: normalizedAddress,
-        tx_hash: tx.tx_hash,
-        tx_type: tx.tx_type,
-        dapp_key: tx.dapp_key,
-        dapp_name: tx.dapp_name,
-        dapp_logo: tx.dapp_logo,
-        dapp_website: tx.dapp_website,
-        dapp_contract: tx.dapp_contract,
-        token_in: tx.token_in,
-        token_out: tx.token_out,
-        amount_in: tx.amount_in,
-        amount_out: tx.amount_out,
-        amount_in_usd: amountInUsd,
-        amount_out_usd: amountOutUsd,
-        pnl_usd: pnlUsd,
-        gas_fee: tx.gas_fee,
-        status: tx.status || "success",
-        tx_timestamp: tx.tx_timestamp,
-        fetched_at: new Date().toISOString(),
-      });
-    } catch (error) {
-      devLog("Failed to enrich transaction with USD values:", error);
-      enriched.push({
-        wallet_address: normalizedAddress,
-        tx_hash: tx.tx_hash,
-        tx_type: tx.tx_type,
-        dapp_key: tx.dapp_key,
-        dapp_name: tx.dapp_name,
-        dapp_logo: tx.dapp_logo,
-        dapp_website: tx.dapp_website,
-        dapp_contract: tx.dapp_contract,
-        token_in: tx.token_in,
-        token_out: tx.token_out,
-        amount_in: tx.amount_in,
-        amount_out: tx.amount_out,
-        amount_in_usd: 0,
-        amount_out_usd: 0,
-        pnl_usd: 0,
-        gas_fee: tx.gas_fee,
-        status: tx.status || "success",
-        tx_timestamp: tx.tx_timestamp,
-        fetched_at: new Date().toISOString(),
-      });
+    const priceDate = tx?.tx_timestamp || tx?.timestamp || new Date().toISOString();
+    const sqlDate = toSqlDate(priceDate);
+    if (tx?.token_in) {
+      const key = `${String(tx.token_in).trim().toUpperCase()}|${sqlDate}`;
+      if (!priceLookups.has(key)) {
+        priceLookups.set(key, getTokenPrice(tx.token_in, priceDate));
+      }
+    }
+    if (tx?.token_out) {
+      const key = `${String(tx.token_out).trim().toUpperCase()}|${sqlDate}`;
+      if (!priceLookups.has(key)) {
+        priceLookups.set(key, getTokenPrice(tx.token_out, priceDate));
+      }
     }
   }
 
-  return enriched;
+  // Resolve all prices in parallel
+  const priceKeys = Array.from(priceLookups.keys());
+  const priceValues = await Promise.all(Array.from(priceLookups.values()));
+  const priceMap = new Map();
+  priceKeys.forEach((key, i) => priceMap.set(key, priceValues[i] || 0));
+
+  const now = new Date().toISOString();
+  return transactions.map((tx) => {
+    const priceDate = tx?.tx_timestamp || tx?.timestamp || now;
+    const sqlDate = toSqlDate(priceDate);
+    const inKey = tx?.token_in ? `${String(tx.token_in).trim().toUpperCase()}|${sqlDate}` : null;
+    const outKey = tx?.token_out ? `${String(tx.token_out).trim().toUpperCase()}|${sqlDate}` : null;
+    const amountInUsd = inKey ? toNumber(tx.amount_in) * (priceMap.get(inKey) || 0) : 0;
+    const amountOutUsd = outKey ? toNumber(tx.amount_out) * (priceMap.get(outKey) || 0) : 0;
+    const pnlUsd = tx.tx_type === "swap" ? amountOutUsd - amountInUsd : 0;
+
+    return {
+      wallet_address: normalizedAddress,
+      tx_hash: tx.tx_hash,
+      tx_type: tx.tx_type,
+      dapp_key: tx.dapp_key,
+      dapp_name: tx.dapp_name,
+      dapp_logo: tx.dapp_logo,
+      dapp_website: tx.dapp_website,
+      dapp_contract: tx.dapp_contract,
+      token_in: tx.token_in,
+      token_out: tx.token_out,
+      amount_in: tx.amount_in,
+      amount_out: tx.amount_out,
+      amount_in_usd: amountInUsd,
+      amount_out_usd: amountOutUsd,
+      pnl_usd: pnlUsd,
+      gas_fee: tx.gas_fee,
+      status: tx.status || "success",
+      tx_timestamp: tx.tx_timestamp,
+      fetched_at: now,
+    };
+  });
 };
 
 const DAFTAR_BRANDING = {
@@ -1030,6 +1050,7 @@ export const parseTransaction = async (rawTx, walletAddress = "") => {
         gas_fee: 0,
         tx_timestamp: null,
         status: "failed",
+        counterparty_address: null,
       };
     }
 
@@ -1047,6 +1068,7 @@ export const parseTransaction = async (rawTx, walletAddress = "") => {
       gas_fee: 0,
       tx_timestamp: rawTx?.tx_timestamp || rawTx?.timestamp || null,
       status: rawTx?.success === false ? "failed" : "success",
+      counterparty_address: null,
     };
   }
 };
@@ -1208,6 +1230,37 @@ export const calculatePNL = (transactions) => {
   }
 };
 
+const KNOWN_EXCHANGES = ['Binance', 'OKX', 'Coinbase', 'MEXC', 'Gate', 'Bitget', 'KuCoin', 'Bybit', 'Kraken'];
+
+const getExchangeDepositInfo = (labelObj) => {
+  if (!labelObj) return null;
+
+  const entityName = labelObj.entity?.name;
+  const isExchangeEntity = labelObj.entity?.category === 'Exchange' || (entityName && KNOWN_EXCHANGES.some(ex => entityName.toLowerCase() === ex.toLowerCase()));
+  const isDepositLabel = labelObj.label_name && (
+    labelObj.label_name.toLowerCase().includes('deposit') || 
+    labelObj.label_name.toLowerCase().includes('exchange')
+  );
+
+  if (isExchangeEntity || isDepositLabel) {
+    let exchangeName = entityName || 'Exchange';
+    if (exchangeName === 'Exchange' && labelObj.label_name) {
+      for (const ex of KNOWN_EXCHANGES) {
+        if (labelObj.label_name.toLowerCase().includes(ex.toLowerCase())) {
+          exchangeName = ex;
+          break;
+        }
+      }
+    }
+    return {
+      exchangeName,
+      label: `${exchangeName} Deposit`
+    };
+  }
+
+  return null;
+};
+
 export const getOrFetchTransactions = async (walletAddress, options: any = {}) => {
   const normalizedAddress = normalizeAddress(walletAddress);
   if (!isValidAddress(normalizedAddress)) {
@@ -1223,17 +1276,62 @@ export const getOrFetchTransactions = async (walletAddress, options: any = {}) =
     const rawTransactions = await fetchTransactions(normalizedAddress, limit);
     if (rawTransactions.length === 0) return [];
 
+    // Pre-fetch entities once for the entire batch (avoids 100 redundant cache checks)
+    await getTrackedEntities();
+
     const parsedTransactions = (await Promise.all(
       rawTransactions.map(async (row) => await parseTransaction(row, normalizedAddress))
     )).filter((row) => row.tx_hash);
+
+    const counterparties = new Set();
+    for (const tx of parsedTransactions) {
+      if (tx.counterparty_address) {
+        counterparties.add(tx.counterparty_address);
+      }
+    }
+
+    const labelsMap = new Map();
+    if (counterparties.size > 0) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase
+          .from('address_labels')
+          .select('*, tracked_entities(name, category)')
+          .in('address', Array.from(counterparties));
+
+        if (data) {
+          for (const row of data) {
+            labelsMap.set(normalizeAddress(row.address), {
+              label_name: row.label_name,
+              entity: row.tracked_entities
+            });
+          }
+        }
+      }
+    }
 
     const enrichedTransactions = trimTransactions(
       await enrichTransactionsWithUsd(normalizedAddress, parsedTransactions),
       limit
     );
 
+    const processedTransactions = enrichedTransactions.map(tx => {
+      if (tx.counterparty_address && labelsMap.has(tx.counterparty_address)) {
+        const depositInfo = getExchangeDepositInfo(labelsMap.get(tx.counterparty_address));
+        if (depositInfo && (tx.tx_type === 'send' || tx.tx_type === 'transfer')) {
+          return {
+            ...tx,
+            tx_type: 'send', // Keep as 'send' so it remains in Transfers filter
+            tx_label: depositInfo.label,
+            dapp_name: depositInfo.exchangeName,
+          };
+        }
+      }
+      return tx;
+    });
+
     // 2. Return branding-applied results (No sync to DB)
-    return trimTransactions(applyProjectBranding(enrichedTransactions), limit);
+    return trimTransactions(applyProjectBranding(processedTransactions), limit);
   } catch (error) {
     console.error("getOrFetchTransactions failed:", error);
     return [];

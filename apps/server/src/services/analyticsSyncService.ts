@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import { normalizeAddress } from '../utils/address.ts';
+import { KNOWN_EXCHANGES } from '../config/whitelists.ts';
 import CONFIG from '../config/index.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { reconstructHistoricalBalances } from './portfolioService.ts';
@@ -123,7 +124,7 @@ async function fetchAllAddressLabels(supabase: SupabaseClient): Promise<any[]> {
   while (hasMore) {
     const { data, error } = await supabase
       .from('address_labels')
-      .select('*, tracked_entities(name)')
+      .select('*, tracked_entities(name, category)')
       .range(page * pageSize, (page + 1) * pageSize - 1);
 
     if (error) {
@@ -316,9 +317,33 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     }
   }
 
+  let isExchangeDeposit = false;
+  let exchangeName = null;
+
   if (counterpartyAddress && labelsMap.has(counterpartyAddress)) {
     const labelObj = labelsMap.get(counterpartyAddress);
-    counterpartyLabel = labelObj.tracked_entities?.name || labelObj.label || null;
+    counterpartyLabel = labelObj.tracked_entities?.name || labelObj.label_name || null;
+
+    // Detect if counterparty is an exchange deposit address
+    const isExchangeCategory = labelObj.tracked_entities?.category === 'Exchange';
+    const isKnownExchangeName = labelObj.tracked_entities?.name && KNOWN_EXCHANGES.has(labelObj.tracked_entities.name);
+    const isDepositLabel = labelObj.label_name && (
+      labelObj.label_name.toLowerCase().includes('deposit') ||
+      labelObj.label_name.toLowerCase().includes('exchange')
+    );
+
+    if (isExchangeCategory || isKnownExchangeName || isDepositLabel) {
+      isExchangeDeposit = true;
+      exchangeName = labelObj.tracked_entities?.name || 'Exchange';
+      if (exchangeName === 'Exchange' && labelObj.label_name) {
+        for (const ex of KNOWN_EXCHANGES) {
+          if (labelObj.label_name.toLowerCase().includes(ex.toLowerCase())) {
+            exchangeName = ex;
+            break;
+          }
+        }
+      }
+    }
   }
 
   // 4. Decode Events for Richer Context
@@ -351,18 +376,24 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
 
   // Fallback to counterparty label if protocol is Unknown or Movement Core (e.g. for transfers to exchanges)
   if ((protocol === 'Unknown' || protocol === 'Movement Core') && counterpartyLabel) {
-    protocol = counterpartyLabel;
+    protocol = isExchangeDeposit ? exchangeName : counterpartyLabel;
   }
 
   let action = eventTypeOverride || FUNC_MAP[suffix] || TX_TYPES.OTHER;
-  let category = (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) ? 'Transfer' : 'DeFi';
-
+  
   // Fallback to direction-based classification if OTHER
   if (action === TX_TYPES.OTHER) {
     if (inFlows.length > 0 && outFlows.length > 0) action = TX_TYPES.SWAP;
     else if (inFlows.length > 0) action = TX_TYPES.RECEIVE;
     else if (outFlows.length > 0) action = TX_TYPES.SEND;
   }
+
+  // Handle exchange deposit classification override
+  if (isExchangeDeposit && action === TX_TYPES.SEND) {
+    protocol = exchangeName;
+  }
+
+  let category = (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) ? 'Transfer' : 'DeFi';
 
   // 6. Generate Description & Metadata
   let description = 'Contract interaction';
@@ -407,12 +438,16 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
       description = `Swapped assets via ${protocol}`;
     }
   } else if (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) {
-    const asset = primaryOut || primaryIn;
-    if (asset) {
-      if (counterpartyLabel) {
-        description = `${action === TX_TYPES.SEND ? 'Sent' : 'Received'} ${asset.amount.toFixed(2)} ${asset.symbol} ${action === TX_TYPES.SEND ? 'to' : 'from'} ${counterpartyLabel}`;
-      } else {
-        description = `${action === TX_TYPES.SEND ? 'Sent' : 'Received'} ${asset.amount.toFixed(2)} ${asset.symbol}`;
+    if (isExchangeDeposit && action === TX_TYPES.SEND) {
+      description = `${exchangeName} Deposit`;
+    } else {
+      const asset = primaryOut || primaryIn;
+      if (asset) {
+        if (counterpartyLabel) {
+          description = `${action === TX_TYPES.SEND ? 'Sent' : 'Received'} ${asset.amount.toFixed(2)} ${asset.symbol} ${action === TX_TYPES.SEND ? 'to' : 'from'} ${counterpartyLabel}`;
+        } else {
+          description = `${action === TX_TYPES.SEND ? 'Sent' : 'Received'} ${asset.amount.toFixed(2)} ${asset.symbol}`;
+        }
       }
     }
   } else if (action === TX_TYPES.LEND || action === TX_TYPES.DEPOSIT) {
