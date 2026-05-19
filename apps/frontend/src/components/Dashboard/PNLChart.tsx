@@ -231,6 +231,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 onClick={() => setChartMode('pnl')}
                 style={{ fontSize: '11px', padding: '4px 10px', height: '24px', display: 'flex', alignItems: 'center' }}
                 title="Profit & Loss"
+                disabled={!isVerified}
               >
                 PNL
               </button>
@@ -239,6 +240,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 onClick={() => setChartMode('networth')}
                 style={{ fontSize: '11px', padding: '4px 10px', height: '24px', display: 'flex', alignItems: 'center' }}
                 title="Net Worth Valuation"
+                disabled={!isVerified}
               >
                 Net Worth
               </button>
@@ -250,6 +252,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   key={tf}
                   className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''}`}
                   onClick={() => handleTimeframeChange(tf)}
+                  disabled={!isVerified}
                 >
                   {tf}
                 </button>
@@ -283,10 +286,32 @@ const PNLChart: React.FC<PNLChartProps> = ({
           </div>
           <div className="pnl-chart-wrapper-v4">
             {!isVerified ? (
-              <div className="pnl-restricted-overlay">
-                <div className="restricted-content">
-                  <p>Verify this profile to unlock historical analytics</p>
-                </div>
+              <div className="pnl-unverified-state" style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                gap: '10px',
+                padding: '24px',
+                textAlign: 'center',
+              }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
+                  Historical PNL is available for verified profiles.
+                </p>
+                <a
+                  href="https://daftar.fi/profile"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--primary)', fontSize: '12px', textDecoration: 'none', opacity: 0.8 }}
+                  title="Verification means your transaction history has been fully indexed and you have a Daftar profile."
+                >
+                  What is verification? ↗
+                </a>
               </div>
             ) : (
               <>
@@ -308,57 +333,57 @@ const PNLChart: React.FC<PNLChartProps> = ({
                     </div>
                   </div>
                 )}
+                <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${error ? 'blurred-chart' : ''}`}>
+                  <ResponsiveContainer width="99%" height="100%">
+                    <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorRed" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#e06a6a" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#e06a6a" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="time"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
+                        dy={8}
+                        minTickGap={40}
+                        tickFormatter={(val) => {
+                          if (val === 'Start' || val === 'Now') return val;
+                          const d = new Date(val);
+                          if (isNaN(d.getTime())) return '';
+                          if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
+                          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                        }}
+                      />
+                      <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
+                      <Tooltip
+                        content={<CustomTooltip chartMode={chartMode} />}
+                        cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="displayValue"
+                        stroke={strokeColor}
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill={`url(#${gradientId})`}
+                        activeDot={{ r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 }}
+                        dot={false}
+                        isAnimationActive={true}
+                        animationDuration={600}
+                        animationEasing="ease-in-out"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </>
             )}
-            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${!isVerified || error ? 'blurred-chart' : ''}`}>
-              <ResponsiveContainer width="99%" height="100%">
-                <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorRed" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#e06a6a" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#e06a6a" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="time"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
-                    dy={8}
-                    minTickGap={40}
-                    tickFormatter={(val) => {
-                      if (val === 'Start' || val === 'Now') return val;
-                      const d = new Date(val);
-                      if (isNaN(d.getTime())) return '';
-                      if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
-                      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                    }}
-                  />
-                  <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
-                  <Tooltip
-                    content={<CustomTooltip chartMode={chartMode} />}
-                    cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="displayValue"
-                    stroke={strokeColor}
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill={`url(#${gradientId})`}
-                    activeDot={{ r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 }}
-                    dot={false}
-                    isAnimationActive={true}
-                    animationDuration={600}
-                    animationEasing="ease-in-out"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
           </div>
         </div>
       )}
@@ -367,47 +392,65 @@ const PNLChart: React.FC<PNLChartProps> = ({
       {activeTab === 'Breakdown' && (
         <div className="pnl-breakdown-view">
           <div className="breakdown-donut-area">
-            <ResponsiveContainer width={120} height={120}>
-              <PieChart>
-                <Pie
-                  data={currentBreakdownData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={38}
-                  outerRadius={56}
-                  paddingAngle={3}
-                  dataKey="value"
-                  startAngle={90}
-                  endAngle={-270}
-                  strokeWidth={0}
-                  isAnimationActive={activeIndex === -1}
-                  animationDuration={400}
-                  activeShape={(props: any) => {
-                    return (
-                      <Sector
-                        {...props}
-                        outerRadius={props.outerRadius + 5}
-                        innerRadius={props.innerRadius - 2}
-                        fill={props.fill}
-                        style={{ transition: 'all 0.15s ease', outline: 'none' }}
+            {currentBreakdownData.length === 0 ? (
+              <div style={{
+                width: 120,
+                height: 120,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'column',
+                gap: '6px',
+              }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
+                </svg>
+                <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px', textAlign: 'center' }}>No positions to display</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width={120} height={120}>
+                <PieChart>
+                  <Pie
+                    data={currentBreakdownData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={38}
+                    outerRadius={56}
+                    paddingAngle={3}
+                    dataKey="value"
+                    startAngle={90}
+                    endAngle={-270}
+                    strokeWidth={0}
+                    isAnimationActive={activeIndex === -1}
+                    animationDuration={400}
+                    activeShape={(props: any) => {
+                      return (
+                        <Sector
+                          {...props}
+                          outerRadius={props.outerRadius + 5}
+                          innerRadius={props.innerRadius - 2}
+                          fill={props.fill}
+                          style={{ transition: 'all 0.15s ease', outline: 'none' }}
+                        />
+                      );
+                    }}
+                    activeIndex={activeIndex}
+                  >
+                    {currentBreakdownData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.color}
+                        opacity={activeIndex === -1 || activeIndex === index ? 0.9 : 0.3}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        onMouseLeave={() => setActiveIndex(-1)}
+                        style={{ transition: 'all 0.15s ease', cursor: 'pointer', outline: 'none' }}
                       />
-                    );
-                  }}
-                  activeIndex={activeIndex}
-                >
-                  {currentBreakdownData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.color}
-                      opacity={activeIndex === -1 || activeIndex === index ? 0.9 : 0.3}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      onMouseLeave={() => setActiveIndex(-1)}
-                      style={{ transition: 'all 0.15s ease', cursor: 'pointer', outline: 'none' }}
-                    />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            )}
             <div className="donut-center-label">
               <span className="donut-total-label">
                 {activeIndex === -1 ? 'Total' : currentBreakdownData[activeIndex]?.name}

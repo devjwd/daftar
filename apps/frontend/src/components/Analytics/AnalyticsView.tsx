@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
@@ -36,9 +36,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
   const lastSyncChangeTimeRef = React.useRef<number>(0);
 
   const { profile, loading: profileLoading } = useProfile(walletAddress || null);
-  const isVerified = profile?.is_verified ?? true; // Default true for public views, gated by profile data
+  const isVerified = profile?.is_verified ?? false;
 
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+
+  // Keep timeframe in a ref so the polling interval callback is never stale
+  const timeframeRef = useRef(timeframe);
+  useEffect(() => { timeframeRef.current = timeframe; }, [timeframe]);
 
   useEffect(() => {
     if (!walletAddress) return;
@@ -46,6 +50,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
     let isMounted = true;
     let pollIntervalId: ReturnType<typeof setInterval> | null = null;
     let syncComplete = false;
+    let failedPolls = 0;
+    const MAX_FAILED_POLLS = 30; // 30 × 6s = 3 minutes
 
     const stopPolling = () => {
       if (pollIntervalId) {
@@ -54,10 +60,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
       }
     };
 
-    const doFetchAnalytics = async (tf = timeframe) => {
+    const doFetchAnalytics = async () => {
       if (!isMounted) return;
       try {
-        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
+        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${timeframeRef.current}`);
         if (!res.ok) return;
         const data = await res.json();
         if (isMounted) setAnalyticsData(data);
@@ -81,14 +87,26 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
 
         if (data.full_history_synced) {
           syncComplete = true;
+          failedPolls = 0;
           setSyncStatus('completed');
           stopPolling();
           doFetchAnalytics();
         } else if (data.synced_transactions > 0 || data.last_sync_at) {
           setSyncStatus('syncing');
+        } else {
+          failedPolls++;
+          if (failedPolls >= MAX_FAILED_POLLS) {
+            stopPolling();
+            setSyncStatus('error');
+          }
         }
       } catch (err) {
         console.error('Status check error:', err);
+        failedPolls++;
+        if (failedPolls >= MAX_FAILED_POLLS) {
+          stopPolling();
+          setSyncStatus('error');
+        }
       }
     };
 
@@ -101,8 +119,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
       setSyncStatus('syncing');
     }
 
-    // 3. Start polling immediately, check sync status inside the interval
-    //    This avoids the race condition where doCheckStatus resolves before setInterval
+    // 3. Start polling — check status then fetch fresh data each tick
     const doPoll = async () => {
       if (!isMounted || syncComplete) return;
       await doCheckStatus();
@@ -123,33 +140,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
     };
   }, [walletAddress, isVerified, API_URL]);
 
-  const checkSyncCompletion = async (interval: any) => {
-    try {
-      const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
-      const data = await res.json();
-
-      if (data.total_transactions > 0) {
-        const progress = Math.min(100, Math.round((data.synced_transactions / data.total_transactions) * 100));
-        setSyncProgress(progress);
-      }
-
-      if (data.full_history_synced) {
-        setSyncStatus('completed');
-        clearInterval(interval);
-        fetchAnalyticsData(); // Final fetch
-      }
-    } catch (e) { }
-  };
-
   const fetchAnalyticsData = async (tf = timeframe) => {
     if (!walletAddress) return;
-
     try {
       const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
       const data = await res.json();
       setAnalyticsData(data);
     } catch (err) {
-      console.error("Fetch analytics error:", err);
+      console.error('Fetch analytics error:', err);
     }
   };
 

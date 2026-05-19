@@ -3,15 +3,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_TOKEN_COLOR, TOKEN_VISUALS, DEFI_PROTOCOL_VISUALS } from '../../config/display';
 import { checkAccountExists } from '../../services/indexer';
 import { getOrFetchTransactions } from '../../services/transactionService';
+import { t } from '../../utils/language';
 
 import styles from './TrxHistory.module.css';
 
 const FILTERS = [
-  { label: 'ALL', value: 'all' },
-  { label: 'SWAPS', value: 'swap' },
-  { label: 'LENDING', value: 'lending' },
-  { label: 'STAKING', value: 'staking' },
-  { label: 'TRANSFERS', value: 'transfers' },
+  { labelKey: 'trxFilterAll', value: 'all' },
+  { labelKey: 'trxFilterSwaps', value: 'swap' },
+  { labelKey: 'trxFilterLending', value: 'lending' },
+  { labelKey: 'trxFilterStaking', value: 'staking' },
+  { labelKey: 'trxFilterTransfers', value: 'transfers' },
 ];
 
 const EXPLORER_TX_BASE = 'https://explorer.movementnetwork.xyz/txn';
@@ -382,7 +383,7 @@ const SkeletonRows = ({ count = 5 }) => (
   </>
 );
 
-export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerified = false }) {
+export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerified = false, hideValues = false, language = 'en' }) {
   const mountedRef = useRef(true);
   const paginationAbortRef = useRef(null);
   const [activeFilter, setActiveFilter] = useState('all');
@@ -550,7 +551,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
   }, [totalTransactionCount, transactions.length]);
 
   if (!walletAddress) {
-    return <section className={styles.emptyState}>Connect wallet to view transactions</section>;
+    return <section className={styles.emptyState}>{t(language, 'trxConnectWallet')}</section>;
   }
 
   return (
@@ -564,7 +565,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
               className={cn(styles.filterTab, activeFilter === filter.value && styles.filterTabActive)}
               onClick={() => setActiveFilter(filter.value)}
             >
-              {filter.label}
+              {t(language, filter.labelKey)}
             </button>
           ))}
         </div>
@@ -594,7 +595,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
             ) : transactions.length === 0 ? (
               <tr>
                 <td colSpan={5}>
-                  <div className={styles.emptyState}>No transactions found</div>
+                  <div className={styles.emptyState}>{t(language, 'trxNoTransactions')}</div>
                 </td>
               </tr>
             ) : (
@@ -676,7 +677,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
                               className={styles[amountTone]}
                               style={tx.badge_color ? { color: tx.badge_color } : {}}
                             >
-                              {formatAmount(displayAmounts[0])}
+                              {hideValues ? '*****' : formatAmount(displayAmounts[0])}
                             </span>
                           ) : null}
                           {hasAmountIn && hasAmountOut ? <span className={styles.amountArrow}>→</span> : null}
@@ -685,7 +686,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
                               className={styles[amountTone]}
                               style={tx.badge_color ? { color: tx.badge_color } : {}}
                             >
-                              {formatAmount(displayAmounts[1])}
+                              {hideValues ? '*****' : formatAmount(displayAmounts[1])}
                             </span>
                           ) : null}
                           {!hasAmountIn && !hasAmountOut ? <span className={styles.neutral}>—</span> : null}
@@ -720,7 +721,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
             onClick={handleLoadMore}
             disabled={loadingMore}
           >
-            {loadingMore ? 'Loading...' : 'Load more'}
+            {loadingMore ? t(language, 'trxLoadingMore') : t(language, 'trxLoadMore')}
           </button>
         </div>
       ) : null}
