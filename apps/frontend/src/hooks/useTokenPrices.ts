@@ -62,7 +62,7 @@ const FALLBACK_PRICES = {
   "0xf02c83698b28a544197858c4808b96ff740aa1c01b2f04ba33e80a485b4bf67a": 0, // MOVECAT
   [GMOVE_ADDRESS]: 0, // gMOVE
 
-  // MOVE Fallbacks (Aptos / Movement Native)
+  // MOVE Fallbacks (Movement Native)
   "0xa": 0.01806,
   "0x1": 0.01806,
 
