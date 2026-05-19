@@ -20,8 +20,74 @@ export const KNOWN_EXCHANGES = new Set([
 /** Integrated/Verified Token Symbols */
 export const WHITELIST_TOKENS = new Set([
   'MOVE', 'USDT', 'USDT.e', 'USDC', 'USDC.e', 'ETH', 'WETH', 'BTC',
-  'WBTC', 'rsETH', 'gMOVE', 'cvMOVE', 'stMOVE', 'APT', 'USDe'
+  'WBTC', 'rsETH', 'gMOVE', 'cvMOVE', 'stMOVE', 'USDe', 'ezETH', 'weETH',
+  'SolvBTC', 'LBTC', 'USDCx', 'USDa'
 ]);
+
+/**
+ * Symbols that are known scam/airdrop/test tokens — exclude from balance snapshots.
+ * These tokens have no real value and inflate portfolio numbers.
+ */
+export const BLACKLIST_TOKEN_SYMBOLS = new Set([
+  // Scam / airdrop tokens
+  'TEST', 'CAPY', 'MOVECAT',
+  // Move-branded airdrops/reward tokens (not the real MOVE)
+  'MOVE Drops', 'MOVE Drop', 'MOVE Gift', 'MOVE Rwd', 'MOVEReward',
+  'MOVEDrop', 'MOVEGift', 'MOVERwd', 'MOVEREWARD',
+  // Illiquid governance / wrapped variants that should not count
+  'lMOVE', 'dMOVE',
+]);
+
+/**
+ * Asset type substrings that indicate the token is an LP position,
+ * not a real token holding. Exclude from balance snapshots.
+ */
+export const BLACKLIST_ASSET_TYPE_PATTERNS: string[] = [
+  '-LP',      // MER-LP, etc.
+  '_LP',
+  '::LP',
+  '::lp_',
+  'LPToken',
+  'LpToken',
+  'lptoken',
+  'liquidity_pool',
+  'LiquidityPool',
+  'pool_token',
+  '::pair::',
+  '::Pair::',
+];
+
+/**
+ * Asset type substrings that belong to Aptos (not Movement Network).
+ * These should be ignored and normalized to MOVE where applicable.
+ */
+export const APTOS_COIN_PATTERNS: string[] = [
+  '::aptos_coin::AptosCoin',
+  '::aptos_coin::aptoscoin',
+];
+
+/**
+ * Returns true if the asset type or symbol should be excluded from
+ * balance snapshots (scam, airdrop, LP token, or raw Aptos coin type).
+ */
+export function isJunkAsset(assetType: string, symbol: string): boolean {
+  const sym = symbol.trim();
+  const type = assetType.toLowerCase();
+
+  // Blacklisted symbol (exact match, case-insensitive)
+  if (BLACKLIST_TOKEN_SYMBOLS.has(sym)) return true;
+
+  // Starts with known airdrop-style prefixes
+  if (/^MOVE\s+(Drop|Gift|Rwd|Reward)/i.test(sym)) return true;
+
+  // LP token patterns in asset type
+  if (BLACKLIST_ASSET_TYPE_PATTERNS.some(p => assetType.includes(p) || type.includes(p.toLowerCase()))) return true;
+
+  // Raw Aptos coin type (no real Aptos token on Movement Network)
+  if (APTOS_COIN_PATTERNS.some(p => assetType.includes(p))) return true;
+
+  return false;
+}
 
 /** Protocol chart colors (cycled via index) */
 export const PROTOCOL_COLORS = [

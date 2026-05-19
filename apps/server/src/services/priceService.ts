@@ -28,11 +28,37 @@ export const FALLBACK_PRICES: Record<string, number> = {
   '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c': 81096.63, // WBTC
 };
 
-const getCoinGeckoApiUrl = (isDemo: boolean): string => {
+const getCoinGeckoApiUrl = (baseUrl: string): string => {
   const ids = Array.from(new Set(Object.values(TOKEN_COINGECKO_IDS))).join(',');
-  // Note: Coingecko Demo API also uses api.coingecko.com, but with different limits/headers
-  const baseUrl = 'https://api.coingecko.com';
   return `${baseUrl}/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
+};
+
+/** Attempt CoinGecko fetch with correct base URL for demo vs pro vs public keys */
+async function fetchFromCoinGecko(headers: Record<string, string>): Promise<any | null> {
+  const attempts = [
+    'https://demo-api.coingecko.com',
+    'https://api.coingecko.com',
+  ];
+  for (const base of attempts) {
+    try {
+      const url = getCoinGeckoApiUrl(base);
+      const res = await fetch(url, { method: 'GET', headers });
+      if (res.ok) {
+        const json = await res.json();
+        // Sanity check: the movement token must be present in the response
+        if ((json as any)?.['movement']?.usd != null) {
+          console.log(`[Prices] ✅ Fetched from ${base} — MOVE = $${(json as any)['movement'].usd}`);
+          return json;
+        }
+        console.warn(`[Prices] Response from ${base} lacked movement price, trying next...`);
+      } else {
+        console.warn(`[Prices] ${base} returned ${res.status}, trying next...`);
+      }
+    } catch (e: any) {
+      console.warn(`[Prices] ${base} unreachable: ${e.message}`);
+    }
+  }
+  return null;
 };
 
 export interface PriceSnapshot {
@@ -46,27 +72,27 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
   const isDemoKey = apiKey.startsWith('CG-');
 
   if (apiKey) {
+    // Demo keys go to demo-api.coingecko.com with x-cg-demo-api-key
+    // Pro keys go to pro-api.coingecko.com with x-cg-pro-api-key
     if (isDemoKey) headers['x-cg-demo-api-key'] = apiKey;
     else headers['x-cg-pro-api-key'] = apiKey;
   }
 
   try {
-    const response = await fetch(getCoinGeckoApiUrl(isDemoKey), {
-      method: 'GET',
-      headers
-    });
+    let data: any = await fetchFromCoinGecko(headers);
 
-    if (!response.ok) {
-      // If API fails, try to return latest from DB
+    if (!data) {
+      // All CoinGecko attempts failed — try to return cached DB values
       if (supabase) {
-        const { data } = await supabase
+        const { data: cached } = await supabase
           .from('price_cache')
           .select('token_id, price_usd, change_24h');
 
-        if (data && data.length > 0) {
+        if (cached && cached.length > 0) {
+          console.warn('[Prices] Using DB price cache fallback.');
           const prices: Record<string, number> = {};
           const priceChanges: Record<string, number> = {};
-          data.forEach((row: any) => {
+          cached.forEach((row: any) => {
             prices[row.token_id] = Number(row.price_usd);
             priceChanges[row.token_id] = Number(row.change_24h || 0);
           });
@@ -75,8 +101,6 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
       }
       return null;
     }
-
-    const data: any = await response.json();
 
     const prices: Record<string, number> = { ...FALLBACK_PRICES };
     const priceChanges: Record<string, number> = {};

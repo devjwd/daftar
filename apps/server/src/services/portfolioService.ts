@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAddress } from '../utils/address.ts';
-import { INFLOW_ACTIONS, OUTFLOW_ACTIONS } from '../config/whitelists.ts';
+import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, isJunkAsset, APTOS_COIN_PATTERNS } from '../config/whitelists.ts';
 
 /**
  * Portfolio Reconstruction Service
@@ -180,13 +180,22 @@ export async function reconstructHistoricalBalances(
         const decimals = act.metadata?.decimals || 8;
         const amount = Math.abs(Number(act.amount || 0)) / Math.pow(10, decimals);
         
+        const rawAssetType = act.asset_type || act.coin_type || '';
+
+        // Normalize raw AptosCoin type → 0x1 (native MOVE on Movement Network)
+        const assetType = APTOS_COIN_PATTERNS.some(p => rawAssetType.includes(p))
+          ? '0x1'
+          : rawAssetType;
+
         // Skip if it's just the gas fee deduction (already handled)
-        const assetType = act.asset_type || act.coin_type || '';
-        if ((assetType.includes('aptos_coin') || assetType === '0x1') && Math.abs(amount - gasInMove) < 0.00005) {
+        if (assetType === '0x1' && Math.abs(amount - gasInMove) < 0.00005) {
           continue;
         }
 
-        const symbol = act.metadata?.symbol || (assetType.includes('aptos_coin') ? 'MOVE' : 'Token');
+        const symbol = act.metadata?.symbol || (assetType === '0x1' || assetType === '0xa' ? 'MOVE' : 'Token');
+
+        // Skip scam tokens, airdrop tokens, LP tokens, and raw Aptos types
+        if (isJunkAsset(assetType, symbol)) continue;
 
         if (!balances[assetType]) balances[assetType] = { amount: 0, symbol };
         
@@ -203,6 +212,8 @@ export async function reconstructHistoricalBalances(
     // 4. Capture snapshot of all non-zero balances at the end of this day
     for (const [assetType, data] of Object.entries(balances)) {
       data.amount = Math.max(0, data.amount); // Enforce zero floor
+      // Second safety gate: skip junk assets that may have crept in via initial balance load
+      if (isJunkAsset(assetType, data.symbol)) continue;
       if (data.amount > 0.00000001) { // Filter out dust
         snapshots.push({
           user_address: address,

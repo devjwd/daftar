@@ -3,7 +3,6 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import CONFIG from '../config/index.ts';
 
 // Mapping of Movement tokens to CoinGecko IDs
-// Mapping of Movement tokens to CoinGecko IDs
 const TOKEN_GEKO_MAP: Record<string, string> = {
   // Native & Core
   '0x1': 'movement',
@@ -27,32 +26,64 @@ const TOKEN_GEKO_MAP: Record<string, string> = {
 };
 
 /**
- * Fetch a price for a specific date from CoinGecko
+ * Full fungible asset addresses for tokens that use short aliases (0x1, 0xa).
+ * DexScreener cannot query short addresses, so we map them here.
+ */
+const DEXSCREENER_FULL_ADDRESSES: Record<string, string> = {
+  // MOVE native token on Movement Network Mainnet
+  '0x1': '0x000000000000000000000000000000000000000000000000000000000000000a',
+  '0xa': '0x000000000000000000000000000000000000000000000000000000000000000a',
+};
+
+/**
+ * Fetch a price for a specific date from CoinGecko.
+ * Supports demo keys (CG-xxx → demo-api.coingecko.com) and pro keys.
  * Date format for CG: dd-mm-yyyy
  */
 async function fetchHistoricalPriceFromCG(geckoId: string, timestamp: string): Promise<number | null> {
   const date = new Date(timestamp);
   const dateStr = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
-  
-  const url = `https://api.coingecko.com/api/v3/coins/${geckoId}/history?date=${dateStr}&localization=false`;
-  
-  try {
-    const response = await fetch(url);
-    const json: any = await response.json();
-    return json.market_data?.current_price?.usd || null;
-  } catch (err) {
-    console.error(`[PriceBackfill] CoinGecko Error for ${geckoId} on ${dateStr}:`, err);
-    return null;
+
+  const apiKey = String(process.env.COINGECKO_API_KEY || '').trim();
+  const isDemoKey = apiKey.startsWith('CG-');
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (apiKey) {
+    if (isDemoKey) headers['x-cg-demo-api-key'] = apiKey;
+    else headers['x-cg-pro-api-key'] = apiKey;
   }
+
+  // Try demo endpoint first (for demo keys), then standard
+  const bases = isDemoKey
+    ? ['https://demo-api.coingecko.com', 'https://api.coingecko.com']
+    : ['https://api.coingecko.com'];
+
+  for (const base of bases) {
+    const url = `${base}/api/v3/coins/${geckoId}/history?date=${dateStr}&localization=false`;
+    try {
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        console.warn(`[PriceBackfill] CoinGecko ${base} returned ${response.status} for ${geckoId} on ${dateStr}`);
+        continue;
+      }
+      const json: any = await response.json();
+      const price = json.market_data?.current_price?.usd;
+      if (price != null) return price;
+    } catch (err: any) {
+      console.warn(`[PriceBackfill] CoinGecko ${base} unreachable: ${err.message}`);
+    }
+  }
+  return null;
 }
 
 /**
- * Fetch a price from DexScreener (current price, as historical is harder on DS without pro API, 
- * but better than static fallback for unknown tokens).
+ * Fetch a price from DexScreener.
+ * Maps short addresses (0x1, 0xa) to their full FA address before querying.
  */
 async function fetchPriceFromDexScreener(tokenAddress: string): Promise<number | null> {
+  // Map short aliases to full addresses DexScreener can resolve
+  const queryAddress = DEXSCREENER_FULL_ADDRESSES[tokenAddress] || tokenAddress;
   try {
-    const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`;
+    const url = `https://api.dexscreener.com/latest/dex/tokens/${queryAddress}`;
     const response = await fetch(url);
     const json: any = await response.json();
     
