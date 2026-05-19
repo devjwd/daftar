@@ -136,24 +136,21 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
 
   for (const tx of pending) {
     // Try to get price for the primary asset out or in
-    let tokenToPrice = null;
-    if (tx.asset_out_symbol || tx.asset_in_symbol) {
-      // Scan all activities to find the best matching token (not just the first, which may be gas)
-      const allFAs = tx.metadata?.fungible_asset_activities || [];
-      const allCAs = tx.metadata?.coin_activities || [];
-      
-      // Prefer an activity that matches the primary asset symbol
-      const primarySymbol = tx.asset_out_symbol || tx.asset_in_symbol;
-      const matchedFA = allFAs.find((fa: any) => {
-        const sym = fa.metadata?.symbol || '';
-        return sym === primarySymbol;
-      });
-      const matchedCA = allCAs.find((ca: any) => {
-        const coinType = ca.coin_type || '';
-        return coinType.includes(primarySymbol?.toLowerCase() || '');
-      });
-      
-      tokenToPrice = matchedFA?.asset_type || matchedCA?.coin_type || allFAs[0]?.asset_type || allCAs[0]?.coin_type;
+    let tokenToPriceOut = null;
+    let tokenToPriceIn = null;
+    const allFAs = tx.metadata?.fungible_asset_activities || [];
+    const allCAs = tx.metadata?.coin_activities || [];
+
+    if (tx.asset_out_symbol) {
+      const matchedFA = allFAs.find((fa: any) => fa.metadata?.symbol === tx.asset_out_symbol);
+      const matchedCA = allCAs.find((ca: any) => (ca.coin_type || '').includes(tx.asset_out_symbol?.toLowerCase() || ''));
+      tokenToPriceOut = matchedFA?.asset_type || matchedCA?.coin_type || allFAs[0]?.asset_type || allCAs[0]?.coin_type;
+    }
+    
+    if (tx.asset_in_symbol) {
+      const matchedFA = allFAs.find((fa: any) => fa.metadata?.symbol === tx.asset_in_symbol);
+      const matchedCA = allCAs.find((ca: any) => (ca.coin_type || '').includes(tx.asset_in_symbol?.toLowerCase() || ''));
+      tokenToPriceIn = matchedFA?.asset_type || matchedCA?.coin_type || allFAs[0]?.asset_type || allCAs[0]?.coin_type;
     }
     
     // Calculate precise gas fee in USD based on actual historical MOVE price
@@ -169,7 +166,7 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
       finalGasUsd = Number(tx.gas_usd) * movePrice;
     }
 
-    if (!tokenToPrice) {
+    if (!tokenToPriceOut && !tokenToPriceIn) {
       // If no assets to price (e.g. gas only), mark as processed
       await supabase.from('user_transaction_history').update({ 
         is_processed: true, 
@@ -178,18 +175,31 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
       continue;
     }
 
-    let price = await getHistoricalPrice(supabase, tokenToPrice, tx.timestamp);
+    let price = 0;
+    let amount = 0;
+
+    if (tokenToPriceOut) {
+      price = await getHistoricalPrice(supabase, tokenToPriceOut, tx.timestamp);
+      if (price) amount = tx.asset_out_amount;
+    }
+
+    if (!price && tokenToPriceIn) {
+      price = await getHistoricalPrice(supabase, tokenToPriceIn, tx.timestamp);
+      if (price) amount = tx.asset_in_amount;
+    }
     
     // Fallback static prices for demo if CoinGecko rate limits
     if (!price) {
-       // On Movement, aptos_coin IS the native MOVE token
-       if (tokenToPrice.includes('aptos_coin') || tokenToPrice === '0x1' || tokenToPrice === '0xa') {
+       const fallbackToken = tokenToPriceOut || tokenToPriceIn || '';
+       amount = tx.asset_out_amount || tx.asset_in_amount || 0;
+       
+       if (fallbackToken.includes('aptos_coin') || fallbackToken === '0x1' || fallbackToken === '0xa') {
          price = 0.05; // Realistic MOVE price for demo/testnet
-       } else if (tokenToPrice.toLowerCase().includes('usd')) {
+       } else if (fallbackToken.toLowerCase().includes('usd')) {
          price = 1.00;
-       } else if (tokenToPrice.toLowerCase().includes('eth')) {
+       } else if (fallbackToken.toLowerCase().includes('eth')) {
          price = 3500.00;
-       } else if (tokenToPrice.toLowerCase().includes('btc')) {
+       } else if (fallbackToken.toLowerCase().includes('btc')) {
          price = 65000.00;
        } else {
          price = 0; // Unknown token — don't assign phantom value
@@ -197,7 +207,6 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
     }
     
     if (price) {
-      const amount = tx.asset_out_amount || tx.asset_in_amount || 0;
       const totalValue = price * Number(amount);
 
       await supabase.from('user_transaction_history').update({
@@ -219,7 +228,7 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
         await supabase.from('user_transaction_history').update({
           metadata: updatedMetadata
         }).eq('id', tx.id);
-        console.log(`[PriceBackfill] Temporary pricing failure for ${tokenToPrice} on version ${tx.version}. Retrying later (Attempt ${retryCount + 1}/3)...`);
+        console.log(`[PriceBackfill] Temporary pricing failure for ${tokenToPriceOut || tokenToPriceIn} on version ${tx.version}. Retrying later (Attempt ${retryCount + 1}/3)...`);
       } else {
         // Exceeded retries, mark as processed with a safe fallback of 0 (avoid -1 which inverts PNL charts)
         await supabase.from('user_transaction_history').update({
@@ -228,7 +237,7 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
           gas_usd: finalGasUsd,
           is_processed: true
         }).eq('id', tx.id);
-        console.warn(`[PriceBackfill] Failed to price ${tokenToPrice} on version ${tx.version} after 3 attempts. Storing fallback 0.`);
+        console.warn(`[PriceBackfill] Failed to price ${tokenToPriceOut || tokenToPriceIn} on version ${tx.version} after 3 attempts. Storing fallback 0.`);
       }
     }
 

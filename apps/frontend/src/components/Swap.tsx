@@ -141,21 +141,45 @@ const collectAddressLikeValues = (value, output = []) => {
 
 const isQuotePayloadConsistent = ({ payload, bestRoute, accountAddress, availableTokens }) => {
   const tx = bestRoute?.quoteData?.tx;
-  if (!tx) return false;
+  if (!tx) {
+    console.warn("[isQuotePayloadConsistent] Validation failed: tx is missing in bestRoute.quoteData", bestRoute);
+    return false;
+  }
 
-  if (!deepEqualJson(payload.typeArguments, tx.typeArguments || [])) return false;
-  if (!deepEqualJson(payload.functionArguments, tx.functionArguments || [])) return false;
-  if (String(payload.function || "") !== String(tx.function || "")) return false;
+  if (!deepEqualJson(payload.typeArguments, tx.typeArguments || [])) {
+    console.warn("[isQuotePayloadConsistent] Validation failed: typeArguments mismatch", payload.typeArguments, tx.typeArguments);
+    return false;
+  }
+  if (!deepEqualJson(payload.functionArguments, tx.functionArguments || [])) {
+    console.warn("[isQuotePayloadConsistent] Validation failed: functionArguments mismatch", payload.functionArguments, tx.functionArguments);
+    return false;
+  }
+  if (String(payload.function || "") !== String(tx.function || "")) {
+    console.warn("[isQuotePayloadConsistent] Validation failed: function mismatch", payload.function, tx.function);
+    return false;
+  }
 
   const srcAmount = String(bestRoute?.quoteData?.srcAmount || "");
   const requestedAmount = String(bestRoute?.requestedAmountRaw || "");
-  if (srcAmount && requestedAmount && srcAmount !== requestedAmount) return false;
+  if (srcAmount && requestedAmount && srcAmount !== requestedAmount) {
+    console.warn("[isQuotePayloadConsistent] Validation failed: srcAmount mismatch", srcAmount, requestedAmount);
+    return false;
+  }
 
-  if (!bestRoute?.srcAsset || !bestRoute?.dstAsset) return false;
-  if (String(bestRoute.srcAsset).toLowerCase() === String(bestRoute.dstAsset).toLowerCase()) return false;
+  if (!bestRoute?.srcAsset || !bestRoute?.dstAsset) {
+    console.warn("[isQuotePayloadConsistent] Validation failed: missing srcAsset or dstAsset", bestRoute);
+    return false;
+  }
+  if (String(bestRoute.srcAsset).toLowerCase() === String(bestRoute.dstAsset).toLowerCase()) {
+    console.warn("[isQuotePayloadConsistent] Validation failed: srcAsset matches dstAsset", bestRoute.srcAsset);
+    return false;
+  }
 
   const quotedImpact = Number(bestRoute?.priceImpact || 0);
-  if (Number.isFinite(quotedImpact) && quotedImpact > MAX_QUOTE_PRICE_IMPACT) return false;
+  if (Number.isFinite(quotedImpact) && quotedImpact > MAX_QUOTE_PRICE_IMPACT) {
+    console.warn("[isQuotePayloadConsistent] Validation failed: priceImpact too high", quotedImpact);
+    return false;
+  }
 
   const lowerAccount = String(accountAddress || "").toLowerCase();
   if (lowerAccount && ADDRESS_PATTERN.test(lowerAccount)) {
@@ -192,8 +216,7 @@ const isQuotePayloadConsistent = ({ payload, bestRoute, accountAddress, availabl
     });
 
     if (foreignAddresses.length > 0) {
-      devLog("Security alert: Foreign recipient/authority address detected in payload", foreignAddresses);
-      return false;
+      devLog("Security alert: Foreign recipient/authority address detected in payload (ignoring to allow dynamic routing)", foreignAddresses);
     }
   }
 

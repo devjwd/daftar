@@ -171,7 +171,7 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
 
     const { data: snapshots, error: snapError } = await supabase
       .from('user_networth_snapshots')
-      .select('total_networth_usd, timestamp')
+      .select('total_networth_usd, net_deposits_usd, timestamp')
       .eq('user_address', wallet)
       .gte('timestamp', startDate.toISOString())
       .order('timestamp', { ascending: true });
@@ -182,15 +182,17 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
       return res.json({ history: [], performance: { changeUsd: 0, changePercent: 0 } });
     }
 
-    const history = snapshots.map((s: { timestamp: string; total_networth_usd: number | string }) => ({
+    const history = snapshots.map((s: { timestamp: string; total_networth_usd: number | string; net_deposits_usd: number | string | null }) => ({
       date: s.timestamp,
       value: Number(s.total_networth_usd),
+      netDeposits: Number(s.net_deposits_usd || 0),
     }));
 
-    const firstVal = history[0].value;
-    const lastVal = history[history.length - 1].value;
-    const changeUsd = lastVal - firstVal;
-    const changePercent = firstVal !== 0 ? (changeUsd / Math.abs(firstVal)) * 100 : 0;
+    const firstPoint = history[0];
+    const lastPoint = history[history.length - 1];
+    const changeUsd = (lastPoint.value - firstPoint.value) - (lastPoint.netDeposits - firstPoint.netDeposits);
+    const baseValue = firstPoint.value > 0 ? firstPoint.value : Math.max(lastPoint.netDeposits - firstPoint.netDeposits, 0.01);
+    const changePercent = baseValue > 0.01 ? (changeUsd / baseValue) * 100 : 0;
 
     return res.json({
       history,

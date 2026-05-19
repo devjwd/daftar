@@ -14,16 +14,23 @@ import { takeNetworthSnapshot } from './networthService.ts';
 export async function startAnalyticsWorker(supabase: SupabaseClient) {
   console.log('[AnalyticsWorker] 🤖 Starting 24/7 background worker for verified users...');
 
-  const BASE_SLEEP_MS = 5 * 60 * 1000; // 5 minutes
-  const MAX_SLEEP_MS = 30 * 60 * 1000; // 30 minutes max backoff
+  const BASE_SLEEP_MS = 15 * 60 * 1000; // 15 minutes
+  const MAX_SLEEP_MS = 45 * 60 * 1000; // 45 minutes max backoff
   let consecutiveErrors = 0;
+  let lastCleanupTime = 0;
+  const CLEANUP_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
   // The main loop
   const runLoop = async () => {
     try {
-      // 0. Retroactively fix any Unknown protocols or suspicious prices
-      await reProcessUnknownTransactions(supabase);
-      await reProcessSuspiciousPrices(supabase);
+      // 0. Retroactively fix any Unknown protocols or suspicious prices (only once every 12 hours)
+      const now = Date.now();
+      if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
+        console.log('[AnalyticsWorker] Running database maintenance and cleanups...');
+        await reProcessUnknownTransactions(supabase);
+        await reProcessSuspiciousPrices(supabase);
+        lastCleanupTime = now;
+      }
 
       // 1. Fetch all verified users using cursor-based pagination
       let hasMoreUsers = true;
@@ -46,21 +53,26 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
         if (verifiedUsers && verifiedUsers.length > 0) {
           if (page === 0) console.log(`[AnalyticsWorker] 🔄 Beginning sync cycle. Fetching in batches...`);
           
-          // 2. Iterate through each verified user sequentially
-          for (const user of verifiedUsers) {
-            if (!user.wallet_address) continue;
+          // 2. Iterate through verified users in batches (concurrency pool)
+          const CONCURRENCY_LIMIT = 5;
+          for (let i = 0; i < verifiedUsers.length; i += CONCURRENCY_LIMIT) {
+            const batch = verifiedUsers.slice(i, i + CONCURRENCY_LIMIT);
             
-            try {
-               await syncFullUserHistory(supabase, user.wallet_address);
-               await takeNetworthSnapshot(supabase, user.wallet_address);
-
-            } catch (syncErr: any) {
-               console.error(`[AnalyticsWorker] Error syncing user ${user.wallet_address}:`, syncErr.message);
-            }
-
-            // Sleep 1 second between different users to ensure healthy connection & no rate limits
+            await Promise.all(batch.map(async (user) => {
+              if (!user.wallet_address) return;
+              
+              try {
+                const syncResult = await syncFullUserHistory(supabase, user.wallet_address);
+                const hasNewTx = syncResult && syncResult.totalSynced > 0;
+                await takeNetworthSnapshot(supabase, user.wallet_address, hasNewTx);
+              } catch (syncErr: any) {
+                console.error(`[AnalyticsWorker] Error syncing user ${user.wallet_address}:`, syncErr.message);
+              }
+            }));
+            
+            totalProcessed += batch.length;
+            // Sleep 1 second between batches to respect rate limits
             await new Promise(resolve => setTimeout(resolve, 1000));
-            totalProcessed++;
           }
           
           page++;
@@ -79,7 +91,7 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
       consecutiveErrors++;
       console.error(`[AnalyticsWorker] Main loop error (consecutive: ${consecutiveErrors}):`, e.message);
     } finally {
-      // Exponential backoff: 5min, 10min, 15min, ..., max 30min
+      // Exponential backoff
       const sleepMs = Math.min(MAX_SLEEP_MS, BASE_SLEEP_MS * (1 + consecutiveErrors));
       console.log(`[AnalyticsWorker] 💤 Cycle complete. Sleeping for ${Math.round(sleepMs / 60000)} minutes...`);
       setTimeout(runLoop, sleepMs);

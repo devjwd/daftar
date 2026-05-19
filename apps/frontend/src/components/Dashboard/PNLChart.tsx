@@ -87,7 +87,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
           const flow = data.history;
           const formattedData = flow.map((pt: any) => ({
             time: pt.date,
-            value: pt.value
+            value: pt.value,
+            netDeposits: pt.netDeposits || 0
           }));
           setHistoricalData(formattedData);
         } else {
@@ -137,9 +138,16 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
   const firstVal = dataToRender[0]?.value ?? totalValue;
   const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
-  const isPositive = lastVal >= firstVal;
-  const changeUSD = Math.abs(lastVal - firstVal).toFixed(2);
-  const changePercent = Math.abs(firstVal) > 0.01 ? (((lastVal - firstVal) / Math.abs(firstVal)) * 100).toFixed(2) : '0.00';
+  
+  const firstDep = dataToRender[0]?.netDeposits ?? 0;
+  const lastDep = dataToRender[dataToRender.length - 1]?.netDeposits ?? 0;
+  
+  const rawChangeUsd = (lastVal - firstVal) - (lastDep - firstDep);
+  const isPositive = rawChangeUsd >= 0;
+  const changeUSD = Math.abs(rawChangeUsd).toFixed(2);
+  
+  const baseValue = firstVal > 0 ? firstVal : Math.max(lastDep - firstDep, 0.01);
+  const changePercent = baseValue > 0.01 ? ((rawChangeUsd / baseValue) * 100).toFixed(2) : '0.00';
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
   const gradientId = isPositive ? 'colorGreen' : 'colorRed';
 

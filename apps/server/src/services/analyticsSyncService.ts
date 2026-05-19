@@ -102,10 +102,19 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
 `;
 
 
+let cachedLabels: any[] | null = null;
+let lastLabelsFetch = 0;
+const LABELS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
+
 /**
  * Pagination helper to fetch all address labels from Supabase, bypassing the 1000 records limit
  */
 async function fetchAllAddressLabels(supabase: SupabaseClient): Promise<any[]> {
+  const now = Date.now();
+  if (cachedLabels && (now - lastLabelsFetch < LABELS_CACHE_TTL)) {
+    return cachedLabels;
+  }
+
   let allLabels: any[] = [];
   let page = 0;
   const pageSize = 1000;
@@ -134,6 +143,8 @@ async function fetchAllAddressLabels(supabase: SupabaseClient): Promise<any[]> {
     }
   }
 
+  cachedLabels = allLabels;
+  lastLabelsFetch = now;
   return allLabels;
 }
 
@@ -666,13 +677,15 @@ export async function syncFullUserHistory(
       last_sync_at: new Date().toISOString()
     }).eq('user_address', address);
 
-    console.log(`[DeepSync] ✅ Sync complete. Total processed this run: ${totalSynced}`);
-    
-    // Trigger portfolio reconstruction to update snapshots
-    try {
-      await reconstructHistoricalBalances(supabase, address);
-    } catch (reconstructErr) {
-      console.error(`[DeepSync] ⚠️ Portfolio reconstruction failed but sync succeeded:`, reconstructErr);
+    // Trigger portfolio reconstruction to update snapshots only if new transactions were synced
+    if (totalSynced > 0) {
+      try {
+        await reconstructHistoricalBalances(supabase, address);
+      } catch (reconstructErr) {
+        console.error(`[DeepSync] ⚠️ Portfolio reconstruction failed but sync succeeded:`, reconstructErr);
+      }
+    } else {
+      console.log(`[DeepSync] No new transactions synced. Skipping portfolio reconstruction for ${address}.`);
     }
 
     return { totalSynced };

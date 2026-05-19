@@ -57,7 +57,7 @@ export async function updateNFTFloorPrices(supabase: SupabaseClient) {
     const stats = collections.map((c: any) => {
       const topBidOctas = c.bids?.[0]?.price || 0;
       return {
-        collection_id: c.slug, // Using c.slug (which Tradeport populates as the hex address) for matching
+        collection_id: c.id, // Using c.id (which is the on-chain hex address) to match holdings correctly
         name: c.title,
         floor_price: Number(c.floor || 0) / 100_000_000, // Convert from Octas to MOVE
         top_bid: Number(topBidOctas) / 100_000_000, // Convert from Octas to MOVE

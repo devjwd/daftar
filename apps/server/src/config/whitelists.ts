@@ -31,10 +31,10 @@ export const PROTOCOL_COLORS = [
 ];
 
 /** Inflow action types */
-export const INFLOW_ACTIONS = ['RECEIVE', 'WITHDRAW', 'CLAIM', 'BRIDGE_IN'] as const;
+export const INFLOW_ACTIONS = ['RECEIVE', 'WITHDRAW', 'CLAIM', 'BORROW', 'UNSTAKE', 'NFT_SALE'] as const;
 
 /** Outflow action types */
-export const OUTFLOW_ACTIONS = ['SEND', 'DEPOSIT', 'BORROW', 'BRIDGE_OUT'] as const;
+export const OUTFLOW_ACTIONS = ['SEND', 'DEPOSIT', 'LEND', 'REPAY', 'STAKE', 'NFT_BUY'] as const;
 
 /** Maximum transactions to fetch per analytics request (memory safety) */
 export const MAX_ANALYTICS_TRANSACTIONS = 10000;

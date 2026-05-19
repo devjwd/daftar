@@ -174,23 +174,17 @@ async function calculateInitialFlow(
   const filterDate = getTimeframeFilterDate(timeframe);
   if (!filterDate) return 0;
 
-  const { data: pastTxs, error } = await supabase
-    .from('user_transaction_history')
-    .select('value_usd, action')
+  const { data: snapshot, error } = await supabase
+    .from('user_networth_snapshots')
+    .select('net_deposits_usd')
     .eq('user_address', wallet)
-    .lt('timestamp', filterDate.toISOString());
+    .lt('timestamp', filterDate.toISOString())
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (error || !pastTxs) return 0;
-
-  let initialFlow = 0;
-  pastTxs.forEach((tx: { value_usd: number | string | null; action: string }) => {
-    const val = Number(tx.value_usd || 0);
-    const action = tx.action || '';
-    if (isInflowAction(action)) initialFlow += val;
-    else if (isOutflowAction(action)) initialFlow -= val;
-  });
-
-  return initialFlow;
+  if (error || !snapshot) return 0;
+  return Number(snapshot.net_deposits_usd || 0);
 }
 
 // --- Networth History ---
@@ -328,6 +322,8 @@ export async function aggregateAnalyticsData(
   const witMap = new Map<string, number>();
   let depCumul = 0;
   let witCumul = 0;
+  const depHistoryMap = new Map<string, number>();
+  const witHistoryMap = new Map<string, number>();
 
   txs.forEach(tx => {
     const val = Number(tx.value_usd || 0);
@@ -342,15 +338,18 @@ export async function aggregateAnalyticsData(
         exchangeUsage.deposits.total += val;
         depMap.set(protocol, (depMap.get(protocol) || 0) + val);
         depCumul += val;
-        exchangeUsage.deposits.history.push({ date, value: depCumul });
+        depHistoryMap.set(date, depCumul);
       } else if (isInflowAction(action)) {
         exchangeUsage.withdrawals.total += val;
         witMap.set(protocol, (witMap.get(protocol) || 0) + val);
         witCumul += val;
-        exchangeUsage.withdrawals.history.push({ date, value: witCumul });
+        witHistoryMap.set(date, witCumul);
       }
     }
   });
+
+  exchangeUsage.deposits.history = Array.from(depHistoryMap.entries()).map(([date, value]) => ({ date, value }));
+  exchangeUsage.withdrawals.history = Array.from(witHistoryMap.entries()).map(([date, value]) => ({ date, value }));
 
   exchangeUsage.deposits.breakdown = Array.from(depMap.entries())
     .map(([name, value]) => ({ name, value }))

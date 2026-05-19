@@ -3,6 +3,7 @@ import { normalizeAddress } from '../utils/address.ts';
 import { fetchUserDeFiPositions } from './defiService.ts';
 import fetch from 'node-fetch';
 import CONFIG from '../config/index.ts';
+import { INFLOW_ACTIONS, OUTFLOW_ACTIONS } from '../config/whitelists.ts';
 
 /**
  * Fetch user holdings directly from the Movement network indexer
@@ -57,9 +58,29 @@ async function fetchUserNFTHoldings(address: string): Promise<any[]> {
 
 export async function takeNetworthSnapshot(
   supabase: SupabaseClient,
-  walletAddress: string
+  walletAddress: string,
+  force: boolean = false
 ) {
   const address = normalizeAddress(walletAddress);
+  
+  const timestamp = new Date();
+  // Round to nearest hour for the UNIQUE constraint
+  timestamp.setMinutes(0, 0, 0);
+  const hourStartISO = timestamp.toISOString();
+
+  if (!force) {
+    const { data: existingSnapshot } = await supabase
+      .from('user_networth_snapshots')
+      .select('timestamp')
+      .eq('user_address', address)
+      .eq('timestamp', hourStartISO)
+      .maybeSingle();
+
+    if (existingSnapshot) {
+      console.log(`[Networth] Snapshot for ${address} already exists for this hour. Skipping calculation.`);
+      return null;
+    }
+  }
   
   // 1. Fetch Current Prices
   const { data: prices } = await supabase.from('price_cache').select('token_id, price_usd');
@@ -69,16 +90,24 @@ export async function takeNetworthSnapshot(
   }
 
   // 2. Calculate Wallet Balance USD
-  // We use the latest snapshots + any txs since then, or just query latest balances
-  const { data: snapshots } = await supabase
+  // Get latest snapshot date first, then fetch only those records, avoiding loading all history
+  const { data: latestDateRow } = await supabase
     .from('user_balance_snapshots')
-    .select('*')
+    .select('snapshot_date')
     .eq('user_address', address)
-    .order('snapshot_date', { ascending: false });
+    .order('snapshot_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  // Filter for the latest date only
-  const latestDate = snapshots?.[0]?.snapshot_date;
-  const latestBalances = snapshots?.filter(s => s.snapshot_date === latestDate) || [];
+  let latestBalances: any[] = [];
+  if (latestDateRow) {
+    const { data: latestBalancesData } = await supabase
+      .from('user_balance_snapshots')
+      .select('*')
+      .eq('user_address', address)
+      .eq('snapshot_date', latestDateRow.snapshot_date);
+    latestBalances = latestBalancesData || [];
+  }
   
   let walletUsd = 0;
   latestBalances.forEach(b => {
@@ -118,30 +147,62 @@ export async function takeNetworthSnapshot(
     }
   });
 
-  // 5. Calculate Cumulative Net Inflows (Deposits - Withdrawals)
-  const { data: txs } = await supabase
-    .from('user_transaction_history')
-    .select('value_usd, action')
-    .eq('user_address', address);
-    
+  // 5. Calculate Cumulative Net Inflows (Deposits - Withdrawals) incrementally
   let netDepositsUsd = 0;
-  if (txs) {
-    txs.forEach(tx => {
-      const val = Number(tx.value_usd || 0);
-      const action = tx.action || '';
-      // Only count external flows (money entering/leaving the ecosystem)
-      if (['RECEIVE', 'BRIDGE_IN'].includes(action)) {
-        netDepositsUsd += val;
-      } else if (['SEND', 'BRIDGE_OUT'].includes(action)) {
-        netDepositsUsd -= val;
-      }
-    });
+  
+  // Get the most recent snapshot before the current hour
+  const { data: previousSnapshot } = await supabase
+    .from('user_networth_snapshots')
+    .select('net_deposits_usd, timestamp')
+    .eq('user_address', address)
+    .lt('timestamp', hourStartISO)
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (previousSnapshot) {
+    netDepositsUsd = Number(previousSnapshot.net_deposits_usd || 0);
+    // Fetch only transactions that occurred AFTER the previous snapshot
+      const { data: newTxs } = await supabase
+      .from('user_transaction_history')
+      .select('value_usd, action')
+      .eq('user_address', address)
+      .gt('timestamp', previousSnapshot.timestamp)
+      .in('action', [...INFLOW_ACTIONS, ...OUTFLOW_ACTIONS]);
+      
+    if (newTxs) {
+      newTxs.forEach(tx => {
+        const val = Number(tx.value_usd || 0);
+        const action = tx.action as any;
+        if (INFLOW_ACTIONS.includes(action)) {
+          netDepositsUsd += val;
+        } else if (OUTFLOW_ACTIONS.includes(action)) {
+          netDepositsUsd -= val;
+        }
+      });
+    }
+  } else {
+    // Fallback: full calculation if no previous snapshot exists
+    const { data: allTxs } = await supabase
+      .from('user_transaction_history')
+      .select('value_usd, action')
+      .eq('user_address', address)
+      .in('action', [...INFLOW_ACTIONS, ...OUTFLOW_ACTIONS]);
+      
+    if (allTxs) {
+      allTxs.forEach(tx => {
+        const val = Number(tx.value_usd || 0);
+        const action = tx.action as any;
+        if (INFLOW_ACTIONS.includes(action)) {
+          netDepositsUsd += val;
+        } else if (OUTFLOW_ACTIONS.includes(action)) {
+          netDepositsUsd -= val;
+        }
+      });
+    }
   }
 
   const totalNetworthUsd = walletUsd + defiUsd + nftUsd;
-  const timestamp = new Date();
-  // Round to nearest hour for the UNIQUE constraint
-  timestamp.setMinutes(0, 0, 0);
 
   // 6. Save Snapshot
   const { error } = await supabase.from('user_networth_snapshots').upsert({
@@ -152,7 +213,7 @@ export async function takeNetworthSnapshot(
     nft_usd: nftUsd,
     net_deposits_usd: netDepositsUsd,
     breakdown: breakdown,
-    timestamp: timestamp.toISOString()
+    timestamp: hourStartISO
   }, { onConflict: 'user_address,timestamp' });
 
   if (error) {
@@ -169,7 +230,8 @@ export async function takeNetworthSnapshot(
  */
 export async function setPNLBaseline(supabase: SupabaseClient, walletAddress: string) {
   const address = normalizeAddress(walletAddress);
-  const snapshot = await takeNetworthSnapshot(supabase, address);
+  const snapshot = await takeNetworthSnapshot(supabase, address, true);
+  if (!snapshot) throw new Error('Failed to take networth snapshot');
   
   const { error } = await supabase
     .from('profiles')

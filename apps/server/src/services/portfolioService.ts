@@ -145,43 +145,54 @@ export async function reconstructHistoricalBalances(
       const tx = txs[currentTxIndex];
       const action = tx.action || '';
       
-      // Handle Incoming Assets (user received tokens)
-      if (tx.asset_in_symbol && tx.asset_in_amount > 0) {
-        const rawActivities = [
-          ...(tx.metadata?.fungible_asset_activities || []),
-          ...(tx.metadata?.coin_activities || [])
-        ];
-        const matched = rawActivities.find((a: any) => {
-          const sym = a.metadata?.symbol || a.symbol || '';
-          return sym.toLowerCase() === tx.asset_in_symbol.toLowerCase();
-        });
-        const assetType = matched?.asset_type || matched?.coin_type || tx.asset_in_symbol;
+      // Process all activities to capture multi-asset flows (LPs, multi-hop swaps)
+      const rawActivities = [
+        ...(tx.metadata?.fungible_asset_activities || []),
+        ...(tx.metadata?.coin_activities || [])
+      ];
 
-        if (!balances[assetType]) balances[assetType] = { amount: 0, symbol: tx.asset_in_symbol };
-        
-        // Inflows: tokens received by the user
-        if (['RECEIVE', 'CLAIM', 'UNSTAKE', 'SWAP', 'BORROW', 'BRIDGE_IN', 'WITHDRAW'].includes(action)) {
-          balances[assetType].amount += Number(tx.asset_in_amount);
-        }
+      // Deduct Gas Fee (Always in MOVE/APT '0x1')
+      const gasUsed = Number(tx.metadata?.gas_used || 0);
+      const gasPrice = Number(tx.metadata?.gas_unit_price || 0);
+      const gasInMove = (gasUsed * gasPrice) / 1e8;
+      if (gasInMove > 0) {
+        if (!balances['0x1']) balances['0x1'] = { amount: 0, symbol: 'MOVE' };
+        balances['0x1'].amount -= gasInMove;
       }
 
-      // Handle Outgoing Assets (user spent/locked tokens)
-      if (tx.asset_out_symbol && tx.asset_out_amount > 0) {
-        const rawActivities = [
-          ...(tx.metadata?.fungible_asset_activities || []),
-          ...(tx.metadata?.coin_activities || [])
-        ];
-        const matched = rawActivities.find((a: any) => {
-          const sym = a.metadata?.symbol || a.symbol || '';
-          return sym.toLowerCase() === tx.asset_out_symbol.toLowerCase();
-        });
-        const assetType = matched?.asset_type || matched?.coin_type || tx.asset_out_symbol;
-
-        if (!balances[assetType]) balances[assetType] = { amount: 0, symbol: tx.asset_out_symbol };
+      for (const act of rawActivities) {
+        const type = String(act.type || act.activity_type || '').toLowerCase();
+        const owner = String(act.owner_address || act.owner || '').toLowerCase();
+        const isUser = owner === address.toLowerCase();
         
-        // Outflows: tokens spent or locked by the user
-        if (['SEND', 'DEPOSIT', 'STAKE', 'SWAP', 'LEND', 'REPAY', 'BRIDGE_OUT'].includes(action)) {
-          balances[assetType].amount -= Number(tx.asset_out_amount);
+        let direction: 'in' | 'out' | null = null;
+        if (type.includes('deposit') || type.includes('received') || type.includes('credit') || type.includes('mint')) {
+          direction = isUser ? 'in' : null;
+        } else if (type.includes('withdraw') || type.includes('sent') || type.includes('debit') || type.includes('burn')) {
+          direction = isUser ? 'out' : null;
+        } else if (type.includes('transfer')) {
+          direction = isUser ? (type.includes('withdraw') ? 'out' : 'in') : null;
+        }
+
+        if (!direction) continue;
+
+        const decimals = act.metadata?.decimals || 8;
+        const amount = Math.abs(Number(act.amount || 0)) / Math.pow(10, decimals);
+        
+        // Skip if it's just the gas fee deduction (already handled)
+        const assetType = act.asset_type || act.coin_type || '';
+        if ((assetType.includes('aptos_coin') || assetType === '0x1') && Math.abs(amount - gasInMove) < 0.00005) {
+          continue;
+        }
+
+        const symbol = act.metadata?.symbol || (assetType.includes('aptos_coin') ? 'MOVE' : 'Token');
+
+        if (!balances[assetType]) balances[assetType] = { amount: 0, symbol };
+        
+        if (direction === 'in') {
+          balances[assetType].amount += amount;
+        } else if (direction === 'out') {
+          balances[assetType].amount -= amount;
         }
       }
 
@@ -190,7 +201,8 @@ export async function reconstructHistoricalBalances(
 
     // 4. Capture snapshot of all non-zero balances at the end of this day
     for (const [assetType, data] of Object.entries(balances)) {
-      if (Math.abs(data.amount) > 0.00000001) { // Filter out dust
+      data.amount = Math.max(0, data.amount); // Enforce zero floor
+      if (data.amount > 0.00000001) { // Filter out dust
         snapshots.push({
           user_address: address,
           asset_type: assetType,
