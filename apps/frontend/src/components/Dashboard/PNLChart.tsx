@@ -15,14 +15,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         })();
 
     const netWorth = payload[0].payload.value ?? 0;
-    const netDeposits = payload[0].payload.netDeposits ?? 0;
-    const pnl = netWorth - netDeposits;
 
     const nwSign = netWorth < 0 ? '-' : '';
     const formattedNW = `${nwSign}$${Math.abs(netWorth).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-
-    const pnlSign = pnl < 0 ? '-' : '';
-    const formattedPNL = `${pnlSign}$${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
     return (
       <div className="history-tooltip" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -30,10 +25,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <div className="tooltip-value-row">
           <span className="tooltip-label">Net Worth</span>
           <span className="tooltip-value">{formattedNW}</span>
-        </div>
-        <div className="tooltip-value-row">
-          <span className="tooltip-label">PNL (Profit)</span>
-          <span className="tooltip-value" style={{ color: pnl >= 0 ? '#36c690' : '#e06a6a' }}>{formattedPNL}</span>
         </div>
       </div>
     );
@@ -190,16 +181,13 @@ const PNLChart: React.FC<PNLChartProps> = ({
   const firstVal = dataToRender[0]?.value ?? totalValue;
   const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
   
-  const firstDep = dataToRender[0]?.netDeposits ?? 0;
-  const lastDep = dataToRender[dataToRender.length - 1]?.netDeposits ?? 0;
-  
-  // Calculate PNL change (Net Worth change minus Net Deposit change)
-  const rawChangeUsd = (lastVal - firstVal) - (lastDep - firstDep);
+  // Calculate Net Worth change
+  const rawChangeUsd = lastVal - firstVal;
   const isPositive = rawChangeUsd >= 0;
   const changeUSD = Math.abs(rawChangeUsd).toFixed(2);
   
   // Base value for percentage change calculations
-  const baseValue = firstVal > 0 ? firstVal : Math.max(lastDep - firstDep, 0.01);
+  const baseValue = firstVal > 0 ? firstVal : 0.01;
   const changePercent = baseValue > 0.01 ? ((rawChangeUsd / baseValue) * 100).toFixed(2) : '0.00';
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
   const gradientId = isPositive ? 'colorGreen' : 'colorRed';
@@ -284,7 +272,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
-                  Historical PNL is available for verified profiles.
+                  Historical Net Worth is available for verified profiles.
                 </p>
                 <a
                   href="https://daftar.fi/profile"
