@@ -447,9 +447,61 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
     dailyNetDeposits[dateStr] = runningNetDeposits;
   });
 
+  // 4b. Find the oldest real-time snapshot for the user (to avoid backfilling over it)
+  const { data: allUserSnaps } = await supabase
+    .from('user_networth_snapshots')
+    .select('timestamp, defi_usd, nft_usd, breakdown')
+    .eq('user_address', address)
+    .order('timestamp', { ascending: true });
+
+  let firstRealTimestamp: string | null = null;
+  if (allUserSnaps) {
+    for (const snap of allUserSnaps) {
+      const isRealtime = snap.breakdown?.is_realtime === true;
+      const isBackfilled = snap.breakdown?.is_backfilled === true;
+      
+      const isLegacyRealtime = !isBackfilled && (
+        Number(snap.defi_usd || 0) > 0 ||
+        Number(snap.nft_usd || 0) > 0 ||
+        !snap.timestamp.includes('T23:00:00')
+      );
+
+      if (isRealtime || isLegacyRealtime) {
+        firstRealTimestamp = snap.timestamp;
+        break;
+      }
+    }
+  }
+
+  let firstRealDateStr: string | null = null;
+  if (firstRealTimestamp) {
+    firstRealDateStr = firstRealTimestamp.split('T')[0];
+    console.log(`[Portfolio] ℹ️ Found earliest real-time snapshot for ${address} on ${firstRealDateStr}. Will only backfill dates before this.`);
+  }
+
+  // 4c. Delete existing backfilled snapshots (both new format and legacy format)
+  await supabase
+    .from('user_networth_snapshots')
+    .delete()
+    .eq('user_address', address)
+    .filter('breakdown->>is_backfilled', 'eq', 'true');
+
+  await supabase
+    .from('user_networth_snapshots')
+    .delete()
+    .eq('user_address', address)
+    .eq('defi_usd', 0)
+    .eq('nft_usd', 0)
+    .like('timestamp', '%T23:00:00%');
+
   // 5. Construct user_networth_snapshots records
   const networthSnapshots: any[] = [];
   uniqueDates.forEach(dateStr => {
+    // If there is a real-time snapshot date, only write backfilled snapshots for dates strictly BEFORE that day
+    if (firstRealDateStr && dateStr >= firstRealDateStr) {
+      return;
+    }
+
     const daySnaps = snapsByDate[dateStr];
     let walletUsd = 0;
     
@@ -468,22 +520,27 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
       defi_usd: 0,
       nft_usd: 0,
       net_deposits_usd: netDepositsUsd,
-      timestamp: timestampISO
+      timestamp: timestampISO,
+      breakdown: { is_backfilled: true }
     });
   });
 
   // 6. Batch Upsert Snapshots
-  console.log(`[Portfolio] Saving ${networthSnapshots.length} historical networth snapshots for ${address}...`);
-  const BATCH_SIZE = 500;
-  for (let i = 0; i < networthSnapshots.length; i += BATCH_SIZE) {
-    const batch = networthSnapshots.slice(i, i + BATCH_SIZE);
-    const { error: upsertError } = await supabase
-      .from('user_networth_snapshots')
-      .upsert(batch, { onConflict: 'user_address,timestamp' });
+  if (networthSnapshots.length > 0) {
+    console.log(`[Portfolio] Saving ${networthSnapshots.length} historical networth snapshots for ${address}...`);
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < networthSnapshots.length; i += BATCH_SIZE) {
+      const batch = networthSnapshots.slice(i, i + BATCH_SIZE);
+      const { error: upsertError } = await supabase
+        .from('user_networth_snapshots')
+        .upsert(batch, { onConflict: 'user_address,timestamp' });
 
-    if (upsertError) {
-      console.error(`[Portfolio] Failed to save historical networth snapshot batch:`, upsertError.message);
+      if (upsertError) {
+        console.error(`[Portfolio] Failed to save historical networth snapshot batch:`, upsertError.message);
+      }
     }
+  } else {
+    console.log(`[Portfolio] No historical snapshots to save before first real-time snapshot for ${address}.`);
   }
 
   console.log(`[Portfolio] ✅ Completed backfilling historical networth for ${address}.`);

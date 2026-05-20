@@ -22,6 +22,7 @@ const GOLD_DONUT_COLORS = [
 ];
 
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
+  const [activeChartTab, setActiveChartTab] = useState<'flow' | 'txs'>('flow');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const chartData = data.activityHistory && data.activityHistory.length > 0 ? data.activityHistory : [];
   const hasHistory = chartData && chartData.length > 0;
@@ -42,10 +43,14 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
       <div className="overview-grid-v5">
         {/* Main PNL & History Card */}
         <div className="bento-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '32px' }}>
             <div>
-              <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>Total Capital Flow</span>
-              <div className="hero-value">{formatVolumeValue(data.totalVolume)}</div>
+              <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>
+                {activeChartTab === 'flow' ? 'Total Capital Flow' : 'Transaction Count'}
+              </span>
+              <div className="hero-value">
+                {activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : data.interactionCount.toLocaleString()}
+              </div>
               <div style={{ marginTop: '8px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
                 <span style={{ background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
                   {data.activeMonths} Months
@@ -53,24 +58,45 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                 {' '} of tracked activity
               </div>
             </div>
-            <div className="tabs-container-v5" style={{ marginBottom: 0 }}>
-              {TIME_FRAMES.map(tf => (
-                <button 
-                  key={tf} 
-                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
-                  onClick={() => {
-                    if (tf !== timeframe) {
-                      setIsTransitioning(true);
-                      setTimeframe(tf);
-                      // Clear transition after data should have loaded
-                      setTimeout(() => setIsTransitioning(false), 400);
-                    }
-                  }}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Chart Type Selector */}
+              <div className="tabs-container-v5" style={{ margin: 0 }}>
+                <button
+                  className={`tab-v5 ${activeChartTab === 'flow' ? 'active' : ''}`}
+                  onClick={() => setActiveChartTab('flow')}
                   style={{ padding: '6px 14px', fontSize: '12px' }}
                 >
-                  {tf}
+                  Capital Flow
                 </button>
-              ))}
+                <button
+                  className={`tab-v5 ${activeChartTab === 'txs' ? 'active' : ''}`}
+                  onClick={() => setActiveChartTab('txs')}
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                >
+                  Transactions
+                </button>
+              </div>
+
+              {/* Timeframe Selector */}
+              <div className="tabs-container-v5" style={{ margin: 0 }}>
+                {TIME_FRAMES.map(tf => (
+                  <button 
+                    key={tf} 
+                    className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
+                    onClick={() => {
+                      if (tf !== timeframe) {
+                        setIsTransitioning(true);
+                        setTimeframe(tf);
+                        // Clear transition after data should have loaded
+                        setTimeout(() => setIsTransitioning(false), 400);
+                      }
+                    }}
+                    style={{ padding: '6px 14px', fontSize: '12px' }}
+                  >
+                    {tf}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -87,6 +113,10 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                     <linearGradient id="pnlGradV5" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4} />
                       <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="txsGradV5" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#36c690" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
@@ -110,10 +140,18 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                       return isNaN(d.getTime()) ? '' : d.toLocaleString();
                     }}
                     contentStyle={{ background: 'rgba(26,26,26,0.8)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', fontWeight: 700 }} 
-                    itemStyle={{ color: 'var(--primary)' }}
-                    formatter={(value: any) => [`$${Number(value).toLocaleString()}`, 'Value']}
+                    itemStyle={{ color: activeChartTab === 'flow' ? 'var(--primary)' : '#36c690' }}
+                    formatter={(value: any) => 
+                      activeChartTab === 'flow'
+                        ? [`$${Number(value).toLocaleString()}`, 'Value']
+                        : [`${Number(value).toLocaleString()}`, 'Transactions']
+                    }
                   />
-                  <Area type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#pnlGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
+                  {activeChartTab === 'flow' ? (
+                    <Area type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#pnlGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
+                  ) : (
+                    <Area type="monotone" dataKey="txCount" stroke="#36c690" strokeWidth={3} fillOpacity={1} fill="url(#txsGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             )}

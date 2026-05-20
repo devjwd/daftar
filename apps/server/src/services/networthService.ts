@@ -212,7 +212,8 @@ export async function takeNetworthSnapshot(
     defi_usd: defiUsd,
     nft_usd: nftUsd,
     net_deposits_usd: netDepositsUsd,
-    timestamp: hourStartISO
+    timestamp: hourStartISO,
+    breakdown: { ...breakdown, is_realtime: true }
   }, { onConflict: 'user_address,timestamp' });
 
   if (error) {

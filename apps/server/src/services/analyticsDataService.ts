@@ -39,6 +39,7 @@ interface TransactionRow {
 interface DateValuePoint {
   date: string;
   value: number;
+  txCount?: number;
 }
 
 interface ProtocolUsageItem {
@@ -265,13 +266,18 @@ export async function aggregateAnalyticsData(
   // --- Cumulative Volume & Net Flow History ---
   let cumulative = 0;
   let cumulativeFlow = initialFlow;
-  const activityByDate = new Map<string, number>();
+  const activityByDate = new Map<string, { value: number; txCount: number }>();
   const netFlowByDate = new Map<string, number>();
 
   txs.forEach(tx => {
     cumulative += Number(tx.value_usd || 0);
     const date = tx.timestamp.split('T')[0];
-    activityByDate.set(date, cumulative);
+    
+    const existing = activityByDate.get(date) || { value: 0, txCount: 0 };
+    activityByDate.set(date, {
+      value: cumulative,
+      txCount: existing.txCount + 1
+    });
 
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
@@ -289,7 +295,7 @@ export async function aggregateAnalyticsData(
   });
 
   const activityHistory = Array.from(activityByDate.entries())
-    .map(([date, value]) => ({ date, value }));
+    .map(([date, data]) => ({ date, value: data.value, txCount: data.txCount }));
 
   const netFlowHistory = Array.from(netFlowByDate.entries())
     .map(([date, value]) => ({ date, value }));
