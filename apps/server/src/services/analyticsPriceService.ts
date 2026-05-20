@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import { SupabaseClient } from '@supabase/supabase-js';
 import CONFIG from '../config/index.ts';
-import { APTOS_COIN_PATTERNS } from '../config/whitelists.ts';
+import { APTOS_COIN_PATTERNS, NATIVE_MOVE_ADDRESSES, LST_PRICE_ALIASES } from '../config/whitelists.ts';
 
 /**
  * Normalizes a token address to its canonical form, mapping any AptosCoin patterns to '0x1'.
@@ -10,6 +10,11 @@ function normalizeTokenAddress(addr: string): string {
   if (!addr) return '';
   const lower = addr.toLowerCase();
   if (APTOS_COIN_PATTERNS.some(p => lower.includes(p))) {
+    return '0x1';
+  }
+  // Normalize all native MOVE address variants to 0x1
+  const short = lower.replace(/^0x0*/, '0x');
+  if (NATIVE_MOVE_ADDRESSES.has(short)) {
     return '0x1';
   }
   return addr.replace(/^0x0*/, '0x');
@@ -265,6 +270,15 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
        } else {
          price = 0; // Unknown token — don't assign phantom value
        }
+    }
+
+    // LST fallback: if the symbol is a known LST, use the underlying token's price
+    if (!price && (tx.asset_out_symbol || tx.asset_in_symbol)) {
+      const sym = tx.asset_out_symbol || tx.asset_in_symbol;
+      if (sym && LST_PRICE_ALIASES[sym]) {
+        price = await getHistoricalPrice(supabase, LST_PRICE_ALIASES[sym], tx.timestamp, batchPriceCache);
+        amount = tx.asset_out_amount || tx.asset_in_amount || 0;
+      }
     }
     
     if (price) {

@@ -67,6 +67,28 @@ export const APTOS_COIN_PATTERNS: string[] = [
 ];
 
 /**
+ * All addresses that resolve to the native MOVE token (canonical: 0x1).
+ * The indexer may return MOVE balances under any of these addresses.
+ * They must all be merged into a single balance entry to avoid duplicates.
+ */
+export const NATIVE_MOVE_ADDRESSES = new Set([
+  '0x1',
+  '0xa',
+  '0x000000000000000000000000000000000000000000000000000000000000000a',
+  '0x0000000000000000000000000000000000000000000000000000000000000001',
+]);
+
+/**
+ * Liquid Staking Tokens (LSTs) that should inherit their underlying token's price.
+ * Key = symbol, Value = canonical address of the underlying token.
+ */
+export const LST_PRICE_ALIASES: Record<string, string> = {
+  'gMOVE': '0x1',   // Gravity MOVE LST → MOVE price
+  'stMOVE': '0x1',  // Staked MOVE LST → MOVE price
+  'cvMOVE': '0x1',  // Canopy Vault MOVE LST → MOVE price
+};
+
+/**
  * Returns true if the asset type or symbol should be excluded from
  * balance snapshots (scam, airdrop, LP token, or raw Aptos coin type).
  */

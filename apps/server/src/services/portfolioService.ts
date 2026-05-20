@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAddress } from '../utils/address.ts';
-import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, isJunkAsset, APTOS_COIN_PATTERNS, KNOWN_EXCHANGES } from '../config/whitelists.ts';
+import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, isJunkAsset, APTOS_COIN_PATTERNS, NATIVE_MOVE_ADDRESSES, LST_PRICE_ALIASES, KNOWN_EXCHANGES } from '../config/whitelists.ts';
 
 /**
  * Portfolio Reconstruction Service
@@ -183,16 +183,23 @@ export async function reconstructHistoricalBalances(
         const rawAssetType = act.asset_type || act.coin_type || '';
 
         // Normalize raw AptosCoin type → 0x1 (native MOVE on Movement Network)
-        const assetType = APTOS_COIN_PATTERNS.some(p => rawAssetType.includes(p))
-          ? '0x1'
-          : rawAssetType;
+        // Also normalize 0xa and full-padded 0x0...0a addresses to 0x1 to prevent duplicates
+        let assetType = rawAssetType;
+        if (APTOS_COIN_PATTERNS.some(p => rawAssetType.includes(p))) {
+          assetType = '0x1';
+        } else {
+          const shortForm = rawAssetType.toLowerCase().replace(/^0x0*/, '0x');
+          if (NATIVE_MOVE_ADDRESSES.has(shortForm) || NATIVE_MOVE_ADDRESSES.has(rawAssetType)) {
+            assetType = '0x1';
+          }
+        }
 
         // Skip if it's just the gas fee deduction (already handled)
         if (assetType === '0x1' && Math.abs(amount - gasInMove) < 0.00005) {
           continue;
         }
 
-        const symbol = act.metadata?.symbol || (assetType === '0x1' || assetType === '0xa' ? 'MOVE' : 'Token');
+        const symbol = act.metadata?.symbol || (assetType === '0x1' ? 'MOVE' : 'Token');
 
         // Skip scam tokens, airdrop tokens, LP tokens, and raw Aptos types
         if (isJunkAsset(assetType, symbol)) continue;
@@ -399,8 +406,14 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
   }
 
   // Helper to resolve price on a specific date
-  const getPriceOnDate = (token: string, date: string): number => {
-    const normToken = token.toLowerCase().replace(/^0x0*/, '0x');
+  const getPriceOnDate = (token: string, date: string, symbol?: string): number => {
+    let normToken = token.toLowerCase().replace(/^0x0*/, '0x');
+
+    // Normalize all native MOVE addresses to 0x1
+    if (NATIVE_MOVE_ADDRESSES.has(normToken)) {
+      normToken = '0x1';
+    }
+
     if (priceHistoryMap[normToken]?.[date]) {
       return priceHistoryMap[normToken][date];
     }
@@ -414,7 +427,14 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
       }
     }
     if (fallbackPrices[normToken]) return fallbackPrices[normToken];
-    if (normToken.includes('aptos_coin') || normToken === '0x1' || normToken === '0xa') {
+
+    // LST price resolution: gMOVE/stMOVE/cvMOVE inherit their underlying token's price
+    if (symbol && LST_PRICE_ALIASES[symbol]) {
+      const underlyingToken = LST_PRICE_ALIASES[symbol];
+      return getPriceOnDate(underlyingToken, date);
+    }
+
+    if (normToken.includes('aptos_coin') || normToken === '0x1') {
       return fallbackPrices['0x1'] || fallbackPrices['0xa'] || 0.05;
     }
     return 0;
@@ -506,7 +526,7 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
     let walletUsd = 0;
     
     daySnaps.forEach(snap => {
-      const price = getPriceOnDate(snap.asset_type, dateStr);
+      const price = getPriceOnDate(snap.asset_type, dateStr, snap.symbol);
       walletUsd += Number(snap.amount) * price;
     });
 

@@ -361,6 +361,8 @@ export async function aggregateAnalyticsData(
       const action = tx.action || '';
       const date = tx.timestamp.split('T')[0];
 
+      // Exchange Deposit = user sends tokens TO exchange (outflow from wallet)
+      // Exchange Withdrawal = user receives tokens FROM exchange (inflow to wallet)
       if (isOutflowAction(action)) {
         exchangeUsage.deposits.total += val;
         depMap.set(protocol, (depMap.get(protocol) || 0) + val);

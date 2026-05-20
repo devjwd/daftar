@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "lib": [
       "ESNext",
       "DOM"
@@ -20,16 +20,16 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
-    "baseUrl": ".",
     "paths": {
       "@daftar/types": [
-        "packages/types/src/index.ts"
+        "./packages/types/src/index.ts"
       ]
     },
-    "types": ["vite/client"],
+    "types": [
+      "vite/client"
+    ],
     "jsx": "react-jsx"
   },
-
   "exclude": [
     "node_modules",
     "dist",

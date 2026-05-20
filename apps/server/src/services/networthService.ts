@@ -3,7 +3,7 @@ import { normalizeAddress } from '../utils/address.ts';
 import { fetchUserDeFiPositions } from './defiService.ts';
 import fetch from 'node-fetch';
 import CONFIG from '../config/index.ts';
-import { INFLOW_ACTIONS, OUTFLOW_ACTIONS } from '../config/whitelists.ts';
+import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, LST_PRICE_ALIASES, NATIVE_MOVE_ADDRESSES } from '../config/whitelists.ts';
 
 /**
  * Fetch user holdings directly from the Movement network indexer
@@ -111,7 +111,15 @@ export async function takeNetworthSnapshot(
   
   let walletUsd = 0;
   latestBalances.forEach(b => {
-    const price = priceMap[b.asset_type] || priceMap['0x1'] || 0;
+    // Normalize MOVE address variants for price lookup
+    const shortAsset = b.asset_type.toLowerCase().replace(/^0x0*/, '0x');
+    const lookupKey = NATIVE_MOVE_ADDRESSES.has(shortAsset) ? '0x1' : b.asset_type;
+
+    // Resolve price: direct match → LST alias → 0 (don't blindly fallback to MOVE for unknown tokens)
+    let price = priceMap[lookupKey] || priceMap[shortAsset] || 0;
+    if (price === 0 && b.symbol && LST_PRICE_ALIASES[b.symbol]) {
+      price = priceMap[LST_PRICE_ALIASES[b.symbol]] || priceMap['0x1'] || 0;
+    }
     walletUsd += Number(b.amount) * price;
   });
 
