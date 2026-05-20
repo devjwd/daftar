@@ -358,11 +358,34 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
     });
   }
 
-  // For historical prices, query token_price_history for these assets
-  const { data: histPrices } = await supabase
-    .from('token_price_history')
-    .select('token_address, price, timestamp')
-    .in('token_address', queryAssetTypes);
+  // For historical prices, query token_price_history for these assets (paginated to bypass Supabase 1000 limit)
+  let histPrices: any[] = [];
+  let hasMorePrices = true;
+  let pricePage = 0;
+  const PRICE_PAGE_SIZE = 1000;
+
+  while (hasMorePrices) {
+    const { data: pagePrices, error: priceErr } = await supabase
+      .from('token_price_history')
+      .select('token_address, price, timestamp')
+      .in('token_address', queryAssetTypes)
+      .range(pricePage * PRICE_PAGE_SIZE, (pricePage + 1) * PRICE_PAGE_SIZE - 1);
+
+    if (priceErr) {
+      console.error(`[Portfolio] Error fetching price history page:`, priceErr);
+      return;
+    }
+
+    if (pagePrices && pagePrices.length > 0) {
+      histPrices = histPrices.concat(pagePrices);
+      pricePage++;
+      if (pagePrices.length < PRICE_PAGE_SIZE) {
+        hasMorePrices = false;
+      }
+    } else {
+      hasMorePrices = false;
+    }
+  }
 
   // Map: token_address -> date -> price
   const priceHistoryMap: Record<string, Record<string, number>> = {};
