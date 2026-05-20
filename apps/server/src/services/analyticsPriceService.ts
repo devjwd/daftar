@@ -1,6 +1,19 @@
 import fetch from 'node-fetch';
 import { SupabaseClient } from '@supabase/supabase-js';
 import CONFIG from '../config/index.ts';
+import { APTOS_COIN_PATTERNS } from '../config/whitelists.ts';
+
+/**
+ * Normalizes a token address to its canonical form, mapping any AptosCoin patterns to '0x1'.
+ */
+function normalizeTokenAddress(addr: string): string {
+  if (!addr) return '';
+  const lower = addr.toLowerCase();
+  if (APTOS_COIN_PATTERNS.some(p => lower.includes(p))) {
+    return '0x1';
+  }
+  return addr.replace(/^0x0*/, '0x');
+}
 
 // Mapping of Movement tokens to CoinGecko IDs
 const TOKEN_GEKO_MAP: Record<string, string> = {
@@ -60,7 +73,10 @@ async function fetchHistoricalPriceFromCG(geckoId: string, timestamp: string): P
   for (const base of bases) {
     const url = `${base}/api/v3/coins/${geckoId}/history?date=${dateStr}&localization=false`;
     try {
-      const response = await fetch(url, { headers });
+      const requestHeaders = base.includes('demo-api.coingecko.com')
+        ? headers
+        : (isDemoKey ? { Accept: 'application/json' } : headers);
+      const response = await fetch(url, { headers: requestHeaders });
       if (!response.ok) {
         console.warn(`[PriceBackfill] CoinGecko ${base} returned ${response.status} for ${geckoId} on ${dateStr}`);
         continue;
@@ -108,9 +124,10 @@ async function getHistoricalPrice(
   timestamp: string,
   cacheMap: Record<string, number | null>
 ): Promise<number | null> {
-  const geckoId = TOKEN_GEKO_MAP[tokenAddress];
+  const normAddress = normalizeTokenAddress(tokenAddress);
+  const geckoId = TOKEN_GEKO_MAP[normAddress];
   const dateOnly = new Date(timestamp).toISOString().split('T')[0];
-  const cacheKey = `${tokenAddress}_${dateOnly}`;
+  const cacheKey = `${normAddress}_${dateOnly}`;
 
   if (cacheKey in cacheMap) {
     return cacheMap[cacheKey];
@@ -120,7 +137,7 @@ async function getHistoricalPrice(
   const { data: cached } = await supabase
     .from('token_price_history')
     .select('price')
-    .eq('token_address', tokenAddress)
+    .eq('token_address', normAddress)
     .gte('timestamp', `${dateOnly}T00:00:00Z`)
     .lte('timestamp', `${dateOnly}T23:59:59Z`)
     .limit(1)
@@ -141,14 +158,14 @@ async function getHistoricalPrice(
   
   // 3. Fallback to DexScreener if CoinGecko failed or no geckoId
   if (!price) {
-    console.log(`[PriceBackfill] Falling back to DexScreener for ${tokenAddress}`);
-    price = await fetchPriceFromDexScreener(tokenAddress);
+    console.log(`[PriceBackfill] Falling back to DexScreener for ${normAddress}`);
+    price = await fetchPriceFromDexScreener(normAddress);
   }
   
   if (price) {
     // Save to cache for future use
     await supabase.from('token_price_history').insert({
-      token_address: tokenAddress,
+      token_address: normAddress,
       price: price,
       timestamp: `${dateOnly}T12:00:00Z`, // Mid-day snapshot
       granularity: 'daily',

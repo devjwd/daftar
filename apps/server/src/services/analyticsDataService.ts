@@ -231,25 +231,21 @@ export async function aggregateAnalyticsData(
   const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
   const totalGasUsd = txs.reduce((sum, tx) => sum + Number(tx.gas_usd || 0), 0);
 
-  // --- Inflow & Outflow (Excluding DeFi protocols and contract interactions) ---
-  const DEFI_PROTOCOLS = new Set([
-    'Liquidswap', 'Echelon', 'Aries', 'Mosaic', 'Yuzu', 'LayerBank', 
-    'Canopy', 'MovePosition', 'Joule', 'Meridian', 'Razor', 'Move Match', 'Tradeport'
-  ]);
-
+  // --- Inflow & Outflow (Deposits/Withdrawals from/to Centralized Exchanges / Entities only) ---
   let totalInflow = 0;
   let totalOutflow = 0;
   txs.forEach(tx => {
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
     const protocol = tx.protocol || 'Unknown';
+    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
 
-    if (DEFI_PROTOCOLS.has(protocol)) return;
-
-    if (action === 'RECEIVE') {
-      totalInflow += val;
-    } else if (action === 'SEND') {
-      totalOutflow += val;
+    if (isExchange) {
+      if (isInflowAction(action)) {
+        totalInflow += val;
+      } else if (isOutflowAction(action)) {
+        totalOutflow += val;
+      }
     }
   });
 
@@ -280,11 +276,12 @@ export async function aggregateAnalyticsData(
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
     const protocol = tx.protocol || 'Unknown';
+    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
 
-    if (!DEFI_PROTOCOLS.has(protocol)) {
-      if (action === 'RECEIVE') {
+    if (isExchange) {
+      if (isInflowAction(action)) {
         cumulativeFlow += val;
-      } else if (action === 'SEND') {
+      } else if (isOutflowAction(action)) {
         cumulativeFlow -= val;
       }
     }

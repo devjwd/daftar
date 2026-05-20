@@ -390,14 +390,17 @@ const Dashboard = () => {
     ];
     
     const sorted = Array.from(protocolMap.entries())
-      .map(([name, value], idx) => ({ 
+      .map(([name, value]) => ({ 
          name, 
          rawValue: value, 
-         value: Math.round((value / total) * 100),
-         color: colors[idx % colors.length]
+         value: Math.round((value / total) * 100)
       }))
       .filter(d => d.rawValue > 0)
-      .sort((a, b) => b.rawValue - a.rawValue);
+      .sort((a, b) => b.rawValue - a.rawValue)
+      .map((item, idx) => ({
+         ...item,
+         color: colors[idx % colors.length]
+      }));
       
     let finalData = sorted;
     if (sorted.length > 5) {

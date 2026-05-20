@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAddress } from '../utils/address.ts';
-import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, isJunkAsset, APTOS_COIN_PATTERNS } from '../config/whitelists.ts';
+import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, isJunkAsset, APTOS_COIN_PATTERNS, KNOWN_EXCHANGES } from '../config/whitelists.ts';
 
 /**
  * Portfolio Reconstruction Service
@@ -263,14 +263,37 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
   const address = normalizeAddress(walletAddress);
   console.log(`[Portfolio] 📈 Backfilling historical net worth snapshots for ${address}...`);
 
-  // 1. Fetch all balance snapshots
-  const { data: balSnaps, error: balErr } = await supabase
-    .from('user_balance_snapshots')
-    .select('*')
-    .eq('user_address', address)
-    .order('snapshot_date', { ascending: true });
+  // 1. Fetch all balance snapshots (paginated)
+  let balSnaps: any[] = [];
+  let hasMoreSnaps = true;
+  let snapPage = 0;
+  const SNAP_PAGE_SIZE = 1000;
 
-  if (balErr || !balSnaps || balSnaps.length === 0) {
+  while (hasMoreSnaps) {
+    const { data: pageSnaps, error: balErr } = await supabase
+      .from('user_balance_snapshots')
+      .select('*')
+      .eq('user_address', address)
+      .order('snapshot_date', { ascending: true })
+      .range(snapPage * SNAP_PAGE_SIZE, (snapPage + 1) * SNAP_PAGE_SIZE - 1);
+
+    if (balErr) {
+      console.error(`[Portfolio] Error fetching balance snapshots page:`, balErr);
+      return;
+    }
+
+    if (pageSnaps && pageSnaps.length > 0) {
+      balSnaps = balSnaps.concat(pageSnaps);
+      snapPage++;
+      if (pageSnaps.length < SNAP_PAGE_SIZE) {
+        hasMoreSnaps = false;
+      }
+    } else {
+      hasMoreSnaps = false;
+    }
+  }
+
+  if (balSnaps.length === 0) {
     console.log(`[Portfolio] No balance snapshots found for ${address}. Cannot backfill net worth.`);
     return;
   }
@@ -286,36 +309,66 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
   const uniqueDates = Object.keys(snapsByDate).sort();
   const assetTypes = Array.from(new Set(balSnaps.map(snap => snap.asset_type)));
 
-  // 2. Fetch all transaction history to compute daily cumulative net deposits
-  const { data: txs, error: txErr } = await supabase
-    .from('user_transaction_history')
-    .select('timestamp, action, value_usd')
-    .eq('user_address', address)
-    .order('timestamp', { ascending: true });
+  // Add short forms of any addresses in assetTypes to ensure we fetch their prices too
+  const queryAssetTypes = [...assetTypes];
+  assetTypes.forEach(addr => {
+    const short = addr.toLowerCase().replace(/^0x0*/, '0x');
+    if (!queryAssetTypes.includes(short)) {
+      queryAssetTypes.push(short);
+    }
+  });
 
-  if (txErr) {
-    console.error(`[Portfolio] Error fetching txs for net deposits:`, txErr);
-    return;
+  // 2. Fetch all transaction history to compute daily cumulative net deposits (paginated)
+  let txs: any[] = [];
+  let hasMoreTxs = true;
+  let txPage = 0;
+  const TX_PAGE_SIZE = 1000;
+
+  while (hasMoreTxs) {
+    const { data: pageTxs, error: txErr } = await supabase
+      .from('user_transaction_history')
+      .select('timestamp, action, value_usd, protocol')
+      .eq('user_address', address)
+      .order('timestamp', { ascending: true })
+      .range(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE - 1);
+
+    if (txErr) {
+      console.error(`[Portfolio] Error fetching txs for net deposits page:`, txErr);
+      return;
+    }
+
+    if (pageTxs && pageTxs.length > 0) {
+      txs = txs.concat(pageTxs);
+      txPage++;
+      if (pageTxs.length < TX_PAGE_SIZE) {
+        hasMoreTxs = false;
+      }
+    } else {
+      hasMoreTxs = false;
+    }
   }
 
   // 3. Fetch all price cache as a fallback for current prices
   const { data: cachedPrices } = await supabase.from('price_cache').select('token_id, price_usd');
   const fallbackPrices: Record<string, number> = {};
   if (cachedPrices) {
-    cachedPrices.forEach(p => fallbackPrices[p.token_id] = Number(p.price_usd));
+    cachedPrices.forEach(p => {
+      const token = p.token_id.toLowerCase().replace(/^0x0*/, '0x');
+      fallbackPrices[token] = Number(p.price_usd);
+    });
   }
 
   // For historical prices, query token_price_history for these assets
   const { data: histPrices } = await supabase
     .from('token_price_history')
     .select('token_address, price, timestamp')
-    .in('token_address', assetTypes);
+    .in('token_address', queryAssetTypes);
 
   // Map: token_address -> date -> price
   const priceHistoryMap: Record<string, Record<string, number>> = {};
   if (histPrices) {
     histPrices.forEach(hp => {
-      const token = hp.token_address;
+      const token = hp.token_address.toLowerCase().replace(/^0x0*/, '0x');
       const date = new Date(hp.timestamp).toISOString().split('T')[0];
       if (!priceHistoryMap[token]) priceHistoryMap[token] = {};
       priceHistoryMap[token][date] = Number(hp.price);
@@ -324,20 +377,23 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
 
   // Helper to resolve price on a specific date
   const getPriceOnDate = (token: string, date: string): number => {
-    if (priceHistoryMap[token]?.[date]) {
-      return priceHistoryMap[token][date];
+    const normToken = token.toLowerCase().replace(/^0x0*/, '0x');
+    if (priceHistoryMap[normToken]?.[date]) {
+      return priceHistoryMap[normToken][date];
     }
     const targetDate = new Date(date);
     for (let i = 1; i <= 3; i++) {
       const prevDate = new Date(targetDate);
       prevDate.setDate(prevDate.getDate() - i);
       const prevDateStr = prevDate.toISOString().split('T')[0];
-      if (priceHistoryMap[token]?.[prevDateStr]) {
-        return priceHistoryMap[token][prevDateStr];
+      if (priceHistoryMap[normToken]?.[prevDateStr]) {
+        return priceHistoryMap[normToken][prevDateStr];
       }
     }
-    if (fallbackPrices[token]) return fallbackPrices[token];
-    if (token.includes('aptos_coin') || token === '0x1') return fallbackPrices['0x1'] || 0.05;
+    if (fallbackPrices[normToken]) return fallbackPrices[normToken];
+    if (normToken.includes('aptos_coin') || normToken === '0x1' || normToken === '0xa') {
+      return fallbackPrices['0x1'] || fallbackPrices['0xa'] || 0.05;
+    }
     return 0;
   };
 
@@ -353,10 +409,15 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
       const tx = txs![txIndex];
       const action = tx.action || '';
       const val = Number(tx.value_usd || 0);
-      if (INFLOW_ACTIONS.includes(action as any)) {
-        runningNetDeposits += val;
-      } else if (OUTFLOW_ACTIONS.includes(action as any)) {
-        runningNetDeposits -= val;
+      const protocol = tx.protocol || 'Unknown';
+      const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
+
+      if (isExchange) {
+        if (INFLOW_ACTIONS.includes(action as any)) {
+          runningNetDeposits += val;
+        } else if (OUTFLOW_ACTIONS.includes(action as any)) {
+          runningNetDeposits -= val;
+        }
       }
       txIndex++;
     }

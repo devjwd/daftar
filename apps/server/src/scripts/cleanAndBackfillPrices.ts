@@ -81,7 +81,15 @@ async function run() {
     else if (count) console.log(`  ✅ Deleted ${count} rows matching symbol pattern "${pat}"`);
   }
 
-  // Also clean networth snapshots since they were calculated from junk data
+  // Also clean balance and networth snapshots since they were calculated from junk data
+  console.log('\n🧹 Clearing user_balance_snapshots for full reconstruction...');
+  const { error: balDelErr } = await supabase
+    .from('user_balance_snapshots')
+    .delete()
+    .neq('user_address', ''); // delete all for all users
+  if (balDelErr) console.error('  ❌ Failed clearing balance snapshots:', balDelErr.message);
+  else console.log('  ✅ Cleared all balance snapshots for full reconstruction');
+
   console.log('\n🧹 Clearing user_networth_snapshots for reconstruction...');
   const { error: nwErr } = await supabase
     .from('user_networth_snapshots')
@@ -132,7 +140,10 @@ async function run() {
   for (const url of cgAttempts) {
     try {
       console.log(`  Trying: ${url}`);
-      const res = await (fetch as any)(url, { headers: baseHeaders });
+      const requestHeaders = url.includes('demo-api.coingecko.com')
+        ? baseHeaders
+        : (isDemoKey ? { Accept: 'application/json' } : baseHeaders);
+      const res = await (fetch as any)(url, { headers: requestHeaders });
       if (res.ok) {
         const data: any = await res.json();
         cgPrices = data.prices || [];
