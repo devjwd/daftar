@@ -92,7 +92,7 @@ export const slippageToBps = (percent) => {
  * @param {Object} rawSettings - Raw settings from adminService
  * @returns {Object} Normalized settings object
  */
-export const normalizeMosaicSwapSettings = (rawSettings = {}) => {
+export const normalizeMosaicSwapSettings = (rawSettings: any = {}) => {
   const feeInBpsRaw = rawSettings.feeInBps ?? rawSettings.protocolFeeBps ?? 0;
   const feeInBps = Math.max(0, Math.min(MAX_FEE_BPS, Math.round(toSafeNumber(feeInBpsRaw, 0))));
 
@@ -256,7 +256,7 @@ export const fetchMosaicQuote = async ({
   slippageBps,
   settings = {},
   signal,
-}) => {
+}: any) => {
   const srcAsset = await resolveTokenId(fromToken);
   const dstAsset = await resolveTokenId(toToken);
   const senderAddress = normalizeSender(sender);

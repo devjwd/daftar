@@ -34,7 +34,7 @@ function isLendLike(type = '') {
  * @param {string} address
  * @param {{ protocolKey: string, minAmount: number, decimals?: number }} params
  */
-export async function evaluate(address, params = {}) {
+export async function evaluate(address: string, params: any = {}) {
   const protocolKey = String(params.protocolKey || '').trim();
   const minAmount = toNumber(params.minAmount);
   const decimals = Number(params.decimals ?? 8);
@@ -76,7 +76,7 @@ export async function evaluate(address, params = {}) {
         ? `Lent ${lentAmount.toFixed(4)} on ${protocol.name}`
         : `Lent ${lentAmount.toFixed(4)} / ${required} on ${protocol.name}`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:protocol_lend_amount] evaluation failed:', error.message);
     return { eligible: false, current: 0, required: minAmount || 1, progress: 0, label: 'Check failed', error: error.message };
   }

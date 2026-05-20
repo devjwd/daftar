@@ -236,7 +236,7 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
       continue;
     }
 
-    let price = 0;
+    let price: number | null = null;
     let amount = 0;
 
     if (tokenToPriceOut) {

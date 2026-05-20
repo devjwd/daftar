@@ -17,7 +17,7 @@ export const meta = {
  * @param {object} params       - { collectionName?: string, minCount?: number }
  * @returns {Promise<{ eligible: boolean, current: number, required: number, progress: number }>}
  */
-export async function evaluate(address, params) {
+export async function evaluate(address: string, params: any) {
   const { collectionName = '', minCount = 1 } = params || {};
   const required = Math.max(1, Number(minCount) || 1);
 
@@ -44,7 +44,7 @@ export async function evaluate(address, params) {
         ? `${count} / ${required} NFTs from "${collectionName}"`
         : `${count} / ${required} NFTs`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:nft_holder] evaluation failed:', error.message);
     return { eligible: false, current: 0, required, progress: 0, label: 'Check failed', error: error.message };
   }

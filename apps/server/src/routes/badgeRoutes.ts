@@ -279,7 +279,7 @@ router.get('/eligibility/bulk', badgeLimiter, forceRefreshLimiter, async (req: R
  */
 router.get('/user/:address', badgeLimiter, async (req: Request, res: Response) => {
   const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
-  const address = normalizeAddress(req.params.address);
+  const address = normalizeAddress(req.params.address as string);
   if (!address) return res.status(400).json({ error: 'Invalid address' });
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
 

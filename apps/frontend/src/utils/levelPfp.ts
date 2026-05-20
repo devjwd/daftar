@@ -89,7 +89,7 @@ export const isPfpAllowedForLevel = (pfpSrc, level) => {
   return isPfpUnlockedForLevel(pfpSrc, level);
 };
 
-export const getLevelBasedPfp = ({ level, address, preferredPfp } = {}) => {
+export const getLevelBasedPfp = ({ level, address, preferredPfp }: any = {}) => {
   void address;
 
   if (isPfpAllowedForLevel(preferredPfp, level)) {

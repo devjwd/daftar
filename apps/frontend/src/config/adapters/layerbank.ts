@@ -68,7 +68,9 @@ export const layerbankAdapter = [
                   value: (collateral / 1e8).toFixed(4),
                   protocol: "layerbank",
                   protocolName: "LayerBank",
-                  protocolWebsite: "https://layerbank.finance"
+                  protocolWebsite: "https://layerbank.finance",
+                  usdValue: collateral / 1e8,
+                  amount: collateral / 1e8
               });
           }
       });

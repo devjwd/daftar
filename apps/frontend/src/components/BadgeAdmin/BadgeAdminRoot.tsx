@@ -158,7 +158,7 @@ export default function BadgeAdminRoot() {
         adminAuth: auth 
       });
 
-      if (!apiResult.ok) throw new Error(apiResult.data?.error || 'Database save failed');
+      if (!(apiResult as any).ok) throw new Error((apiResult as any).data?.error || 'Database save failed');
 
       showMessage('success', `Badge #${onChainBadgeId} created and synced!`);
       resetForm();

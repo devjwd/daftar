@@ -34,7 +34,7 @@ const LEVEL_REWARDS = [
 export default function Level() {
   const navigate = useNavigate();
   const { account, connected } = useWallet();
-  const address = normalizeAddress(account?.address);
+  const address = normalizeAddress(account?.address?.toString());
   const { profile } = useProfile(address);
   const { level, xp, nextLevelXP, xpProgress, badges, loading } = useUserLevel(address);
 
@@ -60,7 +60,7 @@ export default function Level() {
   const profileImageSrc = getLevelBasedPfp({
     level: currentLevel,
     address,
-    preferredPfp: (profile?.avatar_url || profile?.pfp),
+    preferredPfp: ((profile as any)?.avatar_url || (profile as any)?.pfp),
   });
 
   return (

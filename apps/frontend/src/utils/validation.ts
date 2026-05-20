@@ -135,7 +135,7 @@ export function sanitizeString(input, maxLength = 500) {
     .join('');
 
   // Encode HTML entities to prevent XSS
-  const entityMap = {
+  const entityMap: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
@@ -237,10 +237,10 @@ export function isValidTxHash(hash) {
  * @param {number} delayMs - Minimum delay between calls
  * @returns {Function} Rate-limited function
  */
-export function rateLimit(fn, delayMs = 1000) {
+export function rateLimit(fn: Function, delayMs = 1000) {
   let lastCallTime = 0;
   
-  return function (...args) {
+  return function (this: any, ...args: any[]) {
     const now = Date.now();
     if (now - lastCallTime >= delayMs) {
       lastCallTime = now;
@@ -256,8 +256,19 @@ export function rateLimit(fn, delayMs = 1000) {
  * @param {Object} schema - Validation schema
  * @returns {Object} {valid: boolean, errors: string[]}
  */
-export function validateSchema(data, schema) {
-  const errors = [];
+interface SchemaValidator {
+  optional?: boolean;
+  type?: string;
+  validate?: (value: any) => boolean;
+  error?: string;
+  min?: number;
+  max?: number;
+  minLength?: number;
+  maxLength?: number;
+}
+
+export function validateSchema(data: Record<string, any>, schema: Record<string, SchemaValidator>) {
+  const errors: string[] = [];
 
   for (const [key, validator] of Object.entries(schema)) {
     if (!validator.optional && !(key in data)) {

@@ -401,7 +401,7 @@ export default function Home() {
                                 alt={result.username}
                                 className="suggestion-pfp"
                                 onError={(e) => {
-                                  e.target.src = '/pfp/default.png';
+                                  (e.target as HTMLImageElement).src = '/pfp/default.png';
                                 }}
                               />
                             ) : result.type === 'platform' && hasValidAvatar ? (
@@ -410,7 +410,7 @@ export default function Home() {
                                 alt={result.username}
                                 className="suggestion-pfp"
                                 onError={(e) => {
-                                  e.target.src = '/movement-logo.svg';
+                                  (e.target as HTMLImageElement).src = '/movement-logo.svg';
                                 }}
                               />
                             ) : (

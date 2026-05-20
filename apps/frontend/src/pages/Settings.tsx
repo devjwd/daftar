@@ -15,7 +15,7 @@ import './Settings.css';
 export default function Settings() {
   const { account } = useWallet();
   const [currency, setCurrency] = useState('USD');
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState<any>('dark');
   const [language, setLanguage] = useState('en');
   const [uiLanguage, setUiLanguage] = useState('en'); // Language currently applied to UI labels
   const [hidePositionThreshold, setHidePositionThreshold] = useState(DEFAULT_HIDE_POSITION_THRESHOLD);
@@ -43,7 +43,7 @@ export default function Settings() {
     if (saved) {
       const data = JSON.parse(saved);
       setCurrency(data.currency || 'USD');
-      const storedTheme = data.theme || getStoredThemePreference(settingsKey);
+      const storedTheme = data.theme || getStoredThemePreference();
       setTheme(storedTheme);
       applyTheme(storedTheme);
 
@@ -53,7 +53,7 @@ export default function Settings() {
 
       setHidePositionThreshold(getStoredHidePositionThreshold(settingsKey));
     } else {
-      const storedTheme = getStoredThemePreference(settingsKey);
+      const storedTheme = getStoredThemePreference();
       setTheme(storedTheme);
       applyTheme(storedTheme);
 
@@ -68,7 +68,7 @@ export default function Settings() {
 
   const handleSave = () => {
     persistSettings();
-    saveThemePreference(theme, settingsKey);
+    saveThemePreference(theme);
     saveLanguagePreference(language, settingsKey);
     applyTheme(theme);
     setUiLanguage(language); // Only now apply the language to UI labels
@@ -91,7 +91,7 @@ export default function Settings() {
       setUiLanguage('en');
       setHidePositionThreshold(DEFAULT_HIDE_POSITION_THRESHOLD);
       localStorage.removeItem(settingsKey);
-      saveThemePreference('dark', settingsKey);
+      saveThemePreference('dark');
       saveLanguagePreference('en', settingsKey);
       applyTheme('dark');
     }

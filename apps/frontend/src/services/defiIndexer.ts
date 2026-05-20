@@ -171,7 +171,7 @@ export const detectUserProtocols = async (address) => {
   const normalizedAddress = normalizeAddress(address);
   const interactions = await getUserProtocolInteractions(normalizedAddress);
   
-  const detectedProtocols = new Set();
+  const detectedProtocols = new Set<string>();
   
   interactions.forEach(tx => {
     tx.fungible_asset_activities?.forEach(activity => {

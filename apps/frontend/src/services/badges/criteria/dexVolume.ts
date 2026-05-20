@@ -34,7 +34,7 @@ function isDexLike(type = '') {
  * @param {string} address
  * @param {{ protocolKey: string, minVolume: number, decimals?: number }} params
  */
-export async function evaluate(address, params = {}) {
+export async function evaluate(address: string, params: any = {}) {
   const protocolKey = String(params.protocolKey || '').trim();
   const minVolume = Math.max(0, Number(params.minVolume || 0));
   const decimals = Number(params.decimals ?? 8);
@@ -76,7 +76,7 @@ export async function evaluate(address, params = {}) {
         ? `Volume ${volume.toFixed(4)} on ${protocol.name}`
         : `${volume.toFixed(4)} / ${required} volume on ${protocol.name}`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:dex_volume] evaluation failed:', error.message);
     return { eligible: false, current: 0, required: minVolume || 1, progress: 0, label: 'Check failed', error: error.message };
   }

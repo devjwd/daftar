@@ -17,7 +17,7 @@ export const meta = {
  * @param {object} params  - { min: number }
  * @returns {Promise<{ eligible: boolean, current: number, required: number, progress: number }>}
  */
-export async function evaluate(address, params) {
+export async function evaluate(address: string, params: any) {
   const min = Number(params?.min) || 1;
 
   try {
@@ -31,7 +31,7 @@ export async function evaluate(address, params) {
       progress: min > 0 ? Math.min(100, Math.round((txCount / min) * 100)) : 100,
       label: `${txCount} / ${min} transactions`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:transaction_count] evaluation failed:', error.message);
     return { eligible: false, current: 0, required: min, progress: 0, label: `0 / ${min} transactions`, error: error.message };
   }

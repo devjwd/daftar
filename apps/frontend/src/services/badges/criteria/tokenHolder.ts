@@ -17,7 +17,7 @@ export const meta = {
  * @param {object} params  - { tokenAddress: string, minAmount?: number }
  * @returns {Promise<{ eligible: boolean, current: number, required: number, progress: number }>}
  */
-export async function evaluate(address, params) {
+export async function evaluate(address: string, params: any) {
   const { tokenAddress, minAmount = 0 } = params || {};
   const required = Number(minAmount) || 0;
 
@@ -51,7 +51,7 @@ export async function evaluate(address, params) {
         ? `${humanAmount.toFixed(2)} / ${required} tokens`
         : `Holds: ${rawAmount > 0 ? 'Yes' : 'No'}`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:token_holder] evaluation failed:', error.message);
     return { eligible: false, current: 0, required, progress: 0, label: 'Check failed', error: error.message };
   }

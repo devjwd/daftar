@@ -21,7 +21,7 @@ function isDexLike(type = '') {
  * @param {string} address
  * @param {{ protocolKey: string, minTxCount: number }} params
  */
-export async function evaluate(address, params = {}) {
+export async function evaluate(address: string, params: any = {}) {
   const protocolKey = String(params.protocolKey || '').trim();
   const minTxCount = Math.max(1, Number(params.minTxCount || 1));
 
@@ -63,7 +63,7 @@ export async function evaluate(address, params = {}) {
         ? `${count} DEX tx on ${protocol.name}`
         : `${count} / ${minTxCount} DEX tx on ${protocol.name}`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:dex_tx_count] evaluation failed:', error.message);
     return { eligible: false, current: 0, required: minTxCount, progress: 0, label: 'Check failed', error: error.message };
   }

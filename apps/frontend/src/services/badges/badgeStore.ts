@@ -95,8 +95,8 @@ function migrateAndSeedBadges() {
 }
 
 function mapCriterionToRule(criterionType) {
-  if (criterionType === CRITERIA_TYPES.TRANSACTION_COUNT) return BADGE_RULES.TRANSACTION_COUNT;
-  if (criterionType === CRITERIA_TYPES.DAYS_ONCHAIN) return BADGE_RULES.DAYS_ONCHAIN;
+  if (criterionType === CRITERIA_TYPES.TRANSACTION_COUNT) return BADGE_RULES.TX_COUNT;
+  if (criterionType === CRITERIA_TYPES.DAYS_ONCHAIN) return BADGE_RULES.ACTIVE_DAYS;
   if (criterionType === CRITERIA_TYPES.MIN_BALANCE) return BADGE_RULES.MIN_BALANCE;
   if (criterionType === CRITERIA_TYPES.ALLOWLIST) return BADGE_RULES.ALLOWLIST;
   if (criterionType === CRITERIA_TYPES.DAFTAR_PROFILE_COMPLETE) return BADGE_RULES.DAFTAR_PROFILE_COMPLETE;

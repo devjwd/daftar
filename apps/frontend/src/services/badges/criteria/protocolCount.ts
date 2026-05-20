@@ -16,7 +16,7 @@ export const meta = {
  * @param {string} address
  * @param {{ minProtocols?: number }} params
  */
-export async function evaluate(address, params = {}) {
+export async function evaluate(address: string, params: any = {}) {
   const minProtocols = Math.max(1, Number(params.minProtocols || 1));
 
   try {
@@ -35,7 +35,7 @@ export async function evaluate(address, params = {}) {
         ? `Interacted with ${uniqueCount} protocols`
         : `${uniqueCount} / ${minProtocols} protocols interacted`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:protocol_count] evaluation failed:', error.message);
     return {
       eligible: false,

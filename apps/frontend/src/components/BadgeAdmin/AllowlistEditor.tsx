@@ -65,7 +65,7 @@ export default function AllowlistEditor({ badge, account, onClose, showMessage }
     try {
       const text = await file.text();
       const found = text.match(/0x[a-fA-F0-9]{64}/g) || [];
-      const addresses = [...new Set(found.map(a => a.toLowerCase()))];
+      const addresses = [...new Set(found.map(a => a.toLowerCase()))] as string[];
       
       if (addresses.length === 0) throw new Error('No valid addresses found in file');
       

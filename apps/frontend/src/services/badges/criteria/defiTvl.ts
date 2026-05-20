@@ -18,7 +18,7 @@ export const meta = {
  * @param {object} context - { priceMap?: object }
  * @returns {Promise<{ eligible: boolean, current: number, required: number, progress: number }>}
  */
-export async function evaluate(address, params, context = {}) {
+export async function evaluate(address: string, params: any, context: any = {}) {
   const { minUsd = 100 } = params || {};
   const required = Number(minUsd) || 100;
   const { priceMap = {} } = context;
@@ -48,7 +48,7 @@ export async function evaluate(address, params, context = {}) {
       progress: required > 0 ? Math.min(100, Math.round((totalUsd / required) * 100)) : (hasPositions ? 100 : 0),
       label: `$${totalUsd.toFixed(2)} / $${required} TVL`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:defi_tvl] evaluation failed:', error.message);
     return { eligible: false, current: 0, required, progress: 0, label: 'Check failed', error: error.message };
   }

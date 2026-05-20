@@ -17,7 +17,7 @@ export const meta = {
  * @param {object} params  - { protocolKey: string }
  * @returns {Promise<{ eligible: boolean, current: number, required: number, progress: number }>}
  */
-export async function evaluate(address, params) {
+export async function evaluate(address: string, params: any) {
   const { protocolKey } = params || {};
 
   if (!protocolKey) {
@@ -37,7 +37,7 @@ export async function evaluate(address, params) {
       progress: found ? 100 : 0,
       label: found ? `Used ${protocolKey}` : `Not used ${protocolKey}`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:protocol_usage] evaluation failed:', error.message);
     return { eligible: false, current: 0, required: 1, progress: 0, label: 'Check failed', error: error.message };
   }

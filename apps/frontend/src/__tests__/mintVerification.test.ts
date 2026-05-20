@@ -35,7 +35,7 @@ describe('mintVerification', () => {
   });
 
   it('verifyOnChainBadgeOwnership throws when ownership is missing', async () => {
-    hasBadge.mockResolvedValue(false);
+    vi.mocked(hasBadge).mockResolvedValue(false);
 
     await expect(verifyOnChainBadgeOwnership({
       client: {},
@@ -48,7 +48,7 @@ describe('mintVerification', () => {
     const client = {
       waitForTransaction: vi.fn().mockResolvedValue({ success: true }),
     };
-    hasBadge.mockResolvedValue(true);
+    vi.mocked(hasBadge).mockResolvedValue(true);
 
     const txHash = await confirmMintAndOwnership({
       client,

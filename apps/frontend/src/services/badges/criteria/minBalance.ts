@@ -17,7 +17,7 @@ export const meta = {
  * @param {object} context - { client?: Aptos }
  * @returns {Promise<{ eligible: boolean, current: number, required: number, progress: number }>}
  */
-export async function evaluate(address, params, context = {}) {
+export async function evaluate(address: string, params: any, context: any = {}) {
   const { coinType, minAmount = 1, decimals = 8 } = params || {};
   const required = Number(minAmount) || 1;
 
@@ -54,7 +54,7 @@ export async function evaluate(address, params, context = {}) {
       progress: required > 0 ? Math.min(100, Math.round((balance / required) * 100)) : 100,
       label: `${balance.toFixed(2)} / ${required} tokens`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.warn('[criteria:min_balance] evaluation failed:', error.message);
     return { eligible: false, current: 0, required, progress: 0, label: `0 / ${required} tokens`, error: error.message };
   }
