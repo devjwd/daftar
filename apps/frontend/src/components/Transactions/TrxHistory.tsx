@@ -68,13 +68,22 @@ const parseTimestampDate = (value) => {
   return new Date(value);
 };
 
-const fetchTransactionsPage = async ({ walletAddress, activeFilter, page, signal, pageSize = TRANSACTIONS_PAGE_SIZE, isVerified = false }) => {
+const fetchTransactionsPage = async ({ walletAddress, activeFilter, advancedFilters, page, signal, pageSize = TRANSACTIONS_PAGE_SIZE, isVerified = false }) => {
   const params = new URLSearchParams({
     wallet: walletAddress,
     page: String(page),
     type: activeFilter,
     limit: String(pageSize)
   });
+
+  if (advancedFilters) {
+    if (advancedFilters.protocols?.length) params.append('protocols', advancedFilters.protocols.join(','));
+    if (advancedFilters.exactTypes?.length) params.append('exactTypes', advancedFilters.exactTypes.join(','));
+    if (advancedFilters.minAmount) params.append('minAmount', advancedFilters.minAmount);
+    if (advancedFilters.maxAmount) params.append('maxAmount', advancedFilters.maxAmount);
+    if (advancedFilters.startDate) params.append('startDate', advancedFilters.startDate);
+    if (advancedFilters.endDate) params.append('endDate', advancedFilters.endDate);
+  }
 
   try {
     // Attempt 1: Backend Database (Fastest for Profile Users)
@@ -383,10 +392,21 @@ const SkeletonRows = ({ count = 5 }) => (
   </>
 );
 
+import AdvancedFilterModal from './AdvancedFilterModal';
+
 export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerified = false, hideValues = false, language = 'en' }) {
   const mountedRef = useRef(true);
   const paginationAbortRef = useRef(null);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [advancedFilters, setAdvancedFilters] = useState({
+    protocols: [],
+    exactTypes: [],
+    minAmount: '',
+    maxAmount: '',
+    startDate: '',
+    endDate: ''
+  });
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -432,6 +452,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
         const json = await fetchTransactionsPage({
           walletAddress,
           activeFilter,
+          advancedFilters,
           page: 1,
           signal: controller.signal,
           isVerified
@@ -472,7 +493,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
       paginationAbortRef.current?.abort();
       paginationAbortRef.current = null;
     };
-  }, [activeFilter, walletAddress, refreshTrigger]);
+  }, [activeFilter, advancedFilters, walletAddress, refreshTrigger]);
 
   useEffect(() => {
     if (!walletAddress) {
@@ -521,6 +542,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
       const json = await fetchTransactionsPage({
         walletAddress,
         activeFilter,
+        advancedFilters,
         page: nextPage,
         signal: controller.signal,
         isVerified
@@ -568,9 +590,33 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
               {t(language, filter.labelKey)}
             </button>
           ))}
+          {isVerified && (
+            <button
+              type="button"
+              className={cn(styles.filterTab, (advancedFilters.protocols.length > 0 || advancedFilters.exactTypes.length > 0 || advancedFilters.minAmount || advancedFilters.maxAmount || advancedFilters.startDate || advancedFilters.endDate) && styles.filterTabActive)}
+              onClick={() => setIsFilterModalOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+              </svg>
+              Filter
+            </button>
+          )}
         </div>
         <div className={styles.toolbarMeta}>{txCountLabel}</div>
       </div>
+
+      <AdvancedFilterModal 
+        isOpen={isFilterModalOpen} 
+        onClose={() => setIsFilterModalOpen(false)}
+        initialFilters={advancedFilters}
+        onApply={(newFilters) => {
+          setAdvancedFilters(newFilters);
+          // If advanced filters are applied, activeFilter should probably be set to 'all' to avoid conflicting logic, but backend handles advanced first.
+        }}
+        language={language}
+      />
 
       <div className={styles.tableWrap}>
         <table className={styles.table}>
@@ -601,7 +647,8 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
             ) : (
               <>
                 {transactions.map((tx) => {
-                  const txUrl = `${EXPLORER_TX_BASE}/${encodeURIComponent(tx.tx_hash)}?network=mainnet`;
+                  const cleanHash = String(tx.tx_hash || '').replace(/^v/i, '');
+                  const txUrl = `${EXPLORER_TX_BASE}/${encodeURIComponent(cleanHash)}?network=mainnet`;
                   const tokenIn = normalizeDisplayToken(tx.token_in);
                   const tokenOut = normalizeDisplayToken(tx.token_out);
                   const rawType = String(tx.tx_type || 'other').toLowerCase();
@@ -628,7 +675,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
                   const amountTone = getAmountTone(tx);
                   const dappName = String(tx.dapp_name || 'Wallet');
 
-                  const typeLabel = tx.tx_label || TYPE_LABELS[rawType] || rawType.toUpperCase();
+                  const typeLabel = TYPE_LABELS[rawType] || rawType.toUpperCase();
                   const typeTitle = tx.dapp_contract
                     ? `${dappName} · ${typeLabel} · ${tx.dapp_contract}`
                     : `${dappName} · ${typeLabel}`;
@@ -700,7 +747,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
                           rel="noopener noreferrer"
                           className={styles.hashLink}
                         >
-                          {truncateHash(tx.tx_hash)}
+                          {truncateHash(cleanHash)}
                         </a>
                       </td>
                     </tr>

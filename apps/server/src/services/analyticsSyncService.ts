@@ -244,7 +244,9 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     { name: 'Meridian', addresses: ['0x8f396e', '0x2712eb', '0xfbdb3d', '0x88def5'], keywords: ['meridian'] },
     { name: 'Tradeport', addresses: ['0xf81bea'], keywords: ['tradeport'] },
     { name: 'Moversmap', addresses: ['0x8c15ae'], keywords: ['moversmap'] },
-    { name: 'Move Match', addresses: ['0xf598f0'], keywords: ['movematch', 'fantasy_epl'] }
+    { name: 'Move Match', addresses: ['0xf598f0'], keywords: ['movematch', 'fantasy_epl'] },
+    { name: 'Route-X', addresses: ['0x201136'], keywords: ['routex'] },
+    { name: 'Movement Bridge', addresses: [], keywords: ['bridge'] }
   ];
 
   // 2. Helpers

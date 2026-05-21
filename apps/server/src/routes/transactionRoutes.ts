@@ -59,6 +59,14 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
   const limit = parseInt((req.query.limit as string) || '20');
   const type = req.query.type as string;
 
+  // New advanced filters
+  const protocolsRaw = req.query.protocols as string;
+  const exactTypesRaw = req.query.exactTypes as string;
+  const minAmount = req.query.minAmount ? parseFloat(req.query.minAmount as string) : null;
+  const maxAmount = req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : null;
+  const startDate = req.query.startDate as string;
+  const endDate = req.query.endDate as string;
+
   if (!wallet) return res.status(400).json({ error: 'wallet is required' });
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
 
@@ -69,6 +77,7 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
       .eq('user_address', wallet)
       .order('timestamp', { ascending: false });
 
+    // Legacy type filter for backwards compatibility
     if (type && type !== 'all') {
       if (type === 'transfers') {
         query = query.in('action', ['SEND', 'RECEIVE', 'TRANSFER']);
@@ -78,6 +87,50 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
         query = query.in('action', ['STAKE', 'UNSTAKE', 'CLAIM']);
       } else {
         query = query.eq('action', type.toUpperCase());
+      }
+    }
+
+    // Advanced Filters
+    if (protocolsRaw) {
+      const protocols = protocolsRaw.split(',').map(p => p.trim()).filter(Boolean);
+      if (protocols.length > 0) {
+        query = query.in('protocol', protocols);
+      }
+    }
+
+    if (exactTypesRaw) {
+      const exactTypes = exactTypesRaw.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+      if (exactTypes.length > 0) {
+        query = query.in('action', exactTypes);
+      }
+    }
+
+    if (startDate) {
+      query = query.gte('timestamp', new Date(startDate).toISOString());
+    }
+
+    if (endDate) {
+      query = query.lte('timestamp', new Date(endDate).toISOString());
+    }
+
+    if (minAmount !== null || maxAmount !== null) {
+      // Supabase OR condition for filtering either asset_in_amount OR asset_out_amount
+      // e.g., (asset_in_amount >= min OR asset_out_amount >= min)
+      let orConditions = [];
+      
+      if (minAmount !== null && maxAmount !== null) {
+        orConditions.push(`and(asset_in_amount.gte.${minAmount},asset_in_amount.lte.${maxAmount})`);
+        orConditions.push(`and(asset_out_amount.gte.${minAmount},asset_out_amount.lte.${maxAmount})`);
+      } else if (minAmount !== null) {
+        orConditions.push(`asset_in_amount.gte.${minAmount}`);
+        orConditions.push(`asset_out_amount.gte.${minAmount}`);
+      } else if (maxAmount !== null) {
+        orConditions.push(`asset_in_amount.lte.${maxAmount}`);
+        orConditions.push(`asset_out_amount.lte.${maxAmount}`);
+      }
+
+      if (orConditions.length > 0) {
+        query = query.or(orConditions.join(','));
       }
     }
 
@@ -100,7 +153,7 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
         tx_icon: visuals.icon,
         tx_color: visuals.color,
         tx_bg: visuals.bg,
-        dapp_name: tx.protocol && tx.protocol !== 'Unknown' ? tx.protocol : 'Unknown Contract',
+        dapp_name: tx.protocol && tx.protocol !== 'Unknown' ? tx.protocol : (['send', 'received', 'bridge'].includes(txType) ? 'Wallet' : 'Unknown Contract'),
         // token_in is what user SENT/SPENT (outflow = asset_out)
         token_in: tx.asset_out_symbol || null,
         amount_in: tx.asset_out_amount != null ? Number(tx.asset_out_amount) : null,
