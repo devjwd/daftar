@@ -585,7 +585,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
             disabled={!isVerified}
             title={!isVerified ? "Advanced filtering is available for verified users" : undefined}
             className={cn(
-              styles.filterTab, 
+              styles.filterTab,
               (advancedFilters.protocols.length > 0 || advancedFilters.exactTypes.length > 0 || advancedFilters.minAmount || advancedFilters.maxAmount || advancedFilters.startDate || advancedFilters.endDate) && styles.filterTabActive
             )}
             onClick={() => setIsFilterModalOpen(true)}
@@ -600,8 +600,8 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
         <div className={styles.toolbarMeta}>{txCountLabel}</div>
       </div>
 
-      <AdvancedFilterModal 
-        isOpen={isFilterModalOpen} 
+      <AdvancedFilterModal
+        isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         initialFilters={advancedFilters}
         onApply={(newFilters) => {

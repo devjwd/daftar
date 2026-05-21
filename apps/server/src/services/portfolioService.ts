@@ -453,7 +453,7 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
       const action = tx.action || '';
       const val = Number(tx.value_usd || 0);
       const protocol = tx.protocol || 'Unknown';
-      const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
+      const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
 
       if (isExchange) {
         if (INFLOW_ACTIONS.includes(action as any)) {

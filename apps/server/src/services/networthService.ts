@@ -3,7 +3,7 @@ import { normalizeAddress } from '../utils/address.ts';
 import { fetchUserDeFiPositions } from './defiService.ts';
 import fetch from 'node-fetch';
 import CONFIG from '../config/index.ts';
-import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, LST_PRICE_ALIASES, NATIVE_MOVE_ADDRESSES } from '../config/whitelists.ts';
+import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, LST_PRICE_ALIASES, NATIVE_MOVE_ADDRESSES, KNOWN_EXCHANGES } from '../config/whitelists.ts';
 
 /**
  * Fetch user holdings directly from the Movement network indexer
@@ -173,7 +173,7 @@ export async function takeNetworthSnapshot(
     // Fetch only transactions that occurred AFTER the previous snapshot
       const { data: newTxs } = await supabase
       .from('user_transaction_history')
-      .select('value_usd, action')
+      .select('value_usd, action, protocol')
       .eq('user_address', address)
       .gt('timestamp', previousSnapshot.timestamp)
       .in('action', [...INFLOW_ACTIONS, ...OUTFLOW_ACTIONS]);
@@ -182,10 +182,15 @@ export async function takeNetworthSnapshot(
       newTxs.forEach(tx => {
         const val = Number(tx.value_usd || 0);
         const action = tx.action as any;
-        if (INFLOW_ACTIONS.includes(action)) {
-          netDepositsUsd += val;
-        } else if (OUTFLOW_ACTIONS.includes(action)) {
-          netDepositsUsd -= val;
+        const protocol = tx.protocol || 'Unknown';
+        const isExternal = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
+        
+        if (isExternal) {
+          if (INFLOW_ACTIONS.includes(action)) {
+            netDepositsUsd += val;
+          } else if (OUTFLOW_ACTIONS.includes(action)) {
+            netDepositsUsd -= val;
+          }
         }
       });
     }
@@ -193,7 +198,7 @@ export async function takeNetworthSnapshot(
     // Fallback: full calculation if no previous snapshot exists
     const { data: allTxs } = await supabase
       .from('user_transaction_history')
-      .select('value_usd, action')
+      .select('value_usd, action, protocol')
       .eq('user_address', address)
       .in('action', [...INFLOW_ACTIONS, ...OUTFLOW_ACTIONS]);
       
@@ -201,10 +206,15 @@ export async function takeNetworthSnapshot(
       allTxs.forEach(tx => {
         const val = Number(tx.value_usd || 0);
         const action = tx.action as any;
-        if (INFLOW_ACTIONS.includes(action)) {
-          netDepositsUsd += val;
-        } else if (OUTFLOW_ACTIONS.includes(action)) {
-          netDepositsUsd -= val;
+        const protocol = tx.protocol || 'Unknown';
+        const isExternal = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
+        
+        if (isExternal) {
+          if (INFLOW_ACTIONS.includes(action)) {
+            netDepositsUsd += val;
+          } else if (OUTFLOW_ACTIONS.includes(action)) {
+            netDepositsUsd -= val;
+          }
         }
       });
     }

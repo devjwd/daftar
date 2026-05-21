@@ -239,7 +239,7 @@ export async function aggregateAnalyticsData(
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
     const protocol = tx.protocol || 'Unknown';
-    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
+    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
 
     if (isExchange) {
       if (isInflowAction(action)) {
@@ -282,7 +282,7 @@ export async function aggregateAnalyticsData(
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
     const protocol = tx.protocol || 'Unknown';
-    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
+    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
 
     if (isExchange) {
       if (isInflowAction(action)) {
@@ -355,7 +355,7 @@ export async function aggregateAnalyticsData(
   txs.forEach(tx => {
     const val = Number(tx.value_usd || 0);
     const protocol = tx.protocol || 'Unknown';
-    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange');
+    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
 
     if (isExchange) {
       const action = tx.action || '';
