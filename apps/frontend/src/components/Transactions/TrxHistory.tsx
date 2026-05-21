@@ -580,29 +580,22 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
     <section className={styles.card}>
       <div className={styles.toolbar}>
         <div className={styles.filterTabs}>
-          {FILTERS.map((filter) => (
-            <button
-              key={filter.value}
-              type="button"
-              className={cn(styles.filterTab, activeFilter === filter.value && styles.filterTabActive)}
-              onClick={() => setActiveFilter(filter.value)}
-            >
-              {t(language, filter.labelKey)}
-            </button>
-          ))}
-          {isVerified && (
-            <button
-              type="button"
-              className={cn(styles.filterTab, (advancedFilters.protocols.length > 0 || advancedFilters.exactTypes.length > 0 || advancedFilters.minAmount || advancedFilters.maxAmount || advancedFilters.startDate || advancedFilters.endDate) && styles.filterTabActive)}
-              onClick={() => setIsFilterModalOpen(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-              </svg>
-              Filter
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={!isVerified}
+            title={!isVerified ? "Advanced filtering is available for verified users" : undefined}
+            className={cn(
+              styles.filterTab, 
+              (advancedFilters.protocols.length > 0 || advancedFilters.exactTypes.length > 0 || advancedFilters.minAmount || advancedFilters.maxAmount || advancedFilters.startDate || advancedFilters.endDate) && styles.filterTabActive
+            )}
+            onClick={() => setIsFilterModalOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+            Filter
+          </button>
         </div>
         <div className={styles.toolbarMeta}>{txCountLabel}</div>
       </div>

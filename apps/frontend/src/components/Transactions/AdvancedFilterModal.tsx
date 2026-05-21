@@ -1,18 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { t } from '../../utils/language';
 import styles from './TrxHistory.module.css';
 
 const PROTOCOL_OPTIONS = [
-  'Mosaic', 'Echelon', 'Aries', 'Yuzu', 'LayerBank', 'Canopy', 
-  'MovePosition', 'Joule', 'Meridian', 'Tradeport', 'Moversmap', 
-  'Move Match', 'Route-X', 'Wallet'
+  'Mosaic', 'Echelon', 'Aries', 'Meridian', 'Route-X'
 ];
 
 const TYPE_OPTIONS = [
-  'SWAP', 'DEPOSIT', 'WITHDRAW', 'LEND', 'BORROW', 'REPAY', 
-  'SEND', 'RECEIVE', 'STAKE', 'UNSTAKE', 'CLAIM', 'BRIDGE', 
-  'NFT_MINT', 'NFT_TRANSFER', 'LIQUIDITY', 'NFT_SALE', 'NFT_BUY', 
-  'NFT_LIST', 'NFT_BID'
+  'SWAP', 'DEPOSIT', 'WITHDRAW', 'SEND', 'RECEIVE'
 ];
 
 export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, onApply, language = 'en' }) {
@@ -24,6 +20,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
     startDate: '',
     endDate: ''
   });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -64,17 +65,17 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
     onClose();
   };
 
-  return (
+  const modalContent = (
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
-          <h2>{t(language, 'trxAdvancedFilters') || 'Advanced Filters'}</h2>
+          <h2>{t(language, 'trxFilter') || 'Filter Transactions'}</h2>
           <button className={styles.closeButton} onClick={onClose}>&times;</button>
         </div>
 
         <div className={styles.modalBody}>
           <div className={styles.filterSection}>
-            <h3>Transaction Types</h3>
+            <h3>Type</h3>
             <div className={styles.pillContainer}>
               {TYPE_OPTIONS.map(type => (
                 <button
@@ -90,7 +91,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
           </div>
 
           <div className={styles.filterSection}>
-            <h3>Protocols</h3>
+            <h3>Protocol</h3>
             <div className={styles.pillContainer}>
               {PROTOCOL_OPTIONS.map(protocol => (
                 <button
@@ -107,7 +108,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
 
           <div className={styles.filterRow}>
             <div className={styles.filterSection}>
-              <h3>Amount Range</h3>
+              <h3>Amount</h3>
               <div className={styles.inputGroup}>
                 <input 
                   type="number" 
@@ -128,7 +129,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
             </div>
             
             <div className={styles.filterSection}>
-              <h3>Date Range</h3>
+              <h3>Date</h3>
               <div className={styles.inputGroup}>
                 <input 
                   type="date" 
@@ -149,10 +150,13 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
         </div>
 
         <div className={styles.modalFooter}>
-          <button className={styles.clearButton} onClick={handleClear}>Clear All</button>
-          <button className={styles.applyButton} onClick={handleApply}>Apply Filters</button>
+          <button className={styles.clearButton} onClick={handleClear}>Clear</button>
+          <button className={styles.applyButton} onClick={handleApply}>Apply</button>
         </div>
       </div>
     </div>
   );
+
+  if (!mounted) return null;
+  return createPortal(modalContent, document.body);
 }
