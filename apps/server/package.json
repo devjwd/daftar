@@ -12,6 +12,7 @@
     "test:ui": "vitest --ui"
   },
   "devDependencies": {
+    "@daftar/shared-types": "*",
     "@vitest/ui": "^4.1.5",
     "vitest": "^4.1.5"
   },

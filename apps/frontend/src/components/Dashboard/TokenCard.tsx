@@ -2,6 +2,7 @@ import React from 'react';
 import { getTokenInfo } from '../../config/tokens';
 import { TOKEN_VISUALS, DEFAULT_TOKEN_COLOR } from '../../config/display';
 import { t } from '../../utils/language';
+import { getPrecisionDecimals } from '../../utils/dashboardUtils';
 
 interface Token {
   address: string;
@@ -10,13 +11,14 @@ interface Token {
   formattedValue?: string;
   numericAmount?: number;
   price?: number;
+  usdValue?: number;
 }
 
 interface TokenCardProps {
   token: Token;
   delay: number;
   convertUSD?: (val: number) => number;
-  formatCurrencyValue?: (val: number) => string;
+  formatCurrencyValue?: (val: number, currency?: string, decimals?: number) => string;
   language: string;
   hideValues?: boolean;
 }
@@ -39,11 +41,12 @@ const TokenCard: React.FC<TokenCardProps> = ({
   const displayName = tokenInfo?.name || rawSymbol || t(language, 'dashToken');
   const displayMeta = rawSymbol || 'Movement';
 
-  const usdValueNum = parseFloat(token.formattedValue?.replace('$', '').replace(',', '') || '0');
+  const usdValueNum = typeof token.usdValue === 'number' ? token.usdValue : parseFloat(token.formattedValue?.replace('$', '').replace(',', '') || '0');
   const hasValue = usdValueNum > 0;
 
   const convertedValue = convertUSD ? convertUSD(usdValueNum) : usdValueNum;
-  const displayValue = hideValues ? '***' : (formatCurrencyValue ? formatCurrencyValue(convertedValue) : `$${usdValueNum.toFixed(2)}`);
+  const decimals = getPrecisionDecimals(convertedValue);
+  const displayValue = hideValues ? '***' : (formatCurrencyValue ? formatCurrencyValue(convertedValue, undefined, decimals) : `$${convertedValue.toFixed(decimals)}`);
 
   const HIGH_VALUE_COINS = ['ETH', 'WETH', 'BTC', 'WBTC', 'LBTC', 'EZETH', 'RSETH', 'SOLVBTC', 'WEETH'];
   const STABLE_COINS = ['USDC', 'USDT', 'USDCX', 'USDA', 'USDE', 'SUSDE'];

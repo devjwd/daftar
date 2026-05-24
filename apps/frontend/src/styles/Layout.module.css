@@ -1,0 +1,165 @@
+/* --- 4. LAYOUT CONTAINER --- */
+
+.app-container {
+
+  max-width: 1600px;
+
+  margin: 0 auto;
+
+  padding: var(--spacing-xl) var(--spacing-2xl);
+
+  min-height: 100vh;
+
+}
+
+
+
+.navbar {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-bottom: var(--spacing-2xl);
+  padding-bottom: var(--spacing-xl);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.navbar-inner {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nav-left {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--spacing-2xl);
+
+  flex: 1;
+
+}
+
+
+
+.logo-container {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--spacing-md);
+
+}
+
+.logo-img {
+
+  height: 56px;
+
+  width: auto;
+
+  object-fit: contain;
+
+}
+
+
+
+.nav-links {
+
+  display: flex;
+
+  list-style: none;
+
+  gap: var(--spacing-xl);
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.5px;
+
+}
+
+
+
+.nav-links li {
+
+  cursor: pointer;
+
+  color: var(--text-tertiary);
+
+  transition: color var(--transition-base);
+
+  position: relative;
+
+  padding: var(--spacing-sm) 0;
+
+}
+
+
+
+.nav-links li::after {
+
+  content: '';
+
+  position: absolute;
+
+  bottom: 0;
+
+  left: 0;
+
+  width: 0;
+
+  height: 2px;
+
+  background: var(--gradient-primary);
+
+  transition: width var(--transition-base);
+
+}
+
+.nav-links li.active::after {
+
+  width: 100%;
+
+}
+
+
+
+.nav-links li:hover {
+
+  color: var(--text-secondary);
+
+}
+
+.nav-links li.active {
+
+  color: var(--text-primary);
+
+  font-weight: 700;
+
+}
+
+
+
+.nav-links li:hover::after,
+
+.nav-links li.active::after {
+
+  width: 100%;
+
+}
+
+
+
+.nav-right {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--spacing-md);
+
+}

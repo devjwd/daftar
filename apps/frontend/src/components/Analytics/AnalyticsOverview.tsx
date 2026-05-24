@@ -22,9 +22,17 @@ const GOLD_DONUT_COLORS = [
 ];
 
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
-  const [activeChartTab, setActiveChartTab] = useState<'flow' | 'txs'>('flow');
+  const [activeChartTab, setActiveChartTab] = useState<'flow' | 'txs' | 'networth'>('flow');
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const chartData = data.activityHistory && data.activityHistory.length > 0 ? data.activityHistory : [];
+
+  const lastNetworthVal = data.networthHistory && data.networthHistory.length > 0
+    ? data.networthHistory[data.networthHistory.length - 1].value
+    : 0;
+
+  const chartData = activeChartTab === 'networth'
+    ? (data.networthHistory && data.networthHistory.length > 0 ? data.networthHistory : [])
+    : (data.activityHistory && data.activityHistory.length > 0 ? data.activityHistory : []);
+
   const hasHistory = chartData && chartData.length > 0;
   const hasProtocols = data.protocolUsage && data.protocolUsage.length > 0;
 
@@ -38,6 +46,110 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
     return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   };
 
+  const CustomChartTooltip = ({ active, payload }: any) => {
+    if (!active || !payload || !payload.length) return null;
+
+    const point = payload[0].payload;
+    const dateStr = point.date;
+
+    const d = new Date(dateStr);
+    const formattedDate = isNaN(d.getTime())
+      ? dateStr
+      : d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+
+    const dateKey = dateStr.split('T')[0];
+    const activityPoint = activeChartTab === 'networth'
+      ? data.activityHistory?.find((act: any) => act.date === dateKey)
+      : point;
+
+    const value = payload[0].value;
+
+    const renderDetailsList = (details: Array<{ name: string; value: number }>, prefix: string, color: string) => {
+      if (!details || details.length === 0) return null;
+      return (
+        <div style={{ marginTop: '6px' }}>
+          {details.map((detail, idx) => (
+            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgba(255,255,255,0.7)', paddingLeft: '8px', margin: '2px 0' }}>
+              <span>• {detail.name}</span>
+              <span style={{ color, fontWeight: 700 }}>
+                {prefix}{formatVolumeValue(detail.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    return (
+      <div style={{
+        background: 'rgba(15, 15, 15, 0.85)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(205, 161, 105, 0.2)',
+        borderRadius: '12px',
+        padding: '12px 16px',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+        maxWidth: '300px',
+        minWidth: '220px',
+        color: '#fff'
+      }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+          {formattedDate}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>
+            {activeChartTab === 'flow' ? 'Cumulative Volume' : activeChartTab === 'txs' ? 'Transactions' : 'Net Worth'}
+          </span>
+          <span style={{
+            fontSize: '14px',
+            fontWeight: 900,
+            color: activeChartTab === 'flow' ? 'var(--primary)' : activeChartTab === 'txs' ? '#36c690' : '#e5be8a'
+          }}>
+            {activeChartTab === 'flow' ? formatVolumeValue(value) :
+             activeChartTab === 'txs' ? Number(value).toLocaleString() :
+             formatVolumeValue(value)}
+          </span>
+        </div>
+
+        <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '8px 0' }}></div>
+
+        <div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 800, marginBottom: '6px' }}>
+            Daily Transfers
+          </div>
+
+          {activityPoint && (Number(activityPoint.inflow || 0) > 0 || Number(activityPoint.outflow || 0) > 0) ? (
+            <>
+              {Number(activityPoint.inflow || 0) > 0 && (
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#36c690', fontWeight: 700 }}>
+                    <span>Received (Inflow)</span>
+                    <span>+{formatVolumeValue(activityPoint.inflow)}</span>
+                  </div>
+                  {renderDetailsList(activityPoint.inflowDetails || [], '+', '#36c690')}
+                </div>
+              )}
+
+              {Number(activityPoint.outflow || 0) > 0 && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#ff4b4b', fontWeight: 700 }}>
+                    <span>Sent (Outflow)</span>
+                    <span>-{formatVolumeValue(activityPoint.outflow)}</span>
+                  </div>
+                  {renderDetailsList(activityPoint.outflowDetails || [], '-', '#ff4b4b')}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>
+              No deposits or withdrawals
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="analytics-overview-v5">
       <div className="overview-grid-v5">
@@ -46,10 +158,12 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '32px' }}>
             <div>
               <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>
-                {activeChartTab === 'flow' ? 'Total Capital Flow' : 'Transaction Count'}
+                {activeChartTab === 'flow' ? 'Total Capital Flow' : activeChartTab === 'txs' ? 'Transaction Count' : 'Portfolio Net Worth'}
               </span>
               <div className="hero-value">
-                {activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : data.interactionCount.toLocaleString()}
+                {activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : 
+                 activeChartTab === 'txs' ? data.interactionCount.toLocaleString() : 
+                 formatVolumeValue(lastNetworthVal)}
               </div>
               <div style={{ marginTop: '8px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
                 <span style={{ background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
@@ -74,6 +188,13 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                   style={{ padding: '6px 14px', fontSize: '12px' }}
                 >
                   Transactions
+                </button>
+                <button
+                  className={`tab-v5 ${activeChartTab === 'networth' ? 'active' : ''}`}
+                  onClick={() => setActiveChartTab('networth')}
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                >
+                  Net Worth
                 </button>
               </div>
 
@@ -118,6 +239,10 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                       <stop offset="5%" stopColor="#36c690" stopOpacity={0.4} />
                       <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="networthGradV5" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#e5be8a" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#e5be8a" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
                   <XAxis 
@@ -134,23 +259,13 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                     }}
                   />
                   <YAxis hide domain={['auto', 'auto']} />
-                  <Tooltip 
-                    labelFormatter={(label) => {
-                      const d = new Date(label);
-                      return isNaN(d.getTime()) ? '' : d.toLocaleString();
-                    }}
-                    contentStyle={{ background: 'rgba(26,26,26,0.8)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', fontWeight: 700 }} 
-                    itemStyle={{ color: activeChartTab === 'flow' ? 'var(--primary)' : '#36c690' }}
-                    formatter={(value: any) => 
-                      activeChartTab === 'flow'
-                        ? [`$${Number(value).toLocaleString()}`, 'Value']
-                        : [`${Number(value).toLocaleString()}`, 'Transactions']
-                    }
-                  />
+                  <Tooltip content={<CustomChartTooltip />} />
                   {activeChartTab === 'flow' ? (
                     <Area type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#pnlGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
-                  ) : (
+                  ) : activeChartTab === 'txs' ? (
                     <Area type="monotone" dataKey="txCount" stroke="#36c690" strokeWidth={3} fillOpacity={1} fill="url(#txsGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
+                  ) : (
+                    <Area type="monotone" dataKey="value" stroke="#e5be8a" strokeWidth={3} fillOpacity={1} fill="url(#networthGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
                   )}
                 </AreaChart>
               </ResponsiveContainer>

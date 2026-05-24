@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { AnalyticsData } from '../../types/analytics.types';
 
 // Components
@@ -19,6 +20,7 @@ interface AnalyticsViewProps {
 
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSubTab }) => {
   const navigate = useNavigate();
+  const { connected, account, signMessage } = useWallet();
   const [timeframe, setTimeframe] = useState('All');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'completed' | 'error'>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
@@ -91,6 +93,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
           setSyncStatus('completed');
           stopPolling();
           doFetchAnalytics();
+        } else if (data.is_queued) {
+          setSyncStatus('syncing');
+          setSyncProgress(0);
         } else if (data.synced_transactions > 0 || data.last_sync_at) {
           setSyncStatus('syncing');
         } else {
@@ -119,13 +124,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
       setSyncStatus('syncing');
     }
 
-    // 3. Start polling — check status then fetch fresh data each tick
+    // 3. Start polling — check status each tick
     const doPoll = async () => {
       if (!isMounted || syncComplete) return;
       await doCheckStatus();
-      if (!syncComplete && isMounted) {
-        await doFetchAnalytics();
-      }
     };
 
     // Initial status check
@@ -152,17 +154,41 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
   };
 
   const handleStartSync = async () => {
-    if (!walletAddress || !isVerified) return;
+    if (!walletAddress) return;
     setSyncStatus('syncing');
     setSyncProgress(0);
     lastSyncStringRef.current = null;
     lastSyncChangeTimeRef.current = Date.now(); // Start the timer
     try {
-      const res = await fetch(`${API_URL}/api/analytics/sync?wallet=${walletAddress}`);
-      if (!res.ok) throw new Error("Sync trigger failed");
-    } catch (err) {
+      let queryParams = `wallet=${walletAddress}`;
+
+      const normalizedConnectedAddress = account?.address 
+        ? (typeof account.address === "string" ? account.address : (account.address as any)?.toString?.())?.toLowerCase()
+        : null;
+        
+      const isOwner = normalizedConnectedAddress && normalizedConnectedAddress === walletAddress.toLowerCase();
+
+      if (isOwner && typeof signMessage === 'function') {
+        const timestamp = new Date().toISOString();
+        const message = `Sync transaction history for wallet ${walletAddress}\nTimestamp: ${timestamp}`;
+        
+        const signResult = await signMessage({
+          message,
+          nonce: timestamp
+        });
+        
+        queryParams += `&message=${encodeURIComponent(message)}&signature=${encodeURIComponent(JSON.stringify(signResult))}`;
+      }
+
+      const res = await fetch(`${API_URL}/api/analytics/sync?${queryParams}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Sync trigger failed");
+      }
+    } catch (err: any) {
       setSyncStatus('error');
       console.error("Sync trigger error:", err);
+      alert(err.message || "Failed to trigger sync");
     }
   };
 
@@ -208,7 +234,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
                   {syncStatus === 'syncing' && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '11px', background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        Syncing history...
+                        {syncProgress === 0 ? 'Queued in background...' : 'Syncing history...'}
                       </span>
                       <div style={{ width: '80px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
                         <div style={{ width: `${syncProgress}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.4s ease' }}></div>

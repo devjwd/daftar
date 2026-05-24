@@ -1,34 +1,26 @@
 {
-  "name": "movement-badge-service",
+  "name": "daftar-monorepo",
   "version": "1.0.0",
-  "description": "Repository utilities for the Movement badge app",
+  "private": true,
+  "description": "Daftar Portfolio Manager for Movement Network",
   "type": "module",
   "scripts": {
     "setup": "node scripts/setup.js",
     "start": "npm run start --workspace=apps/server",
-    "dev": "concurrently -n \"server,frontend\" -c \"magenta,cyan\" \"npm run dev:server\" \"npm run dev:frontend\"",
-    "dev:server": "npm run dev --workspace=apps/server",
-    "dev:frontend": "npm run dev --workspace=apps/frontend",
-    "test": "node scripts/testBadgeSystem.js",
-    "test:badges": "node scripts/testBadgeSystem.js"
+    "dev": "concurrently -n \"server,frontend\" -c \"magenta,cyan\" \"npm run dev --workspace=apps/server\" \"npm run dev --workspace=apps/frontend\"",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
-  "dependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
-  },
-  "overrides": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
-  },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
     "concurrently": "^9.2.1",
-    "typescript": "^6.0.3"
+    "typescript": "^5.0.0"
   }
 }

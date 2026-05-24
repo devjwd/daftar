@@ -270,3 +270,10 @@ export const processBalances = (
     return b.usdValue > 0 || b.isKnown;
   }).sort((a, b) => (b.usdValue || 0) - (a.usdValue || 0));
 };
+
+export const getPrecisionDecimals = (value: number): number => {
+  const absVal = Math.abs(value);
+  if (absVal > 0 && absVal < 0.01) return 6;
+  if (absVal > 0 && absVal < 1) return 4;
+  return 2;
+};

@@ -153,7 +153,12 @@ async function fetchAllAddressLabels(supabase: SupabaseClient): Promise<any[]> {
  * Deep classifier and humanizer for analytics
  * Mirrors the "fineist" frontend historyEngine.ts for server-side consistency
  */
-function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string, any> = new Map()) {
+function enrichTransaction(
+  tx: any, 
+  walletAddress: string, 
+  labelsMap: Map<string, any> = new Map(),
+  entitiesList: any[] = []
+) {
   const userAddr = normalizeAddress(walletAddress);
   const ut = tx.user_transaction || {};
   const functionId = ut.entry_function_id_str || '';
@@ -232,7 +237,7 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
     admin_sponsor_prize_pool: TX_TYPES.LEND,
   };
 
-  const PROTOCOLS = [
+  const STATIC_PROTOCOLS = [
     { name: 'Mosaic', addresses: ['0x03f739', '0x26a95d', '0xede23e', '0x3f7399'], keywords: ['mosaic'] },
     { name: 'Echelon', addresses: ['0x2c7bcc', '0x6a01d5'], keywords: ['echelon'] },
     { name: 'Aries', addresses: ['0xe399b9'], keywords: ['aries'] },
@@ -369,10 +374,45 @@ function enrichTransaction(tx: any, walletAddress: string, labelsMap: Map<string
   // 5. Classification
   let protocol = 'Unknown';
   const lowerFn = functionId.toLowerCase();
-  for (const p of PROTOCOLS) {
-    if (p.addresses.some(addr => lowerFn.includes(addr)) || p.keywords.some(kw => lowerFn.includes(kw))) {
-      protocol = p.name;
-      break;
+
+  // Extract address prefix from entry_function_id_str
+  let functionAddress = null;
+  if (functionId.includes('::')) {
+    const parts = functionId.split('::');
+    functionAddress = normalizeAddress(parts[0]);
+  }
+
+  // Look up by address prefix in tracked_entities (database)
+  if (functionAddress && entitiesList.length > 0) {
+    const matchedEntity = entitiesList.find(e => normalizeAddress(e.address) === functionAddress);
+    if (matchedEntity) {
+      protocol = matchedEntity.name;
+    }
+  }
+
+  // Fallback: Search by keywords in database, or static fallback list
+  if (protocol === 'Unknown') {
+    if (entitiesList.length > 0) {
+      for (const entity of entitiesList) {
+        const keywords: string[] = Array.isArray(entity.keywords) 
+          ? entity.keywords 
+          : (entity.custom_type ? String(entity.custom_type).split(',').map(k => k.trim()) : []);
+          
+        const allKeywords = [...keywords, entity.name.toLowerCase().replace(/\s/g, '')];
+
+        if (allKeywords.some(kw => kw && lowerFn.includes(kw.toLowerCase()))) {
+          protocol = entity.name;
+          break;
+        }
+      }
+    } else {
+      // Static fallback if database has no records
+      for (const p of STATIC_PROTOCOLS) {
+        if (p.addresses.some(addr => lowerFn.includes(addr)) || p.keywords.some(kw => lowerFn.includes(kw))) {
+          protocol = p.name;
+          break;
+        }
+      }
     }
   }
 
@@ -507,6 +547,12 @@ export async function syncFullUserHistory(
   const labelsData = await fetchAllAddressLabels(supabase);
   labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
 
+  // Fetch all tracked entities for dynamic protocol classification
+  const { data: entitiesData } = await supabase
+    .from('tracked_entities')
+    .select('*');
+  const entitiesList = entitiesData || [];
+
   // 1. Fetch current sync status
   const { data: statusData } = await supabase
     .from('user_sync_status')
@@ -607,7 +653,7 @@ export async function syncFullUserHistory(
         break;
       }
 
-      const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap));
+      const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap, entitiesList));
       const { error: upsertError } = await supabase
         .from('user_transaction_history')
         .upsert(enriched, { onConflict: 'user_address,version' });
@@ -672,7 +718,7 @@ export async function syncFullUserHistory(
           break;
         }
 
-        const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap));
+        const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap, entitiesList));
         const { error: upsertError } = await supabase
           .from('user_transaction_history')
           .upsert(enriched, { onConflict: 'user_address,version' });
@@ -745,6 +791,12 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
   const labelsData = await fetchAllAddressLabels(supabase);
   labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
 
+  // Fetch all tracked entities for dynamic protocol classification
+  const { data: entitiesData } = await supabase
+    .from('tracked_entities')
+    .select('*');
+  const entitiesList = entitiesData || [];
+
   // 2. Fetch all transactions marked as Unknown (limited batch)
   const { data: unknowns, error } = await supabase
     .from('user_transaction_history')
@@ -773,7 +825,7 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
         coin_activities: meta.coin_activities || []
       };
 
-      const enriched = enrichTransaction(pseudoTx, row.user_address, labelsMap);
+      const enriched = enrichTransaction(pseudoTx, row.user_address, labelsMap, entitiesList);
 
       // Update the row
       await supabase

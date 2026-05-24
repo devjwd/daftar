@@ -19,7 +19,8 @@ import { useTokenPrices } from "../hooks/useTokenPrices";
 import { emit } from "../services/badges/badgeStore";
 import { getStoredLanguagePreference, t } from "../utils/language";
 import TransactionToast from "./TransactionToast";
-import "./Swap.css";
+import styles from './Swap.module.css';
+
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -899,44 +900,44 @@ const Swap = ({ balances, onSwapSuccess }) => {
     const presetSlippages = [0.1, 0.5, 1.0, 3.0];
 
     return (
-      <div className="settings-overlay" onClick={() => setShowSettings(false)}>
-        <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
-          <div className="settings-header">
-            <div className="settings-h">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="settings-icon">
+      <div className={styles['settings-overlay']} onClick={() => setShowSettings(false)}>
+        <div className={styles['settings-panel']} onClick={(e) => e.stopPropagation()}>
+          <div className={styles['settings-header']}>
+            <div className={styles['settings-h']}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className={styles['settings-icon']}>
                 <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor" />
               </svg>
-              <div className="settings-title-group">
+              <div className={styles['settings-title-group']}>
                 <h3>{t(lang, 'swapSettings')}</h3>
-                <p className="settings-subtitle">{t(lang, 'swapMosaicExec')}</p>
+                <p className={styles['settings-subtitle']}>{t(lang, 'swapMosaicExec')}</p>
               </div>
             </div>
-            <button className="close-btn" onClick={() => setShowSettings(false)}>
+            <button className={styles['close-btn']} onClick={() => setShowSettings(false)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           </div>
-          <div className="settings-body">
-            <div className="settings-section">
-              <div className="settings-section-head">
+          <div className={styles['settings-body']}>
+            <div className={styles['settings-section']}>
+              <div className={styles['settings-section-head']}>
                 <label>{t(lang, 'swapSlippageTolerance')}</label>
-                <span className="settings-hint">{t(lang, 'swapCurrentSlippage', { slippage })}</span>
+                <span className={styles['settings-hint']}>{t(lang, 'swapCurrentSlippage', { slippage })}</span>
               </div>
-              <div className="slippage-options">
+              <div className={styles['slippage-options']}>
                 {presetSlippages.map((v) => (
                   <button
                     key={v}
-                    className={`slippage-btn ${Math.abs(slippage - v) < 0.001 ? "active" : ""}`}
+                    className={`${styles['slippage-btn']} ${Math.abs(slippage - v) < 0.001 ? styles['active'] : ""}`}
                     onClick={() => setSlippage(v)}
                   >
                     {v}%
                   </button>
                 ))}
               </div>
-              <div className="slippage-custom-row">
-                <div className="slippage-custom">
+              <div className={styles['slippage-custom-row']}>
+                <div className={styles['slippage-custom']}>
                   <input
                     type="number"
                     value={slippage}
@@ -952,7 +953,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 </div>
               </div>
               {slippage > 5 && (
-                <div className="slippage-warning">
+                <div className={styles['slippage-warning']}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z" />
                   </svg>
@@ -961,32 +962,32 @@ const Swap = ({ balances, onSwapSuccess }) => {
               )}
             </div>
 
-            <div className="settings-section aggregator-section">
-              <div className="settings-section-head">
+            <div className={`${styles['settings-section']} ${styles['aggregator-section']}`}>
+              <div className={styles['settings-section-head']}>
                 <label>{t(lang, 'swapAggregator')}</label>
-                <span className="settings-hint">{t(lang, 'swapProviderCount')}</span>
+                <span className={styles['settings-hint']}>{t(lang, 'swapProviderCount')}</span>
               </div>
 
-              <div className="aggregator-panel">
-                <div className="aggregator-panel-head">
+              <div className={styles['aggregator-panel']}>
+                <div className={styles['aggregator-panel-head']}>
                   <span>{t(lang, 'swapMosaicAggregatorNote')}</span>
                 </div>
 
-                <div className="aggregator-list" role="list">
-                  <div className="aggregator-row">
-                    <span className="aggregator-label">Mosaic</span>
-                    <span className="aggregator-badge">{t(lang, 'swapActive')}</span>
+                <div className={styles['aggregator-list']} role="list">
+                  <div className={styles['aggregator-row']}>
+                    <span className={styles['aggregator-label']}>Mosaic</span>
+                    <span className={styles['aggregator-badge']}>{t(lang, 'swapActive')}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="settings-footer">
-              <button className="settings-reset-btn" onClick={() => setSlippage(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE)}>
+            <div className={styles['settings-footer']}>
+              <button className={styles['settings-reset-btn']} onClick={() => setSlippage(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE)}>
                 {t(lang, 'swapReset')}
               </button>
               <button
-                className="settings-save-btn"
+                className={styles['settings-save-btn']}
                 onClick={() => {
                   const next = updateSwapSettings({
                     defaultSlippagePercent: slippage,
@@ -1009,16 +1010,16 @@ const Swap = ({ balances, onSwapSuccess }) => {
   // ===========================================================================
 
   return (
-    <div className="swap-container">
-      <div className="swap-card">
+    <div className={styles['swap-container']}>
+      <div className={styles['swap-card']}>
         {/* Header */}
-        <div className="swap-header">
-          <div className="swap-header-left">
+        <div className={styles['swap-header']}>
+          <div className={styles['swap-header-left']}>
             <h2>{t(lang, 'swapTitle')}</h2>
           </div>
-          <div className="swap-header-actions">
+          <div className={styles['swap-header-actions']}>
             <button
-              className={`quote-btn ${isQuoting ? "quoting" : ""}`}
+              className={`${styles['quote-btn']} ${isQuoting ? styles['quoting'] : ""}`}
               onClick={fetchQuote}
               title="Instant Quote"
               disabled={!canRequestInstantQuote}
@@ -1028,7 +1029,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 <path d="M21 3v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            <button className="settings-btn" onClick={() => setShowSettings(true)} title="Settings">
+            <button className={styles['settings-btn']} onClick={() => setShowSettings(true)} title="Settings">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor" />
               </svg>
@@ -1037,14 +1038,14 @@ const Swap = ({ balances, onSwapSuccess }) => {
         </div>
         {/* Empty State */}
         {availableTokens.length === 0 && (
-          <div className="swap-empty-state">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="empty-icon">
+          <div className={styles['swap-empty-state']}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={styles['empty-icon']}>
               <path d="M8 6h12M8 10h12M8 14h8M3 4h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
               <circle cx="6" cy="18" r="3" fill="none" />
               <circle cx="18" cy="18" r="3" fill="none" />
             </svg>
             <p>{t(lang, 'swapEmptyTokens')}</p>
-            <span className="empty-hint">{t(lang, 'swapEmptyTokensHint')}</span>
+            <span className={styles['empty-hint']}>{t(lang, 'swapEmptyTokensHint')}</span>
           </div>
         )}
 
@@ -1052,74 +1053,74 @@ const Swap = ({ balances, onSwapSuccess }) => {
         {availableTokens.length > 0 && (
           <>
             {/* From Token Input */}
-            <div className="swap-input-group">
-              <div className="swap-input-header-row">
+            <div className={styles['swap-input-group']}>
+              <div className={styles['swap-input-header-row']}>
                 <span>From</span>
-                {fromToken && <span className="swap-balance">Balance: {fromToken.amount}</span>}
+                {fromToken && <span className={styles['swap-balance']}>Balance: {fromToken.amount}</span>}
               </div>
-              <div className="swap-input-container">
+              <div className={styles['swap-input-container']}>
                 <input
                   type="text"
                   inputMode="decimal"
-                  className="swap-input"
+                  className={styles['swap-input']}
                   placeholder="0.0"
                   value={fromAmount}
                   onChange={handleAmountChange}
                 />
-                <div className="swap-input-right">
+                <div className={styles['swap-input-right']}>
                   {fromToken && (
-                    <div className="quick-fill-group" aria-label="Quick amount selector">
-                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(25)}>25%</button>
-                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(50)}>50%</button>
-                      <button type="button" className="quick-fill-btn" onClick={() => handlePercentClick(100)}>Max</button>
+                    <div className={styles['quick-fill-group']} aria-label="Quick amount selector">
+                      <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(25)}>25%</button>
+                      <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(50)}>50%</button>
+                      <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(100)}>Max</button>
                     </div>
                   )}
-                  <button className="swap-token-selector" onClick={() => setShowFromSelector(true)}>
+                  <button className={styles['swap-token-selector']} onClick={() => setShowFromSelector(true)}>
                     <TokenBadge token={fromToken} getTokenLogo={getTokenLogo} />
                   </button>
                 </div>
               </div>
-              <div className="swap-input-footer">
-                <span className="swap-usd-value">{fromAmount ? formatUsd(fromAmount, resolveTokenPrice(fromToken)) : "≈ $0.00"}</span>
+              <div className={styles['swap-input-footer']}>
+                <span className={styles['swap-usd-value']}>{fromAmount ? formatUsd(fromAmount, resolveTokenPrice(fromToken)) : "≈ $0.00"}</span>
               </div>
             </div>
 
             {/* Swap Direction Button */}
-            <div className="swap-switch-container">
-              <button className="swap-switch-btn" onClick={handleSwapTokens} title="Switch tokens">
-                <span className="swap-switch-icon">⇅</span>
+            <div className={styles['swap-switch-container']}>
+              <button className={styles['swap-switch-btn']} onClick={handleSwapTokens} title="Switch tokens">
+                <span className={styles['swap-switch-icon']}>⇅</span>
               </button>
             </div>
 
             {/* To Token Input */}
-            <div className="swap-input-group">
-              <div className="swap-input-header-row">
+            <div className={styles['swap-input-group']}>
+              <div className={styles['swap-input-header-row']}>
                 <span>{t(lang, 'swapTo')}</span>
-                {toToken && <span className="swap-balance">{t(lang, 'swapBalance', { amount: toToken.amount })}</span>}
+                {toToken && <span className={styles['swap-balance']}>{t(lang, 'swapBalance', { amount: toToken.amount })}</span>}
               </div>
-              <div className="swap-input-container">
+              <div className={styles['swap-input-container']}>
                 <input
                   type="text"
-                  className="swap-input"
+                  className={styles['swap-input']}
                   placeholder="0.0"
                   value={isQuoting ? "..." : toAmount}
                   readOnly
                 />
-                <div className="swap-input-right">
-                  <button className="swap-token-selector" onClick={() => setShowToSelector(true)}>
+                <div className={styles['swap-input-right']}>
+                  <button className={styles['swap-token-selector']} onClick={() => setShowToSelector(true)}>
                     <TokenBadge token={toToken} getTokenLogo={getTokenLogo} />
                   </button>
                 </div>
               </div>
-              <div className="swap-input-footer">
-                <span className="swap-usd-value">{toAmount ? formatUsd(toAmount, resolveTokenPrice(toToken)) : "≈ $0.00"}</span>
+              <div className={styles['swap-input-footer']}>
+                <span className={styles['swap-usd-value']}>{toAmount ? formatUsd(toAmount, resolveTokenPrice(toToken)) : "≈ $0.00"}</span>
               </div>
             </div>
 
             {/* Error */}
             {error && (
-              <div className="swap-error">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="error-icon">
+              <div className={styles['swap-error']}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className={styles['error-icon']}>
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z" />
                 </svg>
                 {error}
@@ -1128,42 +1129,42 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
             {/* Swap Button */}
             <button
-              className={`swap-execute-btn ${buttonState.disabled ? "disabled" : ""}`}
+              className={`${styles['swap-execute-btn']} ${buttonState.disabled ? styles['disabled'] : ""}`}
               onClick={handleSwap}
               disabled={buttonState.disabled}
             >
-              {swapping && <span className="spinner" />}
+              {swapping && <span className={styles['spinner']} />}
               {buttonState.text}
             </button>
 
             {/* Swap Details */}
             {fromToken && toToken && fromAmount && toAmount && parseFloat(fromAmount) > 0 && !error && (
-              <div className="swap-info">
-                <div className="swap-info-row">
+              <div className={styles['swap-info']}>
+                <div className={styles['swap-info-row']}>
                   <span>{t(lang, 'swapRate')}</span>
                   <span>
                     1 {fromToken.symbol} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(Math.min(getDecimals(toToken), 8))} {toToken.symbol}
                   </span>
                 </div>
-                <div className="swap-info-row">
+                <div className={styles['swap-info-row']}>
                   <span>{t(lang, 'swapPriceImpact')}</span>
-                  <span className={priceImpact > 3 ? "warning" : ""}>~{priceImpact.toFixed(2)}%</span>
+                  <span className={priceImpact > 3 ? styles['warning'] : ""}>~{priceImpact.toFixed(2)}%</span>
                 </div>
-                <div className="swap-info-row">
+                <div className={styles['swap-info-row']}>
                   <span>{t(lang, 'swapMinReceived')}</span>
                   <span>{minReceived} {toToken.symbol}</span>
                 </div>
-                <div className="swap-info-row">
+                <div className={styles['swap-info-row']}>
                   <span>{t(lang, 'swapSlippage')}</span>
                   <span>{slippage}%</span>
                 </div>
-                <div className="swap-info-row">
+                <div className={styles['swap-info-row']}>
                   <span>{t(lang, 'swapNetworkFee')}</span>
                   <span>~0.001 MOVE</span>
                 </div>
-                <div className="swap-info-row highlight">
+                <div className={`${styles['swap-info-row']} ${styles['highlight']}`}>
                   <span>{t(lang, 'swapRoute')}</span>
-                  <span className="mosaic-router">
+                  <span className={styles['mosaic-router']}>
                     {bestProvider}
                   </span>
                 </div>
@@ -1202,22 +1203,22 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
       {/* Wallet Selector Modal */}
       {showWalletPicker && (
-        <div className="token-selector-overlay" onClick={() => setShowWalletPicker(false)}>
-          <div className="token-selector-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="token-selector-header">
+        <div className={styles['token-selector-overlay']} onClick={() => setShowWalletPicker(false)}>
+          <div className={styles['token-selector-panel']} onClick={(e) => e.stopPropagation()}>
+            <div className={styles['token-selector-header']}>
               <h3>Connect a Wallet</h3>
-              <button className="close-btn" onClick={() => setShowWalletPicker(false)}>×</button>
+              <button className={styles['close-btn']} onClick={() => setShowWalletPicker(false)}>×</button>
             </div>
-            <div className="token-list" style={{ marginTop: "1rem" }}>
+            <div className={styles['token-list']} style={{ marginTop: "1rem" }}>
               {wallets?.length === 0 ? (
-                <div className="empty-tokens">No wallets available. Please install a compatible wallet.</div>
+                <div className={styles['empty-tokens']}>No wallets available. Please install a compatible wallet.</div>
               ) : (
                 wallets?.map((walletOption) => {
                   const logo = getWalletLogo(walletOption.name);
                   return (
                     <div
                       key={walletOption.name}
-                      className="token-option"
+                      className={styles['token-option']}
                       onClick={async () => {
                         try {
                           await connect(walletOption.name);
@@ -1229,7 +1230,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                       }}
                       style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
                     >
-                      <div className="token-option-left" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div className={styles['token-option-left']} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         {logo ? (
                           <img src={logo} alt={`${walletOption.name} logo`} style={{ width: "32px", height: "32px", borderRadius: "8px" }} />
                         ) : (
@@ -1239,7 +1240,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                         )}
                         <span style={{ fontWeight: "600", fontSize: "15px" }}>{walletOption.name}</span>
                       </div>
-                      <span className="aggregator-badge" style={{ fontSize: "11px" }}>Installable</span>
+                      <span className={styles['aggregator-badge']} style={{ fontSize: "11px" }}>Installable</span>
                     </div>
                   );
                 })
@@ -1256,30 +1257,30 @@ const Swap = ({ balances, onSwapSuccess }) => {
       />
 
       {swapComplete ? (
-        <div className="swap-complete-overlay" role="dialog" aria-modal="true" aria-label="Swap complete">
-          <div className="swap-complete-modal">
-            <div className="swap-complete-check">✓</div>
+        <div className={styles['swap-complete-overlay']} role="dialog" aria-modal="true" aria-label="Swap complete">
+          <div className={styles['swap-complete-modal']}>
+            <div className={styles['swap-complete-check']}>✓</div>
             <h3>{t(lang, 'swapSuccess')}</h3>
 
-            <div className="swap-complete-received">
-              <span className="swap-complete-label">{t(lang, 'swapReceived')}</span>
-              <div className="swap-complete-amount-row">
+            <div className={styles['swap-complete-received']}>
+              <span className={styles['swap-complete-label']}>{t(lang, 'swapReceived')}</span>
+              <div className={styles['swap-complete-amount-row']}>
                 {swapComplete.toLogo ? (
-                  <img src={swapComplete.toLogo} alt={`${swapComplete.toSymbol} logo`} className="swap-complete-token-logo" />
+                  <img src={swapComplete.toLogo} alt={`${swapComplete.toSymbol} logo`} className={styles['swap-complete-token-logo']} />
                 ) : (
-                  <span className="swap-complete-token-fallback">{String(swapComplete.toSymbol || "?").charAt(0)}</span>
+                  <span className={styles['swap-complete-token-fallback']}>{String(swapComplete.toSymbol || "?").charAt(0)}</span>
                 )}
                 <div>
-                  <div className="swap-complete-amount">{swapComplete.toAmount} {swapComplete.toSymbol}</div>
-                  <div className="swap-complete-sub">{t(lang, 'swapVia', { provider: swapComplete.provider })}</div>
+                  <div className={styles['swap-complete-amount']}>{swapComplete.toAmount} {swapComplete.toSymbol}</div>
+                  <div className={styles['swap-complete-sub']}>{t(lang, 'swapVia', { provider: swapComplete.provider })}</div>
                 </div>
               </div>
             </div>
 
-            <div className="swap-complete-actions">
+            <div className={styles['swap-complete-actions']}>
               <button
                 type="button"
-                className="swap-complete-btn swap-complete-btn-ghost"
+                className={`${styles['swap-complete-btn']} ${styles['swap-complete-btn-ghost']}`}
                 onClick={() => {
                   navigate("/swap/details", { state: { swapDetails: swapComplete } });
                   setSwapComplete(null);
@@ -1289,7 +1290,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
               </button>
               <button
                 type="button"
-                className="swap-complete-btn swap-complete-btn-primary"
+                className={`${styles['swap-complete-btn']} ${styles['swap-complete-btn-primary']}`}
                 onClick={() => setSwapComplete(null)}
               >
                 {t(lang, 'swapDone')}
@@ -1307,17 +1308,17 @@ const Swap = ({ balances, onSwapSuccess }) => {
 // ===========================================================================
 
 function TokenBadge({ token, getTokenLogo }) {
-  if (!token) return <span className="select-token">Select ▼</span>;
+  if (!token) return <span className={styles['select-token']}>Select ▼</span>;
   const logo = getTokenLogo(token);
   return (
     <>
       {logo ? (
-        <img src={logo} alt={`${token.symbol} logo`} className="token-logo-mini" />
+        <img src={logo} alt={`${token.symbol} logo`} className={styles['token-logo-mini']} />
       ) : (
-        <span className="token-icon-mini">{token.symbol?.charAt(0).toUpperCase()}</span>
+        <span className={styles['token-icon-mini']}>{token.symbol?.charAt(0).toUpperCase()}</span>
       )}
-      <span className="token-symbol">{token.symbol}</span>
-      <span className="dropdown-arrow">▼</span>
+      <span className={styles['token-symbol']}>{token.symbol}</span>
+      <span className={styles['dropdown-arrow']}>▼</span>
     </>
   );
 }
@@ -1338,14 +1339,14 @@ function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, to
   }, [tokens, searchQuery]);
 
   return (
-    <div className="token-selector-overlay" onClick={onClose}>
-      <div className="token-selector-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="token-selector-header">
+    <div className={styles['token-selector-overlay']} onClick={onClose}>
+      <div className={styles['token-selector-panel']} onClick={(e) => e.stopPropagation()}>
+        <div className={styles['token-selector-header']}>
           <h3>{t(lang, 'swapSelectToken')}</h3>
-          <button className="close-btn" onClick={onClose}>×</button>
+          <button className={styles['close-btn']} onClick={onClose}>×</button>
         </div>
 
-        <div className="token-search">
+        <div className={styles['token-search']}>
           <input
             type="text"
             placeholder="Search tokens..."
@@ -1355,9 +1356,9 @@ function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, to
           />
         </div>
 
-        <div className="token-list">
+        <div className={styles['token-list']}>
           {filteredTokens.length === 0 ? (
-            <div className="empty-tokens">{searchQuery ? t(lang, 'swapNoTokensMatch') : t(lang, 'swapNoTokensMatch')}</div>
+            <div className={styles['empty-tokens']}>{searchQuery ? t(lang, 'swapNoTokensMatch') : t(lang, 'swapNoTokensMatch')}</div>
           ) : (
             filteredTokens.map((token) => {
               const isSelected = selectedToken?.id === token.id;
@@ -1367,7 +1368,7 @@ function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, to
               return (
                 <div
                   key={token.id}
-                  className={`token-option ${isSelected ? "selected" : ""} ${isExcluded ? "disabled" : ""}`}
+                  className={`${styles['token-option']} ${isSelected ? styles['selected'] : ""} ${isExcluded ? styles['disabled'] : ""}`}
                   onClick={() => {
                     if (!isExcluded) {
                       onSelect(token);
@@ -1375,20 +1376,20 @@ function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, to
                     }
                   }}
                 >
-                  <div className="token-option-left">
+                  <div className={styles['token-option-left']}>
                     {logo ? (
-                      <img src={logo} alt={`${token.symbol} logo`} className="token-logo-small" />
+                      <img src={logo} alt={`${token.symbol} logo`} className={styles['token-logo-small']} />
                     ) : (
-                      <div className="token-icon-small">{token.symbol?.charAt(0).toUpperCase() || "?"}</div>
+                      <div className={styles['token-icon-small']}>{token.symbol?.charAt(0).toUpperCase() || "?"}</div>
                     )}
-                    <div className="token-option-info">
-                      <div className="token-option-symbol">{token.symbol}</div>
-                      <div className="token-option-name">{token.name}</div>
+                    <div className={styles['token-option-info']}>
+                      <div className={styles['token-option-symbol']}>{token.symbol}</div>
+                      <div className={styles['token-option-name']}>{token.name}</div>
                     </div>
                   </div>
-                  <div className="token-option-right">
-                    <div className="token-option-balance">{token.amount}</div>
-                    {token.price > 0 && <div className="token-option-value">${token.usdValue?.toFixed(2)}</div>}
+                  <div className={styles['token-option-right']}>
+                    <div className={styles['token-option-balance']}>{token.amount}</div>
+                    {token.price > 0 && <div className={styles['token-option-value']}>${token.usdValue?.toFixed(2)}</div>}
                   </div>
                 </div>
               );

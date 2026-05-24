@@ -1,3 +1,4 @@
+import { getSupabase } from '../config/supabase.ts';
 import nacl from 'tweetnacl';
 import { createHash } from 'crypto';
 import { normalizeAddress } from '../utils/address.ts';
@@ -66,7 +67,7 @@ export async function verifyAdminRequest(req: Request): Promise<boolean> {
   }
 
   // 3. Nonce Check (Replay Protection)
-  const supabase = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabase = getSupabase();
 
   // Extract nonce from message (if constructing) or from header if available
   // For robustness, we check the database for the exact (address, timestamp, nonce) triplet

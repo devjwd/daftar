@@ -40,6 +40,11 @@ interface DateValuePoint {
   date: string;
   value: number;
   txCount?: number;
+  volume?: number;
+  inflow?: number;
+  outflow?: number;
+  inflowDetails?: Array<{ name: string; value: number }>;
+  outflowDetails?: Array<{ name: string; value: number }>;
 }
 
 interface ProtocolUsageItem {
@@ -232,21 +237,17 @@ export async function aggregateAnalyticsData(
   const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
   const totalGasUsd = txs.reduce((sum, tx) => sum + Number(tx.gas_usd || 0), 0);
 
-  // --- Inflow & Outflow (Deposits/Withdrawals from/to Centralized Exchanges / Entities only) ---
+  // --- Inflow & Outflow (All funds received and sent/withdrawn) ---
   let totalInflow = 0;
   let totalOutflow = 0;
   txs.forEach(tx => {
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
-    const protocol = tx.protocol || 'Unknown';
-    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
 
-    if (isExchange) {
-      if (isInflowAction(action)) {
-        totalInflow += val;
-      } else if (isOutflowAction(action)) {
-        totalOutflow += val;
-      }
+    if (isInflowAction(action)) {
+      totalInflow += val;
+    } else if (isOutflowAction(action)) {
+      totalOutflow += val;
     }
   });
 
@@ -263,27 +264,47 @@ export async function aggregateAnalyticsData(
       color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
     }));
 
-  // --- Cumulative Volume & Net Flow History ---
+  // --- Cumulative Volume, Flow, & Daily Stats History ---
   let cumulative = 0;
   let cumulativeFlow = initialFlow;
-  const activityByDate = new Map<string, { value: number; txCount: number }>();
+  
+  const dailyStats = new Map<string, { 
+    volume: number; 
+    inflow: number; 
+    outflow: number; 
+    txCount: number;
+    inflowDetails: Map<string, number>;
+    outflowDetails: Map<string, number>;
+  }>();
   const netFlowByDate = new Map<string, number>();
 
   txs.forEach(tx => {
-    cumulative += Number(tx.value_usd || 0);
-    const date = tx.timestamp.split('T')[0];
-    
-    const existing = activityByDate.get(date) || { value: 0, txCount: 0 };
-    activityByDate.set(date, {
-      value: cumulative,
-      txCount: existing.txCount + 1
-    });
-
     const val = Number(tx.value_usd || 0);
     const action = tx.action || '';
+    const date = tx.timestamp.split('T')[0];
     const protocol = tx.protocol || 'Unknown';
-    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
 
+    const stats = dailyStats.get(date) || { 
+      volume: 0, 
+      inflow: 0, 
+      outflow: 0, 
+      txCount: 0,
+      inflowDetails: new Map<string, number>(),
+      outflowDetails: new Map<string, number>()
+    };
+    stats.txCount += 1;
+    stats.volume += val;
+
+    if (isInflowAction(action)) {
+      stats.inflow += val;
+      stats.inflowDetails.set(protocol, (stats.inflowDetails.get(protocol) || 0) + val);
+    } else if (isOutflowAction(action)) {
+      stats.outflow += val;
+      stats.outflowDetails.set(protocol, (stats.outflowDetails.get(protocol) || 0) + val);
+    }
+    dailyStats.set(date, stats);
+
+    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
     if (isExchange) {
       if (isInflowAction(action)) {
         cumulativeFlow += val;
@@ -294,8 +315,21 @@ export async function aggregateAnalyticsData(
     netFlowByDate.set(date, cumulativeFlow);
   });
 
-  const activityHistory = Array.from(activityByDate.entries())
-    .map(([date, data]) => ({ date, value: data.value, txCount: data.txCount }));
+  const sortedDates = Array.from(dailyStats.keys()).sort();
+  const activityHistory = sortedDates.map(date => {
+    const stats = dailyStats.get(date)!;
+    cumulative += stats.volume;
+    return {
+      date,
+      value: cumulative,
+      volume: stats.volume,
+      inflow: stats.inflow,
+      outflow: stats.outflow,
+      txCount: stats.txCount,
+      inflowDetails: Array.from(stats.inflowDetails.entries()).map(([name, value]) => ({ name, value })),
+      outflowDetails: Array.from(stats.outflowDetails.entries()).map(([name, value]) => ({ name, value }))
+    };
+  });
 
   const netFlowHistory = Array.from(netFlowByDate.entries())
     .map(([date, value]) => ({ date, value }));

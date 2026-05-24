@@ -32,7 +32,8 @@ app.use(
       const allowedOrigins = process.env.BADGE_CORS_ORIGIN
         ? process.env.BADGE_CORS_ORIGIN.split(',')
         : ['http://localhost:3000', 'http://localhost:3001', 'https://www.daftar.fi', 'https://daftar.fi'];
-      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      // Strict matching for subdomains, removing the loose .endsWith('.vercel.app')
+      if (!origin || allowedOrigins.includes(origin) || /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -41,49 +42,6 @@ app.use(
     credentials: true,
   })
 );
-
-// Supabase Initialization
-const { URL: SUPABASE_URL, SERVICE_ROLE_KEY: SUPABASE_SERVICE_KEY } = CONFIG.SUPABASE;
-
-let supabaseAdmin: SupabaseClient | null = null;
-if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
-  try {
-    supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    console.log('[Server] Supabase admin initialized');
-    app.set('supabaseAdmin', supabaseAdmin);
-
-    // Start background price pitcher
-    startPricePitcher(supabaseAdmin);
-
-    // Start 24/7 Background Analytics Worker for Verified Users
-    startAnalyticsWorker(supabaseAdmin);
-
-    // Start hourly NFT floor price pitcher
-    startNFTPriceWorker(supabaseAdmin);
-
-    // Start background analytics price backfiller (every 30 seconds)
-    let isPriceBackfillRunning = false;
-    setInterval(async () => {
-      if (supabaseAdmin && !isPriceBackfillRunning) {
-        isPriceBackfillRunning = true;
-        try {
-          await backfillTransactionPrices(supabaseAdmin, 50);
-        } catch (err) {
-          console.error('[Server] Analytics Backfill Loop Error:', err);
-        } finally {
-          isPriceBackfillRunning = false;
-        }
-      }
-    }, 30000);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown initialization error';
-    console.error('[Server] Failed to initialize Supabase:', message);
-  }
-} else {
-  console.error('[Server] CRITICAL: Supabase credentials missing!');
-}
 
 // Routes
 app.get('/health', (_req: Request, res: Response) => res.status(200).json({ ok: true }));

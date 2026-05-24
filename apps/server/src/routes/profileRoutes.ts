@@ -1,3 +1,4 @@
+import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { normalizeAddress } from '../utils/address.ts';
 import { profileLimiter, generalLimiter } from '../middleware/rateLimit.ts';
@@ -12,7 +13,7 @@ const router = express.Router();
  * Get next nonce for a wallet
  */
 router.get('/nonce', generalLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const address = normalizeAddress(req.query.address as string);
 
   if (!address) return res.status(400).json({ error: 'Invalid address' });
@@ -30,7 +31,7 @@ router.get('/nonce', generalLimiter, async (req: Request, res: Response) => {
  * GET /api/profiles/:address
  */
 router.get('/:address', profileLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const address = normalizeAddress(req.params.address as string);
 
   if (!address) return res.status(400).json({ error: 'Invalid address' });
@@ -61,7 +62,7 @@ router.get('/:address', profileLimiter, async (req: Request, res: Response) => {
  * Upsert profile with signature verification
  */
 router.post('/', async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const { walletAddress, address, username, bio, twitter, telegram, avatarUrl, signature, signedMessage, nonce } = req.body;
   const normalizedAddr = normalizeAddress(walletAddress || address);
 
@@ -109,7 +110,7 @@ router.post('/', async (req: Request, res: Response) => {
  * GET /api/profiles (Search)
  */
 router.get('/', generalLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const query = req.query.query as string;
   const limit = Math.min(parseInt((req.query.limit as string) || '20'), 50);
 

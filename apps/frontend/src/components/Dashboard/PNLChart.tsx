@@ -1,23 +1,28 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import './PNLChart.css';
+import { getAssetChange, getPrecisionDecimals } from '../../utils/dashboardUtils';
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
 const DEBOUNCE_MS = 200;
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const formattedDate = label === 'Start' || label === 'Now' 
-      ? label 
+    const formattedDate = label === 'Start' || label === 'Now'
+      ? label
       : (() => {
-          const d = new Date(label);
-          return isNaN(d.getTime()) ? '' : d.toLocaleString();
-        })();
+        const d = new Date(label);
+        return isNaN(d.getTime()) ? '' : d.toLocaleString();
+      })();
 
     const netWorth = payload[0].payload.value ?? 0;
 
     const nwSign = netWorth < 0 ? '-' : '';
-    const formattedNW = `${nwSign}$${Math.abs(netWorth).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    const decimals = getPrecisionDecimals(netWorth);
+    const formattedNW = `${nwSign}$${Math.abs(netWorth).toLocaleString(undefined, {
+      minimumFractionDigits: decimals < 2 ? decimals : 2,
+      maximumFractionDigits: decimals
+    })}`;
 
     return (
       <div className="history-tooltip" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -43,6 +48,8 @@ interface PNLChartProps {
   protocolBreakdown?: any[];
   walletAddress?: string | null;
   isVerified?: boolean;
+  balances?: any[];
+  priceChanges?: Record<string, number>;
 }
 
 const PNLChart: React.FC<PNLChartProps> = ({
@@ -55,9 +62,11 @@ const PNLChart: React.FC<PNLChartProps> = ({
   assetBreakdown = [],
   protocolBreakdown = [],
   walletAddress = null,
-  isVerified = false
+  isVerified = false,
+  balances = [],
+  priceChanges = {}
 }) => {
-  const [timeframe, setTimeframe] = useState('1M');
+  const [timeframe, setTimeframe] = useState(isVerified ? '1M' : '1D');
   const [activeTab, setActiveTab] = useState('History');
   const [breakdownType, setBreakdownType] = useState('Asset');
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -65,6 +74,14 @@ const PNLChart: React.FC<PNLChartProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartFading, setChartFading] = useState(false);
+
+  React.useEffect(() => {
+    if (!isVerified) {
+      setTimeframe('1D');
+    } else {
+      setTimeframe('1M');
+    }
+  }, [isVerified]);
 
   // Track previous wallet to clear data on wallet switch
   const prevWalletRef = useRef<string | null>(null);
@@ -90,7 +107,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
       setError(null);
       return;
     }
-    
+
     const controller = new AbortController();
     const currentFetchId = ++fetchIdRef.current;
 
@@ -114,7 +131,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
           throw new Error("Failed to load history");
         }
         const data = await res.json();
-        
+
         // Only update if this is still the latest fetch
         if (currentFetchId === fetchIdRef.current && !controller.signal.aborted) {
           if (data && data.history) {
@@ -141,7 +158,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
         }
       }
     }, DEBOUNCE_MS);
-    
+
     return () => {
       controller.abort();
       if (debounceTimerRef.current) {
@@ -150,7 +167,6 @@ const PNLChart: React.FC<PNLChartProps> = ({
     };
   }, [walletAddress, timeframe, activeTab, lastRefresh, isVerified]);
 
-  // Compact number formatter for donut center value to prevent text spill
   const formatDonutValue = (val: number): string => {
     if (val === 0) return '$0.00';
     const absVal = Math.abs(val);
@@ -161,15 +177,19 @@ const PNLChart: React.FC<PNLChartProps> = ({
     if (absVal >= 1.0e6) {
       return `${sign}$${(absVal / 1.0e6).toFixed(2)}M`;
     }
-    return `$${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    const decimals = getPrecisionDecimals(val);
+    return `${sign}$${absVal.toLocaleString(undefined, {
+      minimumFractionDigits: decimals < 2 ? decimals : 2,
+      maximumFractionDigits: decimals
+    })}`;
   };
 
   const currentBreakdownData = breakdownType === 'Asset' ? assetBreakdown : protocolBreakdown;
 
   // Map dataToRender (always show Net Worth on the chart line)
   const dataToRender = useMemo(() => {
-    const rawData = historicalData.length > 1 
-      ? historicalData 
+    const rawData = historicalData.length > 1
+      ? historicalData
       : [{ time: 'Start', value: totalValue, netDeposits: 0 }, { time: 'Now', value: totalValue, netDeposits: 0 }];
 
     return rawData.map(pt => ({
@@ -178,17 +198,90 @@ const PNLChart: React.FC<PNLChartProps> = ({
     }));
   }, [historicalData, totalValue]);
 
-  const firstVal = dataToRender[0]?.value ?? totalValue;
-  const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
-  
-  // Calculate Net Worth change
-  const rawChangeUsd = lastVal - firstVal;
-  const isPositive = rawChangeUsd >= 0;
-  const changeUSD = Math.abs(rawChangeUsd).toFixed(2);
-  
-  // Base value for percentage change calculations
-  const baseValue = firstVal > 0 ? firstVal : 0.01;
-  const changePercent = baseValue > 0.01 ? ((rawChangeUsd / baseValue) * 100).toFixed(2) : '0.00';
+  // Calculate PnL changes for non-verified users using their current balances and 24h price changes
+  const computedChange = useMemo(() => {
+    if (isVerified) {
+      const firstVal = dataToRender[0]?.value ?? totalValue;
+      const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
+      const rawChangeUsd = lastVal - firstVal;
+      const isPositive = rawChangeUsd >= 0;
+      const usdChangeDecimals = getPrecisionDecimals(rawChangeUsd);
+      const changeUSD = Math.abs(rawChangeUsd).toLocaleString(undefined, {
+        minimumFractionDigits: usdChangeDecimals < 2 ? usdChangeDecimals : 2,
+        maximumFractionDigits: usdChangeDecimals
+      });
+
+      const baseValue = firstVal > 0 ? firstVal : 0.01;
+      let changePercent = '0.00';
+      if (baseValue > 0.01) {
+        const pct = (rawChangeUsd / baseValue) * 100;
+        const absPct = Math.abs(pct);
+        const pctDecimals = absPct > 0 && absPct < 0.01 ? 4 : 2;
+        changePercent = pct.toFixed(pctDecimals);
+      }
+
+      return {
+        rawChangeUsd,
+        isPositive,
+        changeUSD,
+        changePercent
+      };
+    } else {
+      // Calculate 24h change from current balances and 24h price changes
+      let totalUsdChange = 0;
+      let totalPreviousUsd = 0;
+
+      if (balances && priceChanges) {
+        balances.forEach((b: any) => {
+          const currentUsd = b.usdValue || 0;
+          if (currentUsd <= 0) return;
+
+          const changePercent24h = getAssetChange(b.address, b.symbol, priceChanges);
+          if (changePercent24h !== undefined && !isNaN(changePercent24h)) {
+            const pct = changePercent24h / 100;
+            const previousUsd = pct > -0.99 ? currentUsd / (1 + pct) : 0;
+            const usdChange = currentUsd - previousUsd;
+            totalUsdChange += usdChange;
+            totalPreviousUsd += previousUsd;
+          } else {
+            totalPreviousUsd += currentUsd;
+          }
+        });
+      }
+
+      const isPositive = totalUsdChange >= 0;
+      const usdChangeDecimals = getPrecisionDecimals(totalUsdChange);
+      const changeUSD = Math.abs(totalUsdChange).toLocaleString(undefined, {
+        minimumFractionDigits: usdChangeDecimals < 2 ? usdChangeDecimals : 2,
+        maximumFractionDigits: usdChangeDecimals
+      });
+
+      let changePercent = '0.00';
+      if (totalPreviousUsd > 0) {
+        const pct = (totalUsdChange / totalPreviousUsd) * 100;
+        const absPct = Math.abs(pct);
+        const pctDecimals = absPct > 0 && absPct < 0.01 ? 4 : 2;
+        changePercent = pct.toFixed(pctDecimals);
+      } else if (totalValue > 0) {
+        const previousValue = totalValue - totalUsdChange;
+        if (previousValue > 0) {
+          const pct = (totalUsdChange / previousValue) * 100;
+          const absPct = Math.abs(pct);
+          const pctDecimals = absPct > 0 && absPct < 0.01 ? 4 : 2;
+          changePercent = pct.toFixed(pctDecimals);
+        }
+      }
+
+      return {
+        rawChangeUsd: totalUsdChange,
+        isPositive,
+        changeUSD,
+        changePercent
+      };
+    }
+  }, [isVerified, dataToRender, totalValue, balances, priceChanges]);
+
+  const { rawChangeUsd, isPositive, changeUSD, changePercent } = computedChange;
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
   const gradientId = isPositive ? 'colorGreen' : 'colorRed';
 
@@ -435,7 +528,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
             </div>
           </div>
 
-          <div 
+          <div
             className={`breakdown-legend ${activeIndex !== -1 ? 'is-hovering' : ''}`}
             role="tablist"
             aria-label="Portfolio asset breakdown legend"

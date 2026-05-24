@@ -1,6 +1,8 @@
 import React, { Suspense, lazy, useEffect, useState, ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
+import { PetraWallet } from "petra-plugin-wallet-adapter";
+import { OKXWallet } from "@okwallet/aptos-wallet-adapter";
 
 import "./App.css";
 
@@ -43,38 +45,9 @@ const WalletRedirect = () => {
   return <Navigate to={`/profile/${address}`} replace />;
 };
 
-interface WalletProviderShellProps {
-  children: ReactNode;
-}
+const wallets = [new PetraWallet(), new OKXWallet()];
 
-const WalletProviderShell: React.FC<WalletProviderShellProps> = ({ children }) => {
-  const [wallets, setWallets] = useState<any[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadWallets = async () => {
-      try {
-        const [{ PetraWallet }, { OKXWallet }] = await Promise.all([
-          import("petra-plugin-wallet-adapter"),
-          import("@okwallet/aptos-wallet-adapter"),
-        ]);
-
-        if (!cancelled) {
-          setWallets([new PetraWallet(), new OKXWallet()]);
-        }
-      } catch (error) {
-        console.error("Failed to load wallet adapters:", error);
-      }
-    };
-
-    void loadWallets();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+const WalletProviderShell: React.FC<{ children: ReactNode }> = ({ children }) => {
   return (
     <AptosWalletAdapterProvider plugins={wallets} autoConnect={true}>
       {children}
@@ -82,21 +55,25 @@ const WalletProviderShell: React.FC<WalletProviderShellProps> = ({ children }) =
   );
 };
 
+const TITLE_MAP: Record<string, string> = {
+  "/": "Daftar | Home",
+  "/swap": "Daftar | Swap",
+  "/badges": "Daftar | Badges",
+  "/leaderboard": "Daftar | Leaderboard",
+  "/settings": "Daftar | Settings",
+  "/admin": "Daftar | Admin",
+  "/level": "Daftar | Level",
+  "/terms": "Daftar | Terms",
+  "/privacy": "Daftar | Privacy",
+  "/profile": "Daftar | Profile"
+};
+
 const getDocumentTitle = (pathname: string): string => {
   const path = String(pathname || "").toLowerCase();
+  
+  if (TITLE_MAP[path]) return TITLE_MAP[path];
+  
   const segments = path.split("/").filter(Boolean);
-
-  if (path === "/") return "Daftar | Home";
-  if (path.startsWith("/swap")) return "Daftar | Swap";
-  if (path.startsWith("/badges")) return "Daftar | Badges";
-  if (path.startsWith("/leaderboard")) return "Daftar | Leaderboard";
-  if (path.startsWith("/settings")) return "Daftar | Settings";
-  if (path.startsWith("/admin")) return "Daftar | Admin";
-  if (path.startsWith("/level")) return "Daftar | Level";
-  if (path.startsWith("/terms")) return "Daftar | Terms";
-  if (path.startsWith("/privacy")) return "Daftar | Privacy";
-
-  // Profile / Dashboard logic
   if (segments[0] === "profile" && segments[1]) {
     const address = segments[1];
     const shortAddr = address.startsWith("0x") 
@@ -104,19 +81,13 @@ const getDocumentTitle = (pathname: string): string => {
       : address;
     
     const tab = segments[2];
-    let tabLabel = "";
-    if (tab === "trx") tabLabel = " - Transactions";
-    if (tab === "nfts") tabLabel = " - NFTs";
-    if (tab === "analytics") {
-      const subTab = segments[3];
-      tabLabel = subTab === "exchange" ? " - Exchange Analytics" : " - Analytics";
-    }
+    const tabLabel = tab === "trx" ? " - Transactions" 
+      : tab === "nfts" ? " - NFTs" 
+      : tab === "analytics" ? " - Analytics" : "";
 
     return `${shortAddr}${tabLabel} | Daftar`;
   }
 
-  if (path === "/profile") return "Daftar | Profile";
-  
   return "Daftar";
 };
 

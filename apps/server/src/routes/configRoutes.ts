@@ -1,3 +1,4 @@
+import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { verifyAdminRequest } from '../services/adminService.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -9,7 +10,7 @@ const router = express.Router();
  * Publicly fetch global application settings
  */
 router.get('/', async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
   try {
@@ -41,7 +42,7 @@ router.get('/', async (req: Request, res: Response) => {
  * Admin-only: Update global application settings
  */
 router.post('/', async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
   try {

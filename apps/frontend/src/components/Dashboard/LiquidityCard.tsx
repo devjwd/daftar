@@ -1,6 +1,6 @@
 import React from 'react';
 import { t } from '../../utils/language';
-import { TokenIcon, renderColoredTokenText, humanizeAssetName } from '../../utils/dashboardUtils';
+import { TokenIcon, renderColoredTokenText, humanizeAssetName, getPrecisionDecimals } from '../../utils/dashboardUtils';
 import { resolveTokenPrice } from '../../utils/price';
 
 interface LiquidityCardProps {
@@ -80,9 +80,7 @@ const LiquidityCard: React.FC<LiquidityCardProps> = ({
     const converted = convertUSD(num);
     if (converted >= 1000000) return `${currencySymbol}${(converted / 1000000).toFixed(2)}M`;
     if (converted >= 1000) return `${currencySymbol}${(converted / 1000).toFixed(2)}K`;
-    if (converted > 0 && converted < 0.01) return `< ${currencySymbol}0.01`;
-    if (converted < 1) return formatCurrencyValue(converted, undefined, 4);
-    return formatCurrencyValue(converted);
+    return formatCurrencyValue(converted, undefined, getPrecisionDecimals(converted));
   };
 
   const getUnderlyingValue = () => {

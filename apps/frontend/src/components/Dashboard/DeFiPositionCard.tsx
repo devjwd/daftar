@@ -1,7 +1,7 @@
 import React from 'react';
 import { DEFI_PROTOCOL_VISUALS, DEFAULT_PROTOCOL_VISUAL } from '../../config/display';
 import { t } from '../../utils/language';
-import { TokenIcon, renderColoredTokenText, getDeFiPositionUsdValue } from '../../utils/dashboardUtils';
+import { TokenIcon, renderColoredTokenText, getDeFiPositionUsdValue, getPrecisionDecimals } from '../../utils/dashboardUtils';
 
 interface DeFiPositionCardProps {
   protocolPositions: any[];
@@ -61,8 +61,7 @@ const DeFiPositionCard: React.FC<DeFiPositionCardProps> = ({
     const converted = convertUSD(num);
     if (converted >= 1000000) return `${currencySymbol}${(converted / 1000000).toFixed(2)}M`;
     if (converted >= 1000) return `${currencySymbol}${(converted / 1000).toFixed(2)}K`;
-    if (converted < 0.01) return formatCurrencyValue(converted, undefined, 4);
-    return formatCurrencyValue(converted);
+    return formatCurrencyValue(converted, undefined, getPrecisionDecimals(converted));
   };
 
   const getPositionUsdValue = (pos: any) => {

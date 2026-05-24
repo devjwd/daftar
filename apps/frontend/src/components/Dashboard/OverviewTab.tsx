@@ -1,7 +1,7 @@
 import React from 'react';
 import { ANIMATION_DELAYS } from '../../config/constants';
 import { t } from '../../utils/language';
-import { getDeFiPositionUsdValue } from '../../utils/dashboardUtils';
+import { getDeFiPositionUsdValue, getPrecisionDecimals } from '../../utils/dashboardUtils';
 import { TOKEN_VISUALS } from '../../config/display';
 import TokenCard from './TokenCard';
 import DeFiPositionCard from './DeFiPositionCard';
@@ -34,7 +34,7 @@ interface OverviewTabProps {
   visibleLiquidityPositions: any[];
   priceMap: any;
   convertUSD: (val: number) => number;
-  formatCurrencyValue: (val: number) => string;
+  formatCurrencyValue: (val: number, currency?: string, decimals?: number) => string;
   currencySymbol: string;
 }
 
@@ -71,7 +71,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <div className="section-title-group">
             <h3 className="section-title">{t(language, 'dashWalletBalance')}</h3>
             <div className="section-header-value">
-              {hideValues ? '*****' : formatCurrencyValue(convertUSD(totalUsdValue))}
+              {hideValues ? '*****' : (() => {
+                const val = convertUSD(totalUsdValue);
+                return formatCurrencyValue(val, undefined, getPrecisionDecimals(val));
+              })()}
             </div>
           </div>
           <div className="view-mode-toggle">
@@ -167,7 +170,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                           </td>
                           <td className="text-right">
                             <span className="token-table-price">
-                              {hideValues ? '*****' : formatCurrencyValue(convertUSD(token.price || 0))}
+                              {hideValues ? '*****' : (() => {
+                                const val = convertUSD(token.price || 0);
+                                return formatCurrencyValue(val, undefined, getPrecisionDecimals(val));
+                              })()}
                             </span>
                           </td>
                           <td className="text-right">
@@ -180,7 +186,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                           </td>
                           <td className="text-right">
                             <span className="token-table-value highlight">
-                              {hideValues ? '*****' : formatCurrencyValue(convertUSD(token.usdValue || 0))}
+                              {hideValues ? '*****' : (() => {
+                                const val = convertUSD(token.usdValue || 0);
+                                return formatCurrencyValue(val, undefined, getPrecisionDecimals(val));
+                              })()}
                             </span>
                           </td>
                         </tr>
@@ -200,7 +209,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <div className="section-title-group">
             <h3 className="section-title">{t(language, 'dashDefiPositions')}</h3>
             <div className="section-header-value">
-              {hideValues ? '*****' : (defiNetValue >= 0 ? '+' : '') + formatCurrencyValue(convertUSD(defiNetValue))}
+              {hideValues ? '*****' : (() => {
+                const val = convertUSD(defiNetValue);
+                return (val >= 0 ? '+' : '') + formatCurrencyValue(val, undefined, getPrecisionDecimals(val));
+              })()}
             </div>
           </div>
           <button
@@ -285,7 +297,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <div className="section-title-group">
             <h3 className="section-title">{t(language, 'dashLiquidityPositions')}</h3>
             <div className="section-header-value">
-              {hideValues ? '*****' : formatCurrencyValue(convertUSD(liquidityTotalValue))}
+              {hideValues ? '*****' : (() => {
+                const val = convertUSD(liquidityTotalValue);
+                return formatCurrencyValue(val, undefined, getPrecisionDecimals(val));
+              })()}
             </div>
           </div>
         </div>

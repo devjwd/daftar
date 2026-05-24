@@ -22,7 +22,16 @@ export interface AnalyticsData {
   interactionCount: number;
   cumulativeVolume: number;
   activeMonths: number;
-  activityHistory: Array<{ date: string; value: number; txCount?: number }>;
+  activityHistory: Array<{
+    date: string;
+    value: number;
+    txCount?: number;
+    volume?: number;
+    inflow?: number;
+    outflow?: number;
+    inflowDetails?: Array<{ name: string; value: number }>;
+    outflowDetails?: Array<{ name: string; value: number }>;
+  }>;
   netFlowHistory: Array<{ date: string; value: number }>;
   networthHistory?: Array<{ date: string; value: number }>;
   protocolUsage: Array<{ name: string; value: number; color: string }>;

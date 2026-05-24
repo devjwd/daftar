@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { syncFullUserHistory, reProcessUnknownTransactions } from './analyticsSyncService.ts';
+import { reProcessUnknownTransactions } from './analyticsSyncService.ts';
 import { reProcessSuspiciousPrices } from './analyticsPriceService.ts';
-import { takeNetworthSnapshot } from './networthService.ts';
+import { queueSync } from './analyticsSyncQueue.ts';
 
 /**
  * Background worker that continuously syncs verified users.
@@ -62,11 +62,9 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
               if (!user.wallet_address) return;
               
               try {
-                const syncResult = await syncFullUserHistory(supabase, user.wallet_address);
-                const hasNewTx = syncResult && syncResult.totalSynced > 0;
-                await takeNetworthSnapshot(supabase, user.wallet_address, hasNewTx);
+                await queueSync(supabase, user.wallet_address, 0);
               } catch (syncErr: any) {
-                console.error(`[AnalyticsWorker] Error syncing user ${user.wallet_address}:`, syncErr.message);
+                console.error(`[AnalyticsWorker] Error queueing user ${user.wallet_address}:`, syncErr.message);
               }
             }));
             

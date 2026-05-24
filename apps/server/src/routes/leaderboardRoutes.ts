@@ -1,10 +1,11 @@
+import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const router = express.Router();
 
 router.get('/', async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   try {
     if (!supabaseAdmin) {
       return res.status(503).json({ error: 'Service unavailable' });

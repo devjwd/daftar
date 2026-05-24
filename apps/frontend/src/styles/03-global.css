@@ -1,0 +1,158 @@
+/* --- 3. GLOBAL STYLES --- */
+
+html {
+  scrollbar-gutter: stable;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+
+
+body {
+
+  font-family: var(--font-primary);
+
+  color: var(--text-primary);
+
+  background: var(--bg-primary);
+
+  line-height: 1.6;
+
+  -webkit-font-smoothing: antialiased;
+
+  -moz-osx-font-smoothing: grayscale;
+
+  overflow-x: hidden;
+
+}
+
+body[data-theme="light"] {
+
+  background: var(--bg-primary);
+
+  color: var(--text-primary);
+
+}
+
+body[data-theme="light"] .hero-v3,
+body[data-theme="light"] .hero-card,
+body[data-theme="light"] .hero-card-v2,
+body[data-theme="light"] .grid-container,
+body[data-theme="light"] .card,
+body[data-theme="light"] .token-card-new,
+body[data-theme="light"] .defi-card-v2,
+body[data-theme="light"] .lp-card {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08) !important;
+}
+
+body[data-theme="light"] .section-title,
+body[data-theme="light"] .hero-v3-title,
+body[data-theme="light"] .token-symbol,
+body[data-theme="light"] .lp-card-name,
+body[data-theme="light"] .defi-v2-title h3,
+body[data-theme="light"] .hero-v3-stat-value,
+body[data-theme="light"] .hero-v3-value {
+  color: #0f172a !important;
+}
+
+body[data-theme="light"] .token-network,
+body[data-theme="light"] .hero-v3-label,
+body[data-theme="light"] .hero-v3-stat-label,
+body[data-theme="light"] .lp-card-stat-label,
+body[data-theme="light"] .defi-v2-type,
+body[data-theme="light"] .defi-v2-column-label {
+  color: #64748b !important;
+}
+
+body[data-theme="light"] .hero-v3-change-badge.positive,
+body[data-theme="light"] .hero-v3-stat-value.positive {
+  color: #15803d !important;
+}
+
+body[data-theme="light"] .hero-v3-change-badge.negative,
+body[data-theme="light"] .hero-v3-stat-value.negative {
+  color: #b91c1c !important;
+}
+
+/* Fintech-style PnL Row */
+.hero-v3-value-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.hero-v3-sub-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-primary);
+  margin-bottom: 16px;
+}
+
+.hero-v3-sub-value.positive {
+  color: #36c690;
+}
+
+.hero-v3-sub-value.negative {
+  color: #e06a6a;
+}
+
+.change-arrow {
+  font-size: 10px;
+}
+
+.change-usd {
+  font-weight: 700;
+}
+
+.change-percent {
+  font-weight: 600;
+}
+
+.change-label {
+  color: var(--text-tertiary);
+  font-size: 14px;
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.hero-v3-bio-nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 4px;
+  transition: all 0.2s ease;
+  width: fit-content;
+  opacity: 0.85;
+}
+
+.hero-v3-bio-nudge:hover {
+  color: var(--primary-light);
+  opacity: 1;
+}
+
+.hero-v3-bio.empty-guest {
+  color: var(--text-tertiary);
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.bio-nudge-icon {
+  opacity: 0.8;
+  margin-top: -1px;
+}
+
+
+

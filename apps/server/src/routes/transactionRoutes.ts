@@ -1,3 +1,4 @@
+import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAddress } from '../utils/address.ts';
@@ -53,7 +54,7 @@ const TX_VISUALS: Record<string, { label: string; icon: string; color: string; b
  * Fetch transactions for a wallet from the database
  */
 router.get('/', generalLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const wallet = normalizeAddress((req.query.wallet as string) || (req.query.address as string));
   const page = parseInt((req.query.page as string) || '1');
   const limit = parseInt((req.query.limit as string) || '20');

@@ -1,0 +1,1539 @@
+/* --- Premium Global Toggle Button --- */
+.global-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(26, 22, 20, 0.85);
+  border: 1px solid rgba(205, 161, 105, 0.25);
+  color: #cda169;
+  padding: 6px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 36px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.global-toggle-btn:hover {
+  background: rgba(205, 161, 105, 0.12);
+  border-color: #deb884;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.global-toggle-btn:active {
+  transform: translateY(0);
+}
+
+.global-toggle-btn svg {
+  transition: transform 0.3s ease;
+  color: inherit;
+}
+
+.global-toggle-btn:hover svg {
+  transform: scale(1.1);
+}
+
+/* --- Premium View Mode Toggle --- */
+.view-mode-toggle {
+  display: flex;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(205, 161, 105, 0.2);
+  gap: 4px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  opacity: 0.8;
+}
+
+.view-mode-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.view-mode-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.view-mode-btn.active {
+  background: linear-gradient(135deg, #cda169 0%, #a77b43 100%);
+  color: #14110f;
+  box-shadow: none;
+}
+
+.view-mode-btn.active svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.view-mode-btn svg {
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.view-mode-btn:active svg {
+  transform: scale(0.85);
+}
+
+/* ========================================
+   DeFi Position Card V2 - Fixed Layout
+   ======================================== */
+
+.defi-card-v2 {
+  --protocol-color: #cda169;
+  position: relative;
+  background: linear-gradient(165deg, rgba(24, 22, 20, 0.98), rgba(16, 14, 12, 0.99));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: defiCardFadeIn 0.5s ease-out forwards;
+  opacity: 0;
+  transform: translateY(15px);
+  grid-column: span 2;
+}
+
+@keyframes defiCardFadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .defi-card-v2 {
+    grid-column: span 1;
+  }
+}
+
+.defi-card-v2:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Token Table Styles */
+.token-table-container {
+  background: var(--glass);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  width: 100%;
+}
+
+.token-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.token-table-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.token-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  table-layout: fixed;
+}
+
+.token-table th,
+.token-table td {
+  padding: 8px 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Column Widths */
+.token-table th:nth-child(1),
+.token-table td:nth-child(1) {
+  width: 35%;
+  padding-left: 55px;
+}
+
+.token-table th:nth-child(2),
+.token-table td:nth-child(2) {
+  width: 20%;
+}
+
+.token-table th:nth-child(3),
+.token-table td:nth-child(3) {
+  width: 20%;
+}
+
+.token-table th:nth-child(4),
+.token-table td:nth-child(4) {
+  width: 25%;
+  padding-right: 40px;
+}
+
+.token-table th {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.token-table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  vertical-align: middle;
+  transition: background 0.2s ease;
+}
+
+.token-table tr:last-child td {
+  border-bottom: none;
+}
+
+.token-table tr:hover td {
+  background: rgba(205, 161, 105, 0.03);
+}
+
+.token-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.token-cell-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.token-table-logo {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.token-table-logo img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.token-table-symbol {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  letter-spacing: -0.2px;
+}
+
+.token-table-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  opacity: 0.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-table-price,
+.token-table-amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+}
+
+.token-table-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+
+.token-table-value.highlight {
+  background: linear-gradient(135deg, #cda169, #f0d9b5);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.table-skeleton {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-style: italic;
+  opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+
+  .token-table th:nth-child(2),
+  .token-table td:nth-child(2),
+  .token-table th:nth-child(3),
+  .token-table td:nth-child(3) {
+    display: none;
+  }
+
+  .token-table th,
+  .token-table td {
+    padding: 12px 16px;
+  }
+}
+
+/* Header */
+.defi-v2-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 24px 16px;
+}
+
+.defi-v2-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.defi-v2-logo img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.defi-v2-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.defi-v2-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+}
+
+.defi-v2-type,
+.defi-v2-type-link {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.6;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.defi-v2-type-link:hover {
+  opacity: 1;
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.defi-card-v2.is-compact .defi-v2-title h3 {
+  font-size: 17px;
+}
+
+.defi-v2-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.defi-v2-toggle,
+.defi-v2-link {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  transition: all 0.2s ease;
+}
+
+.defi-v2-toggle {
+  cursor: pointer;
+  padding: 0;
+}
+
+.defi-v2-toggle:hover,
+.defi-v2-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.defi-v2-toggle:focus-visible,
+.defi-v2-link:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.22);
+  outline-offset: 2px;
+}
+
+.defi-card-v2.is-compact {
+  grid-column: span 1;
+}
+
+.defi-card-v2.is-compact .defi-v2-header {
+  padding-bottom: 14px;
+}
+
+.defi-v2-compact-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 96px;
+  padding: 0 24px 22px;
+}
+
+.defi-card-v2.is-compact .defi-v2-net-label {
+  font-size: 10px;
+}
+
+.defi-card-v2.is-compact .defi-v2-net-value {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.defi-card-v2.is-expanded {
+  grid-column: span 2;
+}
+
+/* Two Column Layout */
+.defi-v2-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 200px;
+  /* Fixed height for consistent layout */
+}
+
+@media (max-width: 600px) {
+  .defi-v2-columns {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+
+/* Column */
+.defi-v2-column {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.defi-v2-column.supply {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, transparent 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.defi-v2-column.borrow {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.03) 0%, transparent 100%);
+}
+
+@media (max-width: 600px) {
+  .defi-v2-column.supply {
+    border-right: none;
+  }
+
+  .defi-v2-column {
+    height: auto;
+    min-height: 120px;
+  }
+}
+
+/* Column Header */
+.defi-v2-column-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+
+.defi-v2-column-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-tertiary);
+  flex: 1;
+}
+
+.defi-v2-column-total {
+  font-size: 12px;
+  font-weight: 600;
+  color: #10b981;
+  font-family: var(--font-display);
+  flex-shrink: 0;
+}
+
+.defi-v2-column-total.debt {
+  color: #ef4444;
+}
+
+/* Column Items - Scrollable */
+.defi-v2-column-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  /* Important for flex overflow */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.defi-v2-column-items::-webkit-scrollbar {
+  width: 4px;
+}
+
+.defi-v2-column-items::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.defi-v2-column-items::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* Item Row */
+.defi-v2-item {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.defi-v2-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.defi-v2-item-token {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+}
+
+.defi-v2-item-token-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.defi-v2-item-meta {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.defi-v2-item-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.defi-v2-item-amount {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-display);
+  text-align: right;
+}
+
+.defi-v2-item-amount.supply {
+  color: #10b981;
+}
+
+.defi-v2-item-amount.debt {
+  color: #ef4444;
+}
+
+.defi-v2-item-usd {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+  text-align: right;
+}
+
+.defi-v2-item-usd.debt {
+  color: rgba(239, 68, 68, 0.6);
+}
+
+/* Empty State */
+.defi-v2-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+/* Footer */
+.defi-v2-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.15);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.defi-v2-net {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.defi-v2-net-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+.defi-v2-net-value {
+  font-size: 20px;
+  font-weight: 800;
+  font-family: var(--font-display);
+}
+
+.defi-v2-net-value.positive {
+  color: #10b981;
+}
+
+.defi-v2-net-value.negative {
+  color: #ef4444;
+}
+
+/* Health Bar */
+.defi-v2-health {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.defi-v2-health-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+.defi-v2-health-bar {
+  width: 100px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.defi-v2-health-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+@media (max-width: 600px) {
+  .defi-v2-header {
+    padding: 18px 20px 14px;
+  }
+
+  .defi-v2-actions {
+    gap: 6px;
+  }
+
+  .defi-v2-compact-body {
+    min-height: 88px;
+    padding: 0 20px 20px;
+  }
+
+  .defi-v2-footer {
+    gap: 12px;
+    padding: 14px 20px;
+  }
+
+  .defi-card-v2.is-compact .defi-v2-net-value {
+    font-size: 24px;
+  }
+}
+
+
+/* ========================================
+   DeFi Position Card - Consolidated Design (Legacy)
+   ======================================== */
+
+.defi-card-consolidated {
+  position: relative;
+  background: linear-gradient(165deg, rgba(28, 24, 20, 0.98), rgba(18, 16, 14, 0.99));
+  border: 1px solid rgba(205, 161, 105, 0.12);
+  border-radius: 24px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: cardFadeIn 0.5s ease-out forwards;
+  opacity: 0;
+  transform: translateY(20px);
+  grid-column: span 2;
+}
+
+@media (max-width: 1200px) {
+  .defi-card-consolidated {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .defi-card-consolidated {
+    grid-column: span 1;
+  }
+}
+
+.defi-card-consolidated:hover {
+  transform: translateY(-6px);
+  border-color: rgba(205, 161, 105, 0.3);
+  box-shadow:
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(205, 161, 105, 0.06);
+}
+
+/* Accent Line at Top */
+.defi-consolidated-accent {
+  height: 4px;
+  width: 100%;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+}
+
+.defi-card-consolidated:hover .defi-consolidated-accent {
+  height: 5px;
+  opacity: 1;
+}
+
+/* Header */
+.defi-consolidated-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid rgba(205, 161, 105, 0.08);
+}
+
+.defi-consolidated-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(40, 35, 30, 0.9), rgba(25, 22, 18, 0.95));
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.defi-card-consolidated:hover .defi-consolidated-logo {
+  transform: scale(1.05);
+}
+
+.defi-consolidated-logo img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.defi-consolidated-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.defi-consolidated-title h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  letter-spacing: -0.3px;
+}
+
+.defi-consolidated-subtitle {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+}
+
+.defi-consolidated-link {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(205, 161, 105, 0.08);
+  border: 1px solid rgba(205, 161, 105, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  transition: all 0.3s ease;
+}
+
+.defi-consolidated-link:hover {
+  background: rgba(205, 161, 105, 0.15);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+/* Positions Grid */
+.defi-consolidated-positions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 0;
+}
+
+@media (max-width: 600px) {
+  .defi-consolidated-positions {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Position Section */
+.defi-position-section {
+  padding: 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.defi-position-section.supply {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.04), transparent);
+  border-right: 1px solid rgba(205, 161, 105, 0.06);
+}
+
+.defi-position-section.debt {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.04), transparent);
+}
+
+@media (max-width: 600px) {
+  .defi-position-section.supply {
+    border-right: none;
+    border-bottom: 1px solid rgba(205, 161, 105, 0.06);
+  }
+}
+
+.defi-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.defi-section-icon {
+  font-size: 16px;
+}
+
+.defi-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-tertiary);
+  opacity: 0.8;
+}
+
+.defi-section-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.defi-position-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: all 0.2s ease;
+}
+
+.defi-position-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.defi-position-token {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+}
+
+.defi-position-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.defi-position-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+
+.defi-position-value.supply {
+  color: #10b981;
+}
+
+.defi-position-value.debt {
+  color: #ef4444;
+}
+
+.defi-position-usd {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  opacity: 0.8;
+}
+
+.defi-position-usd.debt {
+  color: rgba(239, 68, 68, 0.7);
+}
+
+/* Footer */
+.defi-consolidated-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 28px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(205, 161, 105, 0.08);
+}
+
+.defi-net-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.defi-net-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+.defi-net-values {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.defi-net-value {
+  font-size: 22px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  background: linear-gradient(135deg, #ffffff 0%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.defi-net-usd {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+
+.defi-net-usd.positive {
+  color: #10b981;
+}
+
+.defi-net-usd.negative {
+  color: #ef4444;
+}
+
+.defi-health-indicator {
+  width: 120px;
+}
+
+.defi-health-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.defi-health-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+/* Legacy DeFi card styles (kept for compatibility) */
+.defi-card-pro {
+  position: relative;
+  background: linear-gradient(145deg, rgba(30, 25, 20, 0.95), rgba(20, 18, 15, 0.98));
+  border: 1px solid rgba(205, 161, 105, 0.15);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: cardFadeIn 0.5s ease-out forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.defi-card-pro:hover {
+  transform: translateY(-4px);
+  border-color: rgba(205, 161, 105, 0.35);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 60px rgba(205, 161, 105, 0.08);
+}
+
+@keyframes cardFadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Card Header */
+.defi-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+/* Protocol Logo */
+.defi-logo-container {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(40, 35, 30, 0.9), rgba(25, 22, 18, 0.95));
+  border: 2px solid rgba(205, 161, 105, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.defi-card-pro:hover .defi-logo-container {
+  transform: scale(1.05);
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.defi-logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Type Pill */
+.defi-type-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s ease;
+}
+
+.defi-card-pro:hover .defi-type-pill {
+  transform: translateX(-2px);
+}
+
+.defi-type-icon {
+  font-size: 14px;
+}
+
+/* Card Body */
+.defi-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.defi-protocol-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  font-family: var(--font-display);
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+.defi-position-type {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin: 0;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* Card Footer */
+.defi-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid rgba(205, 161, 105, 0.1);
+  margin-top: auto;
+}
+
+.defi-value-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.defi-value-label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.7;
+}
+
+.defi-value-number {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, #ffffff 0%, #cda169 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.defi-value-number.is-debt {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Visit Button */
+.defi-visit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, rgba(205, 161, 105, 0.15), rgba(205, 161, 105, 0.08));
+  border: 1px solid rgba(205, 161, 105, 0.3);
+  border-radius: 12px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.defi-visit-btn:hover {
+  background: linear-gradient(135deg, rgba(205, 161, 105, 0.25), rgba(205, 161, 105, 0.15));
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(205, 161, 105, 0.2);
+}
+
+/* Accent Line */
+.defi-card-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+.defi-card-pro:hover .defi-card-accent {
+  height: 4px;
+  opacity: 1;
+}
+
+/* Legacy DeFi card styles (kept for compatibility) */
+.defi-position-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.defi-position-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(205, 161, 105, 0.15);
+}
+
+.defi-type-badge {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 6px 12px;
+
+  border-radius: 8px;
+
+  border: 1px solid;
+
+  width: fit-content;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+}
+
+
+
+.defi-type-dot {
+
+  width: 6px;
+
+  height: 6px;
+
+  border-radius: 50%;
+
+  display: inline-block;
+
+}
+
+
+
+.defi-type-label {
+
+  color: var(--text-primary);
+
+}
+
+
+
+.defi-content {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+
+}
+
+
+
+.defi-position-name {
+
+  font-size: 16px;
+
+  font-weight: 700;
+
+  color: var(--text-primary);
+
+  margin: 0;
+
+  line-height: 1;
+
+}
+
+
+
+.defi-position-protocol {
+
+  font-size: 12px;
+
+  color: var(--text-tertiary);
+
+  margin: 0;
+
+  font-weight: 500;
+
+}
+
+
+
+.defi-value-section {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-end;
+
+  padding-top: 8px;
+
+  border-top: 1px solid rgba(205, 161, 105, 0.1);
+
+}
+
+
+
+.defi-amount {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+
+}
+
+
+
+.defi-value-label {
+
+  font-size: 11px;
+
+  color: var(--text-tertiary);
+
+  font-weight: 500;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+
+}
+
+
+
+.defi-value-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+}
+
+.defi-value-amount.debt-value {
+  color: #ef4444;
+}
+
+/* Protocol Logo */
+.defi-protocol-logo {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--glass);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.defi-protocol-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 4px;
+}
+
+/* Source Badge */
+.defi-source-badge {
+  display: inline-block;
+  font-size: 9px;
+  background: rgba(205, 161, 105, 0.15);
+  color: var(--primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Protocol Link */
+.defi-protocol-link {
+  font-size: 12px;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  opacity: 0.8;
+}
+
+.defi-protocol-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* Position relative for icon positioning */
+.defi-position-card {
+  position: relative;
+}
+
+/* States */
+.loading-state,
+.error-state,
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--spacing-2xl);
+  color: var(--text-tertiary);
+  font-size: 15px;
+  font-weight: 500;
+
+}
+
+
+
+.error-state {
+
+  color: var(--error);
+
+}
+
+
+
+.empty-state {
+
+  color: var(--text-muted);
+
+}
+
+
+
+/* Pulse Animation */
+
+.pulse {
+
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  color: var(--text-tertiary);
+
+  font-size: 24px;
+
+  font-weight: 600;
+
+}
+
+
+
+@keyframes pulse {
+
+  0%,
+  100% {
+
+    opacity: 0.5;
+
+  }
+
+  50% {
+
+    opacity: 1;
+
+  }
+
+}
+
+
+

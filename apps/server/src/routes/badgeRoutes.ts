@@ -1,3 +1,4 @@
+import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { 
   badgeLimiter, 
@@ -22,7 +23,7 @@ let badgeCache: { data: any, timestamp: number } | null = null;
  * List all active and public badge definitions
  */
 router.get('/', badgeLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
   const includePrivate = req.query.includePrivate === 'true';
@@ -69,7 +70,7 @@ router.get('/', badgeLimiter, async (req: Request, res: Response) => {
  * Evaluate eligibility and provide a signed mint authorization
  */
 router.post('/award', awardLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const { badgeId, walletAddress } = req.body;
   const normalizedAddr = normalizeAddress(walletAddress);
 
@@ -158,7 +159,7 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
  * Check if a user is eligible for a badge without generating a signature
  */
 router.get('/eligibility', badgeLimiter, forceRefreshLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const { badgeId, wallet, force } = req.query;
   const normalizedAddr = normalizeAddress(wallet as string);
   const bypassCache = force === 'true';
@@ -190,17 +191,6 @@ router.get('/eligibility', badgeLimiter, forceRefreshLimiter, async (req: Reques
     // 3. Evaluate (with cache awareness)
     const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, bypassCache ? null : attestation);
 
-    // 4. If newly found eligible, persist to DB for future caching
-    if (evaluation.eligible && !evaluation.fromCache) {
-      await supabaseAdmin.from('badge_attestations').upsert({
-        badge_id: badge.badge_id,
-        wallet_address: normalizedAddr,
-        eligible: true,
-        verified_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'badge_id, wallet_address' });
-    }
-
     return res.status(200).json(evaluation);
   } catch (err: any) {
     console.error('[Badges/Eligibility] Error:', err);
@@ -213,7 +203,7 @@ router.get('/eligibility', badgeLimiter, forceRefreshLimiter, async (req: Reques
  * Bulk check eligibility for all active badges
  */
 router.get('/eligibility/bulk', badgeLimiter, forceRefreshLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const { wallet, force } = req.query;
   const normalizedAddr = normalizeAddress(wallet as string);
   const bypassCache = force === 'true';
@@ -244,26 +234,23 @@ router.get('/eligibility/bulk', badgeLimiter, forceRefreshLimiter, async (req: R
 
     // 3. Evaluate each badge
     const results = await Promise.all((badges || []).map(async (badge) => {
-      const attestation = attestationMap.get(badge.badge_id);
-      const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, bypassCache ? null : attestation);
-      
-      // 4. Background persist if newly eligible (don't await for speed, but catch errors)
-      if (evaluation.eligible && !evaluation.fromCache) {
-        supabaseAdmin.from('badge_attestations').upsert({
+      try {
+        const attestation = attestationMap.get(badge.badge_id);
+        const evaluation = await evaluateRule(supabaseAdmin, normalizedAddr, badge, bypassCache ? null : attestation);
+        
+        return {
           badge_id: badge.badge_id,
-          wallet_address: normalizedAddr,
-          eligible: true,
-          verified_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'badge_id, wallet_address' }).then(({ error }) => {
-          if (error) console.error(`[Badges/Bulk] Failed to cache eligibility for ${badge.badge_id}:`, error.message);
-        });
+          ...evaluation
+        };
+      } catch (err: any) {
+        console.error(`[Badges/Eligibility/Bulk] Evaluation failed for ${badge.badge_id}:`, err);
+        return {
+          badge_id: badge.badge_id,
+          eligible: false,
+          reason: 'evaluation-error',
+          error: err.message || 'Evaluation failed'
+        };
       }
-
-      return {
-        badge_id: badge.badge_id,
-        ...evaluation
-      };
     }));
 
     return res.status(200).json({ results });
@@ -278,7 +265,7 @@ router.get('/eligibility/bulk', badgeLimiter, forceRefreshLimiter, async (req: R
  * Get all badges earned by a user
  */
 router.get('/user/:address', badgeLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const address = normalizeAddress(req.params.address as string);
   if (!address) return res.status(400).json({ error: 'Invalid address' });
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
@@ -314,7 +301,7 @@ router.get('/user/:address', badgeLimiter, async (req: Request, res: Response) =
  * Record an on-chain mint event
  */
 router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   const { walletAddress, badgeId, onChainBadgeId, txHash, xpValue } = req.body;
   const normalizedAddr = normalizeAddress(walletAddress);
 
@@ -369,7 +356,7 @@ router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
  * Get a specific badge definition
  */
 router.get('/:id', badgeLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
   try {
@@ -392,7 +379,7 @@ router.get('/:id', badgeLimiter, async (req: Request, res: Response) => {
  * GET /api/badges/holders/:id
  */
 router.get('/holders/:id', badgeLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
 
   try {

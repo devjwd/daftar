@@ -1,3 +1,4 @@
+import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { generalLimiter } from '../middleware/rateLimit.ts';
 import { fetchCoinGeckoPrices, FALLBACK_PRICES } from '../services/priceService.ts';
@@ -24,7 +25,7 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
     return res.json({ ...cachedSnapshot, source: 'cache' });
   }
 
-  const supabaseAdmin = req.app.get('supabaseAdmin');
+  const supabaseAdmin = getSupabase();
   const live = await fetchCoinGeckoPrices(supabaseAdmin);
   if (live) {
     cachedSnapshot = { ...live, updatedAt: now };
@@ -35,7 +36,7 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
 });
 
 router.get('/nft', generalLimiter, async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin');
+  const supabaseAdmin = getSupabase();
   if (!supabaseAdmin) {
     return res.status(500).json({ error: 'Supabase client not initialized' });
   }

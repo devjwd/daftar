@@ -1,3 +1,4 @@
+import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response, NextFunction } from 'express';
 import { verifyAdminRequest } from '../services/adminService.ts';
 import { auditBadgeDefinitions } from '../services/badgeAuditService.ts';
@@ -21,7 +22,7 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
  * POST /api/admin/manage-badge
  */
 router.post('/manage-badge', async (req: Request, res: Response) => {
-  const supabaseAdmin = req.app.get('supabaseAdmin') as SupabaseClient;
+  const supabaseAdmin = getSupabase();
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
   const { action, badge, badges } = req.body;

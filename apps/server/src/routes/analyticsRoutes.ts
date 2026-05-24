@@ -1,3 +1,4 @@
+import { getSupabase } from '../config/supabase';
 /**
  * Analytics Routes
  * 
@@ -7,19 +8,19 @@
 
 import { Router, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { generalLimiter } from '../middleware/rateLimit.ts';
-import { normalizeAddress } from '../utils/address.ts';
-import { verifyWalletSignature } from '../utils/crypto.ts';
-import { syncFullUserHistory } from '../services/analyticsSyncService.ts';
-import { reconstructHistoricalBalances } from '../services/portfolioService.ts';
-import { aggregateAnalyticsData } from '../services/analyticsDataService.ts';
+import { generalLimiter } from '../middleware/rateLimit';
+import { normalizeAddress } from '../utils/address';
+import { verifyWalletSignature } from '../utils/crypto';
+import { queueSync } from '../services/analyticsSyncQueue';
+import { reconstructHistoricalBalances } from '../services/portfolioService';
+import { aggregateAnalyticsData } from '../services/analyticsDataService';
 
 const router = Router();
 
 // --- Helpers ---
 
-function getSupabase(req: Request): SupabaseClient | null {
-  return req.app.get('supabaseAdmin') as SupabaseClient | null;
+function getSupabaseClient(req: Request) {
+  return getSupabase();
 }
 
 function parseWallet(req: Request): string {
@@ -33,34 +34,50 @@ router.get('/sync', generalLimiter, async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
   if (!wallet) return res.status(400).json({ error: 'wallet is required' });
 
-  const supabase = getSupabase(req);
+  const supabase = getSupabaseClient(req);
   if (!supabase) return res.status(503).json({ error: 'Service unavailable' });
 
   try {
     // Verify user profile exists
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
       .from('profiles')
       .select('is_verified')
       .eq('wallet_address', wallet)
       .maybeSingle();
 
-    // Optional signature verification
+    const isVerifiedProfile = profile?.is_verified === true;
     const signature = req.query.signature as string;
     const message = req.query.message as string;
+
     if (signature && message) {
       const isValid = verifyWalletSignature(wallet, message, signature);
       if (!isValid) return res.status(401).json({ error: 'Invalid sync signature' });
+    } else if (!isVerifiedProfile) {
+      return res.status(401).json({ error: 'Signature is required for unverified profiles' });
+    } else {
+      // Verified profile with no signature: check rate limit
+      const { data: statusData } = await supabase
+        .from('user_sync_status')
+        .select('last_sync_at')
+        .eq('user_address', wallet)
+        .maybeSingle();
+
+      if (statusData?.last_sync_at) {
+        const lastSyncTime = new Date(statusData.last_sync_at).getTime();
+        const tenMinutes = 10 * 60 * 1000;
+        if (Date.now() - lastSyncTime < tenMinutes) {
+          return res.status(429).json({ error: 'Sync requested too recently. Verified profiles can sync once every 10 minutes.' });
+        }
+      }
     }
 
-    // Start deep sync in background — do not await
-    syncFullUserHistory(supabase, wallet).catch(err => {
-      console.error(`[Analytics/Sync] Background Error for ${wallet}:`, err);
-    });
+    // Queue sync in the database-backed queue at high priority (10)
+    await queueSync(supabase, wallet, 10);
 
     return res.status(202).json({
       ok: true,
-      message: 'Deep sync started in background',
-      status: 'syncing',
+      message: 'Sync job placed in queue',
+      status: 'queued',
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to start sync';
@@ -72,8 +89,26 @@ router.get('/sync', generalLimiter, async (req: Request, res: Response) => {
 /** Status Polling — check sync progress */
 router.get('/status', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
-  const supabase = getSupabase(req);
+  const supabase = getSupabaseClient(req);
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
+
+  // Check if there is a pending job in the queue
+  const { data: queueJob } = await supabase
+    .from('sync_queue')
+    .select('status')
+    .eq('user_address', wallet)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (queueJob) {
+    return res.status(200).json({
+      full_history_synced: false,
+      total_transactions: 0,
+      synced_transactions: 0,
+      is_queued: true,
+      status: 'queued'
+    });
+  }
 
   const { data, error } = await supabase
     .from('user_sync_status')
@@ -83,13 +118,25 @@ router.get('/status', async (req: Request, res: Response) => {
 
   if (error) return res.status(500).json({ error: 'Failed to fetch status' });
   if (!data) return res.status(200).json({ full_history_synced: false, total_transactions: 0, synced_transactions: 0 });
-  return res.status(200).json(data);
+  
+  // Check if there is an active processing job in the queue
+  const { data: processingJob } = await supabase
+    .from('sync_queue')
+    .select('status')
+    .eq('user_address', wallet)
+    .eq('status', 'processing')
+    .maybeSingle();
+
+  return res.status(200).json({
+    ...data,
+    status: processingJob ? 'syncing' : (data.full_history_synced ? 'completed' : 'idle')
+  });
 });
 
 /** Portfolio Reconstruction */
 router.get('/reconstruct', generalLimiter, async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
-  const supabase = getSupabase(req);
+  const supabase = getSupabaseClient(req);
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
   try {
@@ -109,7 +156,7 @@ router.get('/reconstruct', generalLimiter, async (req: Request, res: Response) =
 /** Hourly Networth History */
 router.get('/networth', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
-  const supabase = getSupabase(req);
+  const supabase = getSupabaseClient(req);
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
   try {
@@ -134,7 +181,7 @@ router.post('/baseline', async (req: Request, res: Response) => {
   const wallet = normalizeAddress(walletAddress);
 
   if (!wallet) return res.status(400).json({ error: 'wallet required' });
-  const supabase = getSupabase(req);
+  const supabase = getSupabaseClient(req);
   if (!supabase) return res.status(503).json({ error: 'Service unavailable' });
   if (!signature || !signedMessage) return res.status(401).json({ error: 'Signature required' });
 
@@ -142,7 +189,7 @@ router.post('/baseline', async (req: Request, res: Response) => {
   if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
 
   try {
-    const { setPNLBaseline } = await import('../services/networthService.ts');
+    const { setPNLBaseline } = await import('../services/networthService');
     const baseline = await setPNLBaseline(supabase, wallet);
     return res.json({ ok: true, baseline });
   } catch (err: unknown) {
@@ -156,7 +203,7 @@ router.post('/baseline', async (req: Request, res: Response) => {
 router.get('/pnl-precise', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
   const timeframe = (req.query.timeframe as string) || '1M';
-  const supabase = getSupabase(req);
+  const supabase = getSupabaseClient(req);
 
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
@@ -211,7 +258,7 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
 router.get('/data', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
   const timeframe = (req.query.timeframe as string) || 'All';
-  const supabase = getSupabase(req);
+  const supabase = getSupabaseClient(req);
 
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 

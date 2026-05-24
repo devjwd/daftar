@@ -39,7 +39,8 @@ import {
 } from "../components/Dashboard/Skeletons";
 import {
   processBalances,
-  getTokenPriceFromMap
+  getTokenPriceFromMap,
+  getPrecisionDecimals
 } from "../utils/dashboardUtils";
 
 import OverviewTab from '../components/Dashboard/OverviewTab';
@@ -270,23 +271,17 @@ const Dashboard = () => {
   );
 
   const defiNetValue = useMemo(() => {
-    const val = visibleDeFiPositions.reduce((sum, p) => {
+    return visibleDeFiPositions.reduce((sum, p) => {
       const v = p.numericValue || 0;
       return sum + (p.type === "Debt" ? -v : v);
     }, 0);
-    // Round to 2 decimals to match display
-    return Math.round(val * 100) / 100;
   }, [visibleDeFiPositions]);
 
   const liquidityTotalValue = useMemo(() => {
-    const val = visibleLiquidityPositions.reduce((sum, p) => sum + (p.numericValue || 0), 0);
-    // Round to 2 decimals to match display
-    return Math.round(val * 100) / 100;
+    return visibleLiquidityPositions.reduce((sum, p) => sum + (p.numericValue || 0), 0);
   }, [visibleLiquidityPositions]);
 
-  const totalUsdValueRounded = useMemo(() => Math.round(totalUsdValue * 100) / 100, [totalUsdValue]);
-
-  const combinedNetWorth = totalUsdValueRounded + defiNetValue + liquidityTotalValue + (nftsTotalWorth || 0);
+  const combinedNetWorth = totalUsdValue + defiNetValue + liquidityTotalValue + (nftsTotalWorth || 0);
   const assetsLoading = pricesLoading || indexerLoading || clientLoading || nftsLoading;
   const lpLoading = defiLoading;
 
@@ -353,7 +348,7 @@ const Dashboard = () => {
     if (total <= 0) return [];
     
     const data = [
-      { name: 'Wallet', value: Math.round((totalUsdValueRounded / total) * 100), color: '#cda169', rawValue: totalUsdValueRounded },
+      { name: 'Wallet', value: Math.round((totalUsdValue / total) * 100), color: '#cda169', rawValue: totalUsdValue },
       { name: 'DeFi', value: Math.round((defiNetValue / total) * 100), color: '#b2854f', rawValue: defiNetValue },
       { name: 'LP', value: Math.round((liquidityTotalValue / total) * 100), color: '#e5be8a', rawValue: liquidityTotalValue },
       { name: 'NFTs', value: Math.round(((nftsTotalWorth || 0) / total) * 100), color: '#895f2d', rawValue: nftsTotalWorth || 0 },
@@ -365,11 +360,11 @@ const Dashboard = () => {
       data[0].value += (100 - sum);
     }
     return data;
-  }, [totalUsdValueRounded, defiNetValue, liquidityTotalValue, nftsTotalWorth, combinedNetWorth]);
+  }, [totalUsdValue, defiNetValue, liquidityTotalValue, nftsTotalWorth, combinedNetWorth]);
 
   const protocolBreakdownData = useMemo(() => {
     const protocolMap = new Map();
-    protocolMap.set('Holding', totalUsdValueRounded + (nftsTotalWorth || 0));
+    protocolMap.set('Holding', totalUsdValue + (nftsTotalWorth || 0));
     
     [...visibleDeFiPositions, ...visibleLiquidityPositions].forEach(p => {
        const proto = p.protocolName || p.platform || 'Unknown';
@@ -417,7 +412,7 @@ const Dashboard = () => {
     }
     
     return finalData;
-  }, [totalUsdValueRounded, nftsTotalWorth, visibleDeFiPositions, visibleLiquidityPositions, combinedNetWorth]);
+  }, [totalUsdValue, nftsTotalWorth, visibleDeFiPositions, visibleLiquidityPositions, combinedNetWorth]);
 
   useEffect(() => {
     if (account && connected) {
@@ -680,7 +675,10 @@ const Dashboard = () => {
                 {assetsLoading ? <NetWorthValueSkeleton /> :
                   error ? <span style={{ fontSize: "24px", opacity: 0.7 }}>Error</span> :
                     <span style={hideValues ? { fontSize: '0.7em', display: 'inline-block', transform: 'translateY(-4px)', letterSpacing: '4px' } : {}}>
-                      {hideValues ? '*****' : formatCurrencyValue(convertUSD(combinedNetWorth))}
+                      {hideValues ? '*****' : (() => {
+                        const netWorthConverted = convertUSD(combinedNetWorth);
+                        return formatCurrencyValue(netWorthConverted, undefined, getPrecisionDecimals(netWorthConverted));
+                      })()}
                     </span>
                 }
               </div>
@@ -777,6 +775,8 @@ const Dashboard = () => {
             protocolBreakdown={protocolBreakdownData}
             walletAddress={viewingAddress}
             isVerified={userProfile?.is_verified}
+            balances={balances}
+            priceChanges={priceChanges}
           />
         </div>
         {error && <ErrorMessage message={error} onRetry={handleRefresh} />}
