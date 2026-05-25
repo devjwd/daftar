@@ -4,7 +4,8 @@
   --bento-bg: rgba(26, 26, 26, 0.4);
   --bento-blur: blur(16px);
   --bento-border: rgba(255, 255, 255, 0.06);
-  --bento-glow: rgba(205, 161, 105, 0.15); /* Primary glow */
+  --bento-glow: rgba(205, 161, 105, 0.15);
+  /* Primary glow */
   --bento-hover-glow: rgba(205, 161, 105, 0.3);
   --bento-radius: 24px;
 }
@@ -119,14 +120,17 @@
 .bento-card::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
   opacity: 0.5;
 }
 
 .bento-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.08);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 /* === Typography === */
@@ -152,7 +156,7 @@
   font-family: var(--font-display);
   letter-spacing: -1.5px;
   line-height: 1.1;
-  text-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 /* === Tab Header Row (shared between Overview chart & TopEntities) === */
@@ -314,8 +318,14 @@
   color: #fff;
   font-variant-numeric: tabular-nums;
 }
-.mini-stat-value.positive { color: #36c690; }
-.mini-stat-value.negative { color: #ff4b4b; }
+
+.mini-stat-value.positive {
+  color: #36c690;
+}
+
+.mini-stat-value.negative {
+  color: #ff4b4b;
+}
 
 /* === Sync Overlay V5 === */
 .sync-overlay-v5 {
@@ -355,8 +365,15 @@
 }
 
 @keyframes pulse {
-  0% { transform: scale(0.5); opacity: 0.4; }
-  100% { transform: scale(1.5); opacity: 0; }
+  0% {
+    transform: scale(0.5);
+    opacity: 0.4;
+  }
+
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
 }
 
 .btn-glowing-v5 {
@@ -510,7 +527,7 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--text-quaternary, rgba(255,255,255,0.35));
+  color: var(--text-quaternary, rgba(255, 255, 255, 0.35));
   font-weight: 800;
 }
 
@@ -682,8 +699,15 @@
 }
 
 @keyframes filterDropIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .analytics-filter-inputs {

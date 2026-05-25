@@ -37,6 +37,12 @@ export interface AnalyticsData {
   }>;
   netFlowHistory: Array<{ date: string; value: number }>;
   networthHistory?: Array<{ date: string; value: number }>;
+  totalBalance?: number;
+  tokenBalanceHistory?: Array<{
+    date: string;
+    value: number;
+    holdings: Array<{ symbol: string; amount: number }>;
+  }>;
   protocolUsage: Array<{ name: string; value: number; color: string }>;
   topEntities: Array<{ name: string; value: number; count?: number }>;
   topTokens: Array<{ symbol: string; value: number }>;

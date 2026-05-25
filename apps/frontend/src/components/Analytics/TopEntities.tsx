@@ -296,18 +296,41 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
             </button>
           </div>
 
-          {/* Timeframe Filter Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button
-              className="analytics-filter-btn"
-              onClick={() => setShowDropdown(prev => !prev)}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-              </svg>
-              <span>{getButtonText()}</span>
-              <span className="filter-arrow">▼</span>
-            </button>
+          {/* Timeframe Selector & Custom Calendar Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            
+            {/* Quick Timeframe Presets */}
+            <div className="tabs-container-v5">
+              {['1D', '1W', '1M', '3M', '1Y', 'All'].map(tf => (
+                <button
+                  key={tf}
+                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
+                  onClick={() => {
+                    setTimeframe(tf);
+                    // Clear custom calendar selection when clicking a standard preset
+                    setSelectedStart(null);
+                    setSelectedEnd(null);
+                    setInputStart('');
+                    setInputEnd('');
+                  }}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+
+            {/* Timeframe Filter Dropdown */}
+            <div style={{ position: 'relative' }}>
+              <button
+                className={`analytics-filter-btn ${timeframe === 'Custom' ? 'active' : ''}`}
+                onClick={() => setShowDropdown(prev => !prev)}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                </svg>
+                <span>{getButtonText()}</span>
+                <span className="filter-arrow">▼</span>
+              </button>
 
             {showDropdown && (
               <>
@@ -420,6 +443,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                 </div>
               </>
             )}
+            </div>
           </div>
         </div>
 

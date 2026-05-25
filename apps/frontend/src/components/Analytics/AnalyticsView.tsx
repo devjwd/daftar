@@ -166,10 +166,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     }
   };
 
-  const fetchBottomAnalyticsData = async (tf = bottomTimeframe) => {
+  const fetchBottomAnalyticsData = async (tf = bottomTimeframe, startDate?: string, endDate?: string) => {
     if (!walletAddress) return;
     try {
-      const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
+      let url = `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`;
+      if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
+      if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
+      const res = await fetch(url);
       const data = await res.json();
       setBottomAnalyticsData(data);
     } catch (err) {
@@ -284,9 +287,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                   fetchAnalyticsData(tf);
                 }}
                 bottomTimeframe={bottomTimeframe}
-                setBottomTimeframe={(tf) => {
+                setBottomTimeframe={(tf, startDate, endDate) => {
                   setBottomTimeframe(tf);
-                  fetchBottomAnalyticsData(tf);
+                  fetchBottomAnalyticsData(tf, startDate, endDate);
                 }}
               />
             )}

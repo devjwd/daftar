@@ -47,6 +47,7 @@ interface DateValuePoint {
   outflow?: number;
   inflowDetails?: Array<{ name: string; value: number }>;
   outflowDetails?: Array<{ name: string; value: number }>;
+  holdings?: Array<{ symbol: string; amount: number }>;
 }
 
 interface ProtocolUsageItem {
@@ -101,6 +102,8 @@ export interface AnalyticsDataResult {
   activityHistory: DateValuePoint[];
   netFlowHistory: DateValuePoint[];
   networthHistory: DateValuePoint[];
+  totalBalance?: number;
+  tokenBalanceHistory?: DateValuePoint[];
   topEntities: EntityItem[];
   topTokens: TokenItem[];
   exchangeUsage: ExchangeUsage;
@@ -249,6 +252,112 @@ async function fetchNetworthHistory(
   }));
 }
 
+// --- Token Balance History ---
+
+async function fetchTokenBalanceHistory(
+  supabase: SupabaseClient,
+  wallet: string,
+  timeframe: string,
+  customStartDate?: string,
+  customEndDate?: string
+): Promise<DateValuePoint[]> {
+  // 1. Query user_networth_snapshots for wallet_usd values
+  let nwQuery = supabase
+    .from('user_networth_snapshots')
+    .select('wallet_usd, timestamp')
+    .eq('user_address', wallet)
+    .order('timestamp', { ascending: true });
+
+  if (customStartDate || customEndDate) {
+    if (customStartDate) {
+      nwQuery = nwQuery.gte('timestamp', new Date(customStartDate).toISOString());
+    }
+    if (customEndDate) {
+      nwQuery = nwQuery.lte('timestamp', new Date(customEndDate).toISOString());
+    }
+  } else {
+    const filterDate = getTimeframeFilterDate(timeframe);
+    if (filterDate) {
+      nwQuery = nwQuery.gte('timestamp', filterDate.toISOString());
+    }
+  }
+
+  const { data: nwData } = await nwQuery.limit(500);
+
+  // Map to daily balance (taking the last one per day since timestamp contains hours)
+  const dailyBalanceMap = new Map<string, number>();
+  if (nwData) {
+    nwData.forEach((s: any) => {
+      const dateKey = s.timestamp.split('T')[0];
+      dailyBalanceMap.set(dateKey, Number(s.wallet_usd || 0));
+    });
+  }
+
+  // 2. Query user_balance_snapshots for historical token balances
+  let balQuery = supabase
+    .from('user_balance_snapshots')
+    .select('snapshot_date, symbol, amount')
+    .eq('user_address', wallet)
+    .order('snapshot_date', { ascending: true });
+
+  if (customStartDate || customEndDate) {
+    if (customStartDate) {
+      balQuery = balQuery.gte('snapshot_date', customStartDate.split('T')[0]);
+    }
+    if (customEndDate) {
+      balQuery = balQuery.lte('snapshot_date', customEndDate.split('T')[0]);
+    }
+  } else {
+    const filterDate = getTimeframeFilterDate(timeframe);
+    if (filterDate) {
+      balQuery = balQuery.gte('snapshot_date', filterDate.toISOString().split('T')[0]);
+    }
+  }
+
+  const { data: balData } = await balQuery.limit(2000);
+
+  // Group holdings by date
+  const holdingsMap = new Map<string, Array<{ symbol: string; amount: number }>>();
+  if (balData) {
+    balData.forEach((b: any) => {
+      const dateKey = b.snapshot_date;
+      if (!holdingsMap.has(dateKey)) {
+        holdingsMap.set(dateKey, []);
+      }
+      holdingsMap.get(dateKey)!.push({
+        symbol: b.symbol || 'Unknown',
+        amount: Number(b.amount || 0)
+      });
+    });
+  }
+
+  // Combine dates from both maps
+  const allDates = Array.from(new Set([
+    ...Array.from(dailyBalanceMap.keys()),
+    ...Array.from(holdingsMap.keys())
+  ])).sort();
+
+  const tokenBalanceHistory = allDates.map(date => ({
+    date,
+    value: dailyBalanceMap.get(date) ?? 0,
+    holdings: holdingsMap.get(date) ?? []
+  }));
+
+  // Handle baseline starting date of March 10, 2025 if timeframe === 'All' or customStartDate
+  const baselineDateStr = customStartDate ? customStartDate.split('T')[0] : (timeframe === 'All' ? '2025-03-10' : null);
+  if (baselineDateStr) {
+    if (tokenBalanceHistory.length === 0 || tokenBalanceHistory[0].date > baselineDateStr) {
+      tokenBalanceHistory.unshift({
+        date: baselineDateStr,
+        value: 0,
+        holdings: []
+      });
+    }
+  }
+
+  return tokenBalanceHistory;
+}
+
 // --- Main Aggregation ---
 
 export async function aggregateAnalyticsData(
@@ -258,11 +367,12 @@ export async function aggregateAnalyticsData(
   customStartDate?: string,
   customEndDate?: string
 ): Promise<AnalyticsDataResult> {
-  // Fetch transactions and initial flow in parallel
-  const [txs, initialFlow, networthHistory] = await Promise.all([
+  // Fetch transactions, initial flow, and token balance history in parallel
+  const [txs, initialFlow, networthHistory, tokenBalanceHistory] = await Promise.all([
     fetchTransactionsPaginated(supabase, wallet, timeframe, customStartDate, customEndDate),
     calculateInitialFlow(supabase, wallet, timeframe, customStartDate),
     fetchNetworthHistory(supabase, wallet, timeframe, customStartDate, customEndDate),
+    fetchTokenBalanceHistory(supabase, wallet, timeframe, customStartDate, customEndDate),
   ]);
 
   // --- Basic Aggregates ---
@@ -607,6 +717,8 @@ export async function aggregateAnalyticsData(
     }
   }
 
+  const totalBalance = tokenBalanceHistory.length > 0 ? tokenBalanceHistory[tokenBalanceHistory.length - 1].value : 0;
+
   return {
     totalVolume,
     totalGasUsd,
@@ -619,6 +731,8 @@ export async function aggregateAnalyticsData(
     activityHistory,
     netFlowHistory,
     networthHistory,
+    totalBalance,
+    tokenBalanceHistory,
     topEntities,
     topTokens,
     exchangeUsage,
