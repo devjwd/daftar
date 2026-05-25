@@ -6,8 +6,11 @@ import TopEntities from './TopEntities';
 
 interface AnalyticsOverviewProps {
   data: AnalyticsData;
+  bottomData: AnalyticsData;
   timeframe: string;
   setTimeframe: (tf: string) => void;
+  bottomTimeframe: string;
+  setBottomTimeframe: (tf: string) => void;
 }
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', '1Y', 'All'];
@@ -21,7 +24,14 @@ const GOLD_DONUT_COLORS = [
   '#5b3d1b', // Dark Earth Gold
 ];
 
-const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
+const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ 
+  data, 
+  bottomData, 
+  timeframe, 
+  setTimeframe,
+  bottomTimeframe,
+  setBottomTimeframe
+}) => {
   const [activeChartTab, setActiveChartTab] = useState<'flow' | 'txs'>('flow');
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -302,7 +312,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
         </div>
       </div>
 
-      <TopEntities data={data} timeframe={timeframe} setTimeframe={setTimeframe} />
+      <TopEntities data={bottomData} timeframe={bottomTimeframe} setTimeframe={setBottomTimeframe} />
     </div>
   );
 };

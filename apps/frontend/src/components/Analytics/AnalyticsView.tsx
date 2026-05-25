@@ -20,9 +20,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const navigate = useNavigate();
   const { connected, account, signMessage } = useWallet();
   const [timeframe, setTimeframe] = useState('All');
+  const [bottomTimeframe, setBottomTimeframe] = useState('All');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'completed' | 'error'>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [bottomAnalyticsData, setBottomAnalyticsData] = useState<AnalyticsData | null>(null);
 
   const lastSyncStringRef = React.useRef<string | null>(null);
   const lastSyncChangeTimeRef = React.useRef<number>(0);
@@ -32,9 +34,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
-  // Keep timeframe in a ref so the polling interval callback is never stale
+  // Keep timeframes in refs so the polling interval callback is never stale
   const timeframeRef = useRef(timeframe);
   useEffect(() => { timeframeRef.current = timeframe; }, [timeframe]);
+
+  const bottomTimeframeRef = useRef(bottomTimeframe);
+  useEffect(() => { bottomTimeframeRef.current = bottomTimeframe; }, [bottomTimeframe]);
 
   useEffect(() => {
     if (!walletAddress) return;
@@ -55,10 +60,28 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     const doFetchAnalytics = async () => {
       if (!isMounted) return;
       try {
-        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${timeframeRef.current}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted) setAnalyticsData(data);
+        if (timeframeRef.current === bottomTimeframeRef.current) {
+          const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${timeframeRef.current}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          if (isMounted) {
+            setAnalyticsData(data);
+            setBottomAnalyticsData(data);
+          }
+        } else {
+          const [resGlobal, resBottom] = await Promise.all([
+            fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${timeframeRef.current}`),
+            fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${bottomTimeframeRef.current}`)
+          ]);
+          if (resGlobal.ok && resBottom.ok) {
+            const dataGlobal = await resGlobal.json();
+            const dataBottom = await resBottom.json();
+            if (isMounted) {
+              setAnalyticsData(dataGlobal);
+              setBottomAnalyticsData(dataBottom);
+            }
+          }
+        }
       } catch (err) {
         console.error('Fetch analytics error:', err);
       }
@@ -140,6 +163,17 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
       setAnalyticsData(data);
     } catch (err) {
       console.error('Fetch analytics error:', err);
+    }
+  };
+
+  const fetchBottomAnalyticsData = async (tf = bottomTimeframe) => {
+    if (!walletAddress) return;
+    try {
+      const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
+      const data = await res.json();
+      setBottomAnalyticsData(data);
+    } catch (err) {
+      console.error('Fetch bottom analytics error:', err);
     }
   };
 
@@ -247,13 +281,19 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
               </div>
             </div>
 
-            {analyticsData && (
+            {analyticsData && bottomAnalyticsData && (
               <AnalyticsOverview
                 data={analyticsData}
+                bottomData={bottomAnalyticsData}
                 timeframe={timeframe}
                 setTimeframe={(tf) => {
                   setTimeframe(tf);
                   fetchAnalyticsData(tf);
+                }}
+                bottomTimeframe={bottomTimeframe}
+                setBottomTimeframe={(tf) => {
+                  setBottomTimeframe(tf);
+                  fetchBottomAnalyticsData(tf);
                 }}
               />
             )}
