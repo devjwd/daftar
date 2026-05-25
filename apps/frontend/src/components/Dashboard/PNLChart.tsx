@@ -200,7 +200,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
   // Calculate PnL changes for non-verified users using their current balances and 24h price changes
   const computedChange = useMemo(() => {
-    if (isVerified) {
+    if (isVerified && historicalData.length >= 2) {
       const firstVal = dataToRender[0]?.value ?? totalValue;
       const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
       const rawChangeUsd = lastVal - firstVal;

@@ -22,16 +22,10 @@ const GOLD_DONUT_COLORS = [
 ];
 
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, setTimeframe }) => {
-  const [activeChartTab, setActiveChartTab] = useState<'flow' | 'txs' | 'networth'>('flow');
+  const [activeChartTab, setActiveChartTab] = useState<'flow' | 'txs'>('flow');
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const lastNetworthVal = data.networthHistory && data.networthHistory.length > 0
-    ? data.networthHistory[data.networthHistory.length - 1].value
-    : 0;
-
-  const chartData = activeChartTab === 'networth'
-    ? (data.networthHistory && data.networthHistory.length > 0 ? data.networthHistory : [])
-    : (data.activityHistory && data.activityHistory.length > 0 ? data.activityHistory : []);
+  const chartData = data.activityHistory && data.activityHistory.length > 0 ? data.activityHistory : [];
 
   const hasHistory = chartData && chartData.length > 0;
   const hasProtocols = data.protocolUsage && data.protocolUsage.length > 0;
@@ -58,9 +52,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
       : d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 
     const dateKey = dateStr.split('T')[0];
-    const activityPoint = activeChartTab === 'networth'
-      ? data.activityHistory?.find((act: any) => act.date === dateKey)
-      : point;
+    const activityPoint = point;
 
     const value = payload[0].value;
 
@@ -98,16 +90,14 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>
-            {activeChartTab === 'flow' ? 'Cumulative Volume' : activeChartTab === 'txs' ? 'Transactions' : 'Net Worth'}
+            {activeChartTab === 'flow' ? 'Cumulative Volume' : 'Transactions'}
           </span>
           <span style={{
             fontSize: '14px',
             fontWeight: 900,
-            color: activeChartTab === 'flow' ? 'var(--primary)' : activeChartTab === 'txs' ? '#36c690' : '#e5be8a'
+            color: activeChartTab === 'flow' ? 'var(--primary)' : '#36c690'
           }}>
-            {activeChartTab === 'flow' ? formatVolumeValue(value) :
-             activeChartTab === 'txs' ? Number(value).toLocaleString() :
-             formatVolumeValue(value)}
+            {activeChartTab === 'flow' ? formatVolumeValue(value) : Number(value).toLocaleString()}
           </span>
         </div>
 
@@ -158,12 +148,10 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '32px' }}>
             <div>
               <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>
-                {activeChartTab === 'flow' ? 'Total Capital Flow' : activeChartTab === 'txs' ? 'Transaction Count' : 'Portfolio Net Worth'}
+                {activeChartTab === 'flow' ? 'Total Capital Flow' : 'Transaction Count'}
               </span>
               <div className="hero-value">
-                {activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : 
-                 activeChartTab === 'txs' ? data.interactionCount.toLocaleString() : 
-                 formatVolumeValue(lastNetworthVal)}
+                {activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : data.interactionCount.toLocaleString()}
               </div>
               <div style={{ marginTop: '8px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
                 <span style={{ background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
@@ -188,13 +176,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                   style={{ padding: '6px 14px', fontSize: '12px' }}
                 >
                   Transactions
-                </button>
-                <button
-                  className={`tab-v5 ${activeChartTab === 'networth' ? 'active' : ''}`}
-                  onClick={() => setActiveChartTab('networth')}
-                  style={{ padding: '6px 14px', fontSize: '12px' }}
-                >
-                  Net Worth
                 </button>
               </div>
 
@@ -239,10 +220,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                       <stop offset="5%" stopColor="#36c690" stopOpacity={0.4} />
                       <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="networthGradV5" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#e5be8a" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#e5be8a" stopOpacity={0} />
-                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
                   <XAxis 
@@ -262,10 +239,8 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
                   <Tooltip content={<CustomChartTooltip />} />
                   {activeChartTab === 'flow' ? (
                     <Area type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#pnlGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
-                  ) : activeChartTab === 'txs' ? (
-                    <Area type="monotone" dataKey="txCount" stroke="#36c690" strokeWidth={3} fillOpacity={1} fill="url(#txsGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
                   ) : (
-                    <Area type="monotone" dataKey="value" stroke="#e5be8a" strokeWidth={3} fillOpacity={1} fill="url(#networthGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
+                    <Area type="monotone" dataKey="txCount" stroke="#36c690" strokeWidth={3} fillOpacity={1} fill="url(#txsGradV5)" isAnimationActive={true} animationDuration={600} animationEasing="ease-in-out" />
                   )}
                 </AreaChart>
               </ResponsiveContainer>
