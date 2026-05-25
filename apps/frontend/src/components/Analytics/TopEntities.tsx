@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
 import { Coins, Ghost, ArrowDownRight, ArrowUpRight, Network } from 'lucide-react';
@@ -129,6 +129,8 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
 };
 
 const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
+  const [activeTab, setActiveTab] = useState<'exchange' | 'protocols' | 'tokens'>('exchange');
+
   const hasEntities = data.topEntities && data.topEntities.length > 0;
   const hasTokens = data.topTokens && data.topTokens.length > 0;
 
@@ -176,291 +178,333 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
       
-      {/* EXCHANGE USAGE PANEL (Arkham Style) */}
+      {/* UNIFIED BENTO CARD FOR ALL THREE WIDGETS */}
       <div className="bento-card" style={{ width: '100%', padding: '24px' }}>
         
-        {/* Tabs style headers */}
+        {/* Navigation Tab Menu */}
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginBottom: '16px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '1px', textTransform: 'uppercase', marginRight: '32px' }}>
+          <button 
+            onClick={() => setActiveTab('exchange')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 800,
+              color: activeTab === 'exchange' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              marginRight: '32px',
+              cursor: 'pointer',
+              transition: 'color 0.2s',
+              outline: 'none',
+              padding: 0
+            }}
+          >
             Exchange Usage
-          </span>
-          <span style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', letterSpacing: '1px', textTransform: 'uppercase', marginRight: '32px', cursor: 'not-allowed' }}>
-            Top Counterparties
-          </span>
-          <span style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', letterSpacing: '1px', textTransform: 'uppercase', cursor: 'not-allowed' }}>
-            Entity Predictions
-          </span>
-        </div>
-
-        {/* Date Filter/Subtitle indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 700, marginBottom: '24px' }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-          </svg>
-          <span style={{ letterSpacing: '0.5px' }}>{getDateRangeString()}</span>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px' }} className="exchange-grid-v5-arkham">
+          </button>
           
-          {/* DEPOSITS COLUMN */}
-          <div>
-            <h4 style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px', textAlign: 'left' }}>
-              DEPOSITS
-            </h4>
-
-            {!hasDeposits ? (
-              <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <Ghost size={32} className="empty-state-icon" />
-                <p>No deposit activity found.</p>
-              </div>
-            ) : (
-              <>
-                {/* Deposits Area Chart */}
-                <div style={{ height: '140px', margin: '0 -24px 20px -24px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={deposits.history}>
-                      <defs>
-                        <linearGradient id="depGradArkham" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis 
-                        dataKey="date" 
-                        hide 
-                      />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        orientation="left"
-                        tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
-                        tickFormatter={(val) => {
-                          if (val === 0) return '$0';
-                          if (val >= 1000000) return `$+$${(val / 1000000).toFixed(0)}M`;
-                          if (val >= 1000) return `$+$${(val / 1000).toFixed(0)}k`;
-                          return `$+$${val}`;
-                        }}
-                      />
-                      <Tooltip content={<CustomExchangeTooltip type="deposit" />} />
-                      <Area type="monotone" dataKey="value" stroke="#36c690" strokeWidth={2} fill="url(#depGradArkham)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Deposits Breakdown */}
-                <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                  <div style={{ width: '100px', height: '100px', flexShrink: 0 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={deposits.breakdown} innerRadius={0} outerRadius={45} paddingAngle={0} dataKey="value" stroke="none">
-                          {deposits.breakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)', fontWeight: 700, textAlign: 'left' }}>
-                          <th style={{ padding: '4px 0', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Exchange</th>
-                          <th style={{ padding: '4px 0', textAlign: 'right', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Value</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#fff', fontWeight: 700 }}>
-                          <td style={{ padding: '6px 0' }}>Total</td>
-                          <td style={{ padding: '6px 0', textAlign: 'right' }}>{formatVolumeValue(deposits.total)} (100%)</td>
-                        </tr>
-                        {deposits.breakdown.slice(0, 4).map((ex, i) => {
-                          const pct = deposits.total > 0 ? Math.round((ex.value / deposits.total) * 100) : 0;
-                          return (
-                            <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.7)' }}>
-                              <td style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: 8, height: 8, borderRadius: '2px', background: COLORS[i % COLORS.length] }}></div>
-                                <span style={{ fontWeight: 600 }}>{ex.name}</span>
-                              </td>
-                              <td style={{ padding: '6px 0', textAlign: 'right', color: '#fff', fontWeight: 600 }}>
-                                {formatVolumeValue(ex.value)} <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: '4px' }}>({pct}%)</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* WITHDRAWALS COLUMN */}
-          <div>
-            <h4 style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px', textAlign: 'left' }}>
-              WITHDRAWALS
-            </h4>
-
-            {!hasWithdrawals ? (
-              <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <Ghost size={32} className="empty-state-icon" />
-                <p>No withdrawal activity found.</p>
-              </div>
-            ) : (
-              <>
-                {/* Withdrawals Area Chart */}
-                <div style={{ height: '140px', margin: '0 -24px 20px -24px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={withdrawals.history}>
-                      <defs>
-                        <linearGradient id="witGradArkham" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#7b68ee" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#7b68ee" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis 
-                        dataKey="date" 
-                        hide 
-                      />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        orientation="left"
-                        tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
-                        tickFormatter={(val) => {
-                          if (val === 0) return '$0';
-                          if (val >= 1000000) return `$+$${(val / 1000000).toFixed(0)}M`;
-                          if (val >= 1000) return `$+$${(val / 1000).toFixed(0)}k`;
-                          return `$+$${val}`;
-                        }}
-                      />
-                      <Tooltip content={<CustomExchangeTooltip type="withdrawal" />} />
-                      <Area type="monotone" dataKey="value" stroke="#7b68ee" strokeWidth={2} fill="url(#witGradArkham)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Withdrawals Breakdown */}
-                <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                  <div style={{ width: '100px', height: '100px', flexShrink: 0 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={withdrawals.breakdown} innerRadius={0} outerRadius={45} paddingAngle={0} dataKey="value" stroke="none">
-                          {withdrawals.breakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)', fontWeight: 700, textAlign: 'left' }}>
-                          <th style={{ padding: '4px 0', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Exchange</th>
-                          <th style={{ padding: '4px 0', textAlign: 'right', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Value</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#fff', fontWeight: 700 }}>
-                          <td style={{ padding: '6px 0' }}>Total</td>
-                          <td style={{ padding: '6px 0', textAlign: 'right' }}>{formatVolumeValue(withdrawals.total)} (100%)</td>
-                        </tr>
-                        {withdrawals.breakdown.slice(0, 4).map((ex, i) => {
-                          const pct = withdrawals.total > 0 ? Math.round((ex.value / withdrawals.total) * 100) : 0;
-                          return (
-                            <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.7)' }}>
-                              <td style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: 8, height: 8, borderRadius: '2px', background: COLORS[i % COLORS.length] }}></div>
-                                <span style={{ fontWeight: 600 }}>{ex.name}</span>
-                              </td>
-                              <td style={{ padding: '6px 0', textAlign: 'right', color: '#fff', fontWeight: 600 }}>
-                                {formatVolumeValue(ex.value)} <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: '4px' }}>({pct}%)</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-        </div>
-      </div>
-
-      {/* TOP PROTOCOLS AND TOP TOKENS HANDLED SIDE-BY-SIDE */}
-      <div className="overview-grid-v5">
-        
-        {/* Top Interacting Protocols */}
-        <div className="bento-card">
-          <h3 className="bento-title">
-            <Network size={18} className="bento-icon" />
+          <button 
+            onClick={() => setActiveTab('protocols')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 800,
+              color: activeTab === 'protocols' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              marginRight: '32px',
+              cursor: 'pointer',
+              transition: 'color 0.2s',
+              outline: 'none',
+              padding: 0
+            }}
+          >
             Top Interacting Protocols
-          </h3>
-          
-          {!hasEntities ? (
-            <div className="empty-state-v5">
-              <Ghost size={32} className="empty-state-icon" />
-              <p>No protocol interactions found.</p>
-            </div>
-          ) : (
-            <div className="entities-list-v5">
-              {data.topEntities.slice(0, 6).map((entity, i) => {
-                const visual = getProtocolVisual(entity.name);
-                return (
-                  <div key={i} className="entity-row-v5">
-                    <div className="entity-left">
-                      <div className="entity-avatar">
-                        {visual.logo ? (
-                          <img src={visual.logo} alt={entity.name} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
-                        ) : (
-                          entity.name.substring(0, 1).toUpperCase()
-                        )}
-                      </div>
-                      <span className="entity-name">{entity.name}</span>
-                    </div>
-                    <span className="entity-value">{formatVolumeValue(entity.value)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('tokens')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 800,
+              color: activeTab === 'tokens' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              transition: 'color 0.2s',
+              outline: 'none',
+              padding: 0
+            }}
+          >
+            Top Tokens Handled
+          </button>
         </div>
 
-        {/* Top Tokens Handled */}
-        <div className="bento-card">
-          <h3 className="bento-title">
-            <Coins size={18} className="bento-icon" />
-            Top Tokens Handled
-          </h3>
-          
-          {!hasTokens ? (
-            <div className="empty-state-v5">
-              <Ghost size={32} className="empty-state-icon" />
-              <p>No token transfers found.</p>
+        {/* TAB CONTENTS */}
+        {activeTab === 'exchange' && (
+          <div>
+            {/* Date filter range indicator */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 700, marginBottom: '24px' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+              </svg>
+              <span style={{ letterSpacing: '0.5px' }}>{getDateRangeString()}</span>
             </div>
-          ) : (
-            <div className="entities-list-v5">
-              {data.topTokens.slice(0, 6).map((token, i) => {
-                const visual = getTokenVisual(token.symbol);
-                return (
-                  <div key={i} className="entity-row-v5">
-                    <div className="entity-left">
-                      <div className="entity-avatar" style={{ background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)' }}>
-                        {visual.logo ? (
-                          <img src={visual.logo} alt={token.symbol} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
-                        ) : (
-                          '$'
-                        )}
-                      </div>
-                      <span className="entity-name">{token.symbol}</span>
-                    </div>
-                    <span className="entity-value">{formatVolumeValue(token.value)}</span>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px' }} className="exchange-grid-v5-arkham">
+              
+              {/* DEPOSITS COLUMN */}
+              <div>
+                <h4 style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px', textAlign: 'left' }}>
+                  DEPOSITS
+                </h4>
+
+                {!hasDeposits ? (
+                  <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <Ghost size={32} className="empty-state-icon" />
+                    <p>No deposit activity found.</p>
                   </div>
-                );
-              })}
+                ) : (
+                  <>
+                    <div style={{ height: '140px', margin: '0 -24px 20px -24px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={deposits.history}>
+                          <defs>
+                            <linearGradient id="depGradArkham" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
+                              <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="date" hide />
+                          <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            orientation="left"
+                            tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
+                            tickFormatter={(val) => {
+                              if (val === 0) return '$0';
+                              if (val >= 1000000) return `$+$${(val / 1000000).toFixed(0)}M`;
+                              if (val >= 1000) return `$+$${(val / 1000).toFixed(0)}k`;
+                              return `$+$${val}`;
+                            }}
+                          />
+                          <Tooltip content={<CustomExchangeTooltip type="deposit" />} />
+                          <Area type="monotone" dataKey="value" stroke="#36c690" strokeWidth={2} fill="url(#depGradArkham)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                      <div style={{ width: '100px', height: '100px', flexShrink: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={deposits.breakdown} innerRadius={0} outerRadius={45} paddingAngle={0} dataKey="value" stroke="none">
+                              {deposits.breakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)', fontWeight: 700, textAlign: 'left' }}>
+                              <th style={{ padding: '4px 0', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Exchange</th>
+                              <th style={{ padding: '4px 0', textAlign: 'right', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#fff', fontWeight: 700 }}>
+                              <td style={{ padding: '6px 0' }}>Total</td>
+                              <td style={{ padding: '6px 0', textAlign: 'right' }}>{formatVolumeValue(deposits.total)} (100%)</td>
+                            </tr>
+                            {deposits.breakdown.slice(0, 4).map((ex, i) => {
+                              const pct = deposits.total > 0 ? Math.round((ex.value / deposits.total) * 100) : 0;
+                              return (
+                                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.7)' }}>
+                                  <td style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: '2px', background: COLORS[i % COLORS.length] }}></div>
+                                    <span style={{ fontWeight: 600 }}>{ex.name}</span>
+                                  </td>
+                                  <td style={{ padding: '6px 0', textAlign: 'right', color: '#fff', fontWeight: 600 }}>
+                                    {formatVolumeValue(ex.value)} <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: '4px' }}>({pct}%)</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* WITHDRAWALS COLUMN */}
+              <div>
+                <h4 style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px', textAlign: 'left' }}>
+                  WITHDRAWALS
+                </h4>
+
+                {!hasWithdrawals ? (
+                  <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <Ghost size={32} className="empty-state-icon" />
+                    <p>No withdrawal activity found.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ height: '140px', margin: '0 -24px 20px -24px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={withdrawals.history}>
+                          <defs>
+                            <linearGradient id="witGradArkham" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#7b68ee" stopOpacity={0.25} />
+                              <stop offset="95%" stopColor="#7b68ee" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="date" hide />
+                          <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            orientation="left"
+                            tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
+                            tickFormatter={(val) => {
+                              if (val === 0) return '$0';
+                              if (val >= 1000000) return `$+$${(val / 1000000).toFixed(0)}M`;
+                              if (val >= 1000) return `$+$${(val / 1000).toFixed(0)}k`;
+                              return `$+$${val}`;
+                            }}
+                          />
+                          <Tooltip content={<CustomExchangeTooltip type="withdrawal" />} />
+                          <Area type="monotone" dataKey="value" stroke="#7b68ee" strokeWidth={2} fill="url(#witGradArkham)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                      <div style={{ width: '100px', height: '100px', flexShrink: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={withdrawals.breakdown} innerRadius={0} outerRadius={45} paddingAngle={0} dataKey="value" stroke="none">
+                              {withdrawals.breakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)', fontWeight: 700, textAlign: 'left' }}>
+                              <th style={{ padding: '4px 0', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Exchange</th>
+                              <th style={{ padding: '4px 0', textAlign: 'right', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#fff', fontWeight: 700 }}>
+                              <td style={{ padding: '6px 0' }}>Total</td>
+                              <td style={{ padding: '6px 0', textAlign: 'right' }}>{formatVolumeValue(withdrawals.total)} (100%)</td>
+                            </tr>
+                            {withdrawals.breakdown.slice(0, 4).map((ex, i) => {
+                              const pct = withdrawals.total > 0 ? Math.round((ex.value / withdrawals.total) * 100) : 0;
+                              return (
+                                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.7)' }}>
+                                  <td style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: '2px', background: COLORS[i % COLORS.length] }}></div>
+                                    <span style={{ fontWeight: 600 }}>{ex.name}</span>
+                                  </td>
+                                  <td style={{ padding: '6px 0', textAlign: 'right', color: '#fff', fontWeight: 600 }}>
+                                    {formatVolumeValue(ex.value)} <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: '4px' }}>({pct}%)</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* TOP INTERACTING PROTOCOLS TAB */}
+        {activeTab === 'protocols' && (
+          <div style={{ padding: '12px 0 8px 0' }}>
+            {!hasEntities ? (
+              <div className="empty-state-v5" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Ghost size={32} className="empty-state-icon" />
+                <p>No protocol interactions found.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                {data.topEntities.slice(0, 8).map((entity, i) => {
+                  const visual = getProtocolVisual(entity.name);
+                  return (
+                    <div key={i} className="entity-row-v5" style={{ padding: '16px 20px', borderRadius: '12px' }}>
+                      <div className="entity-left">
+                        <div className="entity-avatar" style={{ width: '40px', height: '40px' }}>
+                          {visual.logo ? (
+                            <img src={visual.logo} alt={entity.name} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+                          ) : (
+                            entity.name.substring(0, 1).toUpperCase()
+                          )}
+                        </div>
+                        <div>
+                          <span className="entity-name" style={{ fontSize: '15px', display: 'block' }}>{entity.name}</span>
+                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                            {entity.count ? `${entity.count} interactions` : 'DeFi Position'}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="entity-value" style={{ fontSize: '18px' }}>{formatVolumeValue(entity.value)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TOP TOKENS HANDLED TAB */}
+        {activeTab === 'tokens' && (
+          <div style={{ padding: '12px 0 8px 0' }}>
+            {!hasTokens ? (
+              <div className="empty-state-v5" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Ghost size={32} className="empty-state-icon" />
+                <p>No token transfers found.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                {data.topTokens.slice(0, 8).map((token, i) => {
+                  const visual = getTokenVisual(token.symbol);
+                  return (
+                    <div key={i} className="entity-row-v5" style={{ padding: '16px 20px', borderRadius: '12px' }}>
+                      <div className="entity-left">
+                        <div className="entity-avatar" style={{ width: '40px', height: '40px', background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)', fontSize: '16px' }}>
+                          {visual.logo ? (
+                            <img src={visual.logo} alt={token.symbol} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+                          ) : (
+                            '$'
+                          )}
+                        </div>
+                        <div>
+                          <span className="entity-name" style={{ fontSize: '15px', display: 'block' }}>{token.symbol}</span>
+                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Asset Transferred</span>
+                        </div>
+                      </div>
+                      <span className="entity-value" style={{ fontSize: '18px' }}>{formatVolumeValue(token.value)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
 
