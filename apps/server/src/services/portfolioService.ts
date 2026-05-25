@@ -551,9 +551,24 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
     const BATCH_SIZE = 500;
     for (let i = 0; i < networthSnapshots.length; i += BATCH_SIZE) {
       const batch = networthSnapshots.slice(i, i + BATCH_SIZE);
-      const { error: upsertError } = await supabase
+      let { error: upsertError } = await supabase
         .from('user_networth_snapshots')
         .upsert(batch, { onConflict: 'user_address,timestamp' });
+
+      if (upsertError) {
+        if (upsertError.message.includes('breakdown')) {
+          console.warn(`[Portfolio] 'breakdown' column missing. Retrying batch without 'breakdown' field.`);
+          const cleanedBatch = batch.map(item => {
+            const copy = { ...item };
+            delete copy.breakdown;
+            return copy;
+          });
+          const retry = await supabase
+            .from('user_networth_snapshots')
+            .upsert(cleanedBatch, { onConflict: 'user_address,timestamp' });
+          upsertError = retry.error;
+        }
+      }
 
       if (upsertError) {
         console.error(`[Portfolio] Failed to save historical networth snapshot batch:`, upsertError.message);

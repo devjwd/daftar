@@ -223,7 +223,7 @@ export async function takeNetworthSnapshot(
   const totalNetworthUsd = walletUsd + defiUsd + nftUsd;
 
   // 6. Save Snapshot
-  const { error } = await supabase.from('user_networth_snapshots').upsert({
+  const payload: any = {
     user_address: address,
     total_networth_usd: totalNetworthUsd,
     wallet_usd: walletUsd,
@@ -232,7 +232,17 @@ export async function takeNetworthSnapshot(
     net_deposits_usd: netDepositsUsd,
     timestamp: hourStartISO,
     breakdown: { ...breakdown, is_realtime: true }
-  }, { onConflict: 'user_address,timestamp' });
+  };
+
+  let { error } = await supabase.from('user_networth_snapshots').upsert(payload, { onConflict: 'user_address,timestamp' });
+
+  if (error && error.message.includes('breakdown')) {
+    console.warn(`[Networth] 'breakdown' column missing. Retrying upsert without 'breakdown' field.`);
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.breakdown;
+    const retry = await supabase.from('user_networth_snapshots').upsert(fallbackPayload, { onConflict: 'user_address,timestamp' });
+    error = retry.error;
+  }
 
   if (error) {
     console.error(`[Networth] Failed to save snapshot for ${address}:`, error.message);
