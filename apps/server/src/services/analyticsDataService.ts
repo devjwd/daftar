@@ -136,7 +136,9 @@ function getTimeframeFilterDate(timeframe: string): Date | null {
 async function fetchTransactionsPaginated(
   supabase: SupabaseClient,
   wallet: string,
-  timeframe: string
+  timeframe: string,
+  customStartDate?: string,
+  customEndDate?: string
 ): Promise<TransactionRow[]> {
   let txs: TransactionRow[] = [];
   let hasMore = true;
@@ -150,9 +152,18 @@ async function fetchTransactionsPaginated(
       .order('timestamp', { ascending: true })
       .range(page * ANALYTICS_PAGE_SIZE, (page + 1) * ANALYTICS_PAGE_SIZE - 1);
 
-    const filterDate = getTimeframeFilterDate(timeframe);
-    if (filterDate) {
-      query = query.gte('timestamp', filterDate.toISOString());
+    if (customStartDate || customEndDate) {
+      if (customStartDate) {
+        query = query.gte('timestamp', new Date(customStartDate).toISOString());
+      }
+      if (customEndDate) {
+        query = query.lte('timestamp', new Date(customEndDate).toISOString());
+      }
+    } else {
+      const filterDate = getTimeframeFilterDate(timeframe);
+      if (filterDate) {
+        query = query.gte('timestamp', filterDate.toISOString());
+      }
     }
 
     const { data, error } = await query;
@@ -175,11 +186,17 @@ async function fetchTransactionsPaginated(
 async function calculateInitialFlow(
   supabase: SupabaseClient,
   wallet: string,
-  timeframe: string
+  timeframe: string,
+  customStartDate?: string
 ): Promise<number> {
-  if (timeframe === 'All') return 0;
+  let filterDate: Date | null = null;
+  if (customStartDate) {
+    filterDate = new Date(customStartDate);
+  } else {
+    if (timeframe === 'All') return 0;
+    filterDate = getTimeframeFilterDate(timeframe);
+  }
 
-  const filterDate = getTimeframeFilterDate(timeframe);
   if (!filterDate) return 0;
 
   const { data: snapshot, error } = await supabase
@@ -200,7 +217,9 @@ async function calculateInitialFlow(
 async function fetchNetworthHistory(
   supabase: SupabaseClient,
   wallet: string,
-  timeframe: string
+  timeframe: string,
+  customStartDate?: string,
+  customEndDate?: string
 ): Promise<DateValuePoint[]> {
   let query = supabase
     .from('user_networth_snapshots')
@@ -208,9 +227,18 @@ async function fetchNetworthHistory(
     .eq('user_address', wallet)
     .order('timestamp', { ascending: true });
 
-  const filterDate = getTimeframeFilterDate(timeframe);
-  if (filterDate) {
-    query = query.gte('timestamp', filterDate.toISOString());
+  if (customStartDate || customEndDate) {
+    if (customStartDate) {
+      query = query.gte('timestamp', new Date(customStartDate).toISOString());
+    }
+    if (customEndDate) {
+      query = query.lte('timestamp', new Date(customEndDate).toISOString());
+    }
+  } else {
+    const filterDate = getTimeframeFilterDate(timeframe);
+    if (filterDate) {
+      query = query.gte('timestamp', filterDate.toISOString());
+    }
   }
 
   const { data } = await query.limit(500);
@@ -226,13 +254,15 @@ async function fetchNetworthHistory(
 export async function aggregateAnalyticsData(
   supabase: SupabaseClient,
   wallet: string,
-  timeframe: string
+  timeframe: string,
+  customStartDate?: string,
+  customEndDate?: string
 ): Promise<AnalyticsDataResult> {
   // Fetch transactions and initial flow in parallel
   const [txs, initialFlow, networthHistory] = await Promise.all([
-    fetchTransactionsPaginated(supabase, wallet, timeframe),
-    calculateInitialFlow(supabase, wallet, timeframe),
-    fetchNetworthHistory(supabase, wallet, timeframe),
+    fetchTransactionsPaginated(supabase, wallet, timeframe, customStartDate, customEndDate),
+    calculateInitialFlow(supabase, wallet, timeframe, customStartDate),
+    fetchNetworthHistory(supabase, wallet, timeframe, customStartDate, customEndDate),
   ]);
 
   // --- Basic Aggregates ---
@@ -538,11 +568,12 @@ export async function aggregateAnalyticsData(
     },
   ];
 
-  // Prepend March 10, 2025 baseline for timeframe = All
-  if (timeframe === 'All') {
-    if (activityHistory.length === 0 || activityHistory[0].date > '2025-03-10') {
+  // Prepend baseline for Custom Start Date or timeframe = All
+  const baselineDateStr = customStartDate ? customStartDate.split('T')[0] : (timeframe === 'All' ? '2025-03-10' : null);
+  if (baselineDateStr) {
+    if (activityHistory.length === 0 || activityHistory[0].date > baselineDateStr) {
       activityHistory.unshift({
-        date: '2025-03-10',
+        date: baselineDateStr,
         value: 0,
         volume: 0,
         inflow: 0,
@@ -554,9 +585,9 @@ export async function aggregateAnalyticsData(
     }
 
     exchangeUsage.deposits.history.sort((a, b) => a.date.localeCompare(b.date));
-    if (exchangeUsage.deposits.history.length === 0 || exchangeUsage.deposits.history[0].date > '2025-03-10') {
+    if (exchangeUsage.deposits.history.length === 0 || exchangeUsage.deposits.history[0].date > baselineDateStr) {
       exchangeUsage.deposits.history.unshift({
-        date: '2025-03-10',
+        date: baselineDateStr,
         value: 0,
         dailyValue: 0,
         dailyTokenString: '',
@@ -565,9 +596,9 @@ export async function aggregateAnalyticsData(
     }
 
     exchangeUsage.withdrawals.history.sort((a, b) => a.date.localeCompare(b.date));
-    if (exchangeUsage.withdrawals.history.length === 0 || exchangeUsage.withdrawals.history[0].date > '2025-03-10') {
+    if (exchangeUsage.withdrawals.history.length === 0 || exchangeUsage.withdrawals.history[0].date > baselineDateStr) {
       exchangeUsage.withdrawals.history.unshift({
-        date: '2025-03-10',
+        date: baselineDateStr,
         value: 0,
         dailyValue: 0,
         dailyTokenString: '',

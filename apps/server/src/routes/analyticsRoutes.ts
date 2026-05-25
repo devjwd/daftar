@@ -274,6 +274,8 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
 router.get('/data', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
   const timeframe = (req.query.timeframe as string) || 'All';
+  const customStartDate = req.query.startDate as string | undefined;
+  const customEndDate = req.query.endDate as string | undefined;
   const supabase = getSupabaseClient(req);
 
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
@@ -288,7 +290,7 @@ router.get('/data', async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await aggregateAnalyticsData(supabase, wallet, timeframe);
+    const result = await aggregateAnalyticsData(supabase, wallet, timeframe, customStartDate, customEndDate);
     return res.status(200).json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

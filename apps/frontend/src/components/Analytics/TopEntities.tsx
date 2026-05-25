@@ -16,7 +16,7 @@ const COLORS = [
 interface TopEntitiesProps {
   data: AnalyticsData;
   timeframe: string;
-  setTimeframe: (tf: string) => void;
+  setTimeframe: (tf: string, startDate?: string, endDate?: string) => void;
 }
 
 const CustomExchangeTooltip = ({ active, payload, type }: any) => {
@@ -134,6 +134,14 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
   const [activeTab, setActiveTab] = useState<'exchange' | 'protocols' | 'tokens'>('exchange');
   const [showDropdown, setShowDropdown] = useState(false);
 
+  // Custom Calendar state
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [selectedStart, setSelectedStart] = useState<Date | null>(null);
+  const [selectedEnd, setSelectedEnd] = useState<Date | null>(null);
+  const [inputStart, setInputStart] = useState('');
+  const [inputEnd, setInputEnd] = useState('');
+
   const hasEntities = data.topEntities && data.topEntities.length > 0;
   const hasTokens = data.topTokens && data.topTokens.length > 0;
 
@@ -160,6 +168,73 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
     return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   };
 
+  const formatDateString = (date: Date) => {
+    return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+  };
+
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (year: number, month: number) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const handleDayClick = (date: Date) => {
+    if (!selectedStart || (selectedStart && selectedEnd)) {
+      setSelectedStart(date);
+      setSelectedEnd(null);
+      setInputStart(formatDateString(date));
+      setInputEnd('');
+    } else {
+      if (date < selectedStart) {
+        setSelectedStart(date);
+        setInputStart(formatDateString(date));
+      } else {
+        setSelectedEnd(date);
+        setInputEnd(formatDateString(date));
+      }
+    }
+  };
+
+  const handleInputChange = (val: string, isStart: boolean) => {
+    if (isStart) {
+      setInputStart(val);
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) {
+        setSelectedStart(d);
+        setCalMonth(d.getMonth());
+        setCalYear(d.getFullYear());
+      }
+    } else {
+      setInputEnd(val);
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) {
+        setSelectedEnd(d);
+        setCalMonth(d.getMonth());
+        setCalYear(d.getFullYear());
+      }
+    }
+  };
+
+  const handleClear = () => {
+    setSelectedStart(null);
+    setSelectedEnd(null);
+    setInputStart('');
+    setInputEnd('');
+    setTimeframe('All');
+    setShowDropdown(false);
+  };
+
+  const handleApply = () => {
+    if (selectedStart && selectedEnd) {
+      setTimeframe('Custom', selectedStart.toISOString(), selectedEnd.toISOString());
+    } else if (selectedStart) {
+      setTimeframe('Custom', selectedStart.toISOString(), selectedStart.toISOString());
+    }
+    setShowDropdown(false);
+  };
+
   const getDateRangeString = () => {
     const allHistory = [...deposits.history, ...withdrawals.history];
     if (allHistory.length === 0) return 'NO EXCHANGE ACTIVITY';
@@ -176,6 +251,18 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
     };
 
     return `${formatDate(minDate)} - ${formatDate(maxDate)} (${diffDays} DAYS)`;
+  };
+
+  const getButtonText = () => {
+    if (timeframe === 'Custom' && selectedStart) {
+      const startStr = formatDateString(selectedStart);
+      const endStr = selectedEnd ? formatDateString(selectedEnd) : 'End date';
+      const daysCount = selectedEnd 
+        ? Math.ceil(Math.abs(selectedEnd.getTime() - selectedStart.getTime()) / (1000 * 3600 * 24)) + 1
+        : 1;
+      return `${startStr} - ${endStr} (${daysCount} DAYS)`;
+    }
+    return getDateRangeString();
   };
 
   return (
@@ -278,7 +365,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)' }}>
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
               </svg>
-              <span>{timeframe === 'All' ? '' : `${timeframe}: `}{getDateRangeString()}</span>
+              <span>{getButtonText()}</span>
               <span style={{ fontSize: '8px', opacity: 0.5 }}>▼</span>
             </button>
 
@@ -292,47 +379,218 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
                   right: 0,
-                  background: '#1a1a1a',
+                  background: 'rgba(18, 18, 18, 0.95)',
+                  backdropFilter: 'blur(20px)',
                   border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '8px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                  padding: '4px',
-                  minWidth: '120px',
+                  borderRadius: '12px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                  padding: '16px',
+                  width: '320px',
                   zIndex: 999,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '2px'
+                  gap: '12px'
                 }}>
-                  {['1D', '1W', '1M', '3M', '1Y', 'All'].map((tf) => (
+                  {/* Inputs Row */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Start date" 
+                        value={inputStart}
+                        onChange={(e) => handleInputChange(e.target.value, true)}
+                        style={{
+                          width: '100%',
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: '6px',
+                          padding: '8px 10px',
+                          color: '#fff',
+                          fontSize: '12px',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <input 
+                        type="text" 
+                        placeholder="End date" 
+                        value={inputEnd}
+                        onChange={(e) => handleInputChange(e.target.value, false)}
+                        style={{
+                          width: '100%',
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: '6px',
+                          padding: '8px 10px',
+                          color: '#fff',
+                          fontSize: '12px',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Weekdays Header */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center' }}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                      <span key={d} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>{d}</span>
+                    ))}
+                  </div>
+
+                  {/* Month Name & Navigation */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {new Date(calYear, calMonth).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button 
+                        onClick={() => {
+                          if (calMonth === 0) {
+                            setCalMonth(11);
+                            setCalYear(prev => prev - 1);
+                          } else {
+                            setCalMonth(prev => prev - 1);
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: '4px',
+                          color: 'rgba(255,255,255,0.8)',
+                          padding: '2px 6px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          outline: 'none'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                      >
+                        &lt;
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (calMonth === 11) {
+                            setCalMonth(0);
+                            setCalYear(prev => prev + 1);
+                          } else {
+                            setCalMonth(prev => prev + 1);
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: '4px',
+                          color: 'rgba(255,255,255,0.8)',
+                          padding: '2px 6px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          outline: 'none'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                      >
+                        &gt;
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                    {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, idx) => (
+                      <div key={`empty-${idx}`} />
+                    ))}
+                    {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, idx) => {
+                      const dayNum = idx + 1;
+                      const thisDate = new Date(calYear, calMonth, dayNum);
+                      const isStart = selectedStart && thisDate.toDateString() === selectedStart.toDateString();
+                      const isEnd = selectedEnd && thisDate.toDateString() === selectedEnd.toDateString();
+                      const isInRange = selectedStart && selectedEnd && thisDate > selectedStart && thisDate < selectedEnd;
+
+                      return (
+                        <button
+                          key={`day-${dayNum}`}
+                          type="button"
+                          onClick={() => handleDayClick(thisDate)}
+                          style={{
+                            background: isStart 
+                              ? 'var(--primary)' 
+                              : isInRange 
+                              ? 'rgba(205, 161, 105, 0.12)' 
+                              : 'transparent',
+                            border: isEnd 
+                              ? '2.5px solid var(--primary)' 
+                              : 'none',
+                            borderRadius: '50%',
+                            color: isStart ? '#111' : isInRange ? 'var(--primary)' : '#fff',
+                            fontSize: '11px',
+                            fontWeight: isStart || isEnd || isInRange ? 800 : 500,
+                            width: '32px',
+                            height: '32px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            outline: 'none',
+                            transition: 'all 0.1s',
+                            padding: 0
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isStart && !isInRange) e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isStart && !isInRange) e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          {dayNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
                     <button
-                      key={tf}
-                      onClick={() => {
-                        setTimeframe(tf);
-                        setShowDropdown(false);
-                      }}
+                      onClick={handleClear}
+                      type="button"
                       style={{
-                        background: timeframe === tf ? 'rgba(205,161,105,0.15)' : 'transparent',
+                        background: 'transparent',
                         border: 'none',
-                        borderRadius: '6px',
-                        padding: '6px 12px',
-                        color: timeframe === tf ? 'var(--primary)' : 'rgba(255,255,255,0.8)',
+                        color: 'rgba(255,255,255,0.4)',
                         fontSize: '11px',
-                        fontWeight: 700,
-                        textAlign: 'left',
+                        fontWeight: 800,
                         cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        outline: 'none'
+                        textTransform: 'uppercase',
+                        padding: '4px 8px',
+                        transition: 'color 0.2s'
                       }}
-                      onMouseOver={(e) => {
-                        if (timeframe !== tf) e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                      }}
-                      onMouseOut={(e) => {
-                        if (timeframe !== tf) e.currentTarget.style.background = 'transparent';
-                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
                     >
-                      Timeframe: {tf}
+                      Clear
                     </button>
-                  ))}
+                    <button
+                      onClick={handleApply}
+                      type="button"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--primary)',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        padding: '4px 8px',
+                        transition: 'opacity 0.2s'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
+                      onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+                    >
+                      Apply
+                    </button>
+                  </div>
                 </div>
               </>
             )}
