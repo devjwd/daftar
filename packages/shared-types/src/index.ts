@@ -21,6 +21,8 @@ export interface ExchangeBreakdownItem {
 export interface ExchangeHistoryItem {
   date: string;
   value: number;
+  dailyValue?: number;
+  details?: Array<{ name: string; value: number }>;
 }
 
 export interface ExchangeStats {

@@ -7,6 +7,105 @@ interface ExchangeUsageDashboardProps {
   data: AnalyticsData;
 }
 
+const CustomExchangeTooltip = ({ active, payload, type }: any) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const point = payload[0].payload;
+  const dateStr = point.date;
+
+  const d = new Date(dateStr);
+  const formattedDate = isNaN(d.getTime())
+    ? dateStr
+    : d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+
+  const value = payload[0].value;
+  const isDeposit = type === 'deposit';
+  const themeColor = isDeposit ? '#36c690' : '#7b68ee';
+  const labelText = isDeposit ? 'Cumulative Deposits' : 'Cumulative Withdrawals';
+  const dailyLabelText = isDeposit ? 'Daily Volume In' : 'Daily Volume Out';
+  const prefix = isDeposit ? '-' : '+';
+
+  const formatVolumeValue = (val: number): string => {
+    const absVal = Math.abs(val);
+    if (absVal === 0) return '$0';
+    if (absVal < 0.001) return `$${val.toFixed(6)}`;
+    if (absVal < 0.01) return `$${val.toFixed(4)}`;
+    if (absVal < 1) return `$${val.toFixed(3)}`;
+    if (absVal < 10) return `$${val.toFixed(2)}`;
+    return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  };
+
+  const renderDetailsList = (details: Array<{ name: string; value: number }>, prefix: string, color: string) => {
+    if (!details || details.length === 0) return null;
+    return (
+      <div style={{ marginTop: '6px' }}>
+        {details.map((detail, idx) => (
+          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgba(255,255,255,0.7)', paddingLeft: '8px', margin: '2px 0' }}>
+            <span>• {detail.name}</span>
+            <span style={{ color, fontWeight: 700 }}>
+              {prefix}{formatVolumeValue(detail.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{
+      background: 'rgba(15, 15, 15, 0.85)',
+      backdropFilter: 'blur(16px)',
+      border: '1px solid rgba(205, 161, 105, 0.2)',
+      borderRadius: '12px',
+      padding: '12px 16px',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+      maxWidth: '300px',
+      minWidth: '220px',
+      color: '#fff',
+      zIndex: 100
+    }}>
+      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+        {formattedDate}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>
+          {labelText}
+        </span>
+        <span style={{
+          fontSize: '14px',
+          fontWeight: 900,
+          color: themeColor
+        }}>
+          {formatVolumeValue(value)}
+        </span>
+      </div>
+
+      <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '8px 0' }}></div>
+
+      <div>
+        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', fontWeight: 800, marginBottom: '6px' }}>
+          Daily Breakdown
+        </div>
+
+        {point && (Number(point.dailyValue || 0) > 0) ? (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: themeColor, fontWeight: 700 }}>
+              <span>{dailyLabelText}</span>
+              <span>{prefix}{formatVolumeValue(point.dailyValue)}</span>
+            </div>
+            {renderDetailsList(point.details || [], prefix, themeColor)}
+          </div>
+        ) : (
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>
+            No exchange activity
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const COLORS = [
   '#cda169', // Main Brand Gold
   '#b2854f', // Deep Bronze
@@ -62,6 +161,7 @@ const ExchangeUsageDashboard: React.FC<ExchangeUsageDashboardProps> = ({ data })
                       <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
                     </linearGradient>
                   </defs>
+                  <Tooltip content={<CustomExchangeTooltip type="deposit" />} />
                   <Area type="monotone" dataKey="value" stroke="#36c690" strokeWidth={2} fill="url(#depGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -123,6 +223,7 @@ const ExchangeUsageDashboard: React.FC<ExchangeUsageDashboardProps> = ({ data })
                       <stop offset="95%" stopColor="#7b68ee" stopOpacity={0} />
                     </linearGradient>
                   </defs>
+                  <Tooltip content={<CustomExchangeTooltip type="withdrawal" />} />
                   <Area type="monotone" dataKey="value" stroke="#7b68ee" strokeWidth={2} fill="url(#witGrad)" />
                 </AreaChart>
               </ResponsiveContainer>

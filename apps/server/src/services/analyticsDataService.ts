@@ -386,6 +386,9 @@ export async function aggregateAnalyticsData(
   const depHistoryMap = new Map<string, number>();
   const witHistoryMap = new Map<string, number>();
 
+  const depDailyStats = new Map<string, { value: number; details: Map<string, number> }>();
+  const witDailyStats = new Map<string, { value: number; details: Map<string, number> }>();
+
   txs.forEach(tx => {
     const val = Number(tx.value_usd || 0);
     const protocol = tx.protocol || 'Unknown';
@@ -402,17 +405,44 @@ export async function aggregateAnalyticsData(
         depMap.set(protocol, (depMap.get(protocol) || 0) + val);
         depCumul += val;
         depHistoryMap.set(date, depCumul);
+
+        const daily = depDailyStats.get(date) || { value: 0, details: new Map<string, number>() };
+        daily.value += val;
+        daily.details.set(protocol, (daily.details.get(protocol) || 0) + val);
+        depDailyStats.set(date, daily);
       } else if (isInflowAction(action)) {
         exchangeUsage.withdrawals.total += val;
         witMap.set(protocol, (witMap.get(protocol) || 0) + val);
         witCumul += val;
         witHistoryMap.set(date, witCumul);
+
+        const daily = witDailyStats.get(date) || { value: 0, details: new Map<string, number>() };
+        daily.value += val;
+        daily.details.set(protocol, (daily.details.get(protocol) || 0) + val);
+        witDailyStats.set(date, daily);
       }
     }
   });
 
-  exchangeUsage.deposits.history = Array.from(depHistoryMap.entries()).map(([date, value]) => ({ date, value }));
-  exchangeUsage.withdrawals.history = Array.from(witHistoryMap.entries()).map(([date, value]) => ({ date, value }));
+  exchangeUsage.deposits.history = Array.from(depHistoryMap.entries()).map(([date, value]) => {
+    const daily = depDailyStats.get(date) || { value: 0, details: new Map<string, number>() };
+    return {
+      date,
+      value,
+      dailyValue: daily.value,
+      details: Array.from(daily.details.entries()).map(([name, value]) => ({ name, value }))
+    };
+  });
+
+  exchangeUsage.withdrawals.history = Array.from(witHistoryMap.entries()).map(([date, value]) => {
+    const daily = witDailyStats.get(date) || { value: 0, details: new Map<string, number>() };
+    return {
+      date,
+      value,
+      dailyValue: daily.value,
+      details: Array.from(daily.details.entries()).map(([name, value]) => ({ name, value }))
+    };
+  });
 
   exchangeUsage.deposits.breakdown = Array.from(depMap.entries())
     .map(([name, value]) => ({ name, value }))
