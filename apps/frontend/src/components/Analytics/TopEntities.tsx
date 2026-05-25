@@ -269,184 +269,86 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
       
       {/* UNIFIED BENTO CARD FOR ALL THREE WIDGETS */}
-      <div className="bento-card" style={{ width: '100%', padding: '24px' }}>
+      <div className="bento-card" style={{ width: '100%' }}>
         
         {/* Navigation Tab Menu & Timeframe Filter */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginBottom: '24px' }}>
-          <div style={{ display: 'flex' }}>
+        <div className="analytics-tab-header">
+          <div className="analytics-tab-header-left">
             <button 
+              className={`analytics-tab-btn ${activeTab === 'exchange' ? 'active' : ''}`}
               onClick={() => setActiveTab('exchange')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                fontSize: '13px',
-                fontWeight: 800,
-                color: activeTab === 'exchange' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                marginRight: '32px',
-                cursor: 'pointer',
-                transition: 'color 0.2s',
-                outline: 'none',
-                padding: 0
-              }}
             >
               Exchange Usage
             </button>
             
             <button 
+              className={`analytics-tab-btn ${activeTab === 'protocols' ? 'active' : ''}`}
               onClick={() => setActiveTab('protocols')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                fontSize: '13px',
-                fontWeight: 800,
-                color: activeTab === 'protocols' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                marginRight: '32px',
-                cursor: 'pointer',
-                transition: 'color 0.2s',
-                outline: 'none',
-                padding: 0
-              }}
             >
               Top Interacting Protocols
             </button>
 
             <button 
+              className={`analytics-tab-btn ${activeTab === 'tokens' ? 'active' : ''}`}
               onClick={() => setActiveTab('tokens')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                fontSize: '13px',
-                fontWeight: 800,
-                color: activeTab === 'tokens' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                transition: 'color 0.2s',
-                outline: 'none',
-                padding: 0
-              }}
             >
               Top Tokens Handled
             </button>
           </div>
 
-          {/* Timeframe Filter Dropdown (Arkham style) */}
+          {/* Timeframe Filter Dropdown */}
           <div style={{ position: 'relative' }}>
             <button
+              className="analytics-filter-btn"
               onClick={() => setShowDropdown(prev => !prev)}
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '8px',
-                padding: '6px 12px',
-                color: 'rgba(255,255,255,0.7)',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s',
-                outline: 'none'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-              }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
               </svg>
               <span>{getButtonText()}</span>
-              <span style={{ fontSize: '8px', opacity: 0.5 }}>▼</span>
+              <span className="filter-arrow">▼</span>
             </button>
 
             {showDropdown && (
               <>
                 <div 
+                  className="analytics-filter-dropdown-overlay"
                   onClick={() => setShowDropdown(false)}
-                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }}
                 />
-                <div style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  right: 0,
-                  background: 'rgba(18, 18, 18, 0.95)',
-                  backdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '12px',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-                  padding: '16px',
-                  width: '320px',
-                  zIndex: 999,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px'
-                }}>
+                <div className="analytics-filter-dropdown">
                   {/* Inputs Row */}
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <input 
-                        type="text" 
-                        placeholder="Start date" 
-                        value={inputStart}
-                        onChange={(e) => handleInputChange(e.target.value, true)}
-                        style={{
-                          width: '100%',
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: '6px',
-                          padding: '8px 10px',
-                          color: '#fff',
-                          fontSize: '12px',
-                          outline: 'none',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <input 
-                        type="text" 
-                        placeholder="End date" 
-                        value={inputEnd}
-                        onChange={(e) => handleInputChange(e.target.value, false)}
-                        style={{
-                          width: '100%',
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: '6px',
-                          padding: '8px 10px',
-                          color: '#fff',
-                          fontSize: '12px',
-                          outline: 'none',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
+                  <div className="analytics-filter-inputs">
+                    <input 
+                      className="analytics-filter-input"
+                      type="text" 
+                      placeholder="Start date" 
+                      value={inputStart}
+                      onChange={(e) => handleInputChange(e.target.value, true)}
+                    />
+                    <input 
+                      className="analytics-filter-input"
+                      type="text" 
+                      placeholder="End date" 
+                      value={inputEnd}
+                      onChange={(e) => handleInputChange(e.target.value, false)}
+                    />
                   </div>
 
                   {/* Weekdays Header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center' }}>
+                  <div className="calendar-weekdays">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                      <span key={d} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>{d}</span>
+                      <span key={d} className="calendar-weekday">{d}</span>
                     ))}
                   </div>
 
                   {/* Month Name & Navigation */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <div className="calendar-month-nav">
+                    <span className="calendar-month-label">
                       {new Date(calYear, calMonth).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                     </span>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div className="calendar-nav-btns">
                       <button 
+                        className="calendar-nav-btn"
                         onClick={() => {
                           if (calMonth === 0) {
                             setCalMonth(11);
@@ -455,22 +357,11 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                             setCalMonth(prev => prev - 1);
                           }
                         }}
-                        style={{
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.06)',
-                          borderRadius: '4px',
-                          color: 'rgba(255,255,255,0.8)',
-                          padding: '2px 6px',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          outline: 'none'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
                       >
                         &lt;
                       </button>
                       <button 
+                        className="calendar-nav-btn"
                         onClick={() => {
                           if (calMonth === 11) {
                             setCalMonth(0);
@@ -479,18 +370,6 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                             setCalMonth(prev => prev + 1);
                           }
                         }}
-                        style={{
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.06)',
-                          borderRadius: '4px',
-                          color: 'rgba(255,255,255,0.8)',
-                          padding: '2px 6px',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          outline: 'none'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
                       >
                         &gt;
                       </button>
@@ -498,7 +377,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                   </div>
 
                   {/* Calendar Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                  <div className="calendar-grid">
                     {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, idx) => (
                       <div key={`empty-${idx}`} />
                     ))}
@@ -509,40 +388,19 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                       const isEnd = selectedEnd && thisDate.toDateString() === selectedEnd.toDateString();
                       const isInRange = selectedStart && selectedEnd && thisDate > selectedStart && thisDate < selectedEnd;
 
+                      const dayClass = [
+                        'calendar-day',
+                        isStart ? 'start' : '',
+                        isEnd ? 'end' : '',
+                        isInRange ? 'in-range' : ''
+                      ].filter(Boolean).join(' ');
+
                       return (
                         <button
                           key={`day-${dayNum}`}
                           type="button"
+                          className={dayClass}
                           onClick={() => handleDayClick(thisDate)}
-                          style={{
-                            background: isStart 
-                              ? 'var(--primary)' 
-                              : isInRange 
-                              ? 'rgba(205, 161, 105, 0.12)' 
-                              : 'transparent',
-                            border: isEnd 
-                              ? '2.5px solid var(--primary)' 
-                              : 'none',
-                            borderRadius: '50%',
-                            color: isStart ? '#111' : isInRange ? 'var(--primary)' : '#fff',
-                            fontSize: '11px',
-                            fontWeight: isStart || isEnd || isInRange ? 800 : 500,
-                            width: '32px',
-                            height: '32px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            outline: 'none',
-                            transition: 'all 0.1s',
-                            padding: 0
-                          }}
-                          onMouseOver={(e) => {
-                            if (!isStart && !isInRange) e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                          }}
-                          onMouseOut={(e) => {
-                            if (!isStart && !isInRange) e.currentTarget.style.background = 'transparent';
-                          }}
                         >
                           {dayNum}
                         </button>
@@ -551,43 +409,11 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                   </div>
 
                   {/* Actions Footer */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
-                    <button
-                      onClick={handleClear}
-                      type="button"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'rgba(255,255,255,0.4)',
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        textTransform: 'uppercase',
-                        padding: '4px 8px',
-                        transition: 'color 0.2s'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
-                      onMouseOut={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
-                    >
+                  <div className="calendar-footer">
+                    <button className="calendar-footer-btn clear" onClick={handleClear} type="button">
                       Clear
                     </button>
-                    <button
-                      onClick={handleApply}
-                      type="button"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--primary)',
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        textTransform: 'uppercase',
-                        padding: '4px 8px',
-                        transition: 'opacity 0.2s'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
-                      onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
-                    >
+                    <button className="calendar-footer-btn apply" onClick={handleApply} type="button">
                       Apply
                     </button>
                   </div>
@@ -600,13 +426,11 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
         {/* TAB CONTENTS */}
         {activeTab === 'exchange' && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px' }} className="exchange-grid-v5-arkham">
+            <div className="exchange-grid-v5-arkham" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
               
               {/* DEPOSITS COLUMN */}
               <div>
-                <h4 style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px', textAlign: 'left' }}>
-                  DEPOSITS
-                </h4>
+                <h4 className="exchange-section-title">DEPOSITS</h4>
 
                 {!hasDeposits ? (
                   <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -615,7 +439,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                   </div>
                 ) : (
                   <>
-                    <div style={{ height: '140px', margin: '0 -24px 20px -24px' }}>
+                    <div className="exchange-chart-wrap">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={deposits.history}>
                           <defs>
@@ -632,9 +456,9 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                             tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
                             tickFormatter={(val) => {
                               if (val === 0) return '$0';
-                              if (val >= 1000000) return `$+$${(val / 1000000).toFixed(0)}M`;
-                              if (val >= 1000) return `$+$${(val / 1000).toFixed(0)}k`;
-                              return `$+$${val}`;
+                              if (val >= 1000000) return `+$${(val / 1000000).toFixed(0)}M`;
+                              if (val >= 1000) return `+$${(val / 1000).toFixed(0)}k`;
+                              return `+$${val}`;
                             }}
                           />
                           <Tooltip content={<CustomExchangeTooltip type="deposit" />} />
@@ -643,39 +467,41 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                       </ResponsiveContainer>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                      <div style={{ width: '100px', height: '100px', flexShrink: 0 }}>
+                    <div className="exchange-breakdown-row">
+                      <div className="exchange-pie-wrap">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={deposits.breakdown} innerRadius={0} outerRadius={45} paddingAngle={0} dataKey="value" stroke="none">
+                            <Pie data={deposits.breakdown} innerRadius={0} outerRadius={48} paddingAngle={2} dataKey="value" stroke="none">
                               {deposits.breakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                             </Pie>
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <div className="exchange-table-wrap">
+                        <table className="exchange-table">
                           <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)', fontWeight: 700, textAlign: 'left' }}>
-                              <th style={{ padding: '4px 0', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Exchange</th>
-                              <th style={{ padding: '4px 0', textAlign: 'right', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Value</th>
+                            <tr>
+                              <th>Exchange</th>
+                              <th style={{ textAlign: 'right' }}>Value</th>
                             </tr>
                           </thead>
                           <tbody>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#fff', fontWeight: 700 }}>
-                              <td style={{ padding: '6px 0' }}>Total</td>
-                              <td style={{ padding: '6px 0', textAlign: 'right' }}>{formatVolumeValue(deposits.total)} (100%)</td>
+                            <tr className="total-row">
+                              <td>Total</td>
+                              <td className="exchange-val-cell">{formatVolumeValue(deposits.total)} (100%)</td>
                             </tr>
                             {deposits.breakdown.slice(0, 4).map((ex, i) => {
                               const pct = deposits.total > 0 ? Math.round((ex.value / deposits.total) * 100) : 0;
                               return (
-                                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.7)' }}>
-                                  <td style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ width: 8, height: 8, borderRadius: '2px', background: COLORS[i % COLORS.length] }}></div>
-                                    <span style={{ fontWeight: 600 }}>{ex.name}</span>
+                                <tr key={i}>
+                                  <td>
+                                    <div className="exchange-name-cell">
+                                      <div className="exchange-color-dot" style={{ background: COLORS[i % COLORS.length] }} />
+                                      <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
+                                    </div>
                                   </td>
-                                  <td style={{ padding: '6px 0', textAlign: 'right', color: '#fff', fontWeight: 600 }}>
-                                    {formatVolumeValue(ex.value)} <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: '4px' }}>({pct}%)</span>
+                                  <td className="exchange-val-cell">
+                                    {formatVolumeValue(ex.value)}<span className="exchange-pct">({pct}%)</span>
                                   </td>
                                 </tr>
                               );
@@ -690,9 +516,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
 
               {/* WITHDRAWALS COLUMN */}
               <div>
-                <h4 style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px', textAlign: 'left' }}>
-                  WITHDRAWALS
-                </h4>
+                <h4 className="exchange-section-title">WITHDRAWALS</h4>
 
                 {!hasWithdrawals ? (
                   <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -701,7 +525,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                   </div>
                 ) : (
                   <>
-                    <div style={{ height: '140px', margin: '0 -24px 20px -24px' }}>
+                    <div className="exchange-chart-wrap">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={withdrawals.history}>
                           <defs>
@@ -718,9 +542,9 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                             tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
                             tickFormatter={(val) => {
                               if (val === 0) return '$0';
-                              if (val >= 1000000) return `$+$${(val / 1000000).toFixed(0)}M`;
-                              if (val >= 1000) return `$+$${(val / 1000).toFixed(0)}k`;
-                              return `$+$${val}`;
+                              if (val >= 1000000) return `+$${(val / 1000000).toFixed(0)}M`;
+                              if (val >= 1000) return `+$${(val / 1000).toFixed(0)}k`;
+                              return `+$${val}`;
                             }}
                           />
                           <Tooltip content={<CustomExchangeTooltip type="withdrawal" />} />
@@ -729,39 +553,41 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                       </ResponsiveContainer>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                      <div style={{ width: '100px', height: '100px', flexShrink: 0 }}>
+                    <div className="exchange-breakdown-row">
+                      <div className="exchange-pie-wrap">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={withdrawals.breakdown} innerRadius={0} outerRadius={45} paddingAngle={0} dataKey="value" stroke="none">
+                            <Pie data={withdrawals.breakdown} innerRadius={0} outerRadius={48} paddingAngle={2} dataKey="value" stroke="none">
                               {withdrawals.breakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                             </Pie>
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <div className="exchange-table-wrap">
+                        <table className="exchange-table">
                           <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)', fontWeight: 700, textAlign: 'left' }}>
-                              <th style={{ padding: '4px 0', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Exchange</th>
-                              <th style={{ padding: '4px 0', textAlign: 'right', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.5px' }}>Value</th>
+                            <tr>
+                              <th>Exchange</th>
+                              <th style={{ textAlign: 'right' }}>Value</th>
                             </tr>
                           </thead>
                           <tbody>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#fff', fontWeight: 700 }}>
-                              <td style={{ padding: '6px 0' }}>Total</td>
-                              <td style={{ padding: '6px 0', textAlign: 'right' }}>{formatVolumeValue(withdrawals.total)} (100%)</td>
+                            <tr className="total-row">
+                              <td>Total</td>
+                              <td className="exchange-val-cell">{formatVolumeValue(withdrawals.total)} (100%)</td>
                             </tr>
                             {withdrawals.breakdown.slice(0, 4).map((ex, i) => {
                               const pct = withdrawals.total > 0 ? Math.round((ex.value / withdrawals.total) * 100) : 0;
                               return (
-                                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.7)' }}>
-                                  <td style={{ padding: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ width: 8, height: 8, borderRadius: '2px', background: COLORS[i % COLORS.length] }}></div>
-                                    <span style={{ fontWeight: 600 }}>{ex.name}</span>
+                                <tr key={i}>
+                                  <td>
+                                    <div className="exchange-name-cell">
+                                      <div className="exchange-color-dot" style={{ background: COLORS[i % COLORS.length] }} />
+                                      <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
+                                    </div>
                                   </td>
-                                  <td style={{ padding: '6px 0', textAlign: 'right', color: '#fff', fontWeight: 600 }}>
-                                    {formatVolumeValue(ex.value)} <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, marginLeft: '4px' }}>({pct}%)</span>
+                                  <td className="exchange-val-cell">
+                                    {formatVolumeValue(ex.value)}<span className="exchange-pct">({pct}%)</span>
                                   </td>
                                 </tr>
                               );
@@ -780,18 +606,18 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
 
         {/* TOP INTERACTING PROTOCOLS TAB */}
         {activeTab === 'protocols' && (
-          <div style={{ padding: '12px 0 8px 0' }}>
+          <div style={{ padding: '4px 0 8px 0' }}>
             {!hasEntities ? (
-              <div className="empty-state-v5" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div className="empty-state-v5" style={{ minHeight: '280px' }}>
                 <Ghost size={32} className="empty-state-icon" />
                 <p>No protocol interactions found.</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="entity-cards-grid">
                 {data.topEntities.slice(0, 8).map((entity, i) => {
                   const visual = getProtocolVisual(entity.name);
                   return (
-                    <div key={i} className="entity-row-v5" style={{ padding: '16px 20px', borderRadius: '12px' }}>
+                    <div key={i} className="entity-row-v5">
                       <div className="entity-left">
                         <div className="entity-avatar" style={{ width: '40px', height: '40px' }}>
                           {visual.logo ? (
@@ -800,14 +626,14 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                             entity.name.substring(0, 1).toUpperCase()
                           )}
                         </div>
-                        <div>
-                          <span className="entity-name" style={{ fontSize: '15px', display: 'block' }}>{entity.name}</span>
-                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                        <div className="entity-info">
+                          <span className="entity-name">{entity.name}</span>
+                          <span className="entity-sub">
                             {entity.count ? `${entity.count} interactions` : 'DeFi Position'}
                           </span>
                         </div>
                       </div>
-                      <span className="entity-value" style={{ fontSize: '18px' }}>{formatVolumeValue(entity.value)}</span>
+                      <span className="entity-value">{formatVolumeValue(entity.value)}</span>
                     </div>
                   );
                 })}
@@ -818,18 +644,18 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
 
         {/* TOP TOKENS HANDLED TAB */}
         {activeTab === 'tokens' && (
-          <div style={{ padding: '12px 0 8px 0' }}>
+          <div style={{ padding: '4px 0 8px 0' }}>
             {!hasTokens ? (
-              <div className="empty-state-v5" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div className="empty-state-v5" style={{ minHeight: '280px' }}>
                 <Ghost size={32} className="empty-state-icon" />
                 <p>No token transfers found.</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="entity-cards-grid">
                 {data.topTokens.slice(0, 8).map((token, i) => {
                   const visual = getTokenVisual(token.symbol);
                   return (
-                    <div key={i} className="entity-row-v5" style={{ padding: '16px 20px', borderRadius: '12px' }}>
+                    <div key={i} className="entity-row-v5">
                       <div className="entity-left">
                         <div className="entity-avatar" style={{ width: '40px', height: '40px', background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)', fontSize: '16px' }}>
                           {visual.logo ? (
@@ -838,12 +664,12 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                             '$'
                           )}
                         </div>
-                        <div>
-                          <span className="entity-name" style={{ fontSize: '15px', display: 'block' }}>{token.symbol}</span>
-                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Asset Transferred</span>
+                        <div className="entity-info">
+                          <span className="entity-name">{token.symbol}</span>
+                          <span className="entity-sub">Asset Transferred</span>
                         </div>
                       </div>
-                      <span className="entity-value" style={{ fontSize: '18px' }}>{formatVolumeValue(token.value)}</span>
+                      <span className="entity-value">{formatVolumeValue(token.value)}</span>
                     </div>
                   );
                 })}

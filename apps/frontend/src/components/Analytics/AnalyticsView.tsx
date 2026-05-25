@@ -250,35 +250,28 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <div>
-                <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>Portfolio Intelligence</h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                  <p style={{ color: 'var(--text-tertiary)', fontSize: '14px' }}>Live from database</p>
+            <div className="analytics-page-header">
+              <div className="analytics-page-header-left">
+                <h2>Portfolio Intelligence</h2>
+                <div className="analytics-page-header-sub">
+                  <p>Live from database</p>
                   {syncStatus === 'syncing' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '11px', background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                    <div className="analytics-sync-indicator">
+                      <span className="analytics-sync-badge">
                         {syncProgress === 0 ? 'Queued in background...' : 'Syncing history...'}
                       </span>
-                      <div style={{ width: '80px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ width: `${syncProgress}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.4s ease' }}></div>
+                      <div className="analytics-sync-bar">
+                        <div className="analytics-sync-bar-fill" style={{ width: `${syncProgress}%` }} />
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600 }}>{syncProgress}%</span>
+                      <span className="analytics-sync-pct">{syncProgress}%</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <button
-                  onClick={handleStartSync}
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '10px 20px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                  onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                >
-                  Rescan Network
-                </button>
-              </div>
+              <button className="analytics-rescan-btn" onClick={handleStartSync}>
+                Rescan Network
+              </button>
             </div>
 
             {analyticsData && bottomAnalyticsData && (

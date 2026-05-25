@@ -156,44 +156,18 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
         {/* Main PNL & History Card */}
         <div className="bento-card">
 
-          {/* Top Header Row (matching TopEntities tab styling) */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginBottom: '24px' }}>
-            <div style={{ display: 'flex' }}>
+          {/* Top Header Row */}
+          <div className="analytics-tab-header">
+            <div className="analytics-tab-header-left">
               <button
+                className={`analytics-tab-btn ${activeChartTab === 'flow' ? 'active' : ''}`}
                 onClick={() => setActiveChartTab('flow')}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  color: activeChartTab === 'flow' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  marginRight: '32px',
-                  cursor: 'pointer',
-                  transition: 'color 0.2s',
-                  outline: 'none',
-                  padding: 0
-                }}
               >
                 Capital Flow
               </button>
-
               <button
+                className={`analytics-tab-btn ${activeChartTab === 'txs' ? 'active' : ''}`}
                 onClick={() => setActiveChartTab('txs')}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  color: activeChartTab === 'txs' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  transition: 'color 0.2s',
-                  outline: 'none',
-                  padding: 0
-                }}
               >
                 Transactions
               </button>
@@ -201,24 +175,22 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
           </div>
 
           {/* Stats section below the header row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '32px' }}>
-            <div>
-              <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>
+          <div className="analytics-stats-header">
+            <div className="analytics-stats-left">
+              <span className="exchange-label">
                 {activeChartTab === 'flow' ? 'Total Capital Flow' : 'Transaction Count'}
               </span>
               <div className="hero-value">
                 {activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : data.interactionCount.toLocaleString()}
               </div>
-              <div style={{ marginTop: '8px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
-                <span style={{ background: 'rgba(205,161,105,0.1)', color: 'var(--primary)', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>
-                  {data.activeMonths} Months
-                </span>
-                {' '} of tracked activity
+              <div className="analytics-months-badge">
+                <span>{data.activeMonths} Months</span>
+                of tracked activity
               </div>
             </div>
 
-            {/* Timeframe Selector (Moved down next to stats) */}
-            <div className="tabs-container-v5" style={{ margin: 0, marginTop: '8px' }}>
+            {/* Timeframe Selector */}
+            <div className="tabs-container-v5">
               {TIME_FRAMES.map(tf => (
                 <button
                   key={tf}
@@ -227,11 +199,9 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                     if (tf !== timeframe) {
                       setIsTransitioning(true);
                       setTimeframe(tf);
-                      // Clear transition after data should have loaded
                       setTimeout(() => setIsTransitioning(false), 400);
                     }
                   }}
-                  style={{ padding: '6px 14px', fontSize: '12px' }}
                 >
                   {tf}
                 </button>
@@ -239,7 +209,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
             </div>
           </div>
 
-          <div style={{ height: '320px', width: '100%', marginLeft: '-12px', transition: 'opacity 0.3s ease, filter 0.3s ease', opacity: isTransitioning ? 0.4 : 1, filter: isTransitioning ? 'blur(1px)' : 'none' }}>
+          <div className={`analytics-chart-wrap${isTransitioning ? ' transitioning' : ''}`}>
             {!hasHistory ? (
               <div className="empty-state-v5" style={{ height: '100%' }}>
                 <Ghost size={32} className="empty-state-icon" />
@@ -288,21 +258,21 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
         {/* Side Stats & Protocol Affinity */}
         <div className="stats-column-v5">
           <div className="mini-stat-v5">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="mini-stat-left">
               <Droplets size={16} color="#36c690" />
               <span className="mini-stat-label">Inflow</span>
             </div>
             <span className="mini-stat-value positive">{formatVolumeValue(data.totalInflow).replace('$', '+$')}</span>
           </div>
           <div className="mini-stat-v5">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="mini-stat-left">
               <Droplets size={16} color="#ff4b4b" style={{ transform: 'rotate(180deg)' }} />
               <span className="mini-stat-label">Outflow</span>
             </div>
             <span className="mini-stat-value negative">{formatVolumeValue(data.totalOutflow).replace('$', '-$')}</span>
           </div>
           <div className="mini-stat-v5">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="mini-stat-left">
               <Activity size={16} color="var(--primary)" />
               <span className="mini-stat-label">Total Transactions</span>
             </div>
