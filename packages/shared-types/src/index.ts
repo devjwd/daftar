@@ -22,7 +22,8 @@ export interface ExchangeHistoryItem {
   date: string;
   value: number;
   dailyValue?: number;
-  details?: Array<{ name: string; value: number }>;
+  dailyTokenString?: string;
+  details?: Array<{ name: string; value: number; tokenString?: string }>;
 }
 
 export interface ExchangeStats {

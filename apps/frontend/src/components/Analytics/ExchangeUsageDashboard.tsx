@@ -35,7 +35,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
     return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   };
 
-  const renderDetailsList = (details: Array<{ name: string; value: number }>, prefix: string, color: string) => {
+  const renderDetailsList = (details: Array<{ name: string; value: number; tokenString?: string }>, prefix: string, color: string) => {
     if (!details || details.length === 0) return null;
     return (
       <div style={{ marginTop: '6px' }}>
@@ -44,6 +44,11 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
             <span>• {detail.name}</span>
             <span style={{ color, fontWeight: 700 }}>
               {prefix}{formatVolumeValue(detail.value)}
+              {detail.tokenString && (
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 400, marginLeft: '4px' }}>
+                  ({detail.tokenString})
+                </span>
+              )}
             </span>
           </div>
         ))}
@@ -92,7 +97,14 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: themeColor, fontWeight: 700 }}>
               <span>{dailyLabelText}</span>
-              <span>{prefix}{formatVolumeValue(point.dailyValue)}</span>
+              <span>
+                {prefix}{formatVolumeValue(point.dailyValue)}
+                {point.dailyTokenString && (
+                  <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 400, marginLeft: '4px' }}>
+                    ({point.dailyTokenString})
+                  </span>
+                )}
+              </span>
             </div>
             {renderDetailsList(point.details || [], prefix, themeColor)}
           </div>

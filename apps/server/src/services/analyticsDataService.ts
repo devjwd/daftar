@@ -33,7 +33,9 @@ interface TransactionRow {
   action: string;
   protocol: string;
   asset_in_symbol: string | null;
+  asset_in_amount: number | string | null;
   asset_out_symbol: string | null;
+  asset_out_amount: number | string | null;
 }
 
 interface DateValuePoint {
@@ -386,8 +388,28 @@ export async function aggregateAnalyticsData(
   const depHistoryMap = new Map<string, number>();
   const witHistoryMap = new Map<string, number>();
 
-  const depDailyStats = new Map<string, { value: number; details: Map<string, number> }>();
-  const witDailyStats = new Map<string, { value: number; details: Map<string, number> }>();
+  const formatTokenDetails = (tokens: Map<string, number>): string => {
+    return Array.from(tokens.entries())
+      .map(([symbol, amount]) => {
+        const formattedAmt = amount.toLocaleString(undefined, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 4
+        });
+        return `${formattedAmt} ${symbol}`;
+      })
+      .join(', ');
+  };
+
+  const depDailyStats = new Map<string, { 
+    value: number; 
+    details: Map<string, { value: number; tokens: Map<string, number> }>;
+    tokens: Map<string, number>;
+  }>();
+  const witDailyStats = new Map<string, { 
+    value: number; 
+    details: Map<string, { value: number; tokens: Map<string, number> }>;
+    tokens: Map<string, number>;
+  }>();
 
   txs.forEach(tx => {
     const val = Number(tx.value_usd || 0);
@@ -406,9 +428,24 @@ export async function aggregateAnalyticsData(
         depCumul += val;
         depHistoryMap.set(date, depCumul);
 
-        const daily = depDailyStats.get(date) || { value: 0, details: new Map<string, number>() };
+        const daily = depDailyStats.get(date) || { 
+          value: 0, 
+          details: new Map<string, { value: number; tokens: Map<string, number> }>(),
+          tokens: new Map<string, number>()
+        };
         daily.value += val;
-        daily.details.set(protocol, (daily.details.get(protocol) || 0) + val);
+
+        const protoDetail = daily.details.get(protocol) || { value: 0, tokens: new Map<string, number>() };
+        protoDetail.value += val;
+
+        const tokenSym = tx.asset_out_symbol || 'Unknown';
+        const tokenAmt = Number(tx.asset_out_amount || 0);
+        if (tokenAmt > 0) {
+          protoDetail.tokens.set(tokenSym, (protoDetail.tokens.get(tokenSym) || 0) + tokenAmt);
+          daily.tokens.set(tokenSym, (daily.tokens.get(tokenSym) || 0) + tokenAmt);
+        }
+
+        daily.details.set(protocol, protoDetail);
         depDailyStats.set(date, daily);
       } else if (isInflowAction(action)) {
         exchangeUsage.withdrawals.total += val;
@@ -416,31 +453,64 @@ export async function aggregateAnalyticsData(
         witCumul += val;
         witHistoryMap.set(date, witCumul);
 
-        const daily = witDailyStats.get(date) || { value: 0, details: new Map<string, number>() };
+        const daily = witDailyStats.get(date) || { 
+          value: 0, 
+          details: new Map<string, { value: number; tokens: Map<string, number> }>(),
+          tokens: new Map<string, number>()
+        };
         daily.value += val;
-        daily.details.set(protocol, (daily.details.get(protocol) || 0) + val);
+
+        const protoDetail = daily.details.get(protocol) || { value: 0, tokens: new Map<string, number>() };
+        protoDetail.value += val;
+
+        const tokenSym = tx.asset_in_symbol || 'Unknown';
+        const tokenAmt = Number(tx.asset_in_amount || 0);
+        if (tokenAmt > 0) {
+          protoDetail.tokens.set(tokenSym, (protoDetail.tokens.get(tokenSym) || 0) + tokenAmt);
+          daily.tokens.set(tokenSym, (daily.tokens.get(tokenSym) || 0) + tokenAmt);
+        }
+
+        daily.details.set(protocol, protoDetail);
         witDailyStats.set(date, daily);
       }
     }
   });
 
   exchangeUsage.deposits.history = Array.from(depHistoryMap.entries()).map(([date, value]) => {
-    const daily = depDailyStats.get(date) || { value: 0, details: new Map<string, number>() };
+    const daily = depDailyStats.get(date) || { 
+      value: 0, 
+      details: new Map<string, { value: number; tokens: Map<string, number> }>(),
+      tokens: new Map<string, number>()
+    };
     return {
       date,
       value,
       dailyValue: daily.value,
-      details: Array.from(daily.details.entries()).map(([name, value]) => ({ name, value }))
+      dailyTokenString: formatTokenDetails(daily.tokens),
+      details: Array.from(daily.details.entries()).map(([name, detail]) => ({
+        name,
+        value: detail.value,
+        tokenString: formatTokenDetails(detail.tokens)
+      }))
     };
   });
 
   exchangeUsage.withdrawals.history = Array.from(witHistoryMap.entries()).map(([date, value]) => {
-    const daily = witDailyStats.get(date) || { value: 0, details: new Map<string, number>() };
+    const daily = witDailyStats.get(date) || { 
+      value: 0, 
+      details: new Map<string, { value: number; tokens: Map<string, number> }>(),
+      tokens: new Map<string, number>()
+    };
     return {
       date,
       value,
       dailyValue: daily.value,
-      details: Array.from(daily.details.entries()).map(([name, value]) => ({ name, value }))
+      dailyTokenString: formatTokenDetails(daily.tokens),
+      details: Array.from(daily.details.entries()).map(([name, detail]) => ({
+        name,
+        value: detail.value,
+        tokenString: formatTokenDetails(detail.tokens)
+      }))
     };
   });
 
