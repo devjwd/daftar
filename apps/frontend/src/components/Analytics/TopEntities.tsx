@@ -162,7 +162,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
 
   const getDateRangeString = () => {
     const allHistory = [...deposits.history, ...withdrawals.history];
-    if (allHistory.length === 0) return 'NO HISTORICAL EXCHANGE USAGE DATA';
+    if (allHistory.length === 0) return 'NO EXCHANGE ACTIVITY';
 
     const sorted = allHistory.map(h => new Date(h.date)).sort((a, b) => a.getTime() - b.getTime());
     const minDate = sorted[0];
@@ -278,7 +278,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)' }}>
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
               </svg>
-              <span>{getDateRangeString()}</span>
+              <span>{timeframe === 'All' ? '' : `${timeframe}: `}{getDateRangeString()}</span>
               <span style={{ fontSize: '8px', opacity: 0.5 }}>▼</span>
             </button>
 
