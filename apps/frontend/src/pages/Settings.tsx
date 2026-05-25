@@ -26,7 +26,7 @@ export default function Settings() {
   const persistSettings = (overrides = {}) => {
     const settingsData = {
       currency,
-      theme,
+      theme: 'dark', // Locked to premium dark theme
       language,
       hidePositionThreshold,
       ...overrides,
@@ -130,21 +130,7 @@ export default function Settings() {
               </select>
             </div>
 
-            <div className="setting-item">
-              <div className="setting-info">
-                <label>{t(uiLanguage, 'theme')}</label>
-                <span className="setting-description">{t(uiLanguage, 'themeDescription')}</span>
-              </div>
-              <select
-                value={theme}
-                onChange={(e) => handleThemeChange(e.target.value)}
-                className="setting-select"
-              >
-                <option value="dark">{t(uiLanguage, 'dark')}</option>
-                <option value="light">{t(uiLanguage, 'light')}</option>
-                <option value="auto">{t(uiLanguage, 'auto')}</option>
-              </select>
-            </div>
+            {/* Theme selection removed - locked to premium dark-gold */}
 
             <div className="setting-item">
               <div className="setting-info">

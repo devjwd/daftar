@@ -98,7 +98,7 @@ export default function Layout({ children }) {
     return normalized.startsWith('http://') || normalized.startsWith('https://') || normalized.startsWith('/');
   };
 
-  const currentLogo = activeTheme === 'light' ? '/logo dark.png' : '/logo.png';
+  const currentLogo = '/logo.png';
 
   useEffect(() => {
     return () => {
@@ -533,21 +533,7 @@ export default function Layout({ children }) {
                       <span>{t(language, 'menuSupport')}</span>
                     </button>
 
-                    <button
-                      className="more-menu-item"
-                      onClick={() => {
-                        navigate('/settings');
-                        setMoreDropdownOpen(false);
-                      }}
-                    >
-                      <div className="more-menu-icon">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 3C11.45 3 11 3.45 11 4V5C11 5.55 11.45 6 12 6C12.55 6 13 5.55 13 5V4C13 3.45 12.55 3 12 3ZM18 12C18 11.45 18.45 11 19 11H20C20.55 11 21 11.45 21 12C21 12.55 20.55 13 20 13H19C18.45 13 18 12.55 18 12ZM6 12C6 11.45 5.55 11 5 11H4C3.45 11 3 11.45 3 12C3 12.55 3.45 13 4 13H5C5.55 13 6 12.55 6 12ZM12 18C11.45 18 11 18.45 11 19V20C11 20.55 11.45 21 12 21C12.55 21 13 20.55 13 20V19C13 18.45 12.55 18 12 18ZM17.66 6.34C17.27 5.95 16.64 5.95 16.25 6.34L15.54 7.05C15.15 7.44 15.15 8.07 15.54 8.46C15.93 8.85 16.56 8.85 16.95 8.46L17.66 7.75C18.05 7.36 18.05 6.73 17.66 6.34ZM6.34 17.66C5.95 17.27 5.95 16.64 6.34 16.25L7.05 15.54C7.44 15.15 8.07 15.15 8.46 15.54C8.85 15.93 8.85 16.56 8.46 16.95L7.75 17.66C7.36 18.05 6.73 18.05 6.34 17.66ZM8.46 8.46C8.85 8.07 8.85 7.44 8.46 7.05L7.75 6.34C7.36 5.95 6.73 5.95 6.34 6.34C5.95 6.73 5.95 7.36 6.34 7.75L7.05 8.46C7.44 8.85 8.07 8.85 8.46 8.46ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z" fill="currentColor" />
-                        </svg>
-                      </div>
-                      <span>{t(language, 'menuTheme')}</span>
-                      <div className="more-menu-arrow">→</div>
-                    </button>
+                    {/* Theme option removed - locked to premium dark-gold */}
 
                     <button
                       className="more-menu-item"

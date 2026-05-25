@@ -823,5 +823,7 @@ body[data-theme='light'] .home-search-input::placeholder {
 }
 
 @keyframes homeSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }

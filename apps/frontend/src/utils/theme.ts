@@ -5,37 +5,29 @@
 export type ThemePreference = 'light' | 'dark' | 'auto';
 
 export const getStoredThemePreference = (): ThemePreference => {
-  const stored = localStorage.getItem('theme') as ThemePreference | null;
-  return stored || 'auto';
+  return 'dark';
 };
 
 export const applyTheme = (theme: ThemePreference): void => {
   const root = document.documentElement;
-  let effectiveTheme = theme;
-
-  if (theme === 'auto') {
-    effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  
+  // Enforce dark mode classes and attributes for maximum compatibility
+  root.classList.add('dark');
+  root.classList.remove('light');
+  root.setAttribute('data-theme', 'dark');
+  
+  if (document.body) {
+    document.body.setAttribute('data-theme', 'dark');
   }
 
-  if (effectiveTheme === 'dark') {
-    root.classList.add('dark');
-    root.classList.remove('light');
-  } else {
-    root.classList.add('light');
-    root.classList.remove('dark');
-  }
-
-  localStorage.setItem('theme', theme);
+  localStorage.setItem('theme', 'dark');
 };
 
 export const resolveTheme = (theme: ThemePreference): 'light' | 'dark' => {
-  if (theme === 'auto') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return theme;
+  return 'dark';
 };
 
 export const saveThemePreference = (theme: ThemePreference): void => {
-  localStorage.setItem('theme', theme);
+  localStorage.setItem('theme', 'dark');
 };
 
