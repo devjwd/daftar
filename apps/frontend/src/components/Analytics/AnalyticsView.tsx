@@ -8,31 +8,21 @@ import { AnalyticsData } from '../../types/analytics.types';
 // Components
 import SyncStateOverlay from './SyncStateOverlay';
 import AnalyticsOverview from './AnalyticsOverview';
-import ExchangeUsageDashboard from './ExchangeUsageDashboard';
 
 // Styles
 import './AnalyticsV5.css';
 
 interface AnalyticsViewProps {
   walletAddress?: string;
-  initialSubTab?: string;
 }
 
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSubTab }) => {
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const navigate = useNavigate();
   const { connected, account, signMessage } = useWallet();
   const [timeframe, setTimeframe] = useState('All');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'completed' | 'error'>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'exchange'>(
-    initialSubTab === 'exchange' ? 'exchange' : 'overview'
-  );
-
-  useEffect(() => {
-    if (initialSubTab === 'exchange') setActiveTab('exchange');
-    else setActiveTab('overview');
-  }, [initialSubTab]);
 
   const lastSyncStringRef = React.useRef<string | null>(null);
   const lastSyncChangeTimeRef = React.useRef<number>(0);
@@ -246,29 +236,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div className="tabs-container-v5" style={{ margin: 0 }}>
-                  <button
-                    className={`tab-v5 ${activeTab === 'overview' ? 'active' : ''}`}
-                    onClick={() => {
-                      if (!walletAddress) return;
-                      setActiveTab('overview');
-                      navigate(`/profile/${walletAddress}/analytics/overview`);
-                    }}
-                  >
-                    Overview
-                  </button>
-                  <button
-                    className={`tab-v5 ${activeTab === 'exchange' ? 'active' : ''}`}
-                    onClick={() => {
-                      if (!walletAddress) return;
-                      setActiveTab('exchange');
-                      navigate(`/profile/${walletAddress}/analytics/exchange`);
-                    }}
-                  >
-                    Exchange Flows
-                  </button>
-                </div>
-
                 <button
                   onClick={handleStartSync}
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '10px 20px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
@@ -281,18 +248,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress, initialSub
             </div>
 
             {analyticsData && (
-              activeTab === 'overview' ? (
-                <AnalyticsOverview
-                  data={analyticsData}
-                  timeframe={timeframe}
-                  setTimeframe={(tf) => {
-                    setTimeframe(tf);
-                    fetchAnalyticsData(tf);
-                  }}
-                />
-              ) : (
-                <ExchangeUsageDashboard data={analyticsData} />
-              )
+              <AnalyticsOverview
+                data={analyticsData}
+                timeframe={timeframe}
+                setTimeframe={(tf) => {
+                  setTimeframe(tf);
+                  fetchAnalyticsData(tf);
+                }}
+              />
             )}
           </motion.div>
         )}

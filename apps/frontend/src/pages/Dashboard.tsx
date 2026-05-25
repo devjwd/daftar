@@ -473,8 +473,7 @@ const Dashboard = () => {
     if (activeTab === PORTFOLIO_TABS.TRX) tabLabel = " - Transactions";
     else if (activeTab === PORTFOLIO_TABS.NFT) tabLabel = " - NFTs";
     else if (activeTab === PORTFOLIO_TABS.ANALYTICS) {
-      const subTab = splat?.split('/').filter(Boolean)[1];
-      tabLabel = subTab === 'exchange' ? " - Exchange Analytics" : " - Analytics";
+      tabLabel = " - Analytics";
     }
 
     document.title = `${name}${tabLabel} | Daftar`;
@@ -876,7 +875,6 @@ const Dashboard = () => {
             <Suspense fallback={<div className="loading-indicator">Analyzing history...</div>}>
               <AnalyticsView 
                 walletAddress={urlAddress} 
-                initialSubTab={splat?.split('/').filter(Boolean)[1]} 
               />
             </Suspense>
           )}
