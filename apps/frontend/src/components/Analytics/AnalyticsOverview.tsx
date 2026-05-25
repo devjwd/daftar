@@ -302,7 +302,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ data, timeframe, 
         </div>
       </div>
 
-      <TopEntities data={data} />
+      <TopEntities data={data} timeframe={timeframe} setTimeframe={setTimeframe} />
     </div>
   );
 };

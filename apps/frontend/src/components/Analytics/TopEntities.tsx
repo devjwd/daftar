@@ -15,6 +15,8 @@ const COLORS = [
 
 interface TopEntitiesProps {
   data: AnalyticsData;
+  timeframe: string;
+  setTimeframe: (tf: string) => void;
 }
 
 const CustomExchangeTooltip = ({ active, payload, type }: any) => {
@@ -128,8 +130,9 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
   );
 };
 
-const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
+const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe }) => {
   const [activeTab, setActiveTab] = useState<'exchange' | 'protocols' | 'tokens'>('exchange');
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const hasEntities = data.topEntities && data.topEntities.length > 0;
   const hasTokens = data.topTokens && data.topTokens.length > 0;
@@ -181,79 +184,164 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data }) => {
       {/* UNIFIED BENTO CARD FOR ALL THREE WIDGETS */}
       <div className="bento-card" style={{ width: '100%', padding: '24px' }}>
         
-        {/* Navigation Tab Menu */}
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginBottom: '16px' }}>
-          <button 
-            onClick={() => setActiveTab('exchange')}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              fontSize: '13px',
-              fontWeight: 800,
-              color: activeTab === 'exchange' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
-              letterSpacing: '1px',
-              textTransform: 'uppercase',
-              marginRight: '32px',
-              cursor: 'pointer',
-              transition: 'color 0.2s',
-              outline: 'none',
-              padding: 0
-            }}
-          >
-            Exchange Usage
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab('protocols')}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              fontSize: '13px',
-              fontWeight: 800,
-              color: activeTab === 'protocols' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
-              letterSpacing: '1px',
-              textTransform: 'uppercase',
-              marginRight: '32px',
-              cursor: 'pointer',
-              transition: 'color 0.2s',
-              outline: 'none',
-              padding: 0
-            }}
-          >
-            Top Interacting Protocols
-          </button>
+        {/* Navigation Tab Menu & Timeframe Filter */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex' }}>
+            <button 
+              onClick={() => setActiveTab('exchange')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                fontSize: '13px',
+                fontWeight: 800,
+                color: activeTab === 'exchange' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                marginRight: '32px',
+                cursor: 'pointer',
+                transition: 'color 0.2s',
+                outline: 'none',
+                padding: 0
+              }}
+            >
+              Exchange Usage
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('protocols')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                fontSize: '13px',
+                fontWeight: 800,
+                color: activeTab === 'protocols' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                marginRight: '32px',
+                cursor: 'pointer',
+                transition: 'color 0.2s',
+                outline: 'none',
+                padding: 0
+              }}
+            >
+              Top Interacting Protocols
+            </button>
 
-          <button 
-            onClick={() => setActiveTab('tokens')}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              fontSize: '13px',
-              fontWeight: 800,
-              color: activeTab === 'tokens' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
-              letterSpacing: '1px',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              transition: 'color 0.2s',
-              outline: 'none',
-              padding: 0
-            }}
-          >
-            Top Tokens Handled
-          </button>
+            <button 
+              onClick={() => setActiveTab('tokens')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                fontSize: '13px',
+                fontWeight: 800,
+                color: activeTab === 'tokens' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'color 0.2s',
+                outline: 'none',
+                padding: 0
+              }}
+            >
+              Top Tokens Handled
+            </button>
+          </div>
+
+          {/* Timeframe Filter Dropdown (Arkham style) */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowDropdown(prev => !prev)}
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s',
+                outline: 'none'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)' }}>
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+              </svg>
+              <span>{getDateRangeString()}</span>
+              <span style={{ fontSize: '8px', opacity: 0.5 }}>▼</span>
+            </button>
+
+            {showDropdown && (
+              <>
+                <div 
+                  onClick={() => setShowDropdown(false)}
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }}
+                />
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  background: '#1a1a1a',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '8px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  padding: '4px',
+                  minWidth: '120px',
+                  zIndex: 999,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px'
+                }}>
+                  {['1D', '1W', '1M', '3M', '1Y', 'All'].map((tf) => (
+                    <button
+                      key={tf}
+                      onClick={() => {
+                        setTimeframe(tf);
+                        setShowDropdown(false);
+                      }}
+                      style={{
+                        background: timeframe === tf ? 'rgba(205,161,105,0.15)' : 'transparent',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        color: timeframe === tf ? 'var(--primary)' : 'rgba(255,255,255,0.8)',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        outline: 'none'
+                      }}
+                      onMouseOver={(e) => {
+                        if (timeframe !== tf) e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                      }}
+                      onMouseOut={(e) => {
+                        if (timeframe !== tf) e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      Timeframe: {tf}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* TAB CONTENTS */}
         {activeTab === 'exchange' && (
           <div>
-            {/* Date filter range indicator */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 700, marginBottom: '24px' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-              </svg>
-              <span style={{ letterSpacing: '0.5px' }}>{getDateRangeString()}</span>
-            </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px' }} className="exchange-grid-v5-arkham">
               
               {/* DEPOSITS COLUMN */}
