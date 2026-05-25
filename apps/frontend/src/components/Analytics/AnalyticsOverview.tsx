@@ -155,6 +155,73 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
       <div className="overview-grid-v5">
         {/* Main PNL & History Card */}
         <div className="bento-card">
+          
+          {/* Top Header Row (matching TopEntities tab styling) */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex' }}>
+              <button 
+                onClick={() => setActiveChartTab('flow')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: activeChartTab === 'flow' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  marginRight: '32px',
+                  cursor: 'pointer',
+                  transition: 'color 0.2s',
+                  outline: 'none',
+                  padding: 0
+                }}
+              >
+                Capital Flow
+              </button>
+              
+              <button 
+                onClick={() => setActiveChartTab('txs')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: activeChartTab === 'txs' ? 'var(--primary)' : 'rgba(255,255,255,0.3)',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  transition: 'color 0.2s',
+                  outline: 'none',
+                  padding: 0
+                }}
+              >
+                Transactions
+              </button>
+            </div>
+
+            {/* Timeframe Selector */}
+            <div className="tabs-container-v5" style={{ margin: 0 }}>
+              {TIME_FRAMES.map(tf => (
+                <button 
+                  key={tf} 
+                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
+                  onClick={() => {
+                    if (tf !== timeframe) {
+                      setIsTransitioning(true);
+                      setTimeframe(tf);
+                      // Clear transition after data should have loaded
+                      setTimeout(() => setIsTransitioning(false), 400);
+                    }
+                  }}
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats section below the header row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '32px' }}>
             <div>
               <span className="exchange-label" style={{ display: 'block', marginBottom: '8px' }}>
@@ -168,46 +235,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                   {data.activeMonths} Months
                 </span>
                 {' '} of tracked activity
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              {/* Chart Type Selector */}
-              <div className="tabs-container-v5" style={{ margin: 0 }}>
-                <button
-                  className={`tab-v5 ${activeChartTab === 'flow' ? 'active' : ''}`}
-                  onClick={() => setActiveChartTab('flow')}
-                  style={{ padding: '6px 14px', fontSize: '12px' }}
-                >
-                  Capital Flow
-                </button>
-                <button
-                  className={`tab-v5 ${activeChartTab === 'txs' ? 'active' : ''}`}
-                  onClick={() => setActiveChartTab('txs')}
-                  style={{ padding: '6px 14px', fontSize: '12px' }}
-                >
-                  Transactions
-                </button>
-              </div>
-
-              {/* Timeframe Selector */}
-              <div className="tabs-container-v5" style={{ margin: 0 }}>
-                {TIME_FRAMES.map(tf => (
-                  <button 
-                    key={tf} 
-                    className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
-                    onClick={() => {
-                      if (tf !== timeframe) {
-                        setIsTransitioning(true);
-                        setTimeframe(tf);
-                        // Clear transition after data should have loaded
-                        setTimeout(() => setIsTransitioning(false), 400);
-                      }
-                    }}
-                    style={{ padding: '6px 14px', fontSize: '12px' }}
-                  >
-                    {tf}
-                  </button>
-                ))}
               </div>
             </div>
           </div>
