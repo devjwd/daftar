@@ -24,10 +24,10 @@ const GOLD_DONUT_COLORS = [
   '#5b3d1b', // Dark Earth Gold
 ];
 
-const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({ 
-  data, 
-  bottomData, 
-  timeframe, 
+const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
+  data,
+  bottomData,
+  timeframe,
   setTimeframe,
   bottomTimeframe,
   setBottomTimeframe
@@ -155,11 +155,11 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
       <div className="overview-grid-v5">
         {/* Main PNL & History Card */}
         <div className="bento-card">
-          
+
           {/* Top Header Row (matching TopEntities tab styling) */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginBottom: '24px' }}>
             <div style={{ display: 'flex' }}>
-              <button 
+              <button
                 onClick={() => setActiveChartTab('flow')}
                 style={{
                   background: 'transparent',
@@ -178,8 +178,8 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
               >
                 Capital Flow
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setActiveChartTab('txs')}
                 style={{
                   background: 'transparent',
@@ -197,27 +197,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
               >
                 Transactions
               </button>
-            </div>
-
-            {/* Timeframe Selector */}
-            <div className="tabs-container-v5" style={{ margin: 0 }}>
-              {TIME_FRAMES.map(tf => (
-                <button 
-                  key={tf} 
-                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
-                  onClick={() => {
-                    if (tf !== timeframe) {
-                      setIsTransitioning(true);
-                      setTimeframe(tf);
-                      // Clear transition after data should have loaded
-                      setTimeout(() => setIsTransitioning(false), 400);
-                    }
-                  }}
-                  style={{ padding: '6px 14px', fontSize: '12px' }}
-                >
-                  {tf}
-                </button>
-              ))}
             </div>
           </div>
 
@@ -237,14 +216,35 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                 {' '} of tracked activity
               </div>
             </div>
+
+            {/* Timeframe Selector (Moved down next to stats) */}
+            <div className="tabs-container-v5" style={{ margin: 0, marginTop: '8px' }}>
+              {TIME_FRAMES.map(tf => (
+                <button
+                  key={tf}
+                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
+                  onClick={() => {
+                    if (tf !== timeframe) {
+                      setIsTransitioning(true);
+                      setTimeframe(tf);
+                      // Clear transition after data should have loaded
+                      setTimeout(() => setIsTransitioning(false), 400);
+                    }
+                  }}
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div style={{ height: '320px', width: '100%', marginLeft: '-12px', transition: 'opacity 0.3s ease, filter 0.3s ease', opacity: isTransitioning ? 0.4 : 1, filter: isTransitioning ? 'blur(1px)' : 'none' }}>
             {!hasHistory ? (
-               <div className="empty-state-v5" style={{ height: '100%' }}>
-                  <Ghost size={32} className="empty-state-icon" />
-                  <p>No activity recorded in this timeframe.</p>
-               </div>
+              <div className="empty-state-v5" style={{ height: '100%' }}>
+                <Ghost size={32} className="empty-state-icon" />
+                <p>No activity recorded in this timeframe.</p>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
@@ -259,13 +259,13 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                  <XAxis 
-                    dataKey="date" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 11 }} 
-                    minTickGap={40} 
-                    dy={10} 
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 11 }}
+                    minTickGap={40}
+                    dy={10}
                     tickFormatter={(val) => {
                       const d = new Date(val);
                       if (isNaN(d.getTime())) return '';
@@ -315,25 +315,25 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
               Protocol Affinity
             </h3>
             <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-               {!hasProtocols ? (
-                  <div className="empty-state-v5">
-                     <Ghost size={28} className="empty-state-icon" style={{ marginBottom: 8 }} />
-                     <p style={{ fontSize: '13px' }}>No protocols detected.</p>
-                  </div>
-               ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: 'var(--text-secondary)' }} />
-                      <Pie data={data.protocolUsage} innerRadius={60} outerRadius={75} paddingAngle={6} dataKey="value" stroke="none" nameKey="name">
-                        {data.protocolUsage.map((entry, index) => {
-                          const fillCol = GOLD_DONUT_COLORS[index % GOLD_DONUT_COLORS.length];
-                          return <Cell key={`cell-${index}`} fill={fillCol} />;
-                        })}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-               )}
+              {!hasProtocols ? (
+                <div className="empty-state-v5">
+                  <Ghost size={28} className="empty-state-icon" style={{ marginBottom: 8 }} />
+                  <p style={{ fontSize: '13px' }}>No protocols detected.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: 'var(--text-secondary)' }} />
+                    <Pie data={data.protocolUsage} innerRadius={60} outerRadius={75} paddingAngle={6} dataKey="value" stroke="none" nameKey="name">
+                      {data.protocolUsage.map((entry, index) => {
+                        const fillCol = GOLD_DONUT_COLORS[index % GOLD_DONUT_COLORS.length];
+                        return <Cell key={`cell-${index}`} fill={fillCol} />;
+                      })}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>

@@ -226,6 +226,14 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
     if (snapError) throw snapError;
 
     if (!snapshots || snapshots.length === 0) {
+      if (timeframe === 'All') {
+        const history = [{
+          date: '2025-03-10T00:00:00.000Z',
+          value: 0,
+          netDeposits: 0
+        }];
+        return res.json({ history, performance: { changeUsd: 0, changePercent: 0 } });
+      }
       return res.json({ history: [], performance: { changeUsd: 0, changePercent: 0 } });
     }
 
@@ -234,6 +242,14 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
       value: Number(s.total_networth_usd),
       netDeposits: Number(s.net_deposits_usd || 0),
     }));
+
+    if (timeframe === 'All' && history[0].date > '2025-03-10T00:00:00.000Z') {
+      history.unshift({
+        date: '2025-03-10T00:00:00.000Z',
+        value: 0,
+        netDeposits: 0
+      });
+    }
 
     const firstPoint = history[0];
     const lastPoint = history[history.length - 1];

@@ -538,6 +538,44 @@ export async function aggregateAnalyticsData(
     },
   ];
 
+  // Prepend March 10, 2025 baseline for timeframe = All
+  if (timeframe === 'All') {
+    if (activityHistory.length === 0 || activityHistory[0].date > '2025-03-10') {
+      activityHistory.unshift({
+        date: '2025-03-10',
+        value: 0,
+        volume: 0,
+        inflow: 0,
+        outflow: 0,
+        txCount: 0,
+        inflowDetails: [],
+        outflowDetails: []
+      });
+    }
+
+    exchangeUsage.deposits.history.sort((a, b) => a.date.localeCompare(b.date));
+    if (exchangeUsage.deposits.history.length === 0 || exchangeUsage.deposits.history[0].date > '2025-03-10') {
+      exchangeUsage.deposits.history.unshift({
+        date: '2025-03-10',
+        value: 0,
+        dailyValue: 0,
+        dailyTokenString: '',
+        details: []
+      });
+    }
+
+    exchangeUsage.withdrawals.history.sort((a, b) => a.date.localeCompare(b.date));
+    if (exchangeUsage.withdrawals.history.length === 0 || exchangeUsage.withdrawals.history[0].date > '2025-03-10') {
+      exchangeUsage.withdrawals.history.unshift({
+        date: '2025-03-10',
+        value: 0,
+        dailyValue: 0,
+        dailyTokenString: '',
+        details: []
+      });
+    }
+  }
+
   return {
     totalVolume,
     totalGasUsd,
