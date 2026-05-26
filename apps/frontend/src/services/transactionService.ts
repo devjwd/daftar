@@ -12,7 +12,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 export const CACHE_TTL_MS = 10 * 60 * 1000;
 export const TRANSACTION_HISTORY_LIMIT = 100;
 const DEFAULT_LIMIT = TRANSACTION_HISTORY_LIMIT;
-const MAX_LIMIT = TRANSACTION_HISTORY_LIMIT;
+const MAX_LIMIT = 10000;
 const ACTIVITY_FETCH_MULTIPLIER = 12;
 const MAX_ACTIVITY_ROWS = 1200;
 const PRUNE_BATCH_SIZE = 250;
@@ -477,6 +477,26 @@ const getCounterpartyAddress = (rawTx, activities, userAddress) => {
   const sender = normalizeAddress(rawTx?.sender || rawTx?.user_transaction?.sender);
   if (sender && sender !== normalizedUser) {
     return sender;
+  }
+
+  const toAddr = normalizeAddress(rawTx?.to_address || rawTx?.to || rawTx?.user_transaction?.to_address || rawTx?.user_transaction?.to);
+  if (toAddr && toAddr !== normalizedUser) {
+    return toAddr;
+  }
+
+  const functionArguments = Array.isArray(rawTx?.payload?.functionArguments)
+    ? rawTx.payload.functionArguments
+    : Array.isArray(rawTx?.payload?.arguments)
+      ? rawTx.payload.arguments
+      : [];
+
+  for (const arg of functionArguments) {
+    if (typeof arg === 'string' && arg.startsWith('0x')) {
+      const normalizedArg = normalizeAddress(arg);
+      if (normalizedArg && normalizedArg !== normalizedUser && normalizedArg !== '0x1' && normalizedArg !== '0x3' && normalizedArg !== '0xa' && normalizedArg !== '0x0000000000000000000000000000000000000000000000000000000000000001') {
+        return normalizedArg;
+      }
+    }
   }
 
   return null;
