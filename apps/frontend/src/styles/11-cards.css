@@ -636,3 +636,123 @@
   align-items: center;
   margin-bottom: 12px;
 }
+
+/* Staking Minimal Redesign */
+.staking-minimal-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.staking-minimal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: linear-gradient(165deg, rgba(32, 28, 24, 0.65), rgba(20, 18, 16, 0.75));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.staking-minimal-row:hover {
+  border-color: rgba(205, 161, 105, 0.25);
+  background: linear-gradient(165deg, rgba(32, 28, 24, 0.85), rgba(20, 18, 16, 0.95));
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.staking-minimal-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.staking-minimal-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.staking-minimal-logo img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.staking-minimal-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.staking-minimal-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-primary);
+}
+
+.staking-minimal-meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  opacity: 0.8;
+  font-family: var(--font-primary);
+}
+
+.staking-minimal-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.staking-minimal-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+}
+
+.staking-minimal-value {
+  font-size: 13px;
+  color: var(--primary);
+  font-weight: 500;
+  font-family: var(--font-display);
+}
+
+.staking-minimal-meta-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.staking-minimal-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-primary);
+}
+
+.staking-minimal-status.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.staking-minimal-status.warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}

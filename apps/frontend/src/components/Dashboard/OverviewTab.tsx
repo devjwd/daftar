@@ -6,11 +6,26 @@ import { TOKEN_VISUALS } from '../../config/display';
 import TokenCard from './TokenCard';
 import DeFiPositionCard from './DeFiPositionCard';
 import LiquidityCard from './LiquidityCard';
+import { resolveTokenPrice } from '../../utils/price';
 import {
   SkeletonCard,
   LiquiditySkeleton,
   DeFiSkeleton,
 } from './Skeletons';
+
+const getRemainingTimeStr = (lockedUntilSecs: number) => {
+  if (!lockedUntilSecs) return "";
+  const nowSecs = Math.floor(Date.now() / 1000);
+  const diffSecs = lockedUntilSecs - nowSecs;
+  if (diffSecs <= 0) return "Ready";
+
+  const days = Math.floor(diffSecs / 86400);
+  const hours = Math.floor((diffSecs % 86400) / 3600);
+  if (days > 0) {
+    return `${days}d ${hours}h left`;
+  }
+  return `${hours}h left`;
+};
 
 interface OverviewTabProps {
   language: string;
@@ -30,8 +45,10 @@ interface OverviewTabProps {
   totalUsdValue: number;
   defiNetValue: number;
   liquidityTotalValue: number;
+  stakingTotalValue: number;
   visibleDeFiPositions: any[];
   visibleLiquidityPositions: any[];
+  visibleStakingPositions: any[];
   priceMap: any;
   convertUSD: (val: number) => number;
   formatCurrencyValue: (val: number, currency?: string, decimals?: number) => string;
@@ -56,8 +73,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   totalUsdValue,
   defiNetValue,
   liquidityTotalValue,
+  stakingTotalValue,
   visibleDeFiPositions,
   visibleLiquidityPositions,
+  visibleStakingPositions,
   priceMap,
   convertUSD,
   formatCurrencyValue,
@@ -335,6 +354,78 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               hideValues={hideValues}
             />
           ))}
+        </div>
+      </section>
+
+      {/* Staking Positions Section */}
+      <section className="grid-section">
+        <div className="section-header-row">
+          <div className="section-title-group">
+            <h3 className="section-title">{t(language, 'dashStakingPositions')}</h3>
+            <div className="section-header-value">
+              {hideValues ? '*****' : (() => {
+                const val = convertUSD(stakingTotalValue);
+                return formatCurrencyValue(val, undefined, getPrecisionDecimals(val));
+              })()}
+            </div>
+          </div>
+        </div>
+        
+        <div className="staking-minimal-container">
+          {(!lpLoading && !indexerLoading) && visibleStakingPositions.length === 0 && viewingAddress && (
+            <div className="empty-state">{t(language, 'dashNoStaking')}</div>
+          )}
+
+          {(!lpLoading && !indexerLoading) && visibleStakingPositions.length === 0 && !viewingAddress && (
+            <div className="empty-state">{t(language, 'dashConnectStaking')}</div>
+          )}
+
+          {visibleStakingPositions.length > 0 && visibleStakingPositions.map((pos) => {
+            const movePrice = resolveTokenPrice(priceMap, '0xa', 'MOVE');
+            const posValue = pos.amount * movePrice;
+            
+            return (
+              <div key={pos.id} className="staking-minimal-row">
+                <div className="staking-minimal-left">
+                  <div className="staking-minimal-logo">
+                    <img
+                      src="/movement-logo.svg"
+                      alt="Movement"
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }}
+                    />
+                  </div>
+                  <div className="staking-minimal-info">
+                    <span className="staking-minimal-name">{pos.name || pos.protocolName || "Movement Native Staking"}</span>
+                    <div className="staking-minimal-meta-group">
+                      {pos.poolAddress && (
+                        <span className="staking-minimal-meta">
+                          Pool: {pos.poolAddress.slice(0, 6)}...{pos.poolAddress.slice(-4)}
+                        </span>
+                      )}
+                      {pos.details?.inactive > 0 && (
+                        <span className="staking-minimal-status success">
+                          Ready to Withdraw: {pos.details.inactive.toLocaleString(undefined, { maximumFractionDigits: 4 })} MOVE
+                        </span>
+                      )}
+                      {pos.details?.pendingInactive > 0 && (
+                        <span className="staking-minimal-status warning">
+                          Unlocking: {pos.details.pendingInactive.toLocaleString(undefined, { maximumFractionDigits: 4 })} MOVE ({getRemainingTimeStr(pos.lockedUntilSecs)})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="staking-minimal-right">
+                  <span className="staking-minimal-amount">
+                    {hideValues ? '*****' : `${pos.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} MOVE`}
+                  </span>
+                  <span className="staking-minimal-value">
+                    {hideValues ? '*****' : formatCurrencyValue(convertUSD(posValue), undefined, getPrecisionDecimals(convertUSD(posValue)))}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
     </>

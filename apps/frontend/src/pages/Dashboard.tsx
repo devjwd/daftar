@@ -252,7 +252,12 @@ const Dashboard = () => {
 
   // 3. Derived States (Calculated from Discovery results)
   const visibleLiquidityPositions = useMemo(() =>
-    allPositions.filter(p => p.type === "Liquidity" || p.type === "Staking"),
+    allPositions.filter(p => p.type === "Liquidity"),
+    [allPositions]
+  );
+
+  const visibleStakingPositions = useMemo(() =>
+    allPositions.filter(p => p.type === "Staking"),
     [allPositions]
   );
 
@@ -281,7 +286,11 @@ const Dashboard = () => {
     return visibleLiquidityPositions.reduce((sum, p) => sum + (p.numericValue || 0), 0);
   }, [visibleLiquidityPositions]);
 
-  const combinedNetWorth = totalUsdValue + defiNetValue + liquidityTotalValue + (nftsTotalWorth || 0);
+  const stakingTotalValue = useMemo(() => {
+    return visibleStakingPositions.reduce((sum, p) => sum + (p.numericValue || 0), 0);
+  }, [visibleStakingPositions]);
+
+  const combinedNetWorth = totalUsdValue + defiNetValue + liquidityTotalValue + stakingTotalValue + (nftsTotalWorth || 0);
   const assetsLoading = pricesLoading || indexerLoading || clientLoading || nftsLoading;
   const lpLoading = defiLoading;
 
@@ -351,6 +360,7 @@ const Dashboard = () => {
       { name: 'Wallet', value: Math.round((totalUsdValue / total) * 100), color: '#cda169', rawValue: totalUsdValue },
       { name: 'DeFi', value: Math.round((defiNetValue / total) * 100), color: '#b2854f', rawValue: defiNetValue },
       { name: 'LP', value: Math.round((liquidityTotalValue / total) * 100), color: '#e5be8a', rawValue: liquidityTotalValue },
+      { name: 'Staking', value: Math.round((stakingTotalValue / total) * 100), color: '#deb884', rawValue: stakingTotalValue },
       { name: 'NFTs', value: Math.round(((nftsTotalWorth || 0) / total) * 100), color: '#895f2d', rawValue: nftsTotalWorth || 0 },
     ].filter(d => d.rawValue > 0);
     
@@ -360,13 +370,13 @@ const Dashboard = () => {
       data[0].value += (100 - sum);
     }
     return data;
-  }, [totalUsdValue, defiNetValue, liquidityTotalValue, nftsTotalWorth, combinedNetWorth]);
+  }, [totalUsdValue, defiNetValue, liquidityTotalValue, stakingTotalValue, nftsTotalWorth, combinedNetWorth]);
 
   const protocolBreakdownData = useMemo(() => {
     const protocolMap = new Map();
     protocolMap.set('Holding', totalUsdValue + (nftsTotalWorth || 0));
     
-    [...visibleDeFiPositions, ...visibleLiquidityPositions].forEach(p => {
+    [...visibleDeFiPositions, ...visibleLiquidityPositions, ...visibleStakingPositions].forEach(p => {
        const proto = p.protocolName || p.platform || 'Unknown';
        protocolMap.set(proto, (protocolMap.get(proto) || 0) + (p.numericValue || 0));
      });
@@ -412,7 +422,7 @@ const Dashboard = () => {
     }
     
     return finalData;
-  }, [totalUsdValue, nftsTotalWorth, visibleDeFiPositions, visibleLiquidityPositions, combinedNetWorth]);
+  }, [totalUsdValue, nftsTotalWorth, visibleDeFiPositions, visibleLiquidityPositions, visibleStakingPositions, combinedNetWorth]);
 
   useEffect(() => {
     if (account && connected) {
@@ -835,8 +845,10 @@ const Dashboard = () => {
               totalUsdValue={totalUsdValue}
               defiNetValue={defiNetValue}
               liquidityTotalValue={liquidityTotalValue}
+              stakingTotalValue={stakingTotalValue}
               visibleDeFiPositions={visibleDeFiPositions}
               visibleLiquidityPositions={visibleLiquidityPositions}
+              visibleStakingPositions={visibleStakingPositions}
               priceMap={priceMap}
               convertUSD={convertUSD}
               formatCurrencyValue={formatCurrencyValue}
