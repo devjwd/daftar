@@ -1,6 +1,5 @@
 import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
-import { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAddress } from '../utils/address.ts';
 import { generalLimiter } from '../middleware/rateLimit.ts';
 
@@ -146,6 +145,52 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
       const txType = ACTION_TO_TX_TYPE[tx.action] || 'other';
       const visuals = TX_VISUALS[txType] || TX_VISUALS['other'];
 
+      // Resolve counterparty address from metadata activities
+      let counterpartyAddress = null;
+      const userAddress = wallet.toLowerCase();
+      const rawActivities = [
+        ...(tx.metadata?.fungible_asset_activities || []),
+        ...(tx.metadata?.coin_activities || [])
+      ];
+      for (const act of rawActivities) {
+        const owner = (act.owner_address || act.owner || '').toLowerCase();
+        if (owner && owner !== userAddress && owner !== '0x1' && owner !== '0x3' && owner !== '0xa' && owner !== '0x0000000000000000000000000000000000000000000000000000000000000001') {
+          counterpartyAddress = act.owner_address || act.owner;
+          break;
+        }
+      }
+
+      // Resolve dapp_contract from function id
+      let dappContract = null;
+      const functionId = tx.metadata?.entry_function_id_str || '';
+      if (functionId.includes('::')) {
+        dappContract = functionId.split('::')[0];
+      }
+
+      // Compute USD values based on tx.value_usd and txType
+      let amountInUsd = 0;
+      let amountOutUsd = 0;
+      const usdValue = tx.value_usd != null ? Number(tx.value_usd) : 0;
+      if (txType === 'received') {
+        amountOutUsd = usdValue;
+      } else if (txType === 'send') {
+        amountInUsd = usdValue;
+      } else if (txType === 'swap') {
+        amountInUsd = usdValue;
+        amountOutUsd = usdValue;
+      } else {
+        if (tx.asset_out_amount != null && Number(tx.asset_out_amount) > 0) {
+          amountInUsd = usdValue;
+        }
+        if (tx.asset_in_amount != null && Number(tx.asset_in_amount) > 0) {
+          amountOutUsd = usdValue;
+        }
+        if (amountInUsd === 0 && amountOutUsd === 0 && usdValue > 0) {
+          amountInUsd = usdValue;
+          amountOutUsd = usdValue;
+        }
+      }
+
       return {
         tx_hash: tx.hash,
         tx_timestamp: tx.timestamp,
@@ -155,12 +200,19 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
         tx_color: visuals.color,
         tx_bg: visuals.bg,
         dapp_name: tx.protocol && tx.protocol !== 'Unknown' ? tx.protocol : (['send', 'received', 'bridge'].includes(txType) ? 'Wallet' : 'Unknown Contract'),
+        dapp_key: tx.protocol && tx.protocol !== 'Unknown' ? tx.protocol.toLowerCase().replace(/\s/g, '') : null,
+        dapp_contract: dappContract,
+        counterparty_address: counterpartyAddress,
+        sender: txType === 'received' && counterpartyAddress ? counterpartyAddress : userAddress,
         // token_in is what user SENT/SPENT (outflow = asset_out)
         token_in: tx.asset_out_symbol || null,
         amount_in: tx.asset_out_amount != null ? Number(tx.asset_out_amount) : null,
         // token_out is what user RECEIVED (inflow = asset_in)
         token_out: tx.asset_in_symbol || null,
         amount_out: tx.asset_in_amount != null ? Number(tx.asset_in_amount) : null,
+        amount_in_usd: amountInUsd,
+        amount_out_usd: amountOutUsd,
+        pnl_usd: txType === 'swap' ? 0 : 0, // Swaps are value-balanced, PNL calculated in frontend if needed
         gas_fee: tx.metadata?.gas_used != null && tx.metadata?.gas_unit_price != null
           ? (Number(tx.metadata.gas_used) * Number(tx.metadata.gas_unit_price)) / 1e8
           : (tx.gas_usd != null && Number(tx.gas_usd) < 0.1 ? Number(tx.gas_usd) : null),
