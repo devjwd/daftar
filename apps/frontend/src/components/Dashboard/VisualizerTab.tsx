@@ -10,7 +10,8 @@ import {
   Coins,
   Loader2,
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { getOrFetchTransactions } from '../../services/transactionService';
 import { getProfile } from '../../services/api';
@@ -90,6 +91,9 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
   const [hoveredNode, setHoveredNode] = useState<Node | null>(null);
   const [hoveredLink, setHoveredLink] = useState<Link | null>(null);
   const [linkTooltipPos, setLinkTooltipPos] = useState({ x: 0, y: 0 });
+  const [nodeTooltipPos, setNodeTooltipPos] = useState({ x: 0, y: 0 });
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [selectedLink, setSelectedLink] = useState<Link | null>(null);
   const [txCount, setTxCount] = useState(0);
 
   // Pan and Zoom State
@@ -490,8 +494,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           continue;
         }
 
-        node.x = Math.max(node.radius, Math.min(CANVAS_WIDTH - node.radius, node.x + node.vx));
-        node.y = Math.max(node.radius, Math.min(CANVAS_HEIGHT - node.radius, node.y + node.vy));
+        node.x = node.x + node.vx;
+        node.y = node.y + node.vy;
         node.vx = Math.max(-maxV, Math.min(maxV, node.vx * damping));
         node.vy = Math.max(-maxV, Math.min(maxV, node.vy * damping));
       }
@@ -674,8 +678,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
     const targetNode = nodesRef.current.find(n => n.id === draggedNodeIdRef.current);
     if (targetNode) {
-      targetNode.fx = Math.max(targetNode.radius, Math.min(CANVAS_WIDTH - targetNode.radius, relativeX));
-      targetNode.fy = Math.max(targetNode.radius, Math.min(CANVAS_HEIGHT - targetNode.radius, relativeY));
+      targetNode.fx = relativeX;
+      targetNode.fy = relativeY;
     }
     wakePhysics();
   };
@@ -742,6 +746,10 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
               ref={svgRef}
               className={styles.svgCanvas}
               onMouseDown={handleCanvasMouseDown}
+              onClick={() => {
+                setSelectedNode(null);
+                setSelectedLink(null);
+              }}
               onMouseMove={(e) => {
                 handleCanvasMouseMove(e);
                 handleNodeMouseMove(e);
@@ -784,6 +792,11 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                         strokeWidth={14}
                         fill="none"
                         style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedLink(link);
+                          setSelectedNode(null);
+                        }}
                         onMouseEnter={(e) => {
                           setHoveredLink(link);
                           const rect = svgRef.current?.getBoundingClientRect();
@@ -804,7 +817,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                         data-link-path-id={link.id}
                         d={curve.d}
                         stroke={isHovered ? '#ffffff' : dashColor}
-                        strokeWidth={0.5}
+                        strokeWidth={0.25}
                         fill="none"
                         opacity={isHovered ? 1.0 : 0.35}
                         style={{ pointerEvents: 'none', transition: 'stroke 0.15s ease, opacity 0.15s ease' }}
@@ -838,7 +851,18 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                       transform={`translate(${refNode.x}, ${refNode.y})`}
                       onMouseDown={(e) => handleNodeMouseDown(refNode, e)}
                       onDoubleClick={(e) => handleNodeDoubleClick(refNode, e)}
-                      onMouseEnter={() => setHoveredNode(refNode)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedNode(refNode);
+                        setSelectedLink(null);
+                      }}
+                      onMouseEnter={(e) => {
+                        setHoveredNode(refNode);
+                        const rect = svgRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          setNodeTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                        }
+                      }}
                       onMouseLeave={() => setHoveredNode(null)}
                     >
 
@@ -888,85 +912,129 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
               </g>
             </svg>
 
-            {/* Hover Tooltip Overlay (Arkham style info-card) */}
+            {/* Hover Tooltip Overlay (Minimal capsule next to pointer) */}
             {hoveredNode && (
-              <div className={styles.tooltip}>
-                <div className={styles.tooltipTitle}>
-                  {hoveredNode.type === 'central' ? 'My Wallet' : hoveredNode.label}
-                </div>
-                <div className={styles.tooltipAddress}>
-                  {hoveredNode.id.startsWith('0x') ? hoveredNode.id : 'Contract Aggregator'}
-                </div>
-                <div className={styles.tooltipDivider} />
-                <div className={styles.tooltipGrid}>
-                  <div className={styles.tooltipItem}>
-                    <span className={styles.tooltipLabel}>Transactions</span>
-                    <span className={styles.tooltipValue}>{hoveredNode.txCount}</span>
-                  </div>
-                  <div className={styles.tooltipItem}>
-                    <span className={styles.tooltipLabel}>Inflow Volume</span>
-                    <span className={styles.tooltipValue} style={{ color: '#16c784' }}>
-                      ${hoveredNode.inflowUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <div className={styles.tooltipItem}>
-                    <span className={styles.tooltipLabel}>Outflow Volume</span>
-                    <span className={styles.tooltipValue} style={{ color: '#ff6b6b' }}>
-                      ${hoveredNode.outflowUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <div className={styles.tooltipItem}>
-                    <span className={styles.tooltipLabel}>Asset Types</span>
-                    <span className={styles.tooltipValue} style={{ fontSize: '10px', textTransform: 'uppercase' }}>
-                      {Array.from(hoveredNode.tokens).slice(0, 4).join(', ') || '—'}
-                    </span>
-                  </div>
-                </div>
+              <div
+                className={styles.minimalTooltip}
+                style={{ left: nodeTooltipPos.x + 12, top: nodeTooltipPos.y - 8 }}
+              >
+                <span>{hoveredNode.type === 'central' ? 'My Wallet' : hoveredNode.label}</span>
               </div>
             )}
 
-            {/* Link Hover Tooltip */}
             {hoveredLink && (
               <div
-                className={styles.linkTooltip}
-                style={{ left: linkTooltipPos.x + 16, top: linkTooltipPos.y - 12 }}
+                className={styles.minimalTooltip}
+                style={{ left: linkTooltipPos.x + 12, top: linkTooltipPos.y - 8 }}
               >
-                <div className={styles.linkTooltipHeader}>
-                  <span className={styles.linkTooltipCount}>
-                    {hoveredLink.txType ? hoveredLink.txType.toUpperCase() : 'TRANSACTION'}
+                {hoveredLink.amounts.map((a, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      color: a.direction === 'in' ? '#16c784' : '#ff6b6b',
+                      fontWeight: 600,
+                      marginRight: i < hoveredLink.amounts.length - 1 ? '8px' : '0'
+                    }}
+                  >
+                    {a.direction === 'in' ? '+' : '-'} {a.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {a.token}
                   </span>
-                  <span className={styles.linkTooltipTokens} style={{ fontSize: '10px', opacity: 0.6 }}>
-                    {formatDateTime(hoveredLink.timestamp)}
-                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Pinned Selection Panel in Top-Left (Triggered on Click) */}
+            {(selectedNode || selectedLink) && (
+              <div className={styles.selectionPanel}>
+                <div className={styles.selectionPanelHeader}>
+                  <span>{selectedNode ? 'Wallet Details' : 'Transaction Details'}</span>
+                  <button
+                    className={styles.closePanelBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedNode(null);
+                      setSelectedLink(null);
+                    }}
+                    title="Close Details"
+                  >
+                    <X size={12} />
+                  </button>
                 </div>
-                <div className={styles.tooltipDivider} />
-                <div className={styles.linkTooltipAmounts}>
-                  {hoveredLink.amounts.map((a, i) => (
-                    <div key={i} className={styles.linkTooltipRow} style={{ fontSize: '13px', fontWeight: 600 }}>
-                      <span style={{ color: a.direction === 'in' ? '#16c784' : '#ff6b6b', marginRight: '4px' }}>
-                        {a.direction === 'in' ? '+' : '-'}
-                      </span>
-                      <span className={styles.linkTooltipAmount}>
-                        {a.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })} {a.token}
-                      </span>
+                <div className={styles.tooltipDivider} style={{ margin: '8px 0' }} />
+
+                {selectedNode && (
+                  <div>
+                    <div className={styles.tooltipTitle} style={{ fontSize: '14px', marginBottom: '4px' }}>
+                      {selectedNode.type === 'central' ? 'My Wallet' : selectedNode.label}
                     </div>
-                  ))}
-                </div>
-                {(hoveredLink.inflowUsd > 0 || hoveredLink.outflowUsd > 0) && (
-                  <div className={styles.linkTooltipSummary} style={{ marginTop: '4px', fontSize: '11px', opacity: 0.8 }}>
-                    Value:{' '}
-                    <span style={{ color: hoveredLink.direction === 'in' ? '#16c784' : '#ff6b6b', fontWeight: 600 }}>
-                      ${(hoveredLink.inflowUsd || hoveredLink.outflowUsd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
+                    <div className={styles.tooltipAddress} style={{ wordBreak: 'break-all', marginBottom: '12px', fontSize: '10px', opacity: 0.5 }}>
+                      {selectedNode.id}
+                    </div>
+                    <div className={styles.tooltipGrid}>
+                      <div className={styles.tooltipItem}>
+                        <span className={styles.tooltipLabel}>Transactions</span>
+                        <span className={styles.tooltipValue}>{selectedNode.txCount}</span>
+                      </div>
+                      <div className={styles.tooltipItem}>
+                        <span className={styles.tooltipLabel}>Inflow Volume</span>
+                        <span className={styles.tooltipValue} style={{ color: '#16c784' }}>
+                          ${selectedNode.inflowUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className={styles.tooltipItem}>
+                        <span className={styles.tooltipLabel}>Outflow Volume</span>
+                        <span className={styles.tooltipValue} style={{ color: '#ff6b6b' }}>
+                          ${selectedNode.outflowUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className={styles.tooltipItem}>
+                        <span className={styles.tooltipLabel}>Asset Types</span>
+                        <span className={styles.tooltipValue} style={{ fontSize: '10px', textTransform: 'uppercase' }}>
+                          {Array.from(selectedNode.tokens).slice(0, 4).join(', ') || '—'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
-                {hoveredLink.txHash && (
-                  <>
-                    <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
-                    <div className={styles.linkTooltipHash} style={{ fontSize: '10px', opacity: 0.5, fontFamily: 'monospace' }}>
-                      TX: {truncateHash(hoveredLink.txHash)}
+
+                {selectedLink && (
+                  <div>
+                    <div className={styles.linkTooltipHeader} style={{ marginBottom: '4px' }}>
+                      <span className={styles.linkTooltipCount} style={{ fontSize: '13px', fontWeight: 700, color: '#f3dfbe' }}>
+                        {selectedLink.txType ? selectedLink.txType.toUpperCase() : 'TRANSACTION'}
+                      </span>
+                      <span className={styles.linkTooltipTokens} style={{ fontSize: '9px', opacity: 0.5 }}>
+                        {formatDateTime(selectedLink.timestamp)}
+                      </span>
                     </div>
-                  </>
+                    <div className={styles.linkTooltipAmounts} style={{ margin: '8px 0' }}>
+                      {selectedLink.amounts.map((a, i) => (
+                        <div key={i} className={styles.linkTooltipRow} style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                          <span style={{ color: a.direction === 'in' ? '#16c784' : '#ff6b6b', marginRight: '4px' }}>
+                            {a.direction === 'in' ? '+' : '-'}
+                          </span>
+                          <span className={styles.linkTooltipAmount}>
+                            {a.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })} {a.token}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {(selectedLink.inflowUsd > 0 || selectedLink.outflowUsd > 0) && (
+                      <div className={styles.linkTooltipSummary} style={{ fontSize: '11px', opacity: 0.8, display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+                        <span>Value:</span>
+                        <span style={{ color: selectedLink.direction === 'in' ? '#16c784' : '#ff6b6b', fontWeight: 600 }}>
+                          ${(selectedLink.inflowUsd || selectedLink.outflowUsd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                    {selectedLink.txHash && (
+                      <>
+                        <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
+                        <div className={styles.linkTooltipHash} style={{ fontSize: '9px', opacity: 0.4, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          TX: {selectedLink.txHash}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             )}

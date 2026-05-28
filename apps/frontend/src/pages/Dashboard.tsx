@@ -866,6 +866,8 @@ const Dashboard = () => {
             />
           )}
 
+
+
           {activeTab === PORTFOLIO_TABS.NFT && (
             <NFTTab
               userNFTs={userNFTs}

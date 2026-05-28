@@ -55,6 +55,7 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
         NFTS
       </button>
 
+
       {canEditProfile && (
         <button
           type="button"

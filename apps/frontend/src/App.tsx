@@ -26,6 +26,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 const Level = lazy(() => import("./pages/Level"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const StandaloneVisualizer = lazy(() => import("./pages/StandaloneVisualizer"));
 
 const SWAP_ENABLED = getEnv("VITE_ENABLE_SWAP", true);
 
@@ -83,6 +84,7 @@ const getDocumentTitle = (pathname: string): string => {
     const tab = segments[2];
     const tabLabel = tab === "trx" ? " - Transactions" 
       : tab === "nfts" ? " - NFTs" 
+      : tab === "visualizer" ? " - Visualizer"
       : tab === "analytics" ? " - Analytics" : "";
 
     return `${shortAddr}${tabLabel} | Daftar`;
@@ -158,6 +160,7 @@ export default function App() {
                 <Layout>
                   <Routes>
                     <Route path="/wallet/:address" element={<WalletRedirect />} />
+                    <Route path="/profile/:address/visualizer" element={<StandaloneVisualizer />} />
                     <Route path="/profile/:address/*" element={<Dashboard />} />
                     <Route
                       path="/swap"

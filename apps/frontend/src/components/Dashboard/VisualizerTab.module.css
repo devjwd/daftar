@@ -1,0 +1,411 @@
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 5;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+}
+
+.legendColor {
+  display: inline-block;
+  width: 14px;
+  height: 6px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+
+.controls {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.canvasContainer {
+  position: relative;
+  height: 500px;
+  background: rgba(13, 11, 10, 0.7);
+  border: 1px solid rgba(205, 161, 105, 0.12);
+  border-radius: 20px;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 16px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.loadingScreen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 4, 4, 0.85);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  z-index: 100;
+}
+
+.spinner {
+  animation: spin 1.2s linear infinite;
+  color: #cda169;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.svgCanvas {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.svgCanvas:active {
+  cursor: grabbing;
+}
+
+.linkGroup {
+  pointer-events: auto;
+}
+
+.inflowLine {
+  animation: flowIn 2.2s linear infinite;
+}
+
+.outflowLine {
+  animation: flowOut 2.2s linear infinite;
+}
+
+@keyframes flowIn {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes flowOut {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 24; }
+}
+
+/* Nodes styling */
+.nodeContainer {
+  cursor: pointer;
+}
+
+.nodeCircle {
+  transition: stroke 0.2s ease, stroke-width 0.2s ease, filter 0.2s ease;
+}
+
+.nodeContainer:hover .nodeCircle {
+  stroke-width: 2px;
+  stroke: #ffffff !important;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+}
+
+.centralHalo {
+  animation: haloPulse 2.5s infinite ease-in-out;
+}
+
+@keyframes haloPulse {
+  0% { r: 34px; opacity: 0.4; }
+  50% { r: 40px; opacity: 0.85; }
+  100% { r: 34px; opacity: 0.4; }
+}
+
+.nodeText {
+  fill: rgba(255, 255, 255, 0.7);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  font-family: monospace;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.nodeHovered .nodeText {
+  fill: #f3dfbe;
+  font-weight: 700;
+}
+
+/* Floating Info Tooltip */
+.tooltip {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: linear-gradient(165deg, rgba(20, 18, 16, 0.96), rgba(10, 8, 8, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 14px;
+  width: 220px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  z-index: 50;
+  pointer-events: none;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tooltipTitle {
+  color: #f3dfbe;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tooltipAddress {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+.tooltipDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 10px 0;
+}
+
+.tooltipGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tooltipItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tooltipLabel {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tooltipValue {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Instructions card */
+.instructions {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+/* Link Hover Tooltip (Arkham-style) */
+.linkTooltip {
+  position: absolute;
+  background: linear-gradient(165deg, rgba(20, 18, 16, 0.97), rgba(10, 8, 8, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 180px;
+  max-width: 260px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  z-index: 60;
+  pointer-events: none;
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+.linkTooltipHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.linkTooltipCount {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.linkTooltipTokens {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  font-family: monospace;
+  text-transform: uppercase;
+}
+
+.linkTooltipAmounts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linkTooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.linkTooltipAmount {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+}
+
+.linkTooltipMore {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+  font-style: italic;
+  padding-top: 2px;
+}
+
+.linkTooltipSummary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+}
+
+.fullscreenCard {
+  height: calc(100vh - 128px) !important;
+}
+
+.fullscreenCard .canvasContainer {
+  flex: 1 !important;
+  height: auto !important;
+}
+
+/* Minimal hover capsule */
+.minimalTooltip {
+  position: absolute;
+  background: rgba(13, 11, 10, 0.95);
+  border: 1px solid rgba(205, 161, 105, 0.25);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: #fff;
+  pointer-events: none;
+  z-index: 70;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: monospace;
+}
+
+/* Pinned Selection Panel in Top-Left */
+.selectionPanel {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: linear-gradient(165deg, rgba(20, 18, 16, 0.96), rgba(10, 8, 8, 0.96));
+  border: 1px solid rgba(205, 161, 105, 0.2);
+  border-radius: 16px;
+  padding: 14px;
+  width: 240px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  z-index: 50;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+.selectionPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.closePanelBtn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.closePanelBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}

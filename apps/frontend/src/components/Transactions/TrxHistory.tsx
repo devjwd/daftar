@@ -393,6 +393,7 @@ const SkeletonRows = ({ count = 5 }) => (
 );
 
 import AdvancedFilterModal from './AdvancedFilterModal';
+import TransactionVisualizer from './TransactionVisualizer';
 
 export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerified = false, hideValues = false, language = 'en' }) {
   const mountedRef = useRef(true);
@@ -415,6 +416,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [loadMoreError, setLoadMoreError] = useState('');
+  const [selectedTxForPlayback, setSelectedTxForPlayback] = useState(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -690,6 +692,19 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
                             </div>
                             <span className={styles.typeDappName}>{dappName}</span>
                           </div>
+                          <button
+                            type="button"
+                            className={styles.playbackButton}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTxForPlayback(tx);
+                            }}
+                            title="Play Transaction Simulation"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                          </button>
                         </div>
                       </td>
                       <td>
@@ -767,6 +782,14 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
       ) : null}
 
       {loadMoreError ? <div className={styles.inlineError}>{loadMoreError}</div> : null}
+
+      {selectedTxForPlayback && (
+        <TransactionVisualizer
+          tx={selectedTxForPlayback}
+          onClose={() => setSelectedTxForPlayback(null)}
+          language={language}
+        />
+      )}
     </section>
   );
 }
