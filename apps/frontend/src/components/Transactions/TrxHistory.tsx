@@ -87,19 +87,16 @@ const fetchTransactionsPage = async ({ walletAddress, activeFilter, advancedFilt
 
   try {
     // Attempt 1: Backend Database (Fastest for Profile Users)
-    // Only attempt backend fetch if user is verified to preserve the frontend history engine for non-verified users
-    if (isVerified) {
-      const baseUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${baseUrl}/api/transactions?${params.toString()}`, {
-        signal,
-      });
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${baseUrl}/api/transactions?${params.toString()}`, {
+      signal,
+    });
 
-      if (response.ok) {
-        const json = await response.json();
-        // If we got valid transactions from the DB, return them
-        if (Array.isArray(json.transactions) && json.transactions.length > 0) {
-          return { ...EMPTY_RESPONSE, ...json };
-        }
+    if (response.ok) {
+      const json = await response.json();
+      // If we got valid transactions from the DB, return them
+      if (Array.isArray(json.transactions) && json.transactions.length > 0) {
+        return { ...EMPTY_RESPONSE, ...json };
       }
     }
   } catch (backendError: any) {

@@ -340,13 +340,19 @@ export async function reProcessSuspiciousPrices(supabase: SupabaseClient) {
 
   console.log(`[PriceBackfill] Found ${targets.length} transactions with suspicious prices.`);
 
-  for (const tx of targets) {
-    // Reset to unprocessed to let the main backfill function handle it with new logic
-    await supabase.from('user_transaction_history').update({
+  const { error: resetError } = await supabase
+    .from('user_transaction_history')
+    .update({
       is_processed: false,
       price_usd: null,
       value_usd: null
-    }).eq('id', tx.id);
+    })
+    .in('id', targets.map(tx => tx.id));
+
+  if (resetError) {
+    console.error('[PriceBackfill] Failed to bulk reset suspicious prices:', resetError.message);
+  } else {
+    console.log(`[PriceBackfill] Reset ${targets.length} suspicious prices in 1 bulk request.`);
   }
   
   console.log('[PriceBackfill] ✅ Suspicious prices reset for re-processing.');

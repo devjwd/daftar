@@ -812,6 +812,8 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
 
   console.log(`[DeepSync] Found ${unknowns.length} unknown transactions to re-process.`);
 
+  const updatedRows: any[] = [];
+
   for (const row of unknowns) {
     try {
       const meta = row.metadata || {};
@@ -831,24 +833,33 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
 
       const enriched = enrichTransaction(pseudoTx, row.user_address, labelsMap, entitiesList);
 
-      // Update the row
-      await supabase
-        .from('user_transaction_history')
-        .update({
-          protocol: enriched.protocol,
-          action: enriched.action,
-          category: enriched.category,
-          description: enriched.description,
-          asset_in_symbol: enriched.asset_in_symbol,
-          asset_in_amount: enriched.asset_in_amount,
-          asset_out_symbol: enriched.asset_out_symbol,
-          asset_out_amount: enriched.asset_out_amount
-        })
-        .eq('user_address', row.user_address)
-        .eq('version', row.version);
-
+      updatedRows.push({
+        id: row.id,
+        user_address: row.user_address,
+        version: row.version,
+        protocol: enriched.protocol,
+        action: enriched.action,
+        category: enriched.category,
+        description: enriched.description,
+        asset_in_symbol: enriched.asset_in_symbol,
+        asset_in_amount: enriched.asset_in_amount,
+        asset_out_symbol: enriched.asset_out_symbol,
+        asset_out_amount: enriched.asset_out_amount
+      });
     } catch (err) {
-      console.error(`[DeepSync] Failed to re-process version ${row.version}`);
+      console.error(`[DeepSync] Failed to enrich version ${row.version}`);
+    }
+  }
+
+  if (updatedRows.length > 0) {
+    const { error: upsertError } = await supabase
+      .from('user_transaction_history')
+      .upsert(updatedRows, { onConflict: 'user_address,version' });
+
+    if (upsertError) {
+      console.error('[DeepSync] Failed to batch update transactions:', upsertError.message);
+    } else {
+      console.log(`[DeepSync] ✅ Successfully batch updated ${updatedRows.length} unknown transactions.`);
     }
   }
 

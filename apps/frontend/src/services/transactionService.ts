@@ -4,7 +4,7 @@ import { devLog } from "../utils/devLogger";
 import { resolveEntityBranding, syncEntities, findEntityByAddress, findEntityByName } from "./entityStore";
 import { findTrackedDappMatch } from "../config/dapps";
 import { DEFAULT_NETWORK } from "../config/network";
-import { getTokenInfo } from "../config/tokens";
+import { getTokenInfo, getTokenAddressBySymbol } from "../config/tokens";
 import { parseCoinType, getTokenDecimals, isValidAddress } from "../utils/tokenUtils";
 import { markTransaction, TX_TYPES } from "./historyEngine";
 
@@ -33,7 +33,7 @@ const ADDRESS_PATTERN = /0x[a-f0-9]{1,128}/ig;
 let supabaseClient = null;
 const pricePromiseCache = new Map();
 
-let entityCache = null;
+let entityCachePromise: Promise<any[]> | null = null;
 let entityCacheExpiry = 0;
 const ENTITY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -136,26 +136,29 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = REQUEST_TIMEOUT_M
 };
 
 const getTrackedEntities = async () => {
-  if (entityCache && Date.now() < entityCacheExpiry) {
-    return entityCache;
+  if (entityCachePromise && Date.now() < entityCacheExpiry) {
+    return entityCachePromise;
   }
 
   const supabase = getSupabaseClient();
   if (!supabase) return [];
 
-  try {
-    const { data } = await supabase
-      .from('tracked_entities')
-      .select('*')
-      .is('is_verified', true);
+  entityCachePromise = (async () => {
+    try {
+      const { data } = await supabase
+        .from('tracked_entities')
+        .select('*')
+        .is('is_verified', true);
 
-    entityCache = Array.isArray(data) ? data : [];
-    entityCacheExpiry = Date.now() + ENTITY_CACHE_TTL;
-    return entityCache;
-  } catch (error) {
-    devLog('Failed to fetch tracked entities:', error);
-    return entityCache || [];
-  }
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      devLog('Failed to fetch tracked entities:', error);
+      return [];
+    }
+  })();
+
+  entityCacheExpiry = Date.now() + ENTITY_CACHE_TTL;
+  return entityCachePromise;
 };
 
 const postGraphQL = async (query, variables = {}) => {
@@ -1112,46 +1115,49 @@ export const getTokenPrice = async (token, date) => {
 
   const pricePromise = (async () => {
     const supabase = getSupabaseClient();
+    const tokenAddress = getTokenAddressBySymbol(normalizedToken);
+    const normAddress = tokenAddress ? tokenAddress.toLowerCase().replace(/^0x0*/, '0x') : null;
 
-    if (supabase) {
+    if (supabase && normAddress) {
       try {
         const { data, error } = await supabase
-          .from("price_cache")
-          .select("price_usd")
-          .eq("token", normalizedToken)
-          .eq("date", sqlDate)
-          .gt("cached_at", new Date(Date.now() - 60 * 60 * 1000).toISOString())
+          .from("token_price_history")
+          .select("price")
+          .eq("token_address", normAddress)
+          .gte("timestamp", `${sqlDate}T00:00:00Z`)
+          .lte("timestamp", `${sqlDate}T23:59:59Z`)
+          .limit(1)
           .maybeSingle();
 
         if (error) {
-          devLog("Failed to read price cache:", error);
-        } else if (data?.price_usd !== undefined && data?.price_usd !== null) {
-          return toNumber(data.price_usd);
+          devLog("Failed to read price history:", error);
+        } else if (data?.price !== undefined && data?.price !== null) {
+          return toNumber(data.price);
         }
       } catch (error) {
-        devLog("Failed to query price cache:", error);
+        devLog("Failed to query price history:", error);
       }
     }
 
     const remotePrice = await fetchCoinGeckoHistoricalPrice(normalizedToken, sqlDate);
 
-    if (remotePrice > 0 && supabase) {
+    if (remotePrice > 0 && supabase && normAddress) {
       try {
-        const { error } = await supabase.from("price_cache").upsert(
+        const { error } = await supabase.from("token_price_history").upsert(
           {
-            token: normalizedToken,
-            date: sqlDate,
-            price_usd: remotePrice,
-            cached_at: new Date().toISOString(),
+            token_address: normAddress,
+            price: remotePrice,
+            timestamp: `${sqlDate}T12:00:00Z`,
+            granularity: 'daily',
           },
-          { onConflict: "token,date" }
+          { onConflict: "token_address,timestamp" }
         );
 
         if (error) {
-          devLog("Failed to cache token price:", error);
+          devLog("Failed to cache token price in history:", error);
         }
       } catch (error) {
-        devLog("Failed to upsert token price cache:", error);
+        devLog("Failed to upsert token price history cache:", error);
       }
     }
 
