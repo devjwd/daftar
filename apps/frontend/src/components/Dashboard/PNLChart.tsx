@@ -367,14 +367,10 @@ const PNLChart: React.FC<PNLChartProps> = ({
             {!isPremium && (
               <div className="pnl-restricted-overlay">
                 <div className="restricted-content">
-                  <h4 className="restricted-title">Historical PnL</h4>
                   <p className="restricted-text">
                     Upgrade to Lite to unlock historical charts beyond the 24h overview.
                   </p>
                   <button className="restricted-cta-btn" onClick={() => navigate('/pricing')}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z" />
-                    </svg>
                     Upgrade Now
                   </button>
                 </div>
