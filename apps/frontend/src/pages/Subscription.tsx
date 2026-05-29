@@ -5,7 +5,7 @@ import { getSubscriptionPlans } from '../services/api';
 import './Subscription.css';
 
 interface PlanDefinition {
-  id: 'free' | 'lite' | 'pro';
+  id: 'free' | 'pro';
   name: string;
   price: number;
   interval: string | null;
@@ -26,15 +26,18 @@ export default function Subscription() {
   const [plans, setPlans] = useState<PlanDefinition[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
 
-  // Derive current tier
-  const currentTier = profile?.subscription_tier || (profile?.is_verified ? 'lite' : 'free');
+  // Derive current tier (Map legacy 'lite' to 'pro' for fallback/current plan highlight)
+  const rawTier = profile?.subscription_tier || (profile?.is_verified ? 'pro' : 'free');
+  const currentTier = rawTier === 'lite' ? 'pro' : rawTier;
 
   useEffect(() => {
     async function loadPlans() {
       try {
         const fetchedPlans = await getSubscriptionPlans();
         if (fetchedPlans && fetchedPlans.length > 0) {
-          setPlans(fetchedPlans);
+          // Filter out legacy plans if returned by server
+          const filtered = fetchedPlans.filter((p: any) => p.id !== 'lite');
+          setPlans(filtered);
         }
       } catch (err) {
         console.error('Failed to load plans:', err);
@@ -45,7 +48,7 @@ export default function Subscription() {
     loadPlans();
   }, []);
 
-  const handleCtaClick = (planId: 'free' | 'lite' | 'pro') => {
+  const handleCtaClick = (planId: 'free' | 'pro') => {
     if (planId === currentTier) return;
     
     // Prompt manual subscription admin flow instructions
@@ -76,9 +79,9 @@ export default function Subscription() {
       }
     },
     {
-      id: 'lite' as const,
-      name: 'Lite',
-      price: 2,
+      id: 'pro' as const,
+      name: 'Pro',
+      price: 5,
       interval: 'month',
       features: [
         'Everything in Free',
@@ -86,22 +89,6 @@ export default function Subscription() {
         'Portfolio Analytics Dashboard',
         'Transaction Visualizer',
         'Advanced Transaction Filters',
-      ],
-      limits: {
-        pnlHistory: true,
-        analytics: true,
-        visualizer: true,
-        prioritySupport: false,
-        earlyFeatures: false,
-      }
-    },
-    {
-      id: 'pro' as const,
-      name: 'Pro',
-      price: 5,
-      interval: 'month',
-      features: [
-        'Everything in Lite',
         'Priority Support',
         'Early Access to New Features',
         'Pro Badge on Profile',
@@ -116,12 +103,10 @@ export default function Subscription() {
     }
   ];
 
-  const getPlanDescription = (id: 'free' | 'lite' | 'pro') => {
+  const getPlanDescription = (id: 'free' | 'pro') => {
     switch (id) {
       case 'free':
         return 'Standard features for on-chain exploration and wallet tracking.';
-      case 'lite':
-        return 'Advanced portfolio analytics and historical details for power users.';
       case 'pro':
         return 'Maximum capabilities, priority support, and early updates.';
     }
@@ -145,18 +130,17 @@ export default function Subscription() {
       <div className="subscription-grid">
         {displayPlans.map((plan) => {
           const isCurrent = plan.id === currentTier;
-          const isFeatured = plan.id === 'lite';
-          const isPro = plan.id === 'pro';
+          const isFeatured = plan.id === 'pro';
 
           return (
             <div
               key={plan.id}
-              className={`subscription-card ${isFeatured ? 'featured' : ''} ${isPro ? 'pro-card' : ''}`}
+              className={`subscription-card ${isFeatured ? 'featured' : ''}`}
             >
               {isFeatured && <div className="recommended-badge">Recommended</div>}
 
               <div className="subscription-card-header">
-                <h3 className={`plan-tier-label ${plan.id === 'lite' ? 'lite-label' : ''} ${plan.id === 'pro' ? 'pro-label' : ''}`}>
+                <h3 className={`plan-tier-label ${plan.id === 'pro' ? 'pro-label' : ''}`}>
                   {plan.name}
                   {isCurrent && <span className="current-plan-badge">Current Plan</span>}
                 </h3>
@@ -219,11 +203,6 @@ export default function Subscription() {
                       </span>
                       Transaction Visualizer
                     </li>
-                  </>
-                )}
-
-                {plan.id === 'lite' && (
-                  <>
                     <li className="subscription-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -233,21 +212,12 @@ export default function Subscription() {
                       </span>
                       Priority Support
                     </li>
-                    <li className="subscription-feature-item excluded-feature">
-                      <span className="feature-check excluded">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </span>
-                      Early Features
-                    </li>
                   </>
                 )}
               </ul>
 
               <button
-                className={`subscription-cta ${isCurrent ? 'cta-current' : plan.id === 'free' ? 'cta-free' : plan.id === 'lite' ? 'cta-lite' : 'cta-pro'}`}
+                className={`subscription-cta ${isCurrent ? 'cta-current' : plan.id === 'free' ? 'cta-free' : 'cta-pro'}`}
                 onClick={() => handleCtaClick(plan.id)}
                 disabled={isCurrent}
               >

@@ -24,13 +24,13 @@ export default function SubscriptionAdmin() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAddress, setNewAddress] = useState('');
-  const [newTier, setNewTier] = useState<'free' | 'lite' | 'pro'>('lite');
+  const [newTier, setNewTier] = useState<'free' | 'lite' | 'pro'>('pro');
   const [newExpiresAt, setNewExpiresAt] = useState<string>('');
   const [addLoading, setAddLoading] = useState(false);
 
   // States to track editing state for existing users in list
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
-  const [editTier, setEditTier] = useState<'free' | 'lite' | 'pro'>('lite');
+  const [editTier, setEditTier] = useState<'free' | 'lite' | 'pro'>('pro');
   const [editExpiresAt, setEditExpiresAt] = useState<string>('');
 
   const showMessage = (type: string, text: string) => {
@@ -192,7 +192,6 @@ export default function SubscriptionAdmin() {
             >
               <option value="all">All Tiers</option>
               <option value="free">Free Tier</option>
-              <option value="lite">Lite Tier</option>
               <option value="pro">Pro Tier</option>
             </select>
 
@@ -243,7 +242,6 @@ export default function SubscriptionAdmin() {
                     style={{ width: '100%', marginTop: '4px' }}
                   >
                     <option value="free">Free</option>
-                    <option value="lite">Lite ($2/mo)</option>
                     <option value="pro">Pro ($5/mo)</option>
                   </select>
                 </div>
@@ -356,7 +354,6 @@ export default function SubscriptionAdmin() {
                               style={{ width: '100%', marginTop: '4px' }}
                             >
                               <option value="free">Free</option>
-                              <option value="lite">Lite ($2/mo)</option>
                               <option value="pro">Pro ($5/mo)</option>
                             </select>
                           </div>

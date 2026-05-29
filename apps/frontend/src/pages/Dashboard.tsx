@@ -783,7 +783,7 @@ const Dashboard = () => {
             assetBreakdown={assetBreakdownData}
             protocolBreakdown={protocolBreakdownData}
             walletAddress={viewingAddress}
-            subscriptionTier={userProfile?.subscription_tier || (userProfile?.is_verified ? 'lite' : 'free')}
+            subscriptionTier={userProfile?.subscription_tier || (userProfile?.is_verified ? 'pro' : 'free')}
             balances={balances}
             priceChanges={priceChanges}
           />
@@ -860,7 +860,7 @@ const Dashboard = () => {
             <TransactionsTab
               viewingAddress={viewingAddress}
               lastRefresh={lastRefresh}
-              subscriptionTier={userProfile?.subscription_tier || (userProfile?.is_verified ? 'lite' : 'free')}
+              subscriptionTier={userProfile?.subscription_tier || (userProfile?.is_verified ? 'pro' : 'free')}
               hideValues={hideValues}
               language={language}
             />

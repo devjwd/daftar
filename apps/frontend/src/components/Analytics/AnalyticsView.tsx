@@ -32,7 +32,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const lastSyncChangeTimeRef = React.useRef<number>(0);
 
   const { profile, loading: profileLoading } = useProfile(walletAddress || null);
-  const subscriptionTier = profile?.subscription_tier || (profile?.is_verified ? 'lite' : 'free');
+  const rawTier = profile?.subscription_tier || (profile?.is_verified ? 'pro' : 'free');
+  const subscriptionTier = rawTier === 'lite' ? 'pro' : rawTier;
   const isPremium = subscriptionTier !== 'free';
 
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
@@ -244,7 +245,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
         <SubscriptionGate
           feature="Portfolio Analytics"
           description="Unlock portfolio metrics, performance tracking, transaction filters, and full historical analytics."
-          requiredTier="lite"
+          requiredTier="pro"
         />
       </div>
     );

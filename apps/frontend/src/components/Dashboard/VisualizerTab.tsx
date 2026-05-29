@@ -163,8 +163,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
     getProfile(viewingAddress)
       .then(profile => {
         if (isMounted) {
-          const tier = profile?.subscription_tier || (profile?.is_verified ? 'lite' : 'free');
-          setSubscriptionTier(tier);
+          const tier = profile?.subscription_tier || (profile?.is_verified ? 'pro' : 'free');
+          setSubscriptionTier(tier === 'lite' ? 'pro' : tier);
         }
       })
       .catch(err => {
@@ -192,7 +192,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
         try {
           const profile = await getProfile(viewingAddress);
           if (profile) {
-            const tier = profile.subscription_tier || (profile.is_verified ? 'lite' : 'free');
+            const rawTier = profile.subscription_tier || (profile.is_verified ? 'pro' : 'free');
+            const tier = rawTier === 'lite' ? 'pro' : rawTier;
             isPremium = tier !== 'free';
           }
         } catch (e) {
@@ -776,8 +777,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
         <div className={styles.canvasContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px', padding: '40px' }}>
           <SubscriptionGate
             feature="Transaction Visualizer"
-            description="Upgrade to Lite to visualize your transaction flows on-chain, see interactive connection graphs, and track funds."
-            requiredTier="lite"
+            description="Upgrade to Pro to visualize your transaction flows on-chain, see interactive connection graphs, and track funds."
+            requiredTier="pro"
           />
         </div>
       </section>

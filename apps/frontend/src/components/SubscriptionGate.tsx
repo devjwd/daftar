@@ -15,7 +15,7 @@ interface SubscriptionGateProps {
 const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
   feature,
   description,
-  requiredTier = 'lite',
+  requiredTier = 'pro',
 }) => {
   const navigate = useNavigate();
 
@@ -69,15 +69,19 @@ const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
           <>
             <span className="gate-feature-chip">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-              All Lite Features
+              PNL History
+            </span>
+            <span className="gate-feature-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+              Analytics
+            </span>
+            <span className="gate-feature-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+              Visualizer
             </span>
             <span className="gate-feature-chip">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
               Priority Support
-            </span>
-            <span className="gate-feature-chip">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-              Early Features
             </span>
           </>
         )}

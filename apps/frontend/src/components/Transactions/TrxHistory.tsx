@@ -583,7 +583,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscrip
           <button
             type="button"
             disabled={!isPremium}
-            title={!isPremium ? "Advanced filtering is available for Lite/Pro users" : undefined}
+            title={!isPremium ? "Advanced filtering is available for Pro users" : undefined}
             className={cn(
               styles.filterTab,
               (advancedFilters.protocols.length > 0 || advancedFilters.exactTypes.length > 0 || advancedFilters.minAmount || advancedFilters.maxAmount || advancedFilters.startDate || advancedFilters.endDate) && styles.filterTabActive

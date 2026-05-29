@@ -27,9 +27,9 @@ const SUBSCRIPTION_PLANS = [
     }
   },
   {
-    id: 'lite',
-    name: 'Lite',
-    price: 2,
+    id: 'pro',
+    name: 'Pro',
+    price: 5,
     interval: 'month',
     features: [
       'Everything in Free',
@@ -37,22 +37,6 @@ const SUBSCRIPTION_PLANS = [
       'Portfolio Analytics Dashboard',
       'Transaction Visualizer',
       'Advanced Transaction Filters',
-    ],
-    limits: {
-      pnlHistory: true,
-      analytics: true,
-      visualizer: true,
-      prioritySupport: false,
-      earlyFeatures: false,
-    }
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 5,
-    interval: 'month',
-    features: [
-      'Everything in Lite',
       'Priority Support',
       'Early Access to New Features',
       'Pro Badge on Profile',
@@ -111,9 +95,14 @@ router.get('/status', async (req: Request, res: Response) => {
       }
     }
 
-    // Backward compat: if is_verified but tier is still free, treat as lite
+    // Treat 'lite' as 'pro' since 'lite' is deprecated
+    if (effectiveTier === 'lite') {
+      effectiveTier = 'pro';
+    }
+
+    // Backward compat: if is_verified but tier is still free, treat as pro
     if (profile.is_verified && effectiveTier === 'free') {
-      effectiveTier = 'lite';
+      effectiveTier = 'pro';
     }
 
     const plan = SUBSCRIPTION_PLANS.find(p => p.id === effectiveTier) || SUBSCRIPTION_PLANS[0];

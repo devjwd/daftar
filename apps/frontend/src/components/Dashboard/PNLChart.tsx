@@ -368,7 +368,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
               <div className="pnl-restricted-overlay">
                 <div className="restricted-content">
                   <p className="restricted-text">
-                    Upgrade to Lite to unlock historical charts beyond the 24h overview.
+                    Upgrade to Pro to unlock historical charts beyond the 24h overview.
                   </p>
                   <button className="restricted-cta-btn" onClick={() => navigate('/subscription')}>
                     Upgrade Now
