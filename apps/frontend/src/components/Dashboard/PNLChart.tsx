@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import './PNLChart.css';
 import { getAssetChange, getPrecisionDecimals } from '../../utils/dashboardUtils';
@@ -6,6 +7,17 @@ import SubscriptionGate from '../SubscriptionGate';
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
 const DEBOUNCE_MS = 200;
+
+const DUMMY_PREMIUM_CHART_DATA = [
+  { time: 'Day 1', displayValue: 120 },
+  { time: 'Day 2', displayValue: 180 },
+  { time: 'Day 3', displayValue: 150 },
+  { time: 'Day 4', displayValue: 240 },
+  { time: 'Day 5', displayValue: 210 },
+  { time: 'Day 6', displayValue: 320 },
+  { time: 'Day 7', displayValue: 290 },
+  { time: 'Day 8', displayValue: 420 },
+];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -67,6 +79,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
   balances = [],
   priceChanges = {}
 }) => {
+  const navigate = useNavigate();
   const isPremium = subscriptionTier !== 'free';
   const [timeframe, setTimeframe] = useState(isPremium ? '1M' : '1D');
   const [activeTab, setActiveTab] = useState('History');
@@ -351,83 +364,97 @@ const PNLChart: React.FC<PNLChartProps> = ({
             <span className="pnl-change-percent">({isPositive ? '+' : ''}{changePercent}%)</span>
           </div>
           <div className="pnl-chart-wrapper-v4">
-            {!isPremium ? (
-              <SubscriptionGate
-                feature="Historical Net Worth"
-                description="Upgrade to Lite to unlock historical charts beyond the 24h overview."
-                requiredTier="lite"
-              />
-            ) : (
-              <>
-                {isLoading && (
-                  <div className="pnl-loading-overlay pnl-loading-subtle">
-                    <div className="chart-loading-shimmer" />
-                  </div>
-                )}
-                {error && (
-                  <div className="pnl-error-overlay">
-                    <div className="pnl-error-content">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                      <span>{error}</span>
-                      <button onClick={handleRefresh} className="pnl-retry-btn">Retry</button>
-                    </div>
-                  </div>
-                )}
-                <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${error ? 'blurred-chart' : ''}`}>
-                  <ResponsiveContainer width="99%" height="100%">
-                    <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="colorRed" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#e06a6a" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#e06a6a" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis
-                        dataKey="time"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
-                        dy={8}
-                        minTickGap={40}
-                        tickFormatter={(val) => {
-                          if (val === 'Start' || val === 'Now') return val;
-                          const d = new Date(val);
-                          if (isNaN(d.getTime())) return '';
-                          if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
-                          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                        }}
-                      />
-                      <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
-                      <Tooltip
-                        content={<CustomTooltip />}
-                        cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="displayValue"
-                        stroke={strokeColor}
-                        strokeWidth={2}
-                        fillOpacity={1}
-                        fill={`url(#${gradientId})`}
-                        activeDot={{ r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 }}
-                        dot={false}
-                        isAnimationActive={true}
-                        animationDuration={600}
-                        animationEasing="ease-in-out"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+            {!isPremium && (
+              <div className="pnl-restricted-overlay">
+                <div className="restricted-content">
+                  <h4 className="restricted-title">Historical PnL</h4>
+                  <p className="restricted-text">
+                    Upgrade to Lite to unlock historical charts beyond the 24h overview.
+                  </p>
+                  <button className="restricted-cta-btn" onClick={() => navigate('/pricing')}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z" />
+                    </svg>
+                    Upgrade Now
+                  </button>
                 </div>
-              </>
+              </div>
             )}
+
+            {isLoading && isPremium && (
+              <div className="pnl-loading-overlay pnl-loading-subtle">
+                <div className="chart-loading-shimmer" />
+              </div>
+            )}
+            {error && isPremium && (
+              <div className="pnl-error-overlay">
+                <div className="pnl-error-content">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>{error}</span>
+                  <button onClick={handleRefresh} className="pnl-retry-btn">Retry</button>
+                </div>
+              </div>
+            )}
+            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${(!isPremium || error) ? 'blurred-chart' : ''}`}>
+              <ResponsiveContainer width="99%" height="100%">
+                <AreaChart data={!isPremium ? DUMMY_PREMIUM_CHART_DATA : dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorRed" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#e06a6a" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#e06a6a" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorGold" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#cda169" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#cda169" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="time"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
+                    dy={8}
+                    minTickGap={40}
+                    tickFormatter={(val) => {
+                      if (!isPremium) return '';
+                      if (val === 'Start' || val === 'Now') return val;
+                      const d = new Date(val);
+                      if (isNaN(d.getTime())) return '';
+                      if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
+                      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    }}
+                  />
+                  <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
+                  {isPremium ? (
+                    <Tooltip
+                      content={<CustomTooltip />}
+                      cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    />
+                  ) : null}
+                  <Area
+                    type="monotone"
+                    dataKey="displayValue"
+                    stroke={!isPremium ? '#cda169' : strokeColor}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill={!isPremium ? 'url(#colorGold)' : `url(#${gradientId})`}
+                    activeDot={isPremium ? { r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 } : false}
+                    dot={false}
+                    isAnimationActive={isPremium}
+                    animationDuration={600}
+                    animationEasing="ease-in-out"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       )}
