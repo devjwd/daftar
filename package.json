@@ -7,7 +7,7 @@
   "scripts": {
     "setup": "node scripts/setup.js",
     "start": "npm run start --workspace=apps/server",
-    "dev": "concurrently -n \"server,frontend\" -c \"magenta,cyan\" \"npm run dev --workspace=apps/server\" \"npm run dev --workspace=apps/frontend\"",
+    "dev": "concurrently -n \"server,worker,frontend\" -c \"magenta,yellow,cyan\" \"npm run dev --workspace=apps/server\" \"npm run worker --workspace=apps/server\" \"npm run dev --workspace=apps/frontend\"",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
