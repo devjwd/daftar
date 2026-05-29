@@ -84,7 +84,13 @@ router.get('/status', async (req: Request, res: Response) => {
     if (error && error.code !== 'PGRST116') throw error;
 
     // Default to free tier if no profile found
-    const profile = data || { subscription_tier: 'free', subscription_expires_at: null };
+    const profile = data || {
+      wallet_address: wallet,
+      is_verified: false,
+      subscription_tier: 'free',
+      subscription_started_at: null,
+      subscription_expires_at: null
+    };
 
     // Check if subscription has expired
     let effectiveTier = profile.subscription_tier || 'free';
