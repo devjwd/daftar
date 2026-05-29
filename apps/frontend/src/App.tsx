@@ -27,7 +27,7 @@ const Level = lazy(() => import("./pages/Level"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const StandaloneVisualizer = lazy(() => import("./pages/StandaloneVisualizer"));
-const Pricing = lazy(() => import("./pages/Pricing"));
+const Subscription = lazy(() => import("./pages/Subscription"));
 
 const SWAP_ENABLED = getEnv("VITE_ENABLE_SWAP", true);
 
@@ -64,7 +64,7 @@ const TITLE_MAP: Record<string, string> = {
   "/leaderboard": "Daftar | Leaderboard",
   "/settings": "Daftar | Settings",
   "/admin": "Daftar | Admin",
-  "/pricing": "Daftar | Pricing",
+  "/subscription": "Daftar | Subscription",
   "/level": "Daftar | Level",
   "/terms": "Daftar | Terms",
   "/privacy": "Daftar | Privacy",
@@ -179,7 +179,7 @@ export default function App() {
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/admin" element={<Admin />} />
-                    <Route path="/pricing" element={<Pricing />} />
+                    <Route path="/subscription" element={<Subscription />} />
                     <Route path="/more" element={<Navigate to="/settings" replace />} />
                     <Route path="/level" element={<Level />} />
                     <Route path="/terms" element={<Terms />} />

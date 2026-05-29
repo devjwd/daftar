@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useProfile } from '../hooks/useProfile';
 import { getSubscriptionPlans } from '../services/api';
-import './Pricing.css';
+import './Subscription.css';
 
 interface PlanDefinition {
   id: 'free' | 'lite' | 'pro';
@@ -19,7 +19,7 @@ interface PlanDefinition {
   };
 }
 
-export default function Pricing() {
+export default function Subscription() {
   const { account, connected } = useWallet();
   const walletAddress = connected && account?.address ? String(account.address) : null;
   const { profile, loading: profileLoading } = useProfile(walletAddress);
@@ -127,48 +127,22 @@ export default function Pricing() {
     }
   };
 
-  const isFeatureIncluded = (plan: typeof displayPlans[0], featureIndex: number, planId: 'free' | 'lite' | 'pro') => {
-    // Free has 4 features, Lite has 5, Pro has 4 (plus lite ones)
-    if (planId === 'free') {
-      return featureIndex < 4;
-    }
-    if (planId === 'lite') {
-      return true; // Lite includes all its listed features
-    }
-    if (planId === 'pro') {
-      return true; // Pro includes all
-    }
-    return false;
-  };
-
-  // Matrix of all features for feature comparisons
-  const COMPARISON_FEATURES = [
-    { name: 'Portfolio Tracker', free: true, lite: true, pro: true },
-    { name: 'Transaction History', free: true, lite: true, pro: true },
-    { name: 'NFT Gallery', free: true, lite: true, pro: true },
-    { name: 'PNL History Chart', free: '24h only', lite: 'All timeframes', pro: 'All timeframes' },
-    { name: 'Portfolio Analytics', free: false, lite: true, pro: true },
-    { name: 'Transaction Visualizer', free: false, lite: true, pro: true },
-    { name: 'Priority Support', free: false, lite: false, pro: true },
-    { name: 'Early Features', free: false, lite: false, pro: true },
-  ];
-
   return (
-    <div className="pricing-page">
-      <div className="pricing-bg">
-        <div className="pricing-orb pricing-orb-1" />
-        <div className="pricing-orb pricing-orb-2" />
+    <div className="subscription-page">
+      <div className="subscription-bg">
+        <div className="subscription-orb subscription-orb-1" />
+        <div className="subscription-orb subscription-orb-2" />
       </div>
 
-      <header className="pricing-header">
-        <span className="pricing-badge">Pricing Plans</span>
-        <h1 className="pricing-title">Flexible Subscription Tiers</h1>
-        <p className="pricing-subtitle">
+      <header className="subscription-header">
+        <span className="subscription-badge">Subscription Plans</span>
+        <h1 className="subscription-title">Flexible Subscription Tiers</h1>
+        <p className="subscription-subtitle">
           Scale your on-chain portfolio intelligence with tools built for the Movement Network.
         </p>
       </header>
 
-      <div className="pricing-grid">
+      <div className="subscription-grid">
         {displayPlans.map((plan) => {
           const isCurrent = plan.id === currentTier;
           const isFeatured = plan.id === 'lite';
@@ -177,35 +151,35 @@ export default function Pricing() {
           return (
             <div
               key={plan.id}
-              className={`pricing-card ${isFeatured ? 'featured' : ''} ${isPro ? 'pro-card' : ''}`}
+              className={`subscription-card ${isFeatured ? 'featured' : ''} ${isPro ? 'pro-card' : ''}`}
             >
               {isFeatured && <div className="recommended-badge">Recommended</div>}
 
-              <div className="pricing-card-header">
+              <div className="subscription-card-header">
                 <h3 className={`plan-tier-label ${plan.id === 'lite' ? 'lite-label' : ''} ${plan.id === 'pro' ? 'pro-label' : ''}`}>
                   {plan.name}
                   {isCurrent && <span className="current-plan-badge">Current Plan</span>}
                 </h3>
                 
-                <p className="pricing-plan-desc">{getPlanDescription(plan.id)}</p>
+                <p className="subscription-plan-desc">{getPlanDescription(plan.id)}</p>
 
-                <div className="pricing-price-row">
+                <div className="subscription-price-row">
                   {plan.price === 0 ? (
-                    <span className="pricing-price-free">Free</span>
+                    <span className="subscription-price-free">Free</span>
                   ) : (
                     <>
-                      <span className="pricing-price">${plan.price}</span>
-                      <span className="pricing-price-period">/{plan.interval || 'mo'}</span>
+                      <span className="subscription-price">${plan.price}</span>
+                      <span className="subscription-price-period">/{plan.interval || 'mo'}</span>
                     </>
                   )}
                 </div>
               </div>
 
-              <div className="pricing-divider" />
+              <div className="subscription-divider" />
 
-              <ul className="pricing-features">
+              <ul className="subscription-features">
                 {plan.features.map((feature, idx) => (
-                  <li key={idx} className="pricing-feature-item">
+                  <li key={idx} className="subscription-feature-item">
                     <span className="feature-check included">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                         <polyline points="20 6 9 17 4 12" />
@@ -218,7 +192,7 @@ export default function Pricing() {
                 {/* Excluded features for visual completeness */}
                 {plan.id === 'free' && (
                   <>
-                    <li className="pricing-feature-item excluded-feature">
+                    <li className="subscription-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -227,7 +201,7 @@ export default function Pricing() {
                       </span>
                       Full PNL History
                     </li>
-                    <li className="pricing-feature-item excluded-feature">
+                    <li className="subscription-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -236,7 +210,7 @@ export default function Pricing() {
                       </span>
                       Portfolio Analytics
                     </li>
-                    <li className="pricing-feature-item excluded-feature">
+                    <li className="subscription-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -250,7 +224,7 @@ export default function Pricing() {
 
                 {plan.id === 'lite' && (
                   <>
-                    <li className="pricing-feature-item excluded-feature">
+                    <li className="subscription-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -259,7 +233,7 @@ export default function Pricing() {
                       </span>
                       Priority Support
                     </li>
-                    <li className="pricing-feature-item excluded-feature">
+                    <li className="subscription-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -273,7 +247,7 @@ export default function Pricing() {
               </ul>
 
               <button
-                className={`pricing-cta ${isCurrent ? 'cta-current' : plan.id === 'free' ? 'cta-free' : plan.id === 'lite' ? 'cta-lite' : 'cta-pro'}`}
+                className={`subscription-cta ${isCurrent ? 'cta-current' : plan.id === 'free' ? 'cta-free' : plan.id === 'lite' ? 'cta-lite' : 'cta-pro'}`}
                 onClick={() => handleCtaClick(plan.id)}
                 disabled={isCurrent}
               >
@@ -283,36 +257,6 @@ export default function Pricing() {
           );
         })}
       </div>
-
-      <section className="pricing-faq">
-        <h2 className="pricing-faq-title">Frequently Asked Questions</h2>
-        <div className="faq-grid">
-          <div className="faq-item">
-            <h4 className="faq-question">How do I subscribe?</h4>
-            <p className="faq-answer">
-              During our beta phase, subscriptions are assigned manually by our administration team. Tap "Get Started" on your desired plan to find contact details, and we will update your wallet status.
-            </p>
-          </div>
-          <div className="faq-item">
-            <h4 className="faq-question">What payment methods do you support?</h4>
-            <p className="faq-answer">
-              Currently we accept manual transfers. Full self-service checkout with Stripe and crypto payment options is coming soon.
-            </p>
-          </div>
-          <div className="faq-item">
-            <h4 className="faq-question">What features do I unlock on the Lite tier?</h4>
-            <p className="faq-answer">
-              Lite users unlock historical PNL charts, the interactive transaction flows visualizer, and advanced metrics under the Analytics tab.
-            </p>
-          </div>
-          <div className="faq-item">
-            <h4 className="faq-question">Can I cancel my subscription?</h4>
-            <p className="faq-answer">
-              Yes, subscriptions can be cancelled at any time by contacting our administrators. Your premium access will continue until the end of your billing cycle.
-            </p>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
