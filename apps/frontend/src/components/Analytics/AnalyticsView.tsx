@@ -9,6 +9,7 @@ import { AnalyticsData } from '../../types/analytics.types';
 import SyncStateOverlay from './SyncStateOverlay';
 import AnalyticsOverview from './AnalyticsOverview';
 import VisualizerTab from '../Dashboard/VisualizerTab';
+import SubscriptionGate from '../SubscriptionGate';
 
 // Styles
 import './AnalyticsV5.css';
@@ -31,7 +32,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const lastSyncChangeTimeRef = React.useRef<number>(0);
 
   const { profile, loading: profileLoading } = useProfile(walletAddress || null);
-  const isVerified = profile?.is_verified ?? false;
+  const subscriptionTier = profile?.subscription_tier || (profile?.is_verified ? 'lite' : 'free');
+  const isPremium = subscriptionTier !== 'free';
 
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
@@ -132,8 +134,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     // 1. Immediately fetch whatever data exists
     doFetchAnalytics();
 
-    // 2. Auto-trigger sync if verified (fire-and-forget)
-    if (isVerified) {
+    // 2. Auto-trigger sync if premium (fire-and-forget)
+    if (isPremium) {
       fetch(`${API_URL}/api/analytics/sync?wallet=${walletAddress}`).catch(() => {});
       setSyncStatus('syncing');
     }
@@ -154,7 +156,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
       isMounted = false;
       stopPolling();
     };
-  }, [walletAddress, isVerified, API_URL]);
+  }, [walletAddress, isPremium, API_URL]);
 
   const fetchAnalyticsData = async (tf = timeframe) => {
     if (!walletAddress) return;
@@ -232,6 +234,18 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
         <div className="radar-pulse-container">
           <div className="radar-pulse"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (!isPremium) {
+    return (
+      <div className="analytics-v5-container" style={{ padding: '40px 20px' }}>
+        <SubscriptionGate
+          feature="Portfolio Analytics"
+          description="Unlock portfolio metrics, performance tracking, transaction filters, and full historical analytics."
+          requiredTier="lite"
+        />
       </div>
     );
   }

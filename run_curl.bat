@@ -1,0 +1,1 @@
+curl -s -X POST https://mainnet.movementnetwork.xyz/v1/view -H "Content-Type: application/json" -d "{\"function\":\"0xb10bd32b3979c9d04272c769d9ef52afbc6edc4bf03982a9e326b96ac25e7f2d::satay::vaults_view\",\"type_arguments\":[],\"arguments\":[]}" > rpc_output.json

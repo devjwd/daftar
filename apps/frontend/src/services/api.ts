@@ -312,6 +312,38 @@ export const manageUserVerification = async (action_data: { method: 'LIST' | 'TO
   return response;
 };
 
+export const manageSubscription = async (
+  action_data: {
+    method: 'LIST' | 'SET_TIER';
+    address?: string;
+    tier?: 'free' | 'lite' | 'pro';
+    expires_at?: string | null;
+    query?: string;
+    tierFilter?: string;
+  },
+  adminAuth: any
+) => {
+  const response = await callApi<any>('/api/admin/manage-badge', {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'manage-subscriptions',
+      ...action_data
+    }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
+export const getSubscriptionStatus = async (walletAddress: string): Promise<any> => {
+  const response = await callApi<any>(`/api/subscription/status?wallet=${encodeURIComponent(normalizeAddress(walletAddress))}`);
+  return response.ok ? response.data : null;
+};
+
+export const getSubscriptionPlans = async (): Promise<any> => {
+  const response = await callApi<any>('/api/subscription/plans');
+  return response.ok ? response.data?.plans : [];
+};
+
 export const getNFTCollectionStats = async (): Promise<Record<string, { floor: number; topBid: number }>> => {
   const response = await callApi<{ collections: any[] }>('/api/prices/nft');
   if (!response.ok || !response.data?.collections) return {};
@@ -352,5 +384,8 @@ export default {
   getSystemConfig,
   updateSystemConfig,
   manageEntity,
-  manageUserVerification
+  manageUserVerification,
+  manageSubscription,
+  getSubscriptionStatus,
+  getSubscriptionPlans
 };

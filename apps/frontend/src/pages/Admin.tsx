@@ -4,7 +4,7 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import './Admin.css';
 import BadgeAdmin from '../components/BadgeAdmin';
 import EntityAdmin from '../components/EntityAdmin';
-import UserVerificationAdmin from '../components/UserVerificationAdmin';
+import SubscriptionAdmin from '../components/SubscriptionAdmin';
 
 import { useMovementClient } from '../hooks/useMovementClient';
 import { useTransactionTracker } from '../hooks/useTransactionTracker';
@@ -377,14 +377,14 @@ export default function Admin() {
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === 'verification'}
-              className={`admin-tab ${activeTab === 'verification' ? 'active' : ''}`}
-              onClick={() => setActiveTab('verification')}
+              aria-selected={activeTab === 'subscriptions'}
+              className={`admin-tab ${activeTab === 'subscriptions' ? 'active' : ''}`}
+              onClick={() => setActiveTab('subscriptions')}
             >
-              <span className="admin-tab-icon" aria-hidden="true">✔️</span>
+              <span className="admin-tab-icon" aria-hidden="true">💳</span>
               <span className="admin-tab-text">
-                <span className="admin-tab-title">Verification</span>
-                <span className="admin-tab-meta">Manage verified user status</span>
+                <span className="admin-tab-title">Subscriptions</span>
+                <span className="admin-tab-meta">Manage user subscription plans</span>
               </span>
             </button>
           </div>
@@ -392,7 +392,7 @@ export default function Admin() {
 
         {activeTab === 'badges' && <BadgeAdmin />}
         {activeTab === 'entities' && <EntityAdmin />}
-        {activeTab === 'verification' && <UserVerificationAdmin />}
+        {activeTab === 'subscriptions' && <SubscriptionAdmin />}
 
         {activeTab === 'settings' && (
           <div className="admin-content">

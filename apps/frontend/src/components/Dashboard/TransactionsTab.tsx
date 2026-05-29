@@ -7,7 +7,7 @@ const RouteFallback = () => <div className="loading-indicator">Loading...</div>;
 interface TransactionsTabProps {
   viewingAddress: string | null;
   lastRefresh: number;
-  isVerified?: boolean;
+  subscriptionTier?: 'free' | 'lite' | 'pro';
   hideValues: boolean;
   language: string;
 }
@@ -15,7 +15,7 @@ interface TransactionsTabProps {
 const TransactionsTab: React.FC<TransactionsTabProps> = ({
   viewingAddress,
   lastRefresh,
-  isVerified,
+  subscriptionTier = 'free',
   hideValues,
   language,
 }) => {
@@ -25,7 +25,7 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({
         <TrxHistory
           walletAddress={viewingAddress}
           refreshTrigger={lastRefresh}
-          isVerified={isVerified}
+          subscriptionTier={subscriptionTier}
           hideValues={hideValues}
           language={language}
         />

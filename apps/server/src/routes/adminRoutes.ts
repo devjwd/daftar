@@ -265,6 +265,63 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       }
     }
 
+    if (action === 'manage-subscriptions') {
+      const { method, address: targetAddress, tier, expires_at } = req.body;
+
+      if (method === 'LIST') {
+        const { query, tierFilter } = req.body;
+        let dbQuery = supabaseAdmin.from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (query) {
+          dbQuery = dbQuery.or(`username.ilike.%${query}%,wallet_address.ilike.%${query}%`);
+        }
+
+        if (tierFilter && tierFilter !== 'all') {
+          dbQuery = dbQuery.eq('subscription_tier', tierFilter);
+        }
+
+        const { data, error } = await dbQuery.limit(50);
+        if (error) throw error;
+        return res.json({ success: true, users: data });
+      }
+
+      if (method === 'SET_TIER') {
+        if (!targetAddress) return res.status(400).json({ error: 'address required' });
+        if (!tier || !['free', 'lite', 'pro'].includes(tier)) {
+          return res.status(400).json({ error: 'Valid tier required (free, lite, pro)' });
+        }
+
+        const normalized = normalizeAddress(targetAddress);
+        const updatePayload: any = {
+          wallet_address: normalized,
+          subscription_tier: tier,
+          is_verified: tier !== 'free', // Keep is_verified in sync
+          updated_at: new Date().toISOString(),
+        };
+
+        if (tier === 'free') {
+          updatePayload.subscription_started_at = null;
+          updatePayload.subscription_expires_at = null;
+        } else {
+          updatePayload.subscription_started_at = updatePayload.subscription_started_at || new Date().toISOString();
+          if (expires_at) {
+            updatePayload.subscription_expires_at = expires_at;
+          }
+        }
+
+        const { data, error } = await supabaseAdmin
+          .from('profiles')
+          .upsert(updatePayload, { onConflict: 'wallet_address' })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return res.json({ success: true, user: data });
+      }
+    }
+
     return res.status(400).json({ error: 'Invalid action' });
 
   } catch (err: any) {

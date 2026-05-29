@@ -56,23 +56,21 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
       </button>
 
 
-      {canEditProfile && (
-        <button
-          type="button"
-          className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
-          onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`)}
-          style={{ marginLeft: 'auto' }}
-        >
-          <div className="analytics-btn-content">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-              <line x1="18" y1="20" x2="18" y2="10"></line>
-              <line x1="12" y1="20" x2="12" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
-            Analytics
-          </div>
-        </button>
-      )}
+      <button
+        type="button"
+        className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
+        onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`)}
+        style={{ marginLeft: 'auto' }}
+      >
+        <div className="analytics-btn-content">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          Analytics
+        </div>
+      </button>
     </section>
   );
 };

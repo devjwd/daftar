@@ -505,6 +505,16 @@ export default function Layout({ children }) {
                 </button>
               </li>
 
+              <li className={location.pathname.startsWith("/pricing") ? "active" : ""}>
+                <button
+                  type="button"
+                  className="nav-link-btn"
+                  onClick={() => navigate("/pricing")}
+                >
+                  Pricing
+                </button>
+              </li>
+
               <li className="more-dropdown-container">
                 <button
                   className={`nav-more-btn ${moreDropdownOpen ? 'active' : ''}`}

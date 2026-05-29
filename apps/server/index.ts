@@ -13,6 +13,7 @@ import adminRoutes from './src/routes/adminRoutes.ts';
 import configRoutes from './src/routes/configRoutes.ts';
 import transactionRoutes from './src/routes/transactionRoutes.ts';
 import analyticsRoutes from './src/routes/analyticsRoutes.ts';
+import subscriptionRoutes from './src/routes/subscriptionRoutes.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { handleError } from './src/utils/errors.ts';
@@ -58,6 +59,7 @@ app.use('/api/transactions', transactionRoutes);
 // Transactions Sync Route has been deprecated in favor of background deep sync.
 
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 
 // --- Global Error Handler ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

@@ -2,6 +2,8 @@
  * Unified Type Definitions for Daftar Project
  */
 
+export type SubscriptionTier = 'free' | 'lite' | 'pro';
+
 export interface Profile {
   wallet_address: string;
   username: string;
@@ -11,6 +13,9 @@ export interface Profile {
   telegram: string;
   xp: number;
   is_verified: boolean;
+  subscription_tier?: SubscriptionTier;
+  subscription_started_at?: string;
+  subscription_expires_at?: string;
   created_at?: string;
   updated_at?: string;
 }

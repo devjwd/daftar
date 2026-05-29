@@ -29,7 +29,7 @@ export const resolveTokenPrice = (
   const upperSymbol = String(symbol || '').toUpperCase();
 
   // MOVE
-  const isMove = upperSymbol === "MOVE" || upperSymbol === "GMOVE" || upperSymbol === "STMOVE" || upperSymbol === "LMOVE";
+  const isMove = upperSymbol === "MOVE" || upperSymbol === "GMOVE" || upperSymbol === "STMOVE" || upperSymbol === "LMOVE" || upperSymbol === "CVMOVE";
   const isMoveDrops = upperSymbol.includes('DROPS');
 
   if (isMove && !isMoveDrops) {

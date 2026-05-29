@@ -86,6 +86,10 @@ export const LST_PRICE_ALIASES: Record<string, string> = {
   'gMOVE': '0x1',   // Gravity MOVE LST → MOVE price
   'stMOVE': '0x1',  // Staked MOVE LST → MOVE price
   'cvMOVE': '0x1',  // Canopy Vault MOVE LST → MOVE price
+  'cvWBTC.e': '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c', // Canopy Vault WBTC LST → WBTC price
+  'cvWETH.e': '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376', // Canopy Vault WETH LST → WETH price
+  'cvWBTC': '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c',
+  'cvWETH': '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376',
 };
 
 /**

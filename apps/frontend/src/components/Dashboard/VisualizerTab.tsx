@@ -16,6 +16,7 @@ import {
 import { getOrFetchTransactions } from '../../services/transactionService';
 import { getProfile } from '../../services/api';
 import styles from './VisualizerTab.module.css';
+import SubscriptionGate from '../SubscriptionGate';
 
 interface Node {
   id: string;
@@ -118,6 +119,7 @@ interface VisualizerTabProps {
 export default function VisualizerTab({ viewingAddress, language = 'en', isFullscreen = false }: VisualizerTabProps) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [links, setLinks] = useState<Link[]>([]);
+  const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'lite' | 'pro' | null>(null);
   const [loading, setLoading] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<Node | null>(null);
   const [hoveredLink, setHoveredLink] = useState<Link | null>(null);
@@ -151,6 +153,29 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
   const CANVAS_WIDTH = 800;
   const CANVAS_HEIGHT = 500;
 
+  // Fetch subscription tier on address change
+  useEffect(() => {
+    if (!viewingAddress) {
+      setSubscriptionTier(null);
+      return;
+    }
+    let isMounted = true;
+    getProfile(viewingAddress)
+      .then(profile => {
+        if (isMounted) {
+          const tier = profile?.subscription_tier || (profile?.is_verified ? 'lite' : 'free');
+          setSubscriptionTier(tier);
+        }
+      })
+      .catch(err => {
+        console.warn("Failed to fetch profile subscription tier:", err);
+        if (isMounted) setSubscriptionTier('free');
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [viewingAddress]);
+
   // Load Transactions & Build Graph
   useEffect(() => {
     if (!viewingAddress) {
@@ -163,18 +188,19 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
     const fetchGraphData = async () => {
       setLoading(true);
       try {
-        let isVerified = false;
+        let isPremium = false;
         try {
           const profile = await getProfile(viewingAddress);
-          if (profile && profile.is_verified) {
-            isVerified = true;
+          if (profile) {
+            const tier = profile.subscription_tier || (profile.is_verified ? 'lite' : 'free');
+            isPremium = tier !== 'free';
           }
         } catch (e) {
-          console.warn("Failed to fetch profile verification status:", e);
+          console.warn("Failed to fetch profile subscription status:", e);
         }
 
         let txs: any[] = [];
-        if (isVerified) {
+        if (isPremium) {
           try {
             const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
             const res = await fetch(`${apiBase}/api/transactions?wallet=${encodeURIComponent(viewingAddress)}&limit=10000&type=all`);
@@ -742,6 +768,20 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
   if (!viewingAddress) {
     return <div className={styles.emptyState}>Connect a wallet to view visualizer</div>;
+  }
+
+  if (subscriptionTier === 'free') {
+    return (
+      <section className={`${styles.card} ${isFullscreen ? styles.fullscreenCard : ''}`}>
+        <div className={styles.canvasContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px', padding: '40px' }}>
+          <SubscriptionGate
+            feature="Transaction Visualizer"
+            description="Upgrade to Lite to visualize your transaction flows on-chain, see interactive connection graphs, and track funds."
+            requiredTier="lite"
+          />
+        </div>
+      </section>
+    );
   }
 
   return (

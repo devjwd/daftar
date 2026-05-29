@@ -392,7 +392,8 @@ const SkeletonRows = ({ count = 5 }) => (
 import AdvancedFilterModal from './AdvancedFilterModal';
 import TransactionVisualizer from './TransactionVisualizer';
 
-export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerified = false, hideValues = false, language = 'en' }) {
+export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscriptionTier = 'free', hideValues = false, language = 'en' }) {
+  const isPremium = subscriptionTier !== 'free';
   const mountedRef = useRef(true);
   const paginationAbortRef = useRef(null);
   const [activeFilter, setActiveFilter] = useState('all');
@@ -454,7 +455,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
           advancedFilters,
           page: 1,
           signal: controller.signal,
-          isVerified
+          isVerified: isPremium
         });
 
         if (!disposed) {
@@ -544,7 +545,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
         advancedFilters,
         page: nextPage,
         signal: controller.signal,
-        isVerified
+        isVerified: isPremium
       });
 
       const payload = { ...EMPTY_RESPONSE, ...json };
@@ -581,8 +582,8 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, isVerifi
         <div className={styles.filterTabs}>
           <button
             type="button"
-            disabled={!isVerified}
-            title={!isVerified ? "Advanced filtering is available for verified users" : undefined}
+            disabled={!isPremium}
+            title={!isPremium ? "Advanced filtering is available for Lite/Pro users" : undefined}
             className={cn(
               styles.filterTab,
               (advancedFilters.protocols.length > 0 || advancedFilters.exactTypes.length > 0 || advancedFilters.minAmount || advancedFilters.maxAmount || advancedFilters.startDate || advancedFilters.endDate) && styles.filterTabActive

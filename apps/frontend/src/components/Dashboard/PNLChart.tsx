@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import './PNLChart.css';
 import { getAssetChange, getPrecisionDecimals } from '../../utils/dashboardUtils';
+import SubscriptionGate from '../SubscriptionGate';
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
 const DEBOUNCE_MS = 200;
@@ -47,7 +48,7 @@ interface PNLChartProps {
   assetBreakdown?: any[];
   protocolBreakdown?: any[];
   walletAddress?: string | null;
-  isVerified?: boolean;
+  subscriptionTier?: 'free' | 'lite' | 'pro';
   balances?: any[];
   priceChanges?: Record<string, number>;
 }
@@ -62,11 +63,12 @@ const PNLChart: React.FC<PNLChartProps> = ({
   assetBreakdown = [],
   protocolBreakdown = [],
   walletAddress = null,
-  isVerified = false,
+  subscriptionTier = 'free',
   balances = [],
   priceChanges = {}
 }) => {
-  const [timeframe, setTimeframe] = useState(isVerified ? '1M' : '1D');
+  const isPremium = subscriptionTier !== 'free';
+  const [timeframe, setTimeframe] = useState(isPremium ? '1M' : '1D');
   const [activeTab, setActiveTab] = useState('History');
   const [breakdownType, setBreakdownType] = useState('Asset');
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -76,12 +78,12 @@ const PNLChart: React.FC<PNLChartProps> = ({
   const [chartFading, setChartFading] = useState(false);
 
   React.useEffect(() => {
-    if (!isVerified) {
+    if (!isPremium) {
       setTimeframe('1D');
     } else {
       setTimeframe('1M');
     }
-  }, [isVerified]);
+  }, [isPremium]);
 
   // Track previous wallet to clear data on wallet switch
   const prevWalletRef = useRef<string | null>(null);
@@ -101,7 +103,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
       setError(null);
     }
 
-    if (!walletAddress || activeTab !== 'History' || !isVerified) {
+    if (!walletAddress || activeTab !== 'History' || !isPremium) {
       setHistoricalData([]);
       setIsLoading(false);
       setError(null);
@@ -165,7 +167,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [walletAddress, timeframe, activeTab, lastRefresh, isVerified]);
+  }, [walletAddress, timeframe, activeTab, lastRefresh, isPremium]);
 
   const formatDonutValue = (val: number): string => {
     if (val === 0) return '$0.00';
@@ -200,7 +202,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
   // Calculate PnL changes for non-verified users using their current balances and 24h price changes
   const computedChange = useMemo(() => {
-    if (isVerified && historicalData.length >= 2) {
+    if (isPremium && historicalData.length >= 2) {
       const firstVal = dataToRender[0]?.value ?? totalValue;
       const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
       const rawChangeUsd = lastVal - firstVal;
@@ -279,7 +281,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
         changePercent
       };
     }
-  }, [isVerified, dataToRender, totalValue, balances, priceChanges]);
+  }, [isPremium, dataToRender, totalValue, balances, priceChanges]);
 
   const { rawChangeUsd, isPositive, changeUSD, changePercent } = computedChange;
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
@@ -317,7 +319,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 key={tf}
                 className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''}`}
                 onClick={() => handleTimeframeChange(tf)}
-                disabled={!isVerified}
+                disabled={!isPremium}
               >
                 {tf}
               </button>
@@ -349,34 +351,12 @@ const PNLChart: React.FC<PNLChartProps> = ({
             <span className="pnl-change-percent">({isPositive ? '+' : ''}{changePercent}%)</span>
           </div>
           <div className="pnl-chart-wrapper-v4">
-            {!isVerified ? (
-              <div className="pnl-unverified-state" style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                gap: '10px',
-                padding: '24px',
-                textAlign: 'center',
-              }}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
-                  Historical Net Worth is available for verified profiles.
-                </p>
-                <a
-                  href="https://daftar.fi/profile"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: 'var(--primary)', fontSize: '12px', textDecoration: 'none', opacity: 0.8 }}
-                  title="Verification means your transaction history has been fully indexed and you have a Daftar profile."
-                >
-                  What is verification? ↗
-                </a>
-              </div>
+            {!isPremium ? (
+              <SubscriptionGate
+                feature="Historical Net Worth"
+                description="Upgrade to Lite to unlock historical charts beyond the 24h overview."
+                requiredTier="lite"
+              />
             ) : (
               <>
                 {isLoading && (

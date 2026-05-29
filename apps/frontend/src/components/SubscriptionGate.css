@@ -1,0 +1,122 @@
+/* ========================================================================
+   SubscriptionGate — Premium feature lock overlay
+   ======================================================================== */
+
+.subscription-gate-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 32px;
+  min-height: 280px;
+  position: relative;
+  overflow: hidden;
+}
+
+.subscription-gate-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(205, 161, 105, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.gate-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(205, 161, 105, 0.12), rgba(205, 161, 105, 0.04));
+  border: 1px solid rgba(205, 161, 105, 0.15);
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.gate-icon-wrapper svg {
+  color: rgba(205, 161, 105, 0.6);
+}
+
+.gate-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+  position: relative;
+  z-index: 1;
+}
+
+.gate-description {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  margin: 0 0 24px 0;
+  max-width: 360px;
+  position: relative;
+  z-index: 1;
+}
+
+.gate-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: 10px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(135deg, #cda169, #b2854f);
+  color: #0d0d0d;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+
+.gate-cta-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(205, 161, 105, 0.3);
+  filter: brightness(1.08);
+}
+
+.gate-cta-btn:active {
+  transform: translateY(0);
+}
+
+.gate-cta-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.gate-feature-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.gate-feature-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  background: rgba(205, 161, 105, 0.08);
+  color: rgba(205, 161, 105, 0.7);
+  border: 1px solid rgba(205, 161, 105, 0.1);
+}
+
+.gate-feature-chip svg {
+  width: 10px;
+  height: 10px;
+}
