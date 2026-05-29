@@ -184,11 +184,6 @@
   text-align: center;
   padding: 24px;
   max-width: 280px;
-  background: rgba(20, 17, 15, 0.88);
-  border: 1px solid rgba(205, 161, 105, 0.25);
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(12px);
   animation: pnlFadeIn 0.3s ease;
 }
 
