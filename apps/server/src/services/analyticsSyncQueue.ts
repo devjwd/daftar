@@ -112,8 +112,9 @@ export async function processSyncQueue(supabase: SupabaseClient) {
     const syncResult = await syncFullUserHistory(supabase, address);
     const hasNewTx = syncResult && syncResult.totalSynced > 0;
 
-    // 4. Take net worth snapshot
-    await takeNetworthSnapshot(supabase, address, hasNewTx);
+    // 4. Take net worth snapshot (force update if there are new transactions or if this is a manual high-priority sync)
+    const forceSnapshot = hasNewTx || (lockedJob.priority || 0) > 0;
+    await takeNetworthSnapshot(supabase, address, forceSnapshot);
 
     // 5. Mark job as completed
     await supabase

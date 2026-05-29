@@ -491,10 +491,27 @@ CREATE OR REPLACE FUNCTION public.count_active_days(user_addr text)
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   RETURN (
-    SELECT count(DISTINCT tx_timestamp::date)
-    FROM public.transaction_history
-    WHERE wallet_address = lower(user_addr)
+    SELECT count(DISTINCT timestamp::date)
+    FROM public.user_transaction_history
+    WHERE user_address = lower(user_addr)
   );
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.prune_old_snapshots(user_addr text, days_to_keep integer DEFAULT 3)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.user_networth_snapshots
+  WHERE user_address = lower(user_addr)
+    AND timestamp < NOW() - (days_to_keep || ' days')::interval
+    AND EXTRACT(HOUR FROM timestamp AT TIME ZONE 'UTC') != 23;
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.prune_old_snapshots_bulk(days_to_keep integer DEFAULT 3)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.user_networth_snapshots
+  WHERE timestamp < NOW() - (days_to_keep || ' days')::interval
+    AND EXTRACT(HOUR FROM timestamp AT TIME ZONE 'UTC') != 23;
 END; $$;
 
 CREATE OR REPLACE FUNCTION public.increment_user_xp(user_addr text, amount bigint)
@@ -507,6 +524,8 @@ BEGIN
 END; $$;
 
 GRANT EXECUTE ON FUNCTION public.count_active_days TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.prune_old_snapshots TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.prune_old_snapshots_bulk TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.increment_user_xp TO anon, authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
@@ -525,6 +544,10 @@ DO $$ BEGIN
           FROM public.transaction_history
         ) t WHERE t.rn > 500
       )
+  $cron$);
+
+  PERFORM cron.schedule('prune-hourly-networth-snapshots', '0 3 * * *', $cron$
+      SELECT public.prune_old_snapshots_bulk(3);
   $cron$);
 END $$;
 

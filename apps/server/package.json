@@ -8,6 +8,7 @@
     "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
     "worker": "tsx watch worker.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui"

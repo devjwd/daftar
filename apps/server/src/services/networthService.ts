@@ -248,6 +248,13 @@ export async function takeNetworthSnapshot(
     console.error(`[Networth] Failed to save snapshot for ${address}:`, error.message);
   } else {
     console.log(`[Networth] ✅ Snapshot saved for ${address}: $${totalNetworthUsd.toFixed(2)}`);
+    
+    // Prune hourly snapshots older than 3 days to respect Supabase free tier storage limits
+    try {
+      await supabase.rpc('prune_old_snapshots', { user_addr: address, days_to_keep: 3 });
+    } catch (pruneErr: any) {
+      console.warn(`[Networth] Failed to prune old snapshots for ${address}:`, pruneErr.message);
+    }
   }
 
   return { totalNetworthUsd, walletUsd, defiUsd, nftUsd, netDepositsUsd };

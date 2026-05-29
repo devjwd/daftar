@@ -468,11 +468,34 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
   });
 
   // 4b. Find the oldest real-time snapshot for the user (to avoid backfilling over it)
-  const { data: allUserSnaps } = await supabase
-    .from('user_networth_snapshots')
-    .select('timestamp, defi_usd, nft_usd, breakdown')
-    .eq('user_address', address)
-    .order('timestamp', { ascending: true });
+  let allUserSnaps: any[] = [];
+  let hasMoreSnapsQuery = true;
+  let snapsQueryPage = 0;
+  const SNAPS_QUERY_PAGE_SIZE = 1000;
+
+  while (hasMoreSnapsQuery) {
+    const { data: pageUserSnaps, error: snapsErr } = await supabase
+      .from('user_networth_snapshots')
+      .select('timestamp, defi_usd, nft_usd, breakdown')
+      .eq('user_address', address)
+      .order('timestamp', { ascending: true })
+      .range(snapsQueryPage * SNAPS_QUERY_PAGE_SIZE, (snapsQueryPage + 1) * SNAPS_QUERY_PAGE_SIZE - 1);
+
+    if (snapsErr) {
+      console.error(`[Portfolio] Error fetching user networth snapshots page:`, snapsErr);
+      return;
+    }
+
+    if (pageUserSnaps && pageUserSnaps.length > 0) {
+      allUserSnaps = allUserSnaps.concat(pageUserSnaps);
+      snapsQueryPage++;
+      if (pageUserSnaps.length < SNAPS_QUERY_PAGE_SIZE) {
+        hasMoreSnapsQuery = false;
+      }
+    } else {
+      hasMoreSnapsQuery = false;
+    }
+  }
 
   let firstRealTimestamp: string | null = null;
   if (allUserSnaps) {

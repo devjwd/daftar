@@ -115,9 +115,9 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
   [BADGE_RULES.TX_COUNT]: async (supabase, wallet, badge, params) => {
     const minCount = Math.max(1, Number(params.min_count ?? params.minAmount ?? params.count ?? params.min ?? 1));
     const { count } = await supabase
-      .from('transaction_history')
+      .from('user_transaction_history')
       .select('*', { count: 'exact', head: true })
-      .eq('wallet_address', wallet);
+      .eq('user_address', wallet);
     
     const current = count || 0;
     return {
