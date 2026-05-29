@@ -312,7 +312,7 @@ export const manageUserVerification = async (action_data: { method: 'LIST' | 'TO
   return response;
 };
 
-export const manageSubscription = async (
+export const managePlan = async (
   action_data: {
     method: 'LIST' | 'SET_TIER';
     address?: string;
@@ -334,13 +334,13 @@ export const manageSubscription = async (
   return response;
 };
 
-export const getSubscriptionStatus = async (walletAddress: string): Promise<any> => {
-  const response = await callApi<any>(`/api/subscription/status?wallet=${encodeURIComponent(normalizeAddress(walletAddress))}`);
+export const getPlanStatus = async (walletAddress: string): Promise<any> => {
+  const response = await callApi<any>(`/api/plans/status?wallet=${encodeURIComponent(normalizeAddress(walletAddress))}`);
   return response.ok ? response.data : null;
 };
 
-export const getSubscriptionPlans = async (): Promise<any> => {
-  const response = await callApi<any>('/api/subscription/plans');
+export const getPlanList = async (): Promise<any> => {
+  const response = await callApi<any>('/api/plans');
   return response.ok ? response.data?.plans : [];
 };
 
@@ -385,7 +385,7 @@ export default {
   updateSystemConfig,
   manageEntity,
   manageUserVerification,
-  manageSubscription,
-  getSubscriptionStatus,
-  getSubscriptionPlans
+  managePlan,
+  getPlanStatus,
+  getPlanList
 };

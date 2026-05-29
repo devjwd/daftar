@@ -4,9 +4,9 @@ import express, { Request, Response } from 'express';
 const router = express.Router();
 
 /**
- * Subscription plan definitions
+ * Plan definitions
  */
-const SUBSCRIPTION_PLANS = [
+const PLAN_TIERS = [
   {
     id: 'free',
     name: 'Free',
@@ -52,16 +52,16 @@ const SUBSCRIPTION_PLANS = [
 ];
 
 /**
- * GET /api/subscription/plans
- * Returns available subscription plans
+ * GET /api/plans
+ * Returns available plans
  */
-router.get('/plans', (_req: Request, res: Response) => {
-  res.json({ plans: SUBSCRIPTION_PLANS });
+router.get('/', (_req: Request, res: Response) => {
+  res.json({ plans: PLAN_TIERS });
 });
 
 /**
- * GET /api/subscription/status?wallet=<address>
- * Returns current subscription status for a wallet
+ * GET /api/plans/status?wallet=<address>
+ * Returns current plan status for a wallet
  */
 router.get('/status', async (req: Request, res: Response) => {
   const wallet = (req.query.wallet as string || '').toLowerCase().trim();
@@ -105,7 +105,7 @@ router.get('/status', async (req: Request, res: Response) => {
       effectiveTier = 'pro';
     }
 
-    const plan = SUBSCRIPTION_PLANS.find(p => p.id === effectiveTier) || SUBSCRIPTION_PLANS[0];
+    const plan = PLAN_TIERS.find(p => p.id === effectiveTier) || PLAN_TIERS[0];
 
     return res.json({
       wallet,
@@ -116,7 +116,7 @@ router.get('/status', async (req: Request, res: Response) => {
       isActive: effectiveTier !== 'free',
     });
   } catch (err: any) {
-    console.error('[Subscription] Status check error:', err);
+    console.error('[Plans] Status check error:', err);
     return res.status(500).json({ error: err.message });
   }
 });

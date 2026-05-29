@@ -16,7 +16,7 @@ import {
 import { getOrFetchTransactions } from '../../services/transactionService';
 import { getProfile } from '../../services/api';
 import styles from './VisualizerTab.module.css';
-import SubscriptionGate from '../SubscriptionGate';
+import PlanGate from '../PlanGate';
 
 interface Node {
   id: string;
@@ -775,7 +775,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
     return (
       <section className={`${styles.card} ${isFullscreen ? styles.fullscreenCard : ''}`}>
         <div className={styles.canvasContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px', padding: '40px' }}>
-          <SubscriptionGate
+          <PlanGate
             feature="Transaction Visualizer"
             description="Upgrade to Pro to visualize your transaction flows on-chain, see interactive connection graphs, and track funds."
             requiredTier="pro"

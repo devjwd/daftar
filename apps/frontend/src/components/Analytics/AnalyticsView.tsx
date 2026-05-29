@@ -9,7 +9,7 @@ import { AnalyticsData } from '../../types/analytics.types';
 import SyncStateOverlay from './SyncStateOverlay';
 import AnalyticsOverview from './AnalyticsOverview';
 import VisualizerTab from '../Dashboard/VisualizerTab';
-import SubscriptionGate from '../SubscriptionGate';
+import PlanGate from '../PlanGate';
 
 // Styles
 import './AnalyticsV5.css';
@@ -242,7 +242,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   if (!isPremium) {
     return (
       <div className="analytics-v5-container" style={{ padding: '40px 20px' }}>
-        <SubscriptionGate
+        <PlanGate
           feature="Portfolio Analytics"
           description="Unlock portfolio metrics, performance tracking, transaction filters, and full historical analytics."
           requiredTier="pro"

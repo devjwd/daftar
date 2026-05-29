@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import './PNLChart.css';
 import { getAssetChange, getPrecisionDecimals } from '../../utils/dashboardUtils';
-import SubscriptionGate from '../SubscriptionGate';
+import PlanGate from '../PlanGate';
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', 'All'];
 const DEBOUNCE_MS = 200;
@@ -370,7 +370,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   <p className="restricted-text">
                     Upgrade to Pro to unlock historical charts beyond the 24h overview.
                   </p>
-                  <button className="restricted-cta-btn" onClick={() => navigate('/subscription')}>
+                  <button className="restricted-cta-btn" onClick={() => navigate('/plans')}>
                     Upgrade Now
                   </button>
                 </div>

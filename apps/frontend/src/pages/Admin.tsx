@@ -4,7 +4,7 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import './Admin.css';
 import BadgeAdmin from '../components/BadgeAdmin';
 import EntityAdmin from '../components/EntityAdmin';
-import SubscriptionAdmin from '../components/SubscriptionAdmin';
+import PlanAdmin from '../components/PlanAdmin';
 
 import { useMovementClient } from '../hooks/useMovementClient';
 import { useTransactionTracker } from '../hooks/useTransactionTracker';
@@ -377,14 +377,14 @@ export default function Admin() {
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === 'subscriptions'}
-              className={`admin-tab ${activeTab === 'subscriptions' ? 'active' : ''}`}
-              onClick={() => setActiveTab('subscriptions')}
+              aria-selected={activeTab === 'plans'}
+              className={`admin-tab ${activeTab === 'plans' ? 'active' : ''}`}
+              onClick={() => setActiveTab('plans')}
             >
               <span className="admin-tab-icon" aria-hidden="true">💳</span>
               <span className="admin-tab-text">
-                <span className="admin-tab-title">Subscriptions</span>
-                <span className="admin-tab-meta">Manage user subscription plans</span>
+                <span className="admin-tab-title">Plans</span>
+                <span className="admin-tab-meta">Manage user plans</span>
               </span>
             </button>
           </div>
@@ -392,7 +392,7 @@ export default function Admin() {
 
         {activeTab === 'badges' && <BadgeAdmin />}
         {activeTab === 'entities' && <EntityAdmin />}
-        {activeTab === 'subscriptions' && <SubscriptionAdmin />}
+        {activeTab === 'plans' && <PlanAdmin />}
 
         {activeTab === 'settings' && (
           <div className="admin-content">

@@ -1,8 +1,8 @@
 /* ========================================================================
-   Subscription Page — Premium subscription tiers
+   Plans Page — Premium subscription tiers
    ======================================================================== */
 
-.subscription-page {
+.plans-page {
   min-height: 80vh;
   padding: 40px 24px 80px;
   max-width: 1100px;
@@ -11,7 +11,7 @@
 }
 
 /* Background Orbs */
-.subscription-bg {
+.plans-bg {
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -19,14 +19,14 @@
   overflow: hidden;
 }
 
-.subscription-orb {
+.plans-orb {
   position: absolute;
   border-radius: 50%;
   filter: blur(100px);
   opacity: 0.12;
 }
 
-.subscription-orb-1 {
+.plans-orb-1 {
   width: 500px;
   height: 500px;
   background: radial-gradient(circle, #cda169, transparent);
@@ -35,7 +35,7 @@
   animation: orbFloat1 12s ease-in-out infinite;
 }
 
-.subscription-orb-2 {
+.plans-orb-2 {
   width: 400px;
   height: 400px;
   background: radial-gradient(circle, #b2854f, transparent);
@@ -55,14 +55,14 @@
 }
 
 /* Header */
-.subscription-header {
+.plans-header {
   text-align: center;
   margin-bottom: 48px;
   position: relative;
   z-index: 1;
 }
 
-.subscription-badge {
+.plans-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -78,7 +78,7 @@
   margin-bottom: 16px;
 }
 
-.subscription-title {
+.plans-title {
   font-size: clamp(28px, 4vw, 42px);
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -89,7 +89,7 @@
   background-clip: text;
 }
 
-.subscription-subtitle {
+.plans-subtitle {
   font-size: 15px;
   color: var(--text-muted, rgba(255, 255, 255, 0.5));
   margin: 0;
@@ -99,7 +99,7 @@
 }
 
 /* Cards Grid */
-.subscription-grid {
+.plans-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 24px;
@@ -110,7 +110,7 @@
 }
 
 @media (max-width: 768px) {
-  .subscription-grid {
+  .plans-grid {
     grid-template-columns: 1fr;
     max-width: 400px;
     margin: 0 auto;
@@ -118,7 +118,7 @@
 }
 
 /* Card Base */
-.subscription-card {
+.plans-card {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 20px;
@@ -130,7 +130,7 @@
   overflow: hidden;
 }
 
-.subscription-card::before {
+.plans-card::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -139,19 +139,19 @@
   pointer-events: none;
 }
 
-.subscription-card:hover {
+.plans-card:hover {
   border-color: rgba(255, 255, 255, 0.1);
   transform: translateY(-2px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
-/* Featured Card (Lite — recommended) */
-.subscription-card.featured {
+/* Featured Card (Pro — recommended) */
+.plans-card.featured {
   border-color: rgba(205, 161, 105, 0.3);
   background: rgba(205, 161, 105, 0.04);
 }
 
-.subscription-card.featured::after {
+.plans-card.featured::after {
   content: '';
   position: absolute;
   inset: -1px;
@@ -161,23 +161,13 @@
   pointer-events: none;
 }
 
-.subscription-card.featured:hover {
+.plans-card.featured:hover {
   border-color: rgba(205, 161, 105, 0.45);
   box-shadow: 0 8px 40px rgba(205, 161, 105, 0.1);
 }
 
-/* Pro Card Gradient Border Animation */
-.subscription-card.pro-card {
-  border-color: rgba(178, 133, 79, 0.2);
-}
-
-.subscription-card.pro-card:hover {
-  border-color: rgba(178, 133, 79, 0.35);
-  box-shadow: 0 8px 40px rgba(178, 133, 79, 0.08);
-}
-
 /* Card Header */
-.subscription-card-header {
+.plans-card-header {
   margin-bottom: 24px;
 }
 
@@ -189,34 +179,30 @@
   margin: 0 0 4px;
 }
 
-.plan-tier-label.lite-label {
-  color: #cda169;
-}
-
 .plan-tier-label.pro-label {
   color: #e5be8a;
 }
 
-.subscription-price-row {
+.plans-price-row {
   display: flex;
   align-items: baseline;
   gap: 4px;
   margin-top: 8px;
 }
 
-.subscription-price {
+.plans-price {
   font-size: 42px;
   font-weight: 700;
   letter-spacing: -0.04em;
   color: var(--text-primary, #fff);
 }
 
-.subscription-price-period {
+.plans-price-period {
   font-size: 14px;
   color: var(--text-muted, rgba(255, 255, 255, 0.45));
 }
 
-.subscription-price-free {
+.plans-price-free {
   font-size: 32px;
   font-weight: 600;
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
@@ -256,7 +242,7 @@
 }
 
 /* Feature List */
-.subscription-features {
+.plans-features {
   list-style: none;
   padding: 0;
   margin: 0 0 28px;
@@ -266,7 +252,7 @@
   gap: 12px;
 }
 
-.subscription-feature-item {
+.plans-feature-item {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -301,12 +287,12 @@
   height: 10px;
 }
 
-.subscription-feature-item.excluded-feature {
+.plans-feature-item.excluded-feature {
   color: var(--text-muted, rgba(255, 255, 255, 0.3));
 }
 
 /* CTA Button */
-.subscription-cta {
+.plans-cta {
   width: 100%;
   padding: 12px 20px;
   border-radius: 12px;
@@ -318,51 +304,40 @@
   letter-spacing: 0.01em;
 }
 
-.subscription-cta.cta-free {
+.plans-cta.cta-free {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.subscription-cta.cta-free:hover {
+.plans-cta.cta-free:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.subscription-cta.cta-lite {
-  background: linear-gradient(135deg, #cda169, #b2854f);
-  color: #0d0d0d;
-}
-
-.subscription-cta.cta-lite:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(205, 161, 105, 0.25);
-}
-
-.subscription-cta.cta-pro {
+.plans-cta.cta-pro {
   background: linear-gradient(135deg, #e5be8a, #cda169);
   color: #0d0d0d;
 }
 
-.subscription-cta.cta-pro:hover {
+.plans-cta.cta-pro:hover {
   filter: brightness(1.1);
   transform: translateY(-1px);
   box-shadow: 0 4px 20px rgba(229, 190, 138, 0.2);
 }
 
-.subscription-cta.cta-current {
+.plans-cta.cta-current {
   background: rgba(54, 198, 144, 0.08);
   color: #36c690;
   border: 1px solid rgba(54, 198, 144, 0.2);
   cursor: default;
 }
 
-.subscription-cta:active:not(.cta-current) {
+.plans-cta:active:not(.cta-current) {
   transform: translateY(0);
 }
 
 /* Divider */
-.subscription-divider {
+.plans-divider {
   width: 100%;
   height: 1px;
   background: rgba(255, 255, 255, 0.06);
@@ -370,7 +345,7 @@
 }
 
 /* Plan Description */
-.subscription-plan-desc {
+.plans-plan-desc {
   font-size: 12px;
   color: var(--text-muted, rgba(255, 255, 255, 0.4));
   line-height: 1.5;

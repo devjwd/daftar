@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useProfile } from '../hooks/useProfile';
-import { getSubscriptionPlans } from '../services/api';
-import './Subscription.css';
+import { getPlanList } from '../services/api';
+import './Plans.css';
 
 interface PlanDefinition {
   id: 'free' | 'pro';
@@ -19,7 +19,7 @@ interface PlanDefinition {
   };
 }
 
-export default function Subscription() {
+export default function Plans() {
   const { account, connected } = useWallet();
   const walletAddress = connected && account?.address ? String(account.address) : null;
   const { profile, loading: profileLoading } = useProfile(walletAddress);
@@ -33,7 +33,7 @@ export default function Subscription() {
   useEffect(() => {
     async function loadPlans() {
       try {
-        const fetchedPlans = await getSubscriptionPlans();
+        const fetchedPlans = await getPlanList();
         if (fetchedPlans && fetchedPlans.length > 0) {
           // Filter out legacy plans if returned by server
           const filtered = fetchedPlans.filter((p: any) => p.id !== 'lite');
@@ -53,7 +53,7 @@ export default function Subscription() {
     
     // Prompt manual subscription admin flow instructions
     alert(
-      `To upgrade or modify your subscription to the ${planId.toUpperCase()} plan, please reach out to the Daftar Administrator on Telegram (@daftarfi) or Discord. Make sure to provide your wallet address: \n\n${walletAddress || 'Your wallet address'}`
+      `To upgrade or modify your plan to the ${planId.toUpperCase()} tier, please reach out to the Daftar Administrator on Telegram (@daftarfi) or Discord. Make sure to provide your wallet address: \n\n${walletAddress || 'Your wallet address'}`
     );
   };
 
@@ -113,21 +113,21 @@ export default function Subscription() {
   };
 
   return (
-    <div className="subscription-page">
-      <div className="subscription-bg">
-        <div className="subscription-orb subscription-orb-1" />
-        <div className="subscription-orb subscription-orb-2" />
+    <div className="plans-page">
+      <div className="plans-bg">
+        <div className="plans-orb plans-orb-1" />
+        <div className="plans-orb plans-orb-2" />
       </div>
 
-      <header className="subscription-header">
-        <span className="subscription-badge">Subscription Plans</span>
-        <h1 className="subscription-title">Flexible Subscription Tiers</h1>
-        <p className="subscription-subtitle">
+      <header className="plans-header">
+        <span className="plans-badge">Plan Tiers</span>
+        <h1 className="plans-title">Flexible Plan Tiers</h1>
+        <p className="plans-subtitle">
           Scale your on-chain portfolio intelligence with tools built for the Movement Network.
         </p>
       </header>
 
-      <div className="subscription-grid">
+      <div className="plans-grid">
         {displayPlans.map((plan) => {
           const isCurrent = plan.id === currentTier;
           const isFeatured = plan.id === 'pro';
@@ -135,35 +135,35 @@ export default function Subscription() {
           return (
             <div
               key={plan.id}
-              className={`subscription-card ${isFeatured ? 'featured' : ''}`}
+              className={`plans-card ${isFeatured ? 'featured' : ''}`}
             >
               {isFeatured && <div className="recommended-badge">Recommended</div>}
 
-              <div className="subscription-card-header">
+              <div className="plans-card-header">
                 <h3 className={`plan-tier-label ${plan.id === 'pro' ? 'pro-label' : ''}`}>
                   {plan.name}
                   {isCurrent && <span className="current-plan-badge">Current Plan</span>}
                 </h3>
                 
-                <p className="subscription-plan-desc">{getPlanDescription(plan.id)}</p>
+                <p className="plans-plan-desc">{getPlanDescription(plan.id)}</p>
 
-                <div className="subscription-price-row">
+                <div className="plans-price-row">
                   {plan.price === 0 ? (
-                    <span className="subscription-price-free">Free</span>
+                    <span className="plans-price-free">Free</span>
                   ) : (
                     <>
-                      <span className="subscription-price">${plan.price}</span>
-                      <span className="subscription-price-period">/{plan.interval || 'mo'}</span>
+                      <span className="plans-price">${plan.price}</span>
+                      <span className="plans-price-period">/{plan.interval || 'mo'}</span>
                     </>
                   )}
                 </div>
               </div>
 
-              <div className="subscription-divider" />
+              <div className="plans-divider" />
 
-              <ul className="subscription-features">
+              <ul className="plans-features">
                 {plan.features.map((feature, idx) => (
-                  <li key={idx} className="subscription-feature-item">
+                  <li key={idx} className="plans-feature-item">
                     <span className="feature-check included">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                         <polyline points="20 6 9 17 4 12" />
@@ -176,7 +176,7 @@ export default function Subscription() {
                 {/* Excluded features for visual completeness */}
                 {plan.id === 'free' && (
                   <>
-                    <li className="subscription-feature-item excluded-feature">
+                    <li className="plans-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -185,7 +185,7 @@ export default function Subscription() {
                       </span>
                       Full PNL History
                     </li>
-                    <li className="subscription-feature-item excluded-feature">
+                    <li className="plans-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -194,7 +194,7 @@ export default function Subscription() {
                       </span>
                       Portfolio Analytics
                     </li>
-                    <li className="subscription-feature-item excluded-feature">
+                    <li className="plans-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -203,7 +203,7 @@ export default function Subscription() {
                       </span>
                       Transaction Visualizer
                     </li>
-                    <li className="subscription-feature-item excluded-feature">
+                    <li className="plans-feature-item excluded-feature">
                       <span className="feature-check excluded">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -217,7 +217,7 @@ export default function Subscription() {
               </ul>
 
               <button
-                className={`subscription-cta ${isCurrent ? 'cta-current' : plan.id === 'free' ? 'cta-free' : 'cta-pro'}`}
+                className={`plans-cta ${isCurrent ? 'cta-current' : plan.id === 'free' ? 'cta-free' : 'cta-pro'}`}
                 onClick={() => handleCtaClick(plan.id)}
                 disabled={isCurrent}
               >

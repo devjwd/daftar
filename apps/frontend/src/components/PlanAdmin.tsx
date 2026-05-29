@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { manageSubscription } from '../services/api';
+import { managePlan } from '../services/api';
 import { createAdminProofHeaders } from '../services/adminProof';
 
 interface UserProfile {
@@ -13,7 +13,7 @@ interface UserProfile {
   created_at: string;
 }
 
-export default function SubscriptionAdmin() {
+export default function PlanAdmin() {
   const { account, signMessage } = useWallet();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -24,13 +24,13 @@ export default function SubscriptionAdmin() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAddress, setNewAddress] = useState('');
-  const [newTier, setNewTier] = useState<'free' | 'lite' | 'pro'>('pro');
+  const [newTier, setNewTier] = useState<'free' | 'pro'>('pro');
   const [newExpiresAt, setNewExpiresAt] = useState<string>('');
   const [addLoading, setAddLoading] = useState(false);
 
   // States to track editing state for existing users in list
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
-  const [editTier, setEditTier] = useState<'free' | 'lite' | 'pro'>('pro');
+  const [editTier, setEditTier] = useState<'free' | 'pro'>('pro');
   const [editExpiresAt, setEditExpiresAt] = useState<string>('');
 
   const showMessage = (type: string, text: string) => {
@@ -53,7 +53,7 @@ export default function SubscriptionAdmin() {
     try {
       const body = { method: 'LIST', query, tierFilter: filter };
       const auth = await createAuth(body);
-      const res = await manageSubscription(body as any, auth);
+      const res = await managePlan(body as any, auth);
       if (res.ok && res.data?.users) {
         setUsers(res.data.users);
       } else {
@@ -72,7 +72,7 @@ export default function SubscriptionAdmin() {
 
   const handleUpdateSubscription = async (
     targetAddress: string,
-    tier: 'free' | 'lite' | 'pro',
+    tier: 'free' | 'pro',
     expiresAt: string | null,
     isNew = false
   ) => {
@@ -91,7 +91,7 @@ export default function SubscriptionAdmin() {
       };
       
       const auth = await createAuth(body);
-      const res = await manageSubscription(body as any, auth);
+      const res = await managePlan(body as any, auth);
 
       if (res.ok) {
         showMessage(
@@ -120,17 +120,6 @@ export default function SubscriptionAdmin() {
     }
   };
 
-  const getTierBadgeClass = (tier: string) => {
-    switch (tier) {
-      case 'pro':
-        return 'verified-tick'; // Gold/Purple badge mapping
-      case 'lite':
-        return 'exchange-label-badge'; // Gold badge mapping
-      default:
-        return 'address-age-text'; // Muted grey badge mapping
-    }
-  };
-
   const setExpiryPreset = (days: number, type: 'new' | 'edit') => {
     if (days === 0) {
       if (type === 'new') setNewExpiresAt('');
@@ -154,7 +143,9 @@ export default function SubscriptionAdmin() {
 
   const startEditing = (user: UserProfile) => {
     setEditingAddress(user.wallet_address);
-    setEditTier(user.subscription_tier);
+    // Map legacy 'lite' to 'pro' when starting to edit
+    const currentEditTier = user.subscription_tier === 'lite' ? 'pro' : user.subscription_tier;
+    setEditTier(currentEditTier);
     // Format expiration date for input
     if (user.subscription_expires_at) {
       try {
@@ -173,12 +164,12 @@ export default function SubscriptionAdmin() {
       <div className="admin-list-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <h2 style={{ margin: 0 }}>User Subscriptions</h2>
+            <h2 style={{ margin: 0 }}>User Plans</h2>
             <button 
               className="admin-btn admin-btn-primary admin-btn-small" 
               onClick={() => setShowAddModal(true)}
             >
-              + Create Subscription
+              + Create Plan Override
             </button>
           </div>
           
@@ -190,9 +181,9 @@ export default function SubscriptionAdmin() {
               className="setting-select"
               style={{ background: 'var(--card-bg, #1a1a1a)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', padding: '6px 12px', height: '38px', fontSize: '13px' }}
             >
-              <option value="all">All Tiers</option>
-              <option value="free">Free Tier</option>
-              <option value="pro">Pro Tier</option>
+              <option value="all">All Plan Tiers</option>
+              <option value="free">Free Plan</option>
+              <option value="pro">Pro Plan</option>
             </select>
 
             <div className="admin-search-wrapper" style={{ width: '320px' }}>
@@ -219,7 +210,7 @@ export default function SubscriptionAdmin() {
         {/* Modal for adding/setting subscription */}
         {showAddModal && (
           <div className="admin-settings-card" style={{ marginBottom: '24px', border: '1px solid rgba(205, 161, 105, 0.4)', background: 'rgba(205, 161, 105, 0.03)' }}>
-            <h3>Create/Override User Subscription</h3>
+            <h3>Create/Override User Plan</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
               <div className="admin-form-group">
                 <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Wallet Address</label>
@@ -234,7 +225,7 @@ export default function SubscriptionAdmin() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
                 <div className="admin-form-group">
-                  <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Subscription Tier</label>
+                  <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Plan Tier</label>
                   <select
                     value={newTier}
                     onChange={(e) => setNewTier(e.target.value as any)}
@@ -270,7 +261,7 @@ export default function SubscriptionAdmin() {
                   onClick={() => handleUpdateSubscription(newAddress, newTier, newTier === 'free' ? null : newExpiresAt, true)}
                   disabled={addLoading || !newAddress.startsWith('0x')}
                 >
-                  {addLoading ? 'Processing...' : 'Apply Subscription'}
+                  {addLoading ? 'Processing...' : 'Apply Plan'}
                 </button>
                 <button 
                   className="admin-btn admin-btn-secondary" 
@@ -290,7 +281,7 @@ export default function SubscriptionAdmin() {
         )}
 
         {loading ? (
-          <div className="admin-empty-state">Loading subscription database...</div>
+          <div className="admin-empty-state">Loading plans database...</div>
         ) : users.length === 0 ? (
           <div className="admin-empty-state">No users found.</div>
         ) : (
@@ -298,6 +289,7 @@ export default function SubscriptionAdmin() {
             {users.map(user => {
               const isEditing = editingAddress === user.wallet_address;
               const userTier = user.subscription_tier || 'free';
+              const displayTier = userTier === 'lite' ? 'pro' : userTier;
 
               return (
                 <div key={user.wallet_address} className="admin-list-item" style={{ border: isEditing ? '1px solid rgba(205, 161, 105, 0.5)' : '1px solid rgba(255,255,255,0.06)' }}>
@@ -314,11 +306,11 @@ export default function SubscriptionAdmin() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <strong>{user.username || 'Anonymous'}</strong>
                             <span className={`current-plan-badge`} style={{ 
-                              background: userTier === 'pro' ? 'rgba(139, 92, 246, 0.12)' : userTier === 'lite' ? 'rgba(205, 161, 105, 0.12)' : 'rgba(255,255,255,0.05)', 
-                              color: userTier === 'pro' ? '#a78bfa' : userTier === 'lite' ? '#cda169' : '#888',
-                              border: userTier === 'pro' ? '1px solid rgba(139, 92, 246, 0.2)' : userTier === 'lite' ? '1px solid rgba(205, 161, 105, 0.2)' : '1px solid rgba(255,255,255,0.1)'
+                              background: displayTier === 'pro' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(255,255,255,0.05)', 
+                              color: displayTier === 'pro' ? '#a78bfa' : '#888',
+                              border: displayTier === 'pro' ? '1px solid rgba(139, 92, 246, 0.2)' : '1px solid rgba(255,255,255,0.1)'
                             }}>
-                              {userTier.toUpperCase()}
+                              {displayTier.toUpperCase()}
                             </span>
                           </div>
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -343,7 +335,7 @@ export default function SubscriptionAdmin() {
                     {/* Edit Form */}
                     {isEditing ? (
                       <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', marginTop: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <h4 style={{ margin: '0 0 12px 0', fontSize: '13px' }}>Modify Subscription</h4>
+                        <h4 style={{ margin: '0 0 12px 0', fontSize: '13px' }}>Modify Plan</h4>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
                           <div className="admin-form-group" style={{ flex: 1, minWidth: '150px' }}>
                             <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>Plan Tier</label>
