@@ -31,7 +31,15 @@ export const layerbankAdapter = [
       const positions = lbBalances.map(b => {
         const decimals = b.metadata?.decimals || 8;
         const amount = Number(b.amount || 0) / Math.pow(10, decimals);
-        const symbol = (b.metadata?.symbol || "LB").replace(/^u/, '');
+        let symbol = (b.metadata?.symbol || "LB").replace(/^u/, '');
+        
+        // Clean up receipt prefixes (e.g. lMOVE -> MOVE, lUSDC.e -> USDC.e)
+        if (/^l[A-Z]/.test(symbol)) {
+          symbol = symbol.slice(1);
+        } else if (/^lb[A-Z]/.test(symbol)) {
+          symbol = symbol.slice(2);
+        }
+
         const price = resolveTokenPrice(priceMap, b.asset_type, symbol);
         const usdValue = amount * price;
 

@@ -58,7 +58,7 @@ export const echelonAdapter = [
           ]);
 
           const { symbol, decimals } = getAssetInfo(nameRes[0]);
-          const displayAmount = Number(coinsRes[0]) / Math.pow(10, decimals);
+          const displayAmount = Number(coinsRes[0]) / Math.pow(10, 8); // Echelon normalizes collateral to 8 decimals
           if (displayAmount < 0.0001) return;
 
           const price = resolveTokenPrice(priceMap, market, symbol);
@@ -94,7 +94,7 @@ export const echelonAdapter = [
           ]);
 
           const { symbol, decimals } = getAssetInfo(nameRes[0]);
-          const displayAmount = Number(debtRes[0]) / Math.pow(10, decimals);
+          const displayAmount = Number(debtRes[0]) / Math.pow(10, 8); // Echelon normalizes liabilities to 8 decimals
           if (displayAmount < 0.0001) return;
 
           const price = resolveTokenPrice(priceMap, market, symbol);

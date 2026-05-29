@@ -48,6 +48,7 @@ export async function fetchUserDeFiPositions(
       const collaterals = data.collaterals?.data || [];
       const liabilities = data.liabilities?.data || [];
 
+      // Process Collaterals (Lending)
       for (const c of collaterals) {
         const market = c.key?.inner;
         if (!market || Number(c.value) <= 0) continue;
@@ -59,8 +60,7 @@ export async function fetchUserDeFiPositions(
           ]);
 
           const symbol = String(nameRes[0] || "").split('::').pop()?.replace('Coin', '') || "MOVE";
-          const decimals = symbol.includes("USD") ? 6 : 8;
-          const amount = Number(coinsRes[0]) / Math.pow(10, decimals);
+          const amount = Number(coinsRes[0]) / Math.pow(10, 8); // Echelon normalizes collateral to 8 decimals
           
           // Try to find price by market address or symbol
           const price = priceMap[market] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
@@ -71,6 +71,35 @@ export async function fetchUserDeFiPositions(
               type: "Lending",
               amount,
               usdValue: amount * price,
+              symbol
+            });
+          }
+        } catch (e) {}
+      }
+
+      // Process Liabilities (Debt/Borrows)
+      for (const l of liabilities) {
+        const market = l.key?.inner;
+        if (!market || Number(l.value?.principal) <= 0) continue;
+
+        try {
+          const [nameRes, debtRes] = await Promise.all([
+            client.view({ payload: { function: `${PROTOCOLS.ECHELON}::lending::market_asset_name`, functionArguments: [market] } }),
+            client.view({ payload: { function: `${PROTOCOLS.ECHELON}::lending::account_liability`, functionArguments: [walletAddress, market] } })
+          ]);
+
+          const symbol = String(nameRes[0] || "").split('::').pop()?.replace('Coin', '') || "MOVE";
+          const amount = Number(debtRes[0]) / Math.pow(10, 8); // Echelon normalizes liabilities to 8 decimals
+
+          // Try to find price by market address or symbol
+          const price = priceMap[market] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
+
+          if (amount > 0.0001) {
+            positions.push({
+              protocol: "Echelon",
+              type: "Debt",
+              amount,
+              usdValue: -amount * price, // Negative USD value for networth subtraction
               symbol
             });
           }
