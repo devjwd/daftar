@@ -103,50 +103,92 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
 `;
 
 
-let cachedLabels: any[] | null = null;
-let lastLabelsFetch = 0;
-const LABELS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
+const labelsCache = new Map<string, any>();
+const checkedAddresses = new Set<string>();
 
 /**
- * Pagination helper to fetch all address labels from Supabase, bypassing the 1000 records limit
+ * On-demand batch query of address labels, using in-memory cache to prevent redundant queries
  */
-async function fetchAllAddressLabels(supabase: SupabaseClient): Promise<any[]> {
-  const now = Date.now();
-  if (cachedLabels && (now - lastLabelsFetch < LABELS_CACHE_TTL)) {
-    return cachedLabels;
+async function getLabelsForAddresses(supabase: SupabaseClient, addresses: string[]): Promise<Map<string, any>> {
+  const result = new Map<string, any>();
+  const toQuery = new Set<string>();
+
+  for (const addr of addresses) {
+    const normalized = normalizeAddress(addr);
+    if (!normalized) continue;
+
+    if (checkedAddresses.has(normalized)) {
+      if (labelsCache.has(normalized)) {
+        result.set(normalized, labelsCache.get(normalized));
+      }
+    } else {
+      toQuery.add(normalized);
+    }
   }
 
-  let allLabels: any[] = [];
-  let page = 0;
-  const pageSize = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
+  const queryList = Array.from(toQuery);
+  if (queryList.length > 0) {
     const { data, error } = await supabase
       .from('address_labels')
       .select('*, tracked_entities(name, category)')
-      .range(page * pageSize, (page + 1) * pageSize - 1);
+      .in('address', queryList);
 
     if (error) {
-      console.error('[fetchAllAddressLabels] Error:', error);
-      break;
-    }
-
-    if (!data || data.length === 0) {
-      hasMore = false;
+      console.error('[getLabelsForAddresses] Error querying labels:', error);
     } else {
-      allLabels.push(...data);
-      if (data.length < pageSize) {
-        hasMore = false;
-      } else {
-        page++;
+      // Mark all requested query addresses as checked (even if not found in DB)
+      queryList.forEach(addr => checkedAddresses.add(addr));
+
+      if (data) {
+        data.forEach((l: any) => {
+          const normAddr = normalizeAddress(l.address);
+          if (normAddr) {
+            labelsCache.set(normAddr, l);
+            result.set(normAddr, l);
+          }
+        });
       }
     }
   }
 
-  cachedLabels = allLabels;
-  lastLabelsFetch = now;
-  return allLabels;
+  return result;
+}
+
+/**
+ * Helper to extract unique counterparties from a batch of transactions
+ */
+function extractCounterparties(txs: { tx: any; userAddress: string }[]): string[] {
+  const addresses = new Set<string>();
+  for (const item of txs) {
+    const tx = item.tx;
+    const userAddr = normalizeAddress(item.userAddress);
+    const ut = tx.user_transaction || {};
+    const rawActivities = [
+      ...(tx.fungible_asset_activities || []),
+      ...(tx.coin_activities || [])
+    ];
+    
+    let counterpartyAddress = null;
+    for (const act of rawActivities) {
+      const owner = normalizeAddress(act.owner_address || act.owner);
+      if (owner && owner !== userAddr && owner !== '0x1' && owner !== '0x3' && owner !== '0xa' && owner !== '0x0000000000000000000000000000000000000000000000000000000000000001') {
+        counterpartyAddress = owner;
+        break;
+      }
+    }
+    
+    if (!counterpartyAddress) {
+      const sender = normalizeAddress(ut.sender);
+      if (sender && sender !== userAddr) {
+        counterpartyAddress = sender;
+      }
+    }
+    
+    if (counterpartyAddress) {
+      addresses.add(counterpartyAddress);
+    }
+  }
+  return Array.from(addresses);
 }
 
 /**
@@ -180,19 +222,39 @@ function enrichTransaction(
   };
 
   const EVENT_SCHEMAS: Record<string, any> = {
+    // Meridian
     "pool::SwapEvent": { amount_in: "amount_in", amount_out: "amount_out", token_in: "metadata_0", token_out: "metadata_1", type: TX_TYPES.SWAP },
+    "pool::NewPositionEvent": { type: TX_TYPES.LIQUIDITY },
+    "pool::IncreaseLiquidityEvent": { type: TX_TYPES.LIQUIDITY },
+    // Yuzu
     "liquidity_pool::SwapEvent": { amount_in: "amount_in", amount_out: "amount_out", type: TX_TYPES.SWAP },
+    "liquidity_pool::CollectRewardEvent": { type: TX_TYPES.CLAIM },
+    "liquidity_pool::AddLiquidityEvent": { type: TX_TYPES.LIQUIDITY },
+    "liquidity_pool::CollectProtocolFee": { type: TX_TYPES.CLAIM },
+    // Mosaic
     "router::SwapEvent": { amount_in: "input_amount", amount_out: "output_amount", token_in: "input_asset", token_out: "output_asset", type: TX_TYPES.SWAP },
     "router::SwapStepEvent": { amount_in: "input_amount", amount_out: "output_amount", token_in: "input_asset", token_out: "output_asset", type: TX_TYPES.SWAP },
+    // Echelon
     "lending::SupplyEvent": { amount: "amount", type: TX_TYPES.LEND },
     "lending::WithdrawEvent": { amount: "amount", type: TX_TYPES.WITHDRAW },
+    "farming::ClaimEvent": { amount: "amount", type: TX_TYPES.CLAIM },
+    "farming::StakeEvent": { amount: "amount", type: TX_TYPES.STAKE },
+    "farming::UnstakeEvent": { amount: "amount", type: TX_TYPES.UNSTAKE },
+    // Joule
     "pool::LendEvent": { amount: "amount", type: TX_TYPES.LEND },
+    // LayerBank
     "supply_logic::Supply": { amount: "amount", type: TX_TYPES.LEND },
+    "token_base::Mint": { amount: "value", type: TX_TYPES.LEND },
+    // Canopy
     "vault::Deposit": { amount: "amount", type: TX_TYPES.DEPOSIT },
+    "vault::BaseStrategySharesDeposit": { amount: "amount", type: TX_TYPES.DEPOSIT },
+    // MovePosition
     "lend::LendEvent": { amount: "amount", type: TX_TYPES.LEND },
     "lend::RedeemEvent": { amount: "amount", type: TX_TYPES.WITHDRAW },
     "lend::BorrowEvent": { amount: "amount", type: TX_TYPES.BORROW },
     "lend::RepayEvent": { amount: "amount", type: TX_TYPES.REPAY },
+    "borrow::BorrowEvent": { amount: "amount", type: TX_TYPES.BORROW },
+    // Tradeport NFT
     "listings_v2::BuyEvent": { amount: "price", type: TX_TYPES.NFT_BUY },
     "listings_v2::InsertListingEvent": { type: TX_TYPES.NFT_LIST },
     "listings_v2::DeleteListingEvent": { type: TX_TYPES.NFT_LIST },
@@ -202,6 +264,14 @@ function enrichTransaction(
     "biddings_v2::DeleteTokenBidEvent": { type: TX_TYPES.NFT_BID },
     "biddings_v2::AcceptCollectionBidEvent": { amount: "price", type: TX_TYPES.NFT_SALE },
     "biddings_v2::AcceptTokenBidEvent": { amount: "price", type: TX_TYPES.NFT_SALE },
+    // Moversmap
+    "memory_nft::MemoryMinted": { type: TX_TYPES.NFT_MINT },
+    "gift_ledger::GiftSent": { amount: "amount", type: TX_TYPES.SEND },
+    "treasure_claim::TreasureClaimed": { amount: "amount", type: TX_TYPES.CLAIM },
+    "guild_ledger::GuildJoined": { type: TX_TYPES.OTHER },
+    "conquest_ledger::WarriorMoved": { type: TX_TYPES.OTHER },
+    "pin_registry::PinRegistered": { type: TX_TYPES.OTHER },
+    "mining::MinerSold": { amount: "price", type: TX_TYPES.OTHER },
     // Move Match (fantasy_epl)
     "fantasy_epl::TitleAssigned": { type: TX_TYPES.SWAP },
     "fantasy_epl::GuildAssigned": { type: TX_TYPES.SWAP },
@@ -211,22 +281,114 @@ function enrichTransaction(
   };
 
   const FUNC_MAP: Record<string, any> = {
-    swap: TX_TYPES.SWAP, swap_entry: TX_TYPES.SWAP, mosaic_swap_with_fee: TX_TYPES.SWAP,
-    swap_exact_in_stable_entry: TX_TYPES.SWAP, swap_exact_in_metastable_entry: TX_TYPES.SWAP,
-    swap_exact_in_weighted_entry: TX_TYPES.SWAP, swap_exact_in_router_entry: TX_TYPES.SWAP,
+    // Meridian DEX
+    swap_exact_in_stable_entry: TX_TYPES.SWAP,
+    swap_exact_in_metastable_entry: TX_TYPES.SWAP,
+    swap_exact_in_weighted_entry: TX_TYPES.SWAP,
+    swap_exact_in_router_entry: TX_TYPES.SWAP,
+    new_position: TX_TYPES.LIQUIDITY,
+    add_liquidity_stable_entry: TX_TYPES.LIQUIDITY,
+    add_liquidity_weighted_entry: TX_TYPES.LIQUIDITY,
+    remove_liquidity_entry: TX_TYPES.WITHDRAW,
+    // Route-X
+    swap_entry: TX_TYPES.SWAP,
+    // Yuzu
     swap_exact_coin_for_fa_multi_hops: TX_TYPES.SWAP,
-    supply: TX_TYPES.LEND, lend_v2: TX_TYPES.LEND, lend: TX_TYPES.LEND,
-    stake: TX_TYPES.STAKE, add_stake: TX_TYPES.STAKE, reactivate_stake: TX_TYPES.STAKE, stake_and_mint: TX_TYPES.STAKE,
+    collect_multi_rewards: TX_TYPES.CLAIM,
+    add_liquidity: TX_TYPES.LIQUIDITY,
+    remove_liquidity: TX_TYPES.WITHDRAW,
+    collect_fee: TX_TYPES.CLAIM,
+    // MovePosition
+    lend_v2: TX_TYPES.LEND,
+    borrow_v2: TX_TYPES.BORROW,
+    redeem_v2: TX_TYPES.WITHDRAW,
+    redeem: TX_TYPES.WITHDRAW,
+    repay_v2: TX_TYPES.REPAY,
+    // Echelon
+    supply: TX_TYPES.LEND,
+    supply_fa: TX_TYPES.LEND,
+    withdraw: TX_TYPES.WITHDRAW,
+    withdraw_fa: TX_TYPES.WITHDRAW,
+    claim_reward: TX_TYPES.CLAIM,
+    claim_reward_fa: TX_TYPES.CLAIM,
+    new_epoch: TX_TYPES.OTHER,
+    new_epoch_fa: TX_TYPES.OTHER,
+    new_pool: TX_TYPES.OTHER,
+    new_reward: TX_TYPES.OTHER,
+    new_reward_fa: TX_TYPES.OTHER,
+    // Joule
+    lend: TX_TYPES.LEND,
+    lend_fa: TX_TYPES.LEND,
+    borrow_fa: TX_TYPES.BORROW,
+    repay_fa: TX_TYPES.REPAY,
+    claim_rewards: TX_TYPES.CLAIM,
+    batch_claim_rewards: TX_TYPES.CLAIM,
+    batch_claim_rewards_1: TX_TYPES.CLAIM,
+    // Canopy
     deposit_fa_with_coin_type: TX_TYPES.STAKE,
-    deposit: TX_TYPES.DEPOSIT, deposit_fa: TX_TYPES.DEPOSIT, deposit_coin: TX_TYPES.DEPOSIT,
-    borrow: TX_TYPES.BORROW, borrow_v2: TX_TYPES.BORROW,
-    repay: TX_TYPES.REPAY, repay_v2: TX_TYPES.REPAY,
-    claim: TX_TYPES.CLAIM, harvest: TX_TYPES.CLAIM, claim_reward: TX_TYPES.CLAIM, collect_reward: TX_TYPES.CLAIM,
-    withdraw: TX_TYPES.WITHDRAW, redeem: TX_TYPES.WITHDRAW, redeem_v2: TX_TYPES.WITHDRAW,
-    unstake: TX_TYPES.UNSTAKE, unlock: TX_TYPES.UNSTAKE, withdraw_stake: TX_TYPES.UNSTAKE,
-    transfer: TX_TYPES.SEND, transfer_coins: TX_TYPES.SEND, batch_transfer_coins: TX_TYPES.SEND,
+    deposit_fa: TX_TYPES.DEPOSIT,
+    deposit_coin: TX_TYPES.DEPOSIT,
+    withdraw_coin: TX_TYPES.WITHDRAW,
+    withdraw_token: TX_TYPES.WITHDRAW,
+    stake: TX_TYPES.STAKE,
+    stake_token: TX_TYPES.STAKE,
+    stake_and_subscribe: TX_TYPES.STAKE,
+    stake_and_subscribe_fa: TX_TYPES.STAKE,
+    stake_and_subscribe_token: TX_TYPES.STAKE,
+    unsubscribe_and_withdraw: TX_TYPES.UNSTAKE,
+    unsubscribe_and_withdraw_fa: TX_TYPES.UNSTAKE,
+    unsubscribe_and_withdraw_token: TX_TYPES.UNSTAKE,
+    emergency_withdraw: TX_TYPES.UNSTAKE,
+    subscribe: TX_TYPES.OTHER,
+    unsubscribe: TX_TYPES.OTHER,
+    // LayerBank
+    redeem_fa: TX_TYPES.WITHDRAW,
+    // CapyGo
+    sell_miner: TX_TYPES.OTHER,
     // Tradeport NFT
     ...TRADEPORT_SUFFIX_MAP,
+    transfer_tokens_v2: TX_TYPES.NFT_TRANSFER,
+    mosaic_swap_with_fee: TX_TYPES.SWAP,
+    // BRKT Prediction
+    sell: TX_TYPES.SWAP,
+    // Moversmap
+    mint_memory: TX_TYPES.NFT_MINT,
+    send_gift: TX_TYPES.SEND,
+    claim_treasure: TX_TYPES.CLAIM,
+    join_guild: TX_TYPES.OTHER,
+    record_move: TX_TYPES.OTHER,
+    register_pin: TX_TYPES.OTHER,
+    // Common Lending
+    borrow: TX_TYPES.BORROW,
+    repay: TX_TYPES.REPAY,
+    // Movement Chain
+    transfer: TX_TYPES.SEND,
+    transfer_coins: TX_TYPES.SEND,
+    batch_transfer_coins: TX_TYPES.SEND,
+    // Staking
+    add_stake: TX_TYPES.STAKE,
+    add_stake_with_coin: TX_TYPES.STAKE,
+    reactivate_stake: TX_TYPES.STAKE,
+    reactivate_stake_with_coin: TX_TYPES.STAKE,
+    stake_and_mint: TX_TYPES.STAKE,
+    unlock: TX_TYPES.UNSTAKE,
+    unlock_stake: TX_TYPES.UNSTAKE,
+    unlock_with_coin: TX_TYPES.UNSTAKE,
+    withdraw_pending_inactive: TX_TYPES.UNSTAKE,
+    withdraw_stake: TX_TYPES.UNSTAKE,
+    withdraw_with_coin: TX_TYPES.UNSTAKE,
+    request_commission: TX_TYPES.CLAIM,
+    distribute: TX_TYPES.CLAIM,
+    update_commission: TX_TYPES.OTHER,
+    set_beneficiary_for_operator: TX_TYPES.OTHER,
+    // MMEX
+    open_position: TX_TYPES.OTHER,
+    close_position: TX_TYPES.OTHER,
+    // ClobX
+    place_order: TX_TYPES.SWAP,
+    cancel_order: TX_TYPES.OTHER,
+    // Pyth
+    update_price_feeds_with_funder: TX_TYPES.OTHER,
     // Move Match (fantasy_epl)
     register_team: TX_TYPES.DEPOSIT,
     buy_title: TX_TYPES.SWAP,
@@ -235,6 +397,16 @@ function enrichTransaction(
     reroll_guild: TX_TYPES.SWAP,
     claim_prize: TX_TYPES.CLAIM,
     admin_sponsor_prize_pool: TX_TYPES.LEND,
+    create_gameweek: TX_TYPES.OTHER,
+    close_gameweek: TX_TYPES.OTHER,
+    reopen_gameweek: TX_TYPES.OTHER,
+    submit_player_stats: TX_TYPES.OTHER,
+    calculate_results: TX_TYPES.OTHER,
+    calculate_results_v2: TX_TYPES.OTHER,
+    calculate_results_v3: TX_TYPES.OTHER,
+    // System
+    rotate_authentication_key: TX_TYPES.OTHER,
+    publish_package_txn: TX_TYPES.OTHER,
   };
 
   const STATIC_PROTOCOLS = [
@@ -257,6 +429,21 @@ function enrichTransaction(
     { name: 'Asspad', addresses: ['0x880a0e567964e7a9fdc5370da9f2f82139c27927534a4a73ea2e19ffc509a8a'], keywords: ['asspad', 'mint_edition_nfts'] },
     { name: 'Daftar', addresses: ['0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69'], keywords: ['daftar', 'create_badge'] }
   ];
+
+  const KEYWORDS: Record<string, string[]> = {
+    [TX_TYPES.SWAP]: ["swap", "exact_input", "exact_output", "exchange", "router", "mosaic", "buy_title", "buy_guild", "reroll_title", "reroll_guild"],
+    [TX_TYPES.STAKE]: ["stake", "delegate", "liquid_staking", "subscribe"],
+    [TX_TYPES.UNSTAKE]: ["unstake", "undelegate", "withdraw_stake", "request_withdraw", "withdraw_pending", "redeem", "unsubscribe"],
+    [TX_TYPES.LEND]: ["lend", "supply", "deposit_v2", "supply_fa", "lend_fa"],
+    [TX_TYPES.BORROW]: ["borrow", "flash_loan", "borrow_v2", "borrow_fa"],
+    [TX_TYPES.REPAY]: ["repay", "repay_v2", "repay_fa"],
+    [TX_TYPES.WITHDRAW]: ["withdraw", "redeem", "remove_liquidity", "withdraw_fa", "withdraw_coin", "withdraw_token", "redeem_fa"],
+    [TX_TYPES.SEND]: ["transfer", "send", "pay", "send_gift"],
+    [TX_TYPES.RECEIVE]: ["receive", "deposit_coins"],
+    [TX_TYPES.CLAIM]: ["claim", "harvest", "collect_reward", "claim_rewards", "collect_fee", "collect_multi_rewards", "claim_reward_fa", "claim_prize", "claim_treasure"],
+    [TX_TYPES.BRIDGE]: ["bridge", "outbound", "inbound", "teleport", "wormhole", "layerzero"],
+    [TX_TYPES.NFT_MINT]: ["mint_nft", "create_token", "create_collection", "mint_token", "mint_memory"],
+  };
 
   // 2. Helpers
   const getSuffix = (fn: string) => fn.includes('::') ? fn.split('::').pop() || '' : fn;
@@ -426,6 +613,28 @@ function enrichTransaction(
   }
 
   let action = eventTypeOverride || FUNC_MAP[suffix] || TX_TYPES.OTHER;
+
+  // NFT detection fallback
+  if (action === TX_TYPES.OTHER) {
+    const isNft = rawActivities.some(a => {
+      const t = String(a.type || a.activity_type || "").toLowerCase();
+      return t.includes("token_v2") || t.includes("collection");
+    });
+    if (isNft) {
+      if (lowerFn.includes("mint")) action = TX_TYPES.NFT_MINT;
+      else if (lowerFn.includes("transfer")) action = TX_TYPES.NFT_TRANSFER;
+    }
+  }
+
+  // Keyword fallback
+  if (action === TX_TYPES.OTHER) {
+    for (const [type, kws] of Object.entries(KEYWORDS)) {
+      if (kws.some(k => lowerFn.includes(k))) {
+        action = type;
+        break;
+      }
+    }
+  }
   
   // Fallback to direction-based classification if OTHER
   if (action === TX_TYPES.OTHER) {
@@ -435,7 +644,7 @@ function enrichTransaction(
   }
 
   // Handle exchange deposit classification override
-  if (isExchangeDeposit && action === TX_TYPES.SEND) {
+  if (isExchangeDeposit && (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE)) {
     protocol = exchangeName;
   }
 
@@ -484,8 +693,8 @@ function enrichTransaction(
       description = `Swapped assets via ${protocol}`;
     }
   } else if (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) {
-    if (isExchangeDeposit && action === TX_TYPES.SEND) {
-      description = `${exchangeName} Deposit`;
+    if (isExchangeDeposit) {
+      description = `${exchangeName} ${action === TX_TYPES.SEND ? 'Deposit' : 'Withdrawal'}`;
     } else {
       const asset = primaryOut || primaryIn;
       if (asset) {
@@ -545,11 +754,6 @@ export async function syncFullUserHistory(
   let totalSynced = 0;
 
   console.log(`[DeepSync] 🚀 Starting deep history pull for ${address}...`);
-
-  // Fetch all labels for counterparty identification
-  const labelsMap = new Map();
-  const labelsData = await fetchAllAddressLabels(supabase);
-  labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
 
   // Fetch all tracked entities for dynamic protocol classification
   const { data: entitiesData } = await supabase
@@ -657,6 +861,10 @@ export async function syncFullUserHistory(
         break;
       }
 
+      // Fetch labels for only the counterparties of this batch
+      const counterparties = extractCounterparties(txs.map(tx => ({ tx, userAddress: address })));
+      const labelsMap = await getLabelsForAddresses(supabase, counterparties);
+
       const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap, entitiesList));
       const { error: upsertError } = await supabase
         .from('user_transaction_history')
@@ -721,6 +929,10 @@ export async function syncFullUserHistory(
           fullyFinishedHistory = true; // Reached the beginning of time
           break;
         }
+
+        // Fetch labels for only the counterparties of this batch
+        const counterparties = extractCounterparties(txs.map(tx => ({ tx, userAddress: address })));
+        const labelsMap = await getLabelsForAddresses(supabase, counterparties);
 
         const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap, entitiesList));
         const { error: upsertError } = await supabase
@@ -790,10 +1002,30 @@ export async function syncFullUserHistory(
 export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
   console.log('[DeepSync] 🛠️  Starting "Unknown" protocol cleanup...');
 
-  // 1. Fetch labels once
-  const labelsMap = new Map();
-  const labelsData = await fetchAllAddressLabels(supabase);
-  labelsData.forEach(l => labelsMap.set(normalizeAddress(l.address), l));
+  // 0. Clean up existing LP tokens, receipt tokens, and position snapshots from database
+  console.log('[DeepSync] 🧹 Purging junk, LP, and lending receipt tokens from balance snapshots...');
+  const exactJunkSymbols = [
+    'TEST', 'CAPY', 'MOVECAT', 'lMOVE', 'dMOVE',
+    'eMOVE', 'eUSDT', 'eUSDC', 'eETH', 'eBTC', 'eWETH',
+    'jMOVE', 'jUSDT', 'jUSDC', 'jETH', 'jBTC',
+    'uMOVE', 'uUSDT', 'uUSDC', 'uETH', 'uBTC',
+    'pmMOVE', 'pmUSDT', 'pmUSDC', 'pmETH', 'pmBTC'
+  ];
+  
+  await supabase
+    .from('user_balance_snapshots')
+    .delete()
+    .or(`symbol.in.(${exactJunkSymbols.join(',')})`);
+
+  const likeJunkPatterns = [
+    '%-LP%', '%_LP%', '% LP%', 'LP%', '%position%', '%lpnft%', '%lp-nft%', '%badge%', '%ticket%', '%card%', '%liquidity%'
+  ];
+  for (const pat of likeJunkPatterns) {
+    await supabase
+      .from('user_balance_snapshots')
+      .delete()
+      .ilike('symbol', pat);
+  }
 
   // Fetch all tracked entities for dynamic protocol classification
   const { data: entitiesData } = await supabase
@@ -801,11 +1033,11 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
     .select('*');
   const entitiesList = entitiesData || [];
 
-  // 2. Fetch all transactions marked as Unknown (limited batch)
+  // 2. Fetch all transactions marked as Unknown or OTHER action (limited batch)
   const { data: unknowns, error } = await supabase
     .from('user_transaction_history')
     .select('*')
-    .eq('protocol', 'Unknown')
+    .or('protocol.eq.Unknown,action.eq.OTHER')
     .limit(500);
 
   if (error || !unknowns) return;
@@ -813,24 +1045,27 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
   console.log(`[DeepSync] Found ${unknowns.length} unknown transactions to re-process.`);
 
   const updatedRows: any[] = [];
+  const pseudoTxPairs = unknowns.map(row => {
+    const meta = row.metadata || {};
+    const pseudoTx = {
+      transaction_version: row.version,
+      user_transaction: {
+        hash: row.hash,
+        timestamp: row.timestamp,
+        entry_function_id_str: meta.entry_function_id_str || '',
+        success: meta.success ?? true
+      },
+      fungible_asset_activities: meta.fungible_asset_activities || [],
+      coin_activities: meta.coin_activities || []
+    };
+    return { row, tx: pseudoTx, userAddress: row.user_address };
+  });
 
-  for (const row of unknowns) {
+  const counterparties = extractCounterparties(pseudoTxPairs);
+  const labelsMap = await getLabelsForAddresses(supabase, counterparties);
+
+  for (const { row, tx: pseudoTx } of pseudoTxPairs) {
     try {
-      const meta = row.metadata || {};
-
-      // Reconstruct a compatible 'tx' object for enrichTransaction
-      const pseudoTx = {
-        transaction_version: row.version,
-        user_transaction: {
-          hash: row.hash,
-          timestamp: row.timestamp,
-          entry_function_id_str: meta.entry_function_id_str || '',
-          success: meta.success ?? true
-        },
-        fungible_asset_activities: meta.fungible_asset_activities || [],
-        coin_activities: meta.coin_activities || []
-      };
-
       const enriched = enrichTransaction(pseudoTx, row.user_address, labelsMap, entitiesList);
 
       updatedRows.push({
@@ -861,6 +1096,27 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
     } else {
       console.log(`[DeepSync] ✅ Successfully batch updated ${updatedRows.length} unknown transactions.`);
     }
+  }
+
+  // Trigger full portfolio reconstruction for all synced users to recalculate clean net worth history
+  try {
+    const { data: users } = await supabase
+      .from('user_sync_status')
+      .select('user_address');
+      
+    if (users && users.length > 0) {
+      console.log(`[DeepSync] 🔄 Reconstructing portfolios for ${users.length} users to clean up LP/lending snapshot history...`);
+      for (const { user_address } of users) {
+        if (user_address) {
+          // Clear and reconstruct balances
+          await supabase.from('user_balance_snapshots').delete().eq('user_address', user_address);
+          await supabase.from('user_networth_snapshots').delete().eq('user_address', user_address);
+          await reconstructHistoricalBalances(supabase, user_address);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('[DeepSync] ❌ Failed to run user portfolio reconstruction:', err.message);
   }
 
   console.log('[DeepSync] ✅ Cleanup complete.');

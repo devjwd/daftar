@@ -1,4 +1,4 @@
-import { getSupabase } from '../config/supabase';
+import { getSupabase } from '../config/supabase.ts';
 /**
  * Analytics Routes
  * 
@@ -8,18 +8,18 @@ import { getSupabase } from '../config/supabase';
 
 import { Router, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { generalLimiter } from '../middleware/rateLimit';
-import { normalizeAddress } from '../utils/address';
-import { verifyWalletSignature } from '../utils/crypto';
-import { queueSync } from '../services/analyticsSyncQueue';
-import { reconstructHistoricalBalances } from '../services/portfolioService';
-import { aggregateAnalyticsData } from '../services/analyticsDataService';
+import { generalLimiter } from '../middleware/rateLimit.ts';
+import { normalizeAddress } from '../utils/address.ts';
+import { verifyWalletSignature } from '../utils/crypto.ts';
+import { queueSync } from '../services/analyticsSyncQueue.ts';
+import { reconstructHistoricalBalances } from '../services/portfolioService.ts';
+import { aggregateAnalyticsData } from '../services/analyticsDataService.ts';
 
 const router = Router();
 
 // --- Helpers ---
 
-function getSupabaseClient(req: Request) {
+function getSupabaseClient(req: Request): any {
   return getSupabase();
 }
 
@@ -153,6 +153,30 @@ router.get('/reconstruct', generalLimiter, async (req: Request, res: Response) =
   }
 });
 
+/** Reprocess Unknown Transactions Maintenance Route */
+router.get('/reprocess-unknowns', async (req: Request, res: Response) => {
+  const supabase = getSupabaseClient(req);
+  if (!supabase) return res.status(503).json({ error: 'Database unavailable' });
+
+  try {
+    const { reProcessUnknownTransactions } = await import('../services/analyticsSyncService.ts');
+    
+    // Run reprocessing asynchronously so the HTTP request returns immediately
+    reProcessUnknownTransactions(supabase)
+      .then(() => console.log('[Maintenance] Finished reprocessing unknown transactions.'))
+      .catch((err) => console.error('[Maintenance] Error during reprocessing unknown transactions:', err));
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Reprocess unknown transactions maintenance job triggered successfully',
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to trigger reprocessing';
+    console.error('[Analytics/ReprocessUnknowns] Error:', err);
+    return res.status(500).json({ error: message });
+  }
+});
+
 /** Hourly Networth History */
 router.get('/networth', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
@@ -189,7 +213,7 @@ router.post('/baseline', async (req: Request, res: Response) => {
   if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
 
   try {
-    const { setPNLBaseline } = await import('../services/networthService');
+    const { setPNLBaseline } = await import('../services/networthService.ts');
     const baseline = await setPNLBaseline(supabase, wallet);
     return res.json({ ok: true, baseline });
   } catch (err: unknown) {

@@ -72,14 +72,43 @@ const FUNC_MAP = {
   repay_v2: { type: TX_TYPES.REPAY, label: "Repay Loan" },
   // Echelon
   supply: { type: TX_TYPES.LEND, label: "Supply Assets" },
+  supply_fa: { type: TX_TYPES.LEND, label: "Supply Assets" },
   withdraw: { type: TX_TYPES.WITHDRAW, label: "Withdraw Assets" },
+  withdraw_fa: { type: TX_TYPES.WITHDRAW, label: "Withdraw Assets" },
   claim_reward: { type: TX_TYPES.CLAIM, label: "Claim Rewards" },
+  claim_reward_fa: { type: TX_TYPES.CLAIM, label: "Claim Rewards" },
+  new_epoch: { type: TX_TYPES.OTHER, label: "Farming Admin" },
+  new_epoch_fa: { type: TX_TYPES.OTHER, label: "Farming Admin" },
+  new_pool: { type: TX_TYPES.OTHER, label: "Farming Admin" },
+  new_reward: { type: TX_TYPES.OTHER, label: "Farming Admin" },
+  new_reward_fa: { type: TX_TYPES.OTHER, label: "Farming Admin" },
+  // Joule
+  lend: { type: TX_TYPES.LEND, label: "Lend Assets" },
+  lend_fa: { type: TX_TYPES.LEND, label: "Lend Assets" },
+  borrow_fa: { type: TX_TYPES.BORROW, label: "Borrow Assets" },
+  repay_fa: { type: TX_TYPES.REPAY, label: "Repay Loan" },
+  claim_rewards: { type: TX_TYPES.CLAIM, label: "Claim Rewards" },
+  batch_claim_rewards: { type: TX_TYPES.CLAIM, label: "Claim Rewards" },
+  batch_claim_rewards_1: { type: TX_TYPES.CLAIM, label: "Claim Rewards" },
   // Canopy
   deposit_fa_with_coin_type: { type: TX_TYPES.STAKE, label: "Deposit to Vault" },
   deposit_fa: { type: TX_TYPES.DEPOSIT, label: "Deposit Assets" },
   deposit_coin: { type: TX_TYPES.DEPOSIT, label: "Deposit Assets" },
-  withdraw_fa: { type: TX_TYPES.WITHDRAW, label: "Withdraw Assets" },
   withdraw_coin: { type: TX_TYPES.WITHDRAW, label: "Withdraw Assets" },
+  withdraw_token: { type: TX_TYPES.WITHDRAW, label: "Withdraw Assets" },
+  stake: { type: TX_TYPES.STAKE, label: "Stake Assets" },
+  stake_token: { type: TX_TYPES.STAKE, label: "Stake Assets" },
+  stake_and_subscribe: { type: TX_TYPES.STAKE, label: "Stake & Subscribe" },
+  stake_and_subscribe_fa: { type: TX_TYPES.STAKE, label: "Stake & Subscribe" },
+  stake_and_subscribe_token: { type: TX_TYPES.STAKE, label: "Stake & Subscribe" },
+  unsubscribe_and_withdraw: { type: TX_TYPES.UNSTAKE, label: "Unstake Assets" },
+  unsubscribe_and_withdraw_fa: { type: TX_TYPES.UNSTAKE, label: "Unstake Assets" },
+  unsubscribe_and_withdraw_token: { type: TX_TYPES.UNSTAKE, label: "Unstake Assets" },
+  emergency_withdraw: { type: TX_TYPES.UNSTAKE, label: "Emergency Unstake" },
+  subscribe: { type: TX_TYPES.OTHER, label: "Subscribe Pool" },
+  unsubscribe: { type: TX_TYPES.OTHER, label: "Unsubscribe Pool" },
+  // LayerBank
+  redeem_fa: { type: TX_TYPES.WITHDRAW, label: "Withdraw Assets" },
   // CapyGo
   sell_miner: { type: TX_TYPES.OTHER, label: "Sell Miner" },
   // Tradeport NFT
@@ -208,18 +237,18 @@ const EVENT_SCHEMAS = {
 
 // ─── Keyword Fallback ────────────────────────────────────────
 const KEYWORDS = {
-  [TX_TYPES.SWAP]: ["swap", "exact_input", "exact_output", "exchange", "router", "mosaic"],
-  [TX_TYPES.STAKE]: ["stake", "delegate", "liquid_staking"],
-  [TX_TYPES.UNSTAKE]: ["unstake", "undelegate", "withdraw_stake", "request_withdraw", "withdraw_pending", "redeem"],
-  [TX_TYPES.LEND]: ["lend", "supply", "deposit_v2"],
-  [TX_TYPES.BORROW]: ["borrow", "flash_loan", "borrow_v2"],
-  [TX_TYPES.REPAY]: ["repay", "repay_v2"],
-  [TX_TYPES.WITHDRAW]: ["withdraw", "redeem", "remove_liquidity", "withdraw_fa", "withdraw_coin"],
-  [TX_TYPES.SEND]: ["transfer", "send", "pay"],
+  [TX_TYPES.SWAP]: ["swap", "exact_input", "exact_output", "exchange", "router", "mosaic", "buy_title", "buy_guild", "reroll_title", "reroll_guild"],
+  [TX_TYPES.STAKE]: ["stake", "delegate", "liquid_staking", "subscribe"],
+  [TX_TYPES.UNSTAKE]: ["unstake", "undelegate", "withdraw_stake", "request_withdraw", "withdraw_pending", "redeem", "unsubscribe"],
+  [TX_TYPES.LEND]: ["lend", "supply", "deposit_v2", "supply_fa", "lend_fa"],
+  [TX_TYPES.BORROW]: ["borrow", "flash_loan", "borrow_v2", "borrow_fa"],
+  [TX_TYPES.REPAY]: ["repay", "repay_v2", "repay_fa"],
+  [TX_TYPES.WITHDRAW]: ["withdraw", "redeem", "remove_liquidity", "withdraw_fa", "withdraw_coin", "withdraw_token", "redeem_fa"],
+  [TX_TYPES.SEND]: ["transfer", "send", "pay", "send_gift"],
   [TX_TYPES.RECEIVED]: ["receive", "deposit_coins"],
-  [TX_TYPES.CLAIM]: ["claim", "harvest", "collect_reward", "claim_rewards", "collect_fee", "collect_multi_rewards"],
+  [TX_TYPES.CLAIM]: ["claim", "harvest", "collect_reward", "claim_rewards", "collect_fee", "collect_multi_rewards", "claim_reward_fa", "claim_prize", "claim_treasure"],
   [TX_TYPES.BRIDGE]: ["bridge", "outbound", "inbound", "teleport", "wormhole", "layerzero"],
-  [TX_TYPES.NFT_MINT]: ["mint_nft", "create_token", "create_collection", "mint_token"],
+  [TX_TYPES.NFT_MINT]: ["mint_nft", "create_token", "create_collection", "mint_token", "mint_memory"],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────

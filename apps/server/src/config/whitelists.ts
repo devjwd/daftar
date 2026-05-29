@@ -94,6 +94,7 @@ export const LST_PRICE_ALIASES: Record<string, string> = {
  */
 export function isJunkAsset(assetType: string, symbol: string): boolean {
   const sym = symbol.trim();
+  const symLower = sym.toLowerCase();
   const type = assetType.toLowerCase();
 
   // Blacklisted symbol (exact match, case-insensitive)
@@ -104,6 +105,22 @@ export function isJunkAsset(assetType: string, symbol: string): boolean {
 
   // LP token patterns in asset type
   if (BLACKLIST_ASSET_TYPE_PATTERNS.some(p => assetType.includes(p) || type.includes(p.toLowerCase()))) return true;
+
+  // LP token patterns in symbol
+  const lpPatterns = ['lp', 'lpt', 'lptoken', 'pooltoken', 'pool_token', 'liquidity', 'pair', 'pool-token'];
+  if (lpPatterns.some(p => symLower === p || symLower.includes('-' + p) || symLower.includes('_' + p) || symLower.includes(' ' + p) || symLower.includes(p + '-') || symLower.includes(p + '_') || symLower.includes(p + ' '))) return true;
+  if (symLower.endsWith('lp') || symLower.startsWith('lp')) return true;
+
+  // Lending Receipt Tokens (eMOVE, jMOVE, uMOVE, pmMOVE, etc.)
+  const baseSymbols = ['MOVE', 'USDT', 'USDC', 'ETH', 'BTC', 'WETH', 'USDT.e', 'USDC.e'];
+  for (const base of baseSymbols) {
+    const baseLower = base.toLowerCase();
+    if (symLower === `e${baseLower}` || symLower === `j${baseLower}` || symLower === `u${baseLower}` || symLower === `pm${baseLower}`) return true;
+  }
+
+  // LP NFT and position patterns in symbol
+  const nftPositionPatterns = ['position', 'pos', 'lp-nft', 'lpnft', 'badge', 'ticket', 'card', 'nft'];
+  if (nftPositionPatterns.some(p => symLower === p || symLower.includes(p) || symLower.includes('-' + p) || symLower.includes('_' + p))) return true;
 
   // Raw Aptos coin type (no real Aptos token on Movement Network)
   if (APTOS_COIN_PATTERNS.some(p => assetType.includes(p))) return true;

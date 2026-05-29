@@ -78,6 +78,37 @@ const formatDateTime = (value: any) => {
   }
 };
 
+const isJunkAsset = (symbol: string): boolean => {
+  if (!symbol) return true;
+  const sym = symbol.trim();
+  const symLower = sym.toLowerCase();
+
+  // Scam / test / illiquid tokens
+  const blacklisted = [
+    'test', 'capy', 'movecat', 'lmove', 'dmove',
+    'move drops', 'move drop', 'move gift', 'move rwd', 'movereward',
+    'movedrop', 'movegift', 'moverwd', 'movereward'
+  ];
+  if (blacklisted.includes(symLower)) return true;
+
+  // LP token patterns in symbol
+  const lpPatterns = ['lp', 'lpt', 'lptoken', 'pooltoken', 'pool_token', 'liquidity', 'pair', 'pool-token'];
+  if (lpPatterns.some(p => symLower === p || symLower.includes('-' + p) || symLower.includes('_' + p) || symLower.includes(' ' + p) || symLower.includes(p + '-') || symLower.includes(p + '_') || symLower.includes(p + ' '))) return true;
+  if (symLower.endsWith('lp') || symLower.startsWith('lp')) return true;
+
+  // Lending Receipt Tokens (eMOVE, jMOVE, uMOVE, pmMOVE, etc.)
+  const baseSymbols = ['move', 'usdt', 'usdc', 'eth', 'btc', 'weth', 'usdt.e', 'usdc.e'];
+  for (const base of baseSymbols) {
+    if (symLower === `e${base}` || symLower === `j${base}` || symLower === `u${base}` || symLower === `pm${base}`) return true;
+  }
+
+  // LP NFT and position patterns in symbol
+  const nftPositionPatterns = ['position', 'pos', 'lp-nft', 'lpnft', 'badge', 'ticket', 'card', 'nft'];
+  if (nftPositionPatterns.some(p => symLower === p || symLower.includes(p) || symLower.includes('-' + p) || symLower.includes('_' + p))) return true;
+
+  return false;
+};
+
 interface VisualizerTabProps {
   viewingAddress: string | null;
   language?: string;
@@ -177,6 +208,17 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
         }>();
 
         txs.forEach((tx: any) => {
+          // Skip pure junk/LP transactions
+          const tokenIn = tx.token_in;
+          const tokenOut = tx.token_out;
+          const hasTokenIn = !!tokenIn;
+          const hasTokenOut = !!tokenOut;
+          if ((hasTokenIn || hasTokenOut) &&
+              (!hasTokenIn || isJunkAsset(tokenIn)) &&
+              (!hasTokenOut || isJunkAsset(tokenOut))) {
+            return;
+          }
+
           // Identify counterparty / protocol
           let counterpartyId = '';
           let label = '';
@@ -229,10 +271,10 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           nodeData.txCount++;
           if (isTxInflow) {
             nodeData.inflowUsd += usdValue;
-            if (tx.token_out) nodeData.tokens.add(tx.token_out);
+            if (tx.token_out && !isJunkAsset(tx.token_out)) nodeData.tokens.add(tx.token_out);
           } else {
             nodeData.outflowUsd += usdValue;
-            if (tx.token_in) nodeData.tokens.add(tx.token_in);
+            if (tx.token_in && !isJunkAsset(tx.token_in)) nodeData.tokens.add(tx.token_in);
           }
         });
 
@@ -251,7 +293,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           txCount: txs.length,
           inflowUsd: Array.from(nodeMap.values()).reduce((sum, n) => sum + n.inflowUsd, 0),
           outflowUsd: Array.from(nodeMap.values()).reduce((sum, n) => sum + n.outflowUsd, 0),
-          tokens: new Set(txs.map((tx: any) => tx.token_in || tx.token_out).filter(Boolean))
+          tokens: new Set(txs.map((tx: any) => tx.token_in || tx.token_out).filter((t: string) => t && !isJunkAsset(t)))
         };
 
         // Construct Outer Nodes
@@ -305,14 +347,14 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           if (hasInflow) {
             const amount = Number(tx.amount_out || tx.amount_in || 0);
             const token = tx.token_out || tx.token_in || 'MOVE';
-            if (amount > 0) {
+            if (amount > 0 && !isJunkAsset(token)) {
               amounts.push({ amount, token, direction: 'in' });
             }
           }
           if (hasOutflow) {
             const amount = Number(tx.amount_in || tx.amount_out || 0);
             const token = tx.token_in || tx.token_out || 'MOVE';
-            if (amount > 0) {
+            if (amount > 0 && !isJunkAsset(token)) {
               amounts.push({ amount, token, direction: 'out' });
             }
           }
