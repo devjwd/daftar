@@ -370,9 +370,6 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   <p className="restricted-text">
                     Upgrade to Pro to unlock historical charts beyond the 24h overview.
                   </p>
-                  <button className="restricted-cta-btn" onClick={() => navigate('/plans')}>
-                    Upgrade Now
-                  </button>
                 </div>
               </div>
             )}

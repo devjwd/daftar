@@ -1974,6 +1974,20 @@
   display: none;
 }
 
+.analytics-tab-v4.locked-blur {
+  filter: blur(0.8px) saturate(0.85);
+  opacity: 0.75;
+  border-color: rgba(205, 161, 105, 0.15) !important;
+  background: rgba(205, 161, 105, 0.02) !important;
+}
+
+.analytics-tab-v4.locked-blur:hover {
+  filter: none;
+  opacity: 0.95;
+  border-color: rgba(205, 161, 105, 0.35) !important;
+  background: rgba(205, 161, 105, 0.06) !important;
+}
+
 .analytics-btn-content {
   display: flex;
   align-items: center;

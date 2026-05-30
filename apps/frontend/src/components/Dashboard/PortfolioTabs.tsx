@@ -21,6 +21,7 @@ interface PortfolioTabsProps {
   urlAddress: string | undefined;
   canEditProfile: boolean;
   language: string;
+  subscriptionTier?: 'free' | 'lite' | 'pro';
 }
 
 const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
@@ -28,8 +29,11 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
   urlAddress,
   canEditProfile,
   language,
+  subscriptionTier = 'free',
 }) => {
   const navigate = useNavigate();
+
+  const isPremium = subscriptionTier === 'pro' || subscriptionTier === 'lite';
 
   return (
     <section className="portfolio-tabs-row fade-in">
@@ -58,7 +62,7 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
 
       <button
         type="button"
-        className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
+        className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''} ${!isPremium ? 'locked-blur' : ''}`}
         onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`)}
         style={{ marginLeft: 'auto' }}
       >
@@ -69,6 +73,11 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
             <line x1="6" y1="20" x2="6" y2="14"></line>
           </svg>
           Analytics
+          {!isPremium && (
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '6px', color: '#cda169', flexShrink: 0 }}>
+              <path d="M12 2L2 12l10 10 10-10L12 2z" />
+            </svg>
+          )}
         </div>
       </button>
     </section>
