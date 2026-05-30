@@ -69,10 +69,7 @@ const buildAllOptions = () => {
 };
 
 const buildUnlockedOptions = (level) => {
-  const normalizedLevel = normalizeLevel(level);
-
-  return buildAllOptions()
-    .filter((item) => item.requiredLevel <= normalizedLevel);
+  return buildAllOptions();
 };
 
 export const getAllLevelPfps = () => buildAllOptions();
