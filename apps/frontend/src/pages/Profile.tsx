@@ -163,7 +163,6 @@ export default function Profile() {
                 className="avatar-image"
               />
             </button>
-            <p className="level-avatar-hint">{t(language, 'profilePfpHint', { level })}</p>
 
             {showPfpPicker && (
               <div className="pfp-picker-popover">
