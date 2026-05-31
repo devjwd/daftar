@@ -377,6 +377,47 @@
   font-size: 17px;
 }
 
+/* Action Group & Report Flag for DeFi v2 */
+.defi-v2-action-group {
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.defi-v2-report-flag {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  background: none;
+  border: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.defi-card-v2:hover .defi-v2-report-flag {
+  opacity: 0.55;
+  pointer-events: auto;
+}
+
+.defi-v2-report-flag:hover {
+  transform: translateY(-50%) scale(1.2);
+  opacity: 1 !important;
+  color: var(--primary);
+}
+
 .defi-v2-actions {
   display: flex;
   align-items: center;

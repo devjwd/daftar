@@ -395,6 +395,27 @@ import TransactionVisualizer from './TransactionVisualizer';
 export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscriptionTier = 'free', hideValues = false, language = 'en' }) {
   const isPremium = subscriptionTier !== 'free';
   const mountedRef = useRef(true);
+
+  const handleReportClick = (e: React.MouseEvent, tx: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const cleanHash = String(tx.tx_hash || '').replace(/^v/i, '');
+    const rawType = String(tx.tx_type || 'other').toUpperCase();
+    const dappName = String(tx.dapp_name || 'Wallet');
+
+    const descTemplate = `[Transaction Hash: ${cleanHash}]\n[Transaction Type: ${rawType}]\n[Platform: ${dappName}]\n\nPlease describe what data is incorrect: `;
+
+    const event = new CustomEvent('open-bug-report', {
+      detail: {
+        type: 'transaction',
+        symbol: dappName,
+        address: cleanHash,
+        description: descTemplate
+      }
+    });
+    window.dispatchEvent(event);
+  };
   const paginationAbortRef = useRef(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [advancedFilters, setAdvancedFilters] = useState({
@@ -701,6 +722,17 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscrip
                           >
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                               <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.typeReportFlag}
+                            onClick={(e) => handleReportClick(e, tx)}
+                            title="Report incorrect transaction data"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                              <line x1="4" y1="22" x2="4" y2="15" />
                             </svg>
                           </button>
                         </div>

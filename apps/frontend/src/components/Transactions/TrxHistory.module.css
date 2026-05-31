@@ -368,6 +368,35 @@
   color: #f2d8b0;
 }
 
+.typeReportFlag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+  padding: 0;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.row:hover .typeReportFlag {
+  opacity: 0.55;
+  transform: scale(1);
+}
+
+.typeReportFlag:hover {
+  opacity: 1 !important;
+  color: #cda169;
+  transform: scale(1.15);
+}
+
 .loadMoreWrap {
   display: flex;
   justify-content: center;

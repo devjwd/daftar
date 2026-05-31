@@ -358,6 +358,58 @@ export const getNFTCollectionStats = async (): Promise<Record<string, { floor: n
   return statsMap;
 };
 
+export const submitFeedback = async (payload: {
+  feature: string;
+  feedbackText: string;
+  screenshot?: string;
+  walletAddress?: string;
+}): Promise<{ ok: boolean; error?: string }> => {
+  const response = await callApi<any>('/api/feedback', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return {
+    ok: response.ok,
+    error: response.error,
+  };
+};
+
+export const submitBugReport = async (payload: {
+  type: string;
+  description: string;
+  screenshot?: string;
+  walletAddress?: string;
+  tokenSymbol?: string;
+  tokenAddress?: string;
+}): Promise<{ ok: boolean; error?: string }> => {
+  const response = await callApi<any>('/api/reports', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return {
+    ok: response.ok,
+    error: response.error,
+  };
+};
+
+export const manageReports = async (
+  action_data: {
+    method: 'LIST' | 'DELETE';
+    id?: string;
+  },
+  adminAuth: any
+): Promise<any> => {
+  const response = await callApi<any>('/api/admin/manage-badge', {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'manage-reports',
+      ...action_data
+    }),
+    headers: adminAuth || {}
+  });
+  return response;
+};
+
 export default {
   getProfile,
   getNFTCollectionStats,
@@ -387,5 +439,8 @@ export default {
   manageUserVerification,
   managePlan,
   getPlanStatus,
-  getPlanList
+  getPlanList,
+  submitFeedback,
+  submitBugReport,
+  manageReports
 };

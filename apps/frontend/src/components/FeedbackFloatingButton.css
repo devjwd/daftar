@@ -1,0 +1,76 @@
+/* FeedbackFloatingButton.css */
+
+.feedback-floating-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9990; /* Right below the overlay but above standard elements */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: 
+    radial-gradient(circle at 50% 0%, rgba(205, 161, 105, 0.1) 0%, transparent 80%),
+    #1d1916;
+  border: 1px solid rgba(205, 161, 105, 0.35);
+  border-radius: 9999px;
+  color: #cda169;
+  font-family: var(--font-display), 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  box-shadow: 
+    0 8px 30px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(205, 161, 105, 0.05) inset;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.feedback-floating-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  border-color: #cda169;
+  box-shadow: 
+    0 12px 35px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(205, 161, 105, 0.25);
+  color: #fff;
+}
+
+.feedback-floating-btn:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+.feedback-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.feedback-floating-btn:hover .feedback-btn-icon {
+  transform: rotate(-10deg) scale(1.1);
+}
+
+/* Hide floating button on mobile to prevent overlaying critical mobile UI components */
+@media (max-width: 768px) {
+  .feedback-floating-btn {
+    bottom: 16px;
+    right: 16px;
+    padding: 10px 14px;
+    font-size: 11px;
+  }
+  
+  .feedback-btn-text {
+    display: none; /* Only show icon on mobile to save space */
+  }
+  
+  .feedback-floating-btn {
+    width: 42px;
+    height: 42px;
+    justify-content: center;
+    border-radius: 50%;
+    padding: 0;
+  }
+}

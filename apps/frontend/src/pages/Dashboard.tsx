@@ -355,7 +355,7 @@ const Dashboard = () => {
   const assetBreakdownData = useMemo(() => {
     const total = combinedNetWorth;
     if (total <= 0) return [];
-    
+
     const data = [
       { name: 'Wallet', value: Math.round((totalUsdValue / total) * 100), color: '#cda169', rawValue: totalUsdValue },
       { name: 'DeFi', value: Math.round((defiNetValue / total) * 100), color: '#b2854f', rawValue: defiNetValue },
@@ -363,7 +363,7 @@ const Dashboard = () => {
       { name: 'Staking', value: Math.round((stakingTotalValue / total) * 100), color: '#deb884', rawValue: stakingTotalValue },
       { name: 'NFTs', value: Math.round(((nftsTotalWorth || 0) / total) * 100), color: '#895f2d', rawValue: nftsTotalWorth || 0 },
     ].filter(d => d.rawValue > 0);
-    
+
     // Normalize to 100%
     const sum = data.reduce((acc, curr) => acc + curr.value, 0);
     if (sum !== 100 && data.length > 0) {
@@ -375,12 +375,12 @@ const Dashboard = () => {
   const protocolBreakdownData = useMemo(() => {
     const protocolMap = new Map();
     protocolMap.set('Holding', totalUsdValue + (nftsTotalWorth || 0));
-    
+
     [...visibleDeFiPositions, ...visibleLiquidityPositions, ...visibleStakingPositions].forEach(p => {
-       const proto = p.protocolName || p.platform || 'Unknown';
-       protocolMap.set(proto, (protocolMap.get(proto) || 0) + (p.numericValue || 0));
-     });
-    
+      const proto = p.protocolName || p.platform || 'Unknown';
+      protocolMap.set(proto, (protocolMap.get(proto) || 0) + (p.numericValue || 0));
+    });
+
     const total = combinedNetWorth;
     if (total <= 0) return [];
 
@@ -393,20 +393,20 @@ const Dashboard = () => {
       '#6b5233', // Deep Chocolate Earth
       '#9ca3af'  // Neutral Slate
     ];
-    
+
     const sorted = Array.from(protocolMap.entries())
-      .map(([name, value]) => ({ 
-         name, 
-         rawValue: value, 
-         value: Math.round((value / total) * 100)
+      .map(([name, value]) => ({
+        name,
+        rawValue: value,
+        value: Math.round((value / total) * 100)
       }))
       .filter(d => d.rawValue > 0)
       .sort((a, b) => b.rawValue - a.rawValue)
       .map((item, idx) => ({
-         ...item,
-         color: colors[idx % colors.length]
+        ...item,
+        color: colors[idx % colors.length]
       }));
-      
+
     let finalData = sorted;
     if (sorted.length > 5) {
       finalData = sorted.slice(0, 4);
@@ -415,12 +415,12 @@ const Dashboard = () => {
       const othersPct = others.reduce((acc, curr) => acc + curr.value, 0);
       finalData.push({ name: 'Others', rawValue: othersValue, value: othersPct, color: '#9ca3af' });
     }
-    
+
     const sum = finalData.reduce((acc, curr) => acc + curr.value, 0);
     if (sum !== 100 && finalData.length > 0) {
       finalData[0].value += (100 - sum);
     }
-    
+
     return finalData;
   }, [totalUsdValue, nftsTotalWorth, visibleDeFiPositions, visibleLiquidityPositions, visibleStakingPositions, combinedNetWorth]);
 
@@ -474,8 +474,8 @@ const Dashboard = () => {
     if (!viewingAddress) return;
 
     const name = userProfile?.username || (
-      viewingAddress.startsWith("0x") 
-        ? `${viewingAddress.slice(0, 6)}...${viewingAddress.slice(-4)}` 
+      viewingAddress.startsWith("0x")
+        ? `${viewingAddress.slice(0, 6)}...${viewingAddress.slice(-4)}`
         : viewingAddress
     );
 
@@ -490,7 +490,7 @@ const Dashboard = () => {
 
     // Update SEO Meta Tags
     const metaDesc = `View ${name}'s portfolio on the Movement Network. Real-time net worth, transaction history, NFTs, and portfolio analytics.`;
-    
+
     const updateMeta = (name: string, content: string, attr = 'name') => {
       let el = document.querySelector(`meta[${attr}="${name}"]`);
       if (!el) {
@@ -719,7 +719,7 @@ const Dashboard = () => {
                     {userProfile?.is_verified && (
                       <span className="verified-tick" title="Verified Profile">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                         </svg>
                       </span>
                     )}
@@ -888,8 +888,8 @@ const Dashboard = () => {
 
           {activeTab === PORTFOLIO_TABS.ANALYTICS && (
             <Suspense fallback={<div className="loading-indicator">Analyzing history...</div>}>
-              <AnalyticsView 
-                walletAddress={urlAddress} 
+              <AnalyticsView
+                walletAddress={urlAddress}
               />
             </Suspense>
           )}

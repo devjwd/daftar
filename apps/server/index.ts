@@ -14,6 +14,8 @@ import configRoutes from './src/routes/configRoutes.ts';
 import transactionRoutes from './src/routes/transactionRoutes.ts';
 import analyticsRoutes from './src/routes/analyticsRoutes.ts';
 import plansRoutes from './src/routes/plansRoutes.ts';
+import feedbackRoutes from './src/routes/feedbackRoutes.ts';
+import reportRoutes from './src/routes/reportRoutes.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { handleError } from './src/utils/errors.ts';
@@ -60,6 +62,8 @@ app.use('/api/transactions', transactionRoutes);
 
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/plans', plansRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/reports', reportRoutes);
 
 // --- Global Error Handler ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

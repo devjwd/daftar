@@ -32,6 +32,21 @@ const TokenCard: React.FC<TokenCardProps> = ({
   hideValues 
 }) => {
   const tokenInfo = getTokenInfo(token.address);
+
+  const handleReportClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const tokenSymbol = String(tokenInfo?.symbol || token.symbol || '').trim();
+    const event = new CustomEvent('open-bug-report', {
+      detail: {
+        type: 'token',
+        symbol: tokenSymbol,
+        address: token.address
+      }
+    });
+    window.dispatchEvent(event);
+  };
+
   const rawSymbol = String(tokenInfo?.symbol || token.symbol || '').trim();
   const symbol = rawSymbol.toUpperCase();
   const baseSymbol = symbol.replace(/\.E$/i, '');
@@ -92,7 +107,20 @@ const TokenCard: React.FC<TokenCardProps> = ({
           </div>
 
           <div className="token-info">
-            <span className="token-network">{displayMeta}</span>
+            <div className="token-network-row">
+              <span className="token-network">{displayMeta}</span>
+              <button
+                type="button"
+                className="token-report-flag"
+                onClick={handleReportClick}
+                title="Report incorrect token data"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                  <line x1="4" y1="22" x2="4" y2="15" />
+                </svg>
+              </button>
+            </div>
             <span className="token-symbol">{displayName}</span>
           </div>
         </div>

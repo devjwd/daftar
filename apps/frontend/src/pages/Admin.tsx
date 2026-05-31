@@ -5,6 +5,7 @@ import './Admin.css';
 import BadgeAdmin from '../components/BadgeAdmin';
 import EntityAdmin from '../components/EntityAdmin';
 import PlanAdmin from '../components/PlanAdmin';
+import ReportAdmin from '../components/ReportAdmin';
 
 import { useMovementClient } from '../hooks/useMovementClient';
 import { useTransactionTracker } from '../hooks/useTransactionTracker';
@@ -387,12 +388,26 @@ export default function Admin() {
                 <span className="admin-tab-meta">Manage user plans</span>
               </span>
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'reports'}
+              className={`admin-tab ${activeTab === 'reports' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reports')}
+            >
+              <span className="admin-tab-icon" aria-hidden="true">🚩</span>
+              <span className="admin-tab-text">
+                <span className="admin-tab-title">Reports</span>
+                <span className="admin-tab-meta">View bug & token reports</span>
+              </span>
+            </button>
           </div>
         </div>
 
         {activeTab === 'badges' && <BadgeAdmin />}
         {activeTab === 'entities' && <EntityAdmin />}
         {activeTab === 'plans' && <PlanAdmin />}
+        {activeTab === 'reports' && <ReportAdmin />}
 
         {activeTab === 'settings' && (
           <div className="admin-content">

@@ -3,6 +3,8 @@
   min-height: 100vh;
   background: #14110f;
   color: #ffffff;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Navbar */
@@ -1285,6 +1287,8 @@ body[data-theme='light'] .search-suggestion-item.highlighted {
   padding: 20px 40px;
   max-width: 1600px;
   margin: 0 auto;
+  flex: 1 0 auto; /* Grows to push footer down */
+  width: 100%;
 }
 
 /* Responsive */
@@ -1370,3 +1374,108 @@ body[data-theme='light'] .search-suggestion-item.highlighted {
     padding: 16px;
   }
 }
+
+/* Static Footer Styles */
+.app-footer {
+  position: relative;
+  height: 32px;
+  background: #110e0c; /* Very dark surface */
+  border-top: 1px solid rgba(205, 161, 105, 0.15); /* Subtle gold border */
+  z-index: 9980; /* Just below overlay modals but above page contents */
+  font-size: 11px;
+  font-family: var(--font-primary);
+  color: #9f8d79;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 40px; /* Aligns exactly with main-content and navbar-inner */
+  height: 100%;
+}
+
+@media (max-width: 768px) {
+  .footer-inner {
+    padding: 0 16px; /* Aligns with padding: 16px for mobile main-content */
+  }
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.connected {
+  background: #36c690; /* Green success */
+  box-shadow: 0 0 8px rgba(54, 198, 144, 0.6);
+  animation: statusPulse 2s infinite ease-in-out;
+}
+
+.status-dot.disconnected {
+  background: #e06a6a; /* Red error */
+  box-shadow: 0 0 6px rgba(224, 106, 106, 0.4);
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.92); }
+}
+
+.status-text {
+  letter-spacing: 0.3px;
+  font-family: 'Courier New', monospace; /* Monospace wallet text matching screenshot */
+  font-weight: 600;
+  color: #c9b5a1;
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.footer-btn {
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #9f8d79;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  user-select: none;
+}
+
+.footer-btn:hover {
+  color: #deb884;
+  background: rgba(205, 161, 105, 0.08);
+}
+
+.footer-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+

@@ -445,6 +445,47 @@
   display: none;
 }
 
+/* Action Group & Report Flag */
+.lp-card-action-group {
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.lp-card-report-flag {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  background: none;
+  border: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.lp-card:hover .lp-card-report-flag {
+  opacity: 0.55;
+  pointer-events: auto;
+}
+
+.lp-card-report-flag:hover {
+  transform: translateY(-50%) scale(1.2);
+  opacity: 1 !important;
+  color: var(--primary);
+}
+
 /* Link Button */
 .lp-card-link {
   width: 32px;

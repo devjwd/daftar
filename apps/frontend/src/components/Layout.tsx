@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useUserLevel } from '../hooks/useUserLevel';
@@ -17,6 +17,11 @@ import { checkAccountExists } from '../services/indexer';
 import { getEnv } from '../config/envValidator';
 import { searchEntities } from '../services/entityStore';
 import './Layout.css';
+import { FeedbackModal } from './FeedbackModal';
+import { BugReportModal } from './BugReportModal';
+import { useIndexerBalances } from '../hooks/useIndexerBalances';
+import { useTokenPrices } from '../hooks/useTokenPrices';
+import { useCurrency } from '../hooks/useCurrency';
 
 const SWAP_ENABLED = getEnv('VITE_ENABLE_SWAP', true);
 const RESOURCES_MANIFEST_URL = '/resources/manifest.json';
@@ -37,6 +42,31 @@ export default function Layout({ children }) {
     if (lowerName.includes('motion')) return '/motion.png';
     return null;
   };
+
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
+  const [bugReportParams, setBugReportParams] = useState<{
+    type: string;
+    symbol: string;
+    address: string;
+    description?: string;
+  }>({ type: 'general', symbol: '', address: '', description: '' });
+
+  useEffect(() => {
+    const handleOpenBugReport = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      setBugReportParams({
+        type: detail.type || 'general',
+        symbol: detail.symbol || '',
+        address: detail.address || '',
+        description: detail.description || ''
+      });
+      setBugReportOpen(true);
+    };
+
+    window.addEventListener('open-bug-report', handleOpenBugReport);
+    return () => window.removeEventListener('open-bug-report', handleOpenBugReport);
+  }, []);
 
   const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
@@ -63,6 +93,23 @@ export default function Layout({ children }) {
   const blurTimeoutRef = useRef(null);
   const passAddress = account?.address ? String(account.address) : null;
   const { level: passLevel, loading: passLevelLoading } = useUserLevel(passAddress);
+
+  const { balances } = useIndexerBalances(passAddress);
+  const { prices } = useTokenPrices();
+  const { convertUSD, formatValue } = useCurrency();
+
+  const netWorth = useMemo(() => {
+    if (!passAddress || !balances || balances.length === 0) return 0;
+    return balances.reduce((total, token) => {
+      const price = prices[token.address] || prices[token.fullType] || 0;
+      return total + (token.numericAmount * price);
+    }, 0);
+  }, [passAddress, balances, prices]);
+
+  const formattedNetWorth = useMemo(() => {
+    const converted = convertUSD(netWorth);
+    return formatValue(converted);
+  }, [netWorth, convertUSD, formatValue]);
 
   // Monitor wallet connections and switches
   const [wasConnected, setWasConnected] = useState(connected);
@@ -517,22 +564,35 @@ export default function Layout({ children }) {
                 </button>
 
                 {moreDropdownOpen && (
-                  <div className="more-dropdown-menu">
+                  <div className="more-dropdown-menu">                    <button
+                       className="more-menu-item"
+                       onClick={() => {
+                         window.open('https://discord.gg/fER9kNyPvk', '_blank', 'noopener,noreferrer');
+                         setMoreDropdownOpen(false);
+                       }}
+                     >
+                       <div className="more-menu-icon">
+                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                           <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 19H11V17H13V19ZM15.07 11.25L14.17 12.17C13.45 12.9 13 13.5 13 15H11V14.5C11 13.4 11.45 12.4 12.17 11.67L13.41 10.41C13.78 10.05 14 9.55 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9H8C8 6.79 9.79 5 12 5C14.21 5 16 6.79 16 9C16 9.88 15.64 10.68 15.07 11.25Z" fill="currentColor" />
+                         </svg>
+                       </div>
+                       <span>{t(language, 'menuSupport')}</span>
+                     </button>
 
-                    <button
-                      className="more-menu-item"
-                      onClick={() => {
-                        window.open('https://discord.gg/fER9kNyPvk', '_blank', 'noopener,noreferrer');
-                        setMoreDropdownOpen(false);
-                      }}
-                    >
-                      <div className="more-menu-icon">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 19H11V17H13V19ZM15.07 11.25L14.17 12.17C13.45 12.9 13 13.5 13 15H11V14.5C11 13.4 11.45 12.4 12.17 11.67L13.41 10.41C13.78 10.05 14 9.55 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9H8C8 6.79 9.79 5 12 5C14.21 5 16 6.79 16 9C16 9.88 15.64 10.68 15.07 11.25Z" fill="currentColor" />
-                        </svg>
-                      </div>
-                      <span>{t(language, 'menuSupport')}</span>
-                    </button>
+                     <button
+                       className="more-menu-item"
+                       onClick={() => {
+                         setFeedbackOpen(true);
+                         setMoreDropdownOpen(false);
+                       }}
+                     >
+                       <div className="more-menu-icon">
+                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                         </svg>
+                       </div>
+                       <span>Feedback</span>
+                     </button>
 
                     {/* Theme option removed - locked to premium dark-gold */}
 
@@ -922,6 +982,64 @@ export default function Layout({ children }) {
       <main className="main-content">
         {children}
       </main>
+
+      {/* Static Footer */}
+      <footer className="app-footer">
+        <div className="footer-inner">
+          <div className="footer-left">
+            <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`}></span>
+            <span className="status-text">
+              {connected && account?.address ? (
+                `${formatAddress(account.address, 6, 4)} — ${formattedNetWorth}`
+              ) : (
+                'Disconnected'
+              )}
+            </span>
+          </div>
+          <div className="footer-right">
+            <button 
+              type="button" 
+              className="footer-btn"
+              onClick={() => {
+                setBugReportParams({ type: 'general', symbol: '', address: '' });
+                setBugReportOpen(true);
+              }}
+              title="Report a bug"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="footer-btn-icon">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>Bug</span>
+            </button>
+            <button 
+              type="button" 
+              className="footer-btn"
+              onClick={() => setFeedbackOpen(true)}
+              title="Share your feedback"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="footer-btn-icon">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span>Feedback</span>
+            </button>
+          </div>
+        </div>
+      </footer>
+
+      {/* Feedback Modal */}
+      <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+
+      {/* Bug Report Modal */}
+      <BugReportModal 
+        isOpen={bugReportOpen} 
+        onClose={() => setBugReportOpen(false)} 
+        initialType={bugReportParams.type}
+        initialSymbol={bugReportParams.symbol}
+        initialAddress={bugReportParams.address}
+        initialDescription={bugReportParams.description}
+      />
     </div>
   );
 }

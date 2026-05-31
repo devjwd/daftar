@@ -5,8 +5,15 @@ import { auditBadgeDefinitions } from '../services/badgeAuditService.ts';
 import { validateBadgeDefinitionPayload } from '../services/validationService.ts';
 import { normalizeAddress } from '../utils/address.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const router = express.Router();
+
+// For ES Modules compatibility in Node
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // All admin routes require admin signature verification
 router.use(async (req: Request, res: Response, next: NextFunction) => {
@@ -319,6 +326,39 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
         if (error) throw error;
         return res.json({ success: true, user: data });
+      }
+    }
+
+    if (action === 'manage-reports') {
+      const { method, id } = req.body;
+      const DATA_DIR = path.resolve(__dirname, '../../data');
+      const REPORTS_FILE = path.join(DATA_DIR, 'reports.json');
+
+      if (method === 'LIST') {
+        let reports: any[] = [];
+        if (fs.existsSync(REPORTS_FILE)) {
+          try {
+            reports = JSON.parse(fs.readFileSync(REPORTS_FILE, 'utf-8'));
+          } catch (e) {
+            reports = [];
+          }
+        }
+        return res.json({ success: true, reports });
+      }
+
+      if (method === 'DELETE') {
+        if (!id) return res.status(400).json({ error: 'Report ID required' });
+        let reports: any[] = [];
+        if (fs.existsSync(REPORTS_FILE)) {
+          try {
+            reports = JSON.parse(fs.readFileSync(REPORTS_FILE, 'utf-8'));
+          } catch (e) {}
+        }
+        reports = reports.filter((r: any) => r.id !== id);
+        try {
+          fs.writeFileSync(REPORTS_FILE, JSON.stringify(reports, null, 2), 'utf-8');
+        } catch (e) {}
+        return res.json({ success: true, id });
       }
     }
 
