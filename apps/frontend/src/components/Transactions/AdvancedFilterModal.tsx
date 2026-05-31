@@ -4,11 +4,16 @@ import { t } from '../../utils/language';
 import styles from './TrxHistory.module.css';
 
 const PROTOCOL_OPTIONS = [
-  'Mosaic', 'Echelon', 'Aries', 'Meridian', 'Route-X'
-];
+  'Amnis', 'Aptos', 'Aries', 'Canopy', 'Cellana', 'Echelon', 'Elysium', 'Gala', 
+  'Joule', 'LayerBank', 'LiquidSwap', 'Macaron', 'Meridian', 'Mosaic', 'MovePosition', 
+  'Movement Core', 'Moversmap', 'Nightly', 'Razor', 'Route-X', 'Secura', 'Tails', 
+  'Thala', 'Yuzu'
+].sort();
 
 const TYPE_OPTIONS = [
-  'SWAP', 'DEPOSIT', 'WITHDRAW', 'SEND', 'RECEIVE'
+  'SWAP', 'SEND', 'RECEIVED', 'STAKE', 'UNSTAKE', 'LEND', 'BORROW', 'REPAY', 
+  'DEPOSIT', 'WITHDRAW', 'YIELD', 'CLAIM', 'BRIDGE', 'NFT_MINT', 'NFT_TRANSFER', 
+  'LIQUIDITY', 'OTHER'
 ];
 
 export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, onApply, language = 'en' }) {
@@ -69,14 +74,23 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
-          <h2>{t(language, 'trxFilter') || 'Filter Transactions'}</h2>
+          <div className={styles.modalTitleGroup}>
+            <div className={styles.modalIcon}>⚙️</div>
+            <div>
+              <h2>{t(language, 'advancedFilter') || 'Advanced Filters'}</h2>
+              <p className={styles.modalSubtitle}>Refine your transaction history</p>
+            </div>
+          </div>
           <button className={styles.closeButton} onClick={onClose}>&times;</button>
         </div>
 
         <div className={styles.modalBody}>
           <div className={styles.filterSection}>
-            <h3>Type</h3>
-            <div className={styles.pillContainer}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.sectionIcon}>⚡</div>
+              <h3>Transaction Type</h3>
+            </div>
+            <div className={styles.pillGrid}>
               {TYPE_OPTIONS.map(type => (
                 <button
                   key={type}
@@ -84,15 +98,18 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
                   className={`${styles.filterPill} ${filters.exactTypes.includes(type) ? styles.filterPillActive : ''}`}
                   onClick={() => handleTypeToggle(type)}
                 >
-                  {type}
+                  {type.replace('_', ' ')}
                 </button>
               ))}
             </div>
           </div>
 
           <div className={styles.filterSection}>
-            <h3>Protocol</h3>
-            <div className={styles.pillContainer}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.sectionIcon}>🌐</div>
+              <h3>Protocol / dApp</h3>
+            </div>
+            <div className={styles.pillGrid}>
               {PROTOCOL_OPTIONS.map(protocol => (
                 <button
                   key={protocol}
@@ -108,19 +125,22 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
 
           <div className={styles.filterRow}>
             <div className={styles.filterSection}>
-              <h3>Amount</h3>
+              <div className={styles.sectionHeader}>
+                <div className={styles.sectionIcon}>💰</div>
+                <h3>Amount Range</h3>
+              </div>
               <div className={styles.inputGroup}>
                 <input 
                   type="number" 
-                  placeholder="Min" 
+                  placeholder="Min Amount" 
                   value={filters.minAmount} 
                   onChange={e => setFilters({...filters, minAmount: e.target.value})}
                   className={styles.textInput}
                 />
-                <span>-</span>
+                <span className={styles.inputDivider}>to</span>
                 <input 
                   type="number" 
-                  placeholder="Max" 
+                  placeholder="Max Amount" 
                   value={filters.maxAmount} 
                   onChange={e => setFilters({...filters, maxAmount: e.target.value})}
                   className={styles.textInput}
@@ -129,7 +149,10 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
             </div>
             
             <div className={styles.filterSection}>
-              <h3>Date</h3>
+              <div className={styles.sectionHeader}>
+                <div className={styles.sectionIcon}>📅</div>
+                <h3>Date Range</h3>
+              </div>
               <div className={styles.inputGroup}>
                 <input 
                   type="date" 
@@ -137,7 +160,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
                   onChange={e => setFilters({...filters, startDate: e.target.value})}
                   className={styles.textInput}
                 />
-                <span>-</span>
+                <span className={styles.inputDivider}>to</span>
                 <input 
                   type="date" 
                   value={filters.endDate} 
@@ -150,8 +173,13 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
         </div>
 
         <div className={styles.modalFooter}>
-          <button className={styles.clearButton} onClick={handleClear}>Clear</button>
-          <button className={styles.applyButton} onClick={handleApply}>Apply</button>
+          <div className={styles.activeFiltersCount}>
+            {(filters.protocols.length + filters.exactTypes.length + (filters.minAmount ? 1 : 0) + (filters.maxAmount ? 1 : 0) + (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0))} Active Filters
+          </div>
+          <div className={styles.footerActions}>
+            <button className={styles.clearButton} onClick={handleClear}>Reset All</button>
+            <button className={styles.applyButton} onClick={handleApply}>Apply Filters</button>
+          </div>
         </div>
       </div>
     </div>
