@@ -1015,3 +1015,24 @@
     max-width: 100%;
   }
 }
+
+.analytics-truncation-banner,
+.analytics-error-banner {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.analytics-truncation-banner {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: rgba(253, 230, 138, 0.95);
+}
+
+.analytics-error-banner {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: rgba(254, 202, 202, 0.95);
+}

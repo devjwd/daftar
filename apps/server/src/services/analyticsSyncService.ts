@@ -207,10 +207,11 @@ function enrichTransaction(
   
   // 1. Internal Constants & Mapping (Mirrored from frontend historyEngine.ts)
   const TX_TYPES = {
-    SWAP: "SWAP", SEND: "SEND", RECEIVE: "RECEIVE",
+    SWAP: "SWAP", SEND: "SEND", RECEIVED: "RECEIVED",
     STAKE: "STAKE", UNSTAKE: "UNSTAKE",
     LEND: "LEND", BORROW: "BORROW", REPAY: "REPAY",
     DEPOSIT: "DEPOSIT", WITHDRAW: "WITHDRAW",
+    YIELD: "YIELD",
     CLAIM: "CLAIM", BRIDGE: "BRIDGE",
     NFT_MINT: "NFT_MINT", NFT_TRANSFER: "NFT_TRANSFER",
     LIQUIDITY: "LIQUIDITY",
@@ -300,6 +301,7 @@ function enrichTransaction(
     collect_fee: TX_TYPES.CLAIM,
     // MovePosition
     lend_v2: TX_TYPES.LEND,
+    lend_to_portfolio: TX_TYPES.YIELD,
     borrow_v2: TX_TYPES.BORROW,
     redeem_v2: TX_TYPES.WITHDRAW,
     redeem: TX_TYPES.WITHDRAW,
@@ -635,25 +637,44 @@ function enrichTransaction(
       }
     }
   }
+
+  // Convert SEND to RECEIVED if the user is not the initiator
+  const senderAddr = String(tx.sender || tx.user_transaction?.sender || "").toLowerCase();
+  const isInitiator = !userAddr || userAddr === senderAddr;
+  if (action === TX_TYPES.SEND && !isInitiator) {
+    action = TX_TYPES.RECEIVED;
+  }
   
   // Fallback to direction-based classification if OTHER
   if (action === TX_TYPES.OTHER) {
     if (inFlows.length > 0 && outFlows.length > 0) action = TX_TYPES.SWAP;
-    else if (inFlows.length > 0) action = TX_TYPES.RECEIVE;
+    else if (inFlows.length > 0) action = TX_TYPES.RECEIVED;
     else if (outFlows.length > 0) action = TX_TYPES.SEND;
   }
 
   // Handle exchange deposit classification override
-  if (isExchangeDeposit && (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE)) {
+  if (isExchangeDeposit && (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVED)) {
     protocol = exchangeName;
   }
 
-  let category = (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) ? 'Transfer' : 'DeFi';
+  let category = (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVED) ? 'Transfer' : 'DeFi';
 
   // 6. Generate Description & Metadata
   let description = 'Contract interaction';
   let primaryIn = inFlows[0];
   let primaryOut = outFlows[0];
+
+  // Fallback for single-sided protocol interactions missing direct user flows (e.g. MovePosition auto-compounding)
+  if (!primaryIn && !primaryOut && rawActivities.length > 0) {
+    const fallbackAct = rawActivities[0];
+    const decimals = fallbackAct.metadata?.decimals || 8;
+    const amount = Math.abs(Number(fallbackAct.amount || 0)) / Math.pow(10, decimals);
+    const assetType = fallbackAct.asset_type || fallbackAct.coin_type || '';
+    const symbol = fallbackAct.metadata?.symbol || resolveSymbol(assetType);
+    
+    // Default to primaryOut so it shows up on the right side for LEND transactions
+    primaryOut = { direction: 'out', amount, symbol, assetType } as any;
+  }
 
   // Custom high-fidelity override for Tradeport NFT Buy/Accept Bid transactions on backend
   if (protocol === 'Tradeport') {
@@ -862,7 +883,7 @@ export async function syncFullUserHistory(
       }
 
       // Fetch labels for only the counterparties of this batch
-      const counterparties = extractCounterparties(txs.map(tx => ({ tx, userAddress: address })));
+      const counterparties = extractCounterparties(txs.map((tx: any) => ({ tx, userAddress: address })));
       const labelsMap = await getLabelsForAddresses(supabase, counterparties);
 
       const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap, entitiesList));
@@ -931,7 +952,7 @@ export async function syncFullUserHistory(
         }
 
         // Fetch labels for only the counterparties of this batch
-        const counterparties = extractCounterparties(txs.map(tx => ({ tx, userAddress: address })));
+        const counterparties = extractCounterparties(txs.map((tx: any) => ({ tx, userAddress: address })));
         const labelsMap = await getLabelsForAddresses(supabase, counterparties);
 
         const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap, entitiesList));

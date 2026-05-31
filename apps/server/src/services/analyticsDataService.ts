@@ -108,6 +108,10 @@ export interface AnalyticsDataResult {
   topTokens: TokenItem[];
   exchangeUsage: ExchangeUsage;
   insights: InsightItem[];
+  /** True when results were capped at MAX_ANALYTICS_TRANSACTIONS */
+  truncated?: boolean;
+  loadedTransactionCount?: number;
+  maxTransactionLimit?: number;
 }
 
 // --- Helpers ---
@@ -136,16 +140,22 @@ function getTimeframeFilterDate(timeframe: string): Date | null {
 
 // --- Paginated Fetch ---
 
+interface PaginatedTxResult {
+  txs: TransactionRow[];
+  truncated: boolean;
+}
+
 async function fetchTransactionsPaginated(
   supabase: SupabaseClient,
   wallet: string,
   timeframe: string,
   customStartDate?: string,
   customEndDate?: string
-): Promise<TransactionRow[]> {
+): Promise<PaginatedTxResult> {
   let txs: TransactionRow[] = [];
   let hasMore = true;
   let page = 0;
+  let truncated = false;
 
   while (hasMore && txs.length < MAX_ANALYTICS_TRANSACTIONS) {
     let query = supabase
@@ -175,13 +185,19 @@ async function fetchTransactionsPaginated(
     if (data && data.length > 0) {
       txs = txs.concat(data as TransactionRow[]);
       page++;
-      if (data.length < ANALYTICS_PAGE_SIZE) hasMore = false;
+      if (data.length < ANALYTICS_PAGE_SIZE) {
+        hasMore = false;
+      } else if (txs.length >= MAX_ANALYTICS_TRANSACTIONS) {
+        truncated = true;
+        hasMore = false;
+        txs = txs.slice(0, MAX_ANALYTICS_TRANSACTIONS);
+      }
     } else {
       hasMore = false;
     }
   }
 
-  return txs;
+  return { txs, truncated };
 }
 
 // --- Initial Flow (pre-filter transactions) ---
@@ -343,8 +359,13 @@ async function fetchTokenBalanceHistory(
     holdings: holdingsMap.get(date) ?? []
   }));
 
-  // Handle baseline starting date of March 10, 2025 if timeframe === 'All' or customStartDate
-  const baselineDateStr = customStartDate ? customStartDate.split('T')[0] : (timeframe === 'All' ? '2025-03-10' : null);
+  const earliestDataDate =
+    allDates.length > 0 ? allDates[0] : null;
+  const baselineDateStr = customStartDate
+    ? customStartDate.split('T')[0]
+    : timeframe === 'All'
+      ? earliestDataDate
+      : null;
   if (baselineDateStr) {
     if (tokenBalanceHistory.length === 0 || tokenBalanceHistory[0].date > baselineDateStr) {
       tokenBalanceHistory.unshift({
@@ -367,13 +388,15 @@ export async function aggregateAnalyticsData(
   customStartDate?: string,
   customEndDate?: string
 ): Promise<AnalyticsDataResult> {
-  // Fetch transactions, initial flow, and token balance history in parallel
-  const [txs, initialFlow, networthHistory, tokenBalanceHistory] = await Promise.all([
+  const [txResult, initialFlow, networthHistory, tokenBalanceHistory] = await Promise.all([
     fetchTransactionsPaginated(supabase, wallet, timeframe, customStartDate, customEndDate),
     calculateInitialFlow(supabase, wallet, timeframe, customStartDate),
     fetchNetworthHistory(supabase, wallet, timeframe, customStartDate, customEndDate),
     fetchTokenBalanceHistory(supabase, wallet, timeframe, customStartDate, customEndDate),
   ]);
+
+  const txs = txResult.txs;
+  const truncated = txResult.truncated;
 
   // --- Basic Aggregates ---
   const totalVolume = txs.reduce((sum, tx) => sum + Number(tx.value_usd || 0), 0);
@@ -678,8 +701,13 @@ export async function aggregateAnalyticsData(
     },
   ];
 
-  // Prepend baseline for Custom Start Date or timeframe = All
-  const baselineDateStr = customStartDate ? customStartDate.split('T')[0] : (timeframe === 'All' ? '2025-03-10' : null);
+  const firstTxDateStr =
+    txs.length > 0 ? txs[0].timestamp.split('T')[0] : null;
+  const baselineDateStr = customStartDate
+    ? customStartDate.split('T')[0]
+    : timeframe === 'All'
+      ? firstTxDateStr
+      : null;
   if (baselineDateStr) {
     if (activityHistory.length === 0 || activityHistory[0].date > baselineDateStr) {
       activityHistory.unshift({
@@ -737,5 +765,8 @@ export async function aggregateAnalyticsData(
     topTokens,
     exchangeUsage,
     insights,
+    truncated,
+    loadedTransactionCount: txs.length,
+    maxTransactionLimit: MAX_ANALYTICS_TRANSACTIONS,
   };
 }

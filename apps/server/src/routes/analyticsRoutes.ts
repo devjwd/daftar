@@ -7,13 +7,20 @@ import { getSupabase } from '../config/supabase.ts';
  */
 
 import { Router, Request, Response } from 'express';
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { generalLimiter } from '../middleware/rateLimit.ts';
 import { normalizeAddress } from '../utils/address.ts';
 import { verifyWalletSignature } from '../utils/crypto.ts';
 import { queueSync } from '../services/analyticsSyncQueue.ts';
 import { reconstructHistoricalBalances } from '../services/portfolioService.ts';
 import { aggregateAnalyticsData } from '../services/analyticsDataService.ts';
+import { getEffectiveTier } from '../services/subscriptionService.ts';
+import { isPremiumTier } from '@daftar/shared-types';
+import {
+  assertEnrichedWalletAccess,
+  requireMaintenanceKey,
+  walletAccessErrorHandler,
+} from '../middleware/walletAccess.ts';
 
 const router = Router();
 
@@ -45,6 +52,7 @@ router.get('/sync', generalLimiter, async (req: Request, res: Response) => {
       .eq('wallet_address', wallet)
       .maybeSingle();
 
+    const tier = await getEffectiveTier(supabase, wallet);
     const isVerifiedProfile = profile?.is_verified === true;
     const signature = req.query.signature as string;
     const message = req.query.message as string;
@@ -52,10 +60,10 @@ router.get('/sync', generalLimiter, async (req: Request, res: Response) => {
     if (signature && message) {
       const isValid = verifyWalletSignature(wallet, message, signature);
       if (!isValid) return res.status(401).json({ error: 'Invalid sync signature' });
-    } else if (!isVerifiedProfile) {
-      return res.status(401).json({ error: 'Signature is required for unverified profiles' });
+    } else if (!isVerifiedProfile && !isPremiumTier(tier)) {
+      return res.status(401).json({ error: 'Signature is required for free profiles' });
     } else {
-      // Verified profile with no signature: check rate limit
+      // Verified or Pro profile without signature: rate limit
       const { data: statusData } = await supabase
         .from('user_sync_status')
         .select('last_sync_at')
@@ -66,7 +74,9 @@ router.get('/sync', generalLimiter, async (req: Request, res: Response) => {
         const lastSyncTime = new Date(statusData.last_sync_at).getTime();
         const tenMinutes = 10 * 60 * 1000;
         if (Date.now() - lastSyncTime < tenMinutes) {
-          return res.status(429).json({ error: 'Sync requested too recently. Verified profiles can sync once every 10 minutes.' });
+          return res.status(429).json({
+            error: 'Sync requested too recently. Please wait up to 10 minutes between syncs.',
+          });
         }
       }
     }
@@ -140,6 +150,7 @@ router.get('/reconstruct', generalLimiter, async (req: Request, res: Response) =
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
   try {
+    await assertEnrichedWalletAccess(supabase, req, wallet);
     const result = await reconstructHistoricalBalances(supabase, wallet);
     return res.status(200).json({
       ok: true,
@@ -147,6 +158,7 @@ router.get('/reconstruct', generalLimiter, async (req: Request, res: Response) =
       ...result,
     });
   } catch (err: unknown) {
+    if (walletAccessErrorHandler(err, res)) return;
     const message = err instanceof Error ? err.message : 'Failed to reconstruct portfolio';
     console.error('[Analytics/Reconstruct] Error:', err);
     return res.status(500).json({ error: message });
@@ -154,7 +166,7 @@ router.get('/reconstruct', generalLimiter, async (req: Request, res: Response) =
 });
 
 /** Reprocess Unknown Transactions Maintenance Route */
-router.get('/reprocess-unknowns', async (req: Request, res: Response) => {
+router.get('/reprocess-unknowns', requireMaintenanceKey, async (req: Request, res: Response) => {
   const supabase = getSupabaseClient(req);
   if (!supabase) return res.status(503).json({ error: 'Database unavailable' });
 
@@ -184,6 +196,7 @@ router.get('/networth', async (req: Request, res: Response) => {
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
   try {
+    await assertEnrichedWalletAccess(supabase, req, wallet);
     const { data: snapshots, error } = await supabase
       .from('user_networth_snapshots')
       .select('*')
@@ -194,6 +207,7 @@ router.get('/networth', async (req: Request, res: Response) => {
     if (error) throw error;
     return res.json({ snapshots });
   } catch (err: unknown) {
+    if (walletAccessErrorHandler(err, res)) return;
     console.error('[Analytics/Networth] Error:', err);
     return res.status(500).json({ error: 'Failed to fetch networth history' });
   }
@@ -223,6 +237,37 @@ router.post('/baseline', async (req: Request, res: Response) => {
   }
 });
 
+async function resolveHistoryBaselineDate(
+  supabase: SupabaseClient,
+  wallet: string
+): Promise<string | null> {
+  const { data: earliestTx } = await supabase
+    .from('user_transaction_history')
+    .select('timestamp')
+    .eq('user_address', wallet)
+    .order('timestamp', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (earliestTx?.timestamp) {
+    return String(earliestTx.timestamp).split('T')[0];
+  }
+
+  const { data: earliestSnap } = await supabase
+    .from('user_networth_snapshots')
+    .select('timestamp')
+    .eq('user_address', wallet)
+    .order('timestamp', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (earliestSnap?.timestamp) {
+    return String(earliestSnap.timestamp).split('T')[0];
+  }
+
+  return null;
+}
+
 /** Precise PNL History */
 router.get('/pnl-precise', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
@@ -232,6 +277,7 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
   try {
+    await assertEnrichedWalletAccess(supabase, req, wallet);
     const startDate = new Date();
     if (timeframe === '1D') startDate.setHours(startDate.getHours() - 24);
     else if (timeframe === '1W') startDate.setDate(startDate.getDate() - 7);
@@ -250,14 +296,6 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
     if (snapError) throw snapError;
 
     if (!snapshots || snapshots.length === 0) {
-      if (timeframe === 'All') {
-        const history = [{
-          date: '2025-03-10T00:00:00.000Z',
-          value: 0,
-          netDeposits: 0
-        }];
-        return res.json({ history, performance: { changeUsd: 0, changePercent: 0 } });
-      }
       return res.json({ history: [], performance: { changeUsd: 0, changePercent: 0 } });
     }
 
@@ -267,12 +305,15 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
       netDeposits: Number(s.net_deposits_usd || 0),
     }));
 
-    if (timeframe === 'All' && history[0].date > '2025-03-10T00:00:00.000Z') {
-      history.unshift({
-        date: '2025-03-10T00:00:00.000Z',
-        value: 0,
-        netDeposits: 0
-      });
+    if (timeframe === 'All') {
+      const baselineDate = await resolveHistoryBaselineDate(supabase, wallet);
+      if (baselineDate && history[0].date > `${baselineDate}T00:00:00.000Z`) {
+        history.unshift({
+          date: `${baselineDate}T00:00:00.000Z`,
+          value: 0,
+          netDeposits: 0,
+        });
+      }
     }
 
     const firstPoint = history[0];
@@ -289,6 +330,7 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
       },
     });
   } catch (err: unknown) {
+    if (walletAccessErrorHandler(err, res)) return;
     console.error('[Analytics/PNL-Precise] Error:', err);
     return res.status(500).json({ error: 'Failed to fetch PNL history' });
   }
@@ -304,19 +346,12 @@ router.get('/data', async (req: Request, res: Response) => {
 
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
-  // Optional signature verification for private data
-  const signature = req.query.signature as string;
-  const message = req.query.message as string;
-
-  if (signature && message) {
-    const isValid = verifyWalletSignature(wallet, message, signature);
-    if (!isValid) return res.status(401).json({ error: 'Invalid data access signature' });
-  }
-
   try {
+    await assertEnrichedWalletAccess(supabase, req, wallet);
     const result = await aggregateAnalyticsData(supabase, wallet, timeframe, customStartDate, customEndDate);
     return res.status(200).json(result);
   } catch (err: unknown) {
+    if (walletAccessErrorHandler(err, res)) return;
     const message = err instanceof Error ? err.message : 'Unknown error';
     return res.status(500).json({ error: message });
   }

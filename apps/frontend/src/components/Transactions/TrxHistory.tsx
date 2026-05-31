@@ -1,365 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-
-import { DEFAULT_TOKEN_COLOR, TOKEN_VISUALS, DEFI_PROTOCOL_VISUALS } from '../../config/display';
-import { checkAccountExists } from '../../services/indexer';
-import { getOrFetchTransactions } from '../../services/transactionService';
+import React, { useState, useMemo } from 'react';
 import { t } from '../../utils/language';
+import { useTransactions, AdvancedFilters } from '../../hooks/useTransactions';
 
 import styles from './TrxHistory.module.css';
+import AdvancedFilterModal from './AdvancedFilterModal';
+import TransactionVisualizer from './TransactionVisualizer';
+import TransactionTableRow from './TransactionTableRow';
 
-const FILTERS = [
-  { labelKey: 'trxFilterAll', value: 'all' },
-  { labelKey: 'trxFilterSwaps', value: 'swap' },
-  { labelKey: 'trxFilterLending', value: 'lending' },
-  { labelKey: 'trxFilterStaking', value: 'staking' },
-  { labelKey: 'trxFilterTransfers', value: 'transfers' },
-];
 
-const EXPLORER_TX_BASE = 'https://explorer.movementnetwork.xyz/txn';
-const TRANSACTIONS_PAGE_SIZE = 20;
 
-const EMPTY_RESPONSE = {
-  transactions: [],
-  total: 0,
-  page: 1,
-  hasMore: false,
-};
+const cn = (...parts: (string | undefined | false | null)[]) => parts.filter(Boolean).join(' ');
 
-const TYPE_LABELS = {
-  swap: 'SWAP',
-  lend: 'LEND',
-  borrow: 'BORROW',
-  repay: 'REPAY',
-  stake: 'STAKE',
-  unstake: 'UNSTAKE',
-  deposit: 'DEPOSIT',
-  withdraw: 'WITHDRAW',
-  transfer: 'TRANSFER',
-  send: 'SEND',
-  received: 'RECEIVED',
-  claim: 'CLAIM',
-  airdrop: 'AIRDROP',
-  bridge: 'BRIDGE',
-  mint: 'MINT',
-  nft_mint: 'NFT MINT',
-  nft_transfer: 'NFT TRANSFER',
-  liquidity: 'LIQUIDITY',
-  nft_sale: 'ACCEPT BID',
-  nft_buy: 'BUY NFT',
-  nft_list: 'LIST NFT',
-  nft_bid: 'NFT BID',
-  other: 'OTHER',
-};
-
-const cn = (...parts) => parts.filter(Boolean).join(' ');
-
-const parseTimestampDate = (value) => {
-  if (value instanceof Date) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)
-      ? `${value}Z`
-      : value;
-    return new Date(normalized);
-  }
-
-  return new Date(value);
-};
-
-const fetchTransactionsPage = async ({ walletAddress, activeFilter, advancedFilters, page, signal, pageSize = TRANSACTIONS_PAGE_SIZE, isVerified = false }) => {
-  const params = new URLSearchParams({
-    wallet: walletAddress,
-    page: String(page),
-    type: activeFilter,
-    limit: String(pageSize)
-  });
-
-  if (advancedFilters) {
-    if (advancedFilters.protocols?.length) params.append('protocols', advancedFilters.protocols.join(','));
-    if (advancedFilters.exactTypes?.length) params.append('exactTypes', advancedFilters.exactTypes.join(','));
-    if (advancedFilters.minAmount) params.append('minAmount', advancedFilters.minAmount);
-    if (advancedFilters.maxAmount) params.append('maxAmount', advancedFilters.maxAmount);
-    if (advancedFilters.startDate) params.append('startDate', advancedFilters.startDate);
-    if (advancedFilters.endDate) params.append('endDate', advancedFilters.endDate);
-  }
-
-  try {
-    // Attempt 1: Backend Database (Fastest for Profile Users)
-    const baseUrl = import.meta.env.VITE_API_URL || '';
-    const response = await fetch(`${baseUrl}/api/transactions?${params.toString()}`, {
-      signal,
-    });
-
-    if (response.ok) {
-      const json = await response.json();
-      // If we got valid transactions from the DB, return them
-      if (Array.isArray(json.transactions) && json.transactions.length > 0) {
-        return { ...EMPTY_RESPONSE, ...json };
-      }
-    }
-  } catch (backendError: any) {
-    console.warn('[TrxHistory] Backend fetch failed, falling back to indexer:', backendError.message);
-  }
-
-  // Attempt 2: Indexer Fallback (Reliable for all users)
-  try {
-    const fetchLimit = page * pageSize + (pageSize === TRANSACTIONS_PAGE_SIZE ? 20 : 0); // Always fetch ahead
-    const indexerRows = await getOrFetchTransactions(walletAddress, {
-      limit: fetchLimit,
-      allowCachedRead: false,
-      persist: false
-    });
-
-    const filteredRows = activeFilter === 'all'
-      ? indexerRows
-      : activeFilter === 'transfers'
-        ? indexerRows.filter(tx => ['transfer', 'received', 'send'].includes(String(tx.tx_type).toLowerCase()))
-        : activeFilter === 'lending'
-          ? indexerRows.filter(tx => ['lend', 'borrow', 'repay', 'deposit', 'withdraw', 'liquidity'].includes(String(tx.tx_type).toLowerCase()))
-          : activeFilter === 'staking'
-            ? indexerRows.filter(tx => ['stake', 'unstake', 'claim'].includes(String(tx.tx_type).toLowerCase()))
-            : indexerRows.filter(tx => String(tx.tx_type).toLowerCase() === activeFilter);
-
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize;
-    const pageRows = filteredRows.slice(from, to);
-
-    return {
-      transactions: pageRows,
-      total: filteredRows.length,
-      page: page,
-      hasMore: filteredRows.length > to,
-      source: 'indexer-fallback'
-    };
-  } catch (indexerError) {
-    console.error('[TrxHistory] Indexer fallback also failed:', indexerError);
-    throw indexerError;
-  }
-};
-
-const formatAmount = (value) => {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) {
-    return '—';
-  }
-
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: amount !== 0 && Math.abs(amount) < 1 ? 2 : 0,
-    maximumFractionDigits: 4,
-  }).format(amount);
-};
-
-const hasPositiveDisplayNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
-
-const getAmountTone = (tx) => {
-  const hasAmountIn = hasPositiveDisplayNumber(tx?.amount_in);
-  const hasAmountOut = hasPositiveDisplayNumber(tx?.amount_out);
-
-  if (hasAmountIn && !hasAmountOut) {
-    return 'negative';
-  }
-
-  if (hasAmountOut && !hasAmountIn) {
-    return 'positive';
-  }
-
-  return 'neutral';
-};
-
-const getDisplayAmounts = (tx) => {
-  const txType = String(tx?.tx_type || 'other').toLowerCase();
-  const amountIn = tx?.amount_in;
-  const amountOut = tx?.amount_out;
-  const hasAmountIn = hasPositiveDisplayNumber(amountIn);
-  const hasAmountOut = hasPositiveDisplayNumber(amountOut);
-
-  if (['lend', 'deposit', 'repay'].includes(txType)) {
-    return hasAmountIn ? [amountIn] : hasAmountOut ? [amountOut] : [];
-  }
-
-  if (txType === 'stake') {
-    if (hasAmountIn && hasAmountOut) {
-      return [amountIn, amountOut];
-    }
-
-    return hasAmountIn ? [amountIn] : hasAmountOut ? [amountOut] : [];
-  }
-
-  if (['withdraw', 'unstake', 'claim', 'borrow', 'received'].includes(txType)) {
-    return hasAmountOut ? [amountOut] : hasAmountIn ? [amountIn] : [];
-  }
-
-  if (txType === 'swap') {
-    const output = [];
-    if (hasAmountIn) output.push(amountIn);
-    if (hasAmountOut) output.push(amountOut);
-    return output;
-  }
-
-  const output = [];
-  if (hasAmountIn) output.push(amountIn);
-  if (hasAmountOut) output.push(amountOut);
-  return output;
-};
-
-const shortenTokenLabel = (value) => {
-  const normalized = String(value || '').trim();
-  if (!normalized) {
-    return null;
-  }
-
-  if (/^0x[a-f0-9]{12,}$/i.test(normalized)) {
-    return `${normalized.slice(0, 6)}...${normalized.slice(-4)}`.toUpperCase();
-  }
-
-  if (normalized.length > 18) {
-    return `${normalized.slice(0, 8)}...${normalized.slice(-4)}`.toUpperCase();
-  }
-
-  return normalized.toUpperCase();
-};
-
-const normalizeDisplayToken = (value) => {
-  const normalized = String(value || '').trim();
-  return normalized
-    ? {
-      label: shortenTokenLabel(normalized),
-      full: normalized.toUpperCase(),
-    }
-    : null;
-};
-
-const formatDateTime = (value) => {
-  const date = parseTimestampDate(value);
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  const diffMs = Date.now() - date.getTime();
-  if (diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000) {
-    const totalMinutes = Math.floor(diffMs / (60 * 1000));
-
-    if (totalMinutes <= 0) {
-      return 'just now';
-    }
-
-    if (totalMinutes < 60) {
-      return `${totalMinutes} min ago`;
-    }
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
-    if (minutes === 0) {
-      return `${hours} hr ago`;
-    }
-
-    return `${hours} hr ${minutes} min ago`;
-  }
-
-  const datePart = date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-  const timePart = date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-
-  return `${datePart} · ${timePart}`;
-};
-
-const truncateHash = (value) => {
-  const hash = String(value || '');
-  if (hash.length <= 14) {
-    return hash || '—';
-  }
-
-  return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
-};
-
-const getTokenVisual = (symbol) => {
-  const normalized = String(symbol || '').toUpperCase().replace(/\.E$/i, '').trim();
-  const alias = {
-    ETH: 'WETH',
-    BTC: 'WBTC',
-  };
-  const key = alias[normalized] || normalized;
-  return TOKEN_VISUALS[key] || TOKEN_VISUALS[normalized] || null;
-};
-
-const getBadgeClass = (type) => {
-  const normalized = String(type || 'other').toLowerCase();
-  if (normalized === 'swap') return styles.badgeSwap;
-  if (normalized === 'nft_sale') return styles.badgeNftSale;
-  if (normalized === 'nft_buy') return styles.badgeNftBuy;
-  if (normalized === 'nft_list') return styles.badgeNftList;
-  if (normalized === 'nft_bid') return styles.badgeNftBid;
-  if (normalized === 'lend') return styles.badgeLend;
-  if (normalized === 'borrow') return styles.badgeBorrow;
-  if (normalized === 'repay') return styles.badgeRepay;
-  if (normalized === 'stake') return styles.badgeStake;
-  if (normalized === 'unstake') return styles.badgeUnstake;
-  if (normalized === 'deposit') return styles.badgeDeposit;
-  if (normalized === 'withdraw') return styles.badgeWithdraw;
-  if (normalized === 'transfer' || normalized === 'send') return styles.badgeTransfer;
-  if (normalized === 'received') return styles.badgeReceived;
-  if (normalized === 'claim') return styles.badgeClaim;
-  if (normalized === 'airdrop') return styles.badgeAirdrop;
-  if (normalized === 'bridge') return styles.badgeBridge;
-  if (normalized === 'liquidity') return styles.badgeLiquidity;
-  if (normalized.includes('mint')) return styles.badgeMint;
-  return styles.badgeOther;
-};
-
-const DappIcon = ({ tx }) => {
-  const dappNameRaw = String(tx?.dapp_name || '');
-  const dappNameKey = dappNameRaw.toLowerCase().replace(/\s/g, '');
-  const visual = DEFI_PROTOCOL_VISUALS[dappNameKey];
-
-  const dappLogo = tx?.dapp_logo || visual?.logo;
-  const rawType = String(tx?.tx_type || 'other').toLowerCase();
-
-  const txIcon = tx?.tx_icon || (rawType === 'swap' ? '🔄' : '⚙️');
-  const txBg = tx?.tx_bg || 'rgba(148,163,184,0.1)';
-
-  if (dappLogo) {
-    return (
-      <span className={styles.dappIcon} aria-hidden="true">
-        <img src={dappLogo} alt="" className={styles.dappIconImage} />
-      </span>
-    );
-  }
-
-  return (
-    <span className={styles.typeIcon} style={{ background: txBg }} aria-hidden="true">
-      {txIcon}
-    </span>
-  );
-};
-
-const TokenIcon = ({ symbol }) => {
-  const visual = getTokenVisual(symbol);
-  const normalized = String(symbol || '').toUpperCase();
-  const color = visual?.color || DEFAULT_TOKEN_COLOR;
-
-  return (
-    <span
-      className={styles.tokenIcon}
-      style={{
-        '--token-primary': color.primary,
-        '--token-secondary': color.secondary,
-      } as any}
-      aria-hidden="true"
-    >
-      {visual?.logo ? <img src={visual.logo} alt="" className={styles.tokenIconImage} /> : normalized.charAt(0) || '?'}
-    </span>
-  );
-};
-
-const SkeletonRows = ({ count = 5 }) => (
+const SkeletonRows = ({ count = 5 }: { count?: number }) => (
   <>
     {Array.from({ length: count }).map((_, index) => (
       <tr key={index} className={styles.skeletonRow}>
@@ -389,17 +41,50 @@ const SkeletonRows = ({ count = 5 }) => (
   </>
 );
 
-import AdvancedFilterModal from './AdvancedFilterModal';
-import TransactionVisualizer from './TransactionVisualizer';
+interface TrxHistoryProps {
+  walletAddress?: string;
+  refreshTrigger?: number;
+  subscriptionTier?: 'free' | 'lite' | 'pro';
+  hideValues?: boolean;
+  language?: string;
+}
 
-export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscriptionTier = 'free', hideValues = false, language = 'en' }) {
+export default function TrxHistory({
+  walletAddress,
+  refreshTrigger = 0,
+  subscriptionTier = 'free',
+  hideValues = false,
+  language = 'en',
+}: TrxHistoryProps) {
   const isPremium = subscriptionTier !== 'free';
-  const mountedRef = useRef(true);
+
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
+    protocols: [],
+    exactTypes: [],
+    minAmount: '',
+    maxAmount: '',
+    startDate: '',
+    endDate: '',
+  });
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [selectedTxForPlayback, setSelectedTxForPlayback] = useState<any | null>(null);
+
+  const {
+    transactions,
+    hasMore,
+    totalCount,
+    loading,
+    loadingMore,
+    error,
+    loadMoreError,
+    loadMore,
+  } = useTransactions(walletAddress, activeFilter, advancedFilters, isPremium, refreshTrigger);
 
   const handleReportClick = (e: React.MouseEvent, tx: any) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const cleanHash = String(tx.tx_hash || '').replace(/^v/i, '');
     const rawType = String(tx.tx_type || 'other').toUpperCase();
     const dappName = String(tx.dapp_name || 'Wallet');
@@ -411,187 +96,20 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscrip
         type: 'transaction',
         symbol: dappName,
         address: cleanHash,
-        description: descTemplate
-      }
+        description: descTemplate,
+      },
     });
     window.dispatchEvent(event);
   };
-  const paginationAbortRef = useRef(null);
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [advancedFilters, setAdvancedFilters] = useState({
-    protocols: [],
-    exactTypes: [],
-    minAmount: '',
-    maxAmount: '',
-    startDate: '',
-    endDate: ''
-  });
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [transactions, setTransactions] = useState([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [totalTransactionCount, setTotalTransactionCount] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState('');
-  const [loadMoreError, setLoadMoreError] = useState('');
-  const [selectedTxForPlayback, setSelectedTxForPlayback] = useState(null);
-
-  useEffect(() => {
-    mountedRef.current = true;
-
-    return () => {
-      mountedRef.current = false;
-      paginationAbortRef.current?.abort();
-      paginationAbortRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!walletAddress) {
-      setTransactions([]);
-      setPage(1);
-      setTotalTransactionCount(null);
-      setHasMore(false);
-      setLoading(false);
-      setLoadingMore(false);
-      setError('');
-      setLoadMoreError('');
-      return undefined;
-    }
-
-    const controller = new AbortController();
-    let disposed = false;
-
-    const fetchTransactions = async () => {
-      setLoading(true);
-      setLoadingMore(false);
-      setError('');
-      setLoadMoreError('');
-
-      try {
-        const json = await fetchTransactionsPage({
-          walletAddress,
-          activeFilter,
-          advancedFilters,
-          page: 1,
-          signal: controller.signal,
-          isVerified: isPremium
-        });
-
-        if (!disposed) {
-          const payload = { ...EMPTY_RESPONSE, ...json };
-          setTransactions(Array.isArray(payload.transactions) ? payload.transactions : []);
-          setPage(1);
-          setHasMore(Boolean(payload.hasMore));
-        }
-      } catch (fetchError) {
-        if (fetchError?.name === 'AbortError') {
-          return;
-        }
-
-        console.error('Failed to fetch transactions:', fetchError);
-        if (!disposed) {
-          setError('Unable to load transactions right now');
-          setTransactions([]);
-          setPage(1);
-          setTotalTransactionCount(0);
-          setHasMore(false);
-          setLoadMoreError('');
-        }
-      } finally {
-        if (!disposed) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void fetchTransactions();
-
-    return () => {
-      disposed = true;
-      controller.abort();
-      paginationAbortRef.current?.abort();
-      paginationAbortRef.current = null;
-    };
-  }, [activeFilter, advancedFilters, walletAddress, refreshTrigger]);
-
-  useEffect(() => {
-    if (!walletAddress) {
-      setTotalTransactionCount(null);
-      return undefined;
-    }
-
-    let disposed = false;
-
-    const fetchTotalTransactionCount = async () => {
-      try {
-        const result = await checkAccountExists(walletAddress);
-        if (!disposed) {
-          const nextCount = Number(result?.txCount);
-          setTotalTransactionCount(Number.isFinite(nextCount) ? nextCount : 0);
-        }
-      } catch (countError) {
-        console.error('Failed to fetch total transaction count:', countError);
-        if (!disposed) {
-          setTotalTransactionCount(null);
-        }
-      }
-    };
-
-    void fetchTotalTransactionCount();
-
-    return () => {
-      disposed = true;
-    };
-  }, [walletAddress]);
-
-  const handleLoadMore = async () => {
-    if (!walletAddress || loadingMore || !hasMore || !mountedRef.current) {
-      return;
-    }
-
-    paginationAbortRef.current?.abort();
-    const controller = new AbortController();
-    paginationAbortRef.current = controller;
-
-    setLoadingMore(true);
-    setLoadMoreError('');
-
-    try {
-      const nextPage = page + 1;
-      const json = await fetchTransactionsPage({
-        walletAddress,
-        activeFilter,
-        advancedFilters,
-        page: nextPage,
-        signal: controller.signal,
-        isVerified: isPremium
-      });
-
-      const payload = { ...EMPTY_RESPONSE, ...json };
-      if (!mountedRef.current) return;
-
-      setTransactions((prev) => [...prev, ...(Array.isArray(payload.transactions) ? payload.transactions : [])]);
-      setPage(nextPage);
-      setHasMore(Boolean(payload.hasMore));
-    } catch (fetchError) {
-      if (fetchError?.name === 'AbortError') return;
-      setLoadMoreError('Unable to load more transactions');
-    } finally {
-      if (paginationAbortRef.current === controller) paginationAbortRef.current = null;
-      if (mountedRef.current) setLoadingMore(false);
-    }
-  };
 
   const txCountLabel = useMemo(() => {
-    if (Number.isFinite(totalTransactionCount)) {
-      return `${totalTransactionCount} ${totalTransactionCount === 1 ? 'total transaction' : 'total transactions'}`;
+    if (Number.isFinite(totalCount)) {
+      return `${totalCount} ${totalCount === 1 ? 'total transaction' : 'total transactions'}`;
     }
 
     const totalTransactions = transactions.length;
     return `${totalTransactions} ${totalTransactions === 1 ? 'transaction' : 'transactions'}`;
-  }, [totalTransactionCount, transactions.length]);
+  }, [totalCount, transactions.length]);
 
   if (!walletAddress) {
     return <section className={styles.emptyState}>{t(language, 'trxConnectWallet')}</section>;
@@ -601,13 +119,20 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscrip
     <section className={styles.card}>
       <div className={styles.toolbar}>
         <div className={styles.filterTabs}>
+
           <button
             type="button"
             disabled={!isPremium}
-            title={!isPremium ? "Advanced filtering is available for Pro users" : undefined}
+            title={!isPremium ? 'Advanced filtering is available for Pro users' : undefined}
             className={cn(
               styles.filterTab,
-              (advancedFilters.protocols.length > 0 || advancedFilters.exactTypes.length > 0 || advancedFilters.minAmount || advancedFilters.maxAmount || advancedFilters.startDate || advancedFilters.endDate) && styles.filterTabActive
+              (advancedFilters.protocols.length > 0 ||
+                advancedFilters.exactTypes.length > 0 ||
+                advancedFilters.minAmount ||
+                advancedFilters.maxAmount ||
+                advancedFilters.startDate ||
+                advancedFilters.endDate) &&
+                styles.filterTabActive
             )}
             onClick={() => setIsFilterModalOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -615,7 +140,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscrip
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
             </svg>
-            Filter
+            {t(language, 'trxAdvancedFilter')}
           </button>
         </div>
         <div className={styles.toolbarMeta}>{txCountLabel}</div>
@@ -625,10 +150,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscrip
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         initialFilters={advancedFilters}
-        onApply={(newFilters) => {
-          setAdvancedFilters(newFilters);
-          // If advanced filters are applied, activeFilter should probably be set to 'all' to avoid conflicting logic, but backend handles advanced first.
-        }}
+        onApply={(newFilters: AdvancedFilters) => setAdvancedFilters(newFilters)}
         language={language}
       />
 
@@ -660,137 +182,15 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscrip
               </tr>
             ) : (
               <>
-                {transactions.map((tx) => {
-                  const cleanHash = String(tx.tx_hash || '').replace(/^v/i, '');
-                  const txUrl = `${EXPLORER_TX_BASE}/${encodeURIComponent(cleanHash)}?network=mainnet`;
-                  const tokenIn = normalizeDisplayToken(tx.token_in);
-                  const tokenOut = normalizeDisplayToken(tx.token_out);
-                  const rawType = String(tx.tx_type || 'other').toLowerCase();
-
-                  const isSwap = rawType === 'swap';
-
-                  let hasTokenIn = Boolean(tokenIn?.label);
-                  let hasTokenOut = Boolean(tokenOut?.label);
-
-                  if (!isSwap) {
-                    if (['withdraw', 'unstake', 'claim', 'borrow', 'received'].includes(rawType)) {
-                      hasTokenIn = false;
-                    } else if (['lend', 'deposit', 'stake', 'repay', 'send'].includes(rawType)) {
-                      hasTokenOut = false;
-                    } else if (tokenOut?.label === tokenIn?.label) {
-                      hasTokenOut = false;
-                    }
-                  }
-
-                  const displayAmounts = getDisplayAmounts(tx);
-                  const hasAmountIn = displayAmounts.length > 0;
-                  const hasAmountOut = displayAmounts.length > 1 && (isSwap || displayAmounts[1] !== displayAmounts[0]);
-
-                  const amountTone = getAmountTone(tx);
-                  const dappName = String(tx.dapp_name || 'Wallet');
-
-                  const typeLabel = TYPE_LABELS[rawType] || rawType.toUpperCase();
-                  const typeTitle = tx.dapp_contract
-                    ? `${dappName} · ${typeLabel} · ${tx.dapp_contract}`
-                    : `${dappName} · ${typeLabel}`;
-
-                  return (
-                    <tr
-                      key={tx.tx_hash}
-                      className={styles.row}
-                    >
-                      <td>
-                        <div className={styles.typeCell} title={typeTitle}>
-                          <DappIcon tx={tx} />
-                          <div className={styles.typeMeta}>
-                            <div
-                              className={cn(styles.typeBadge, getBadgeClass(tx.tx_type))}
-                              style={tx.tx_color ? { color: tx.tx_color } : {}}
-                            >
-                              {typeLabel}
-                            </div>
-                            <span className={styles.typeDappName}>{dappName}</span>
-                          </div>
-                          <button
-                            type="button"
-                            className={styles.playbackButton}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTxForPlayback(tx);
-                            }}
-                            title="Play Transaction Simulation"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.typeReportFlag}
-                            onClick={(e) => handleReportClick(e, tx)}
-                            title="Report incorrect transaction data"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-                              <line x1="4" y1="22" x2="4" y2="15" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                      <td>
-                        <div className={styles.tokenPair}>
-                          {hasTokenIn ? (
-                            <div className={styles.tokenSide} title={tokenIn.full}>
-                              <TokenIcon symbol={tokenIn.full} />
-                              <span>{tokenIn.label}</span>
-                            </div>
-                          ) : null}
-                          {hasTokenIn && hasTokenOut ? <span className={styles.tokenArrow}>→</span> : null}
-                          {hasTokenOut ? (
-                            <div className={styles.tokenSide} title={tokenOut.full}>
-                              <TokenIcon symbol={tokenOut.full} />
-                              <span>{tokenOut.label}</span>
-                            </div>
-                          ) : null}
-                          {!hasTokenIn && !hasTokenOut ? <span className={styles.neutral}>—</span> : null}
-                        </div>
-                      </td>
-                      <td>
-                        <div className={styles.amountPair}>
-                          {hasAmountIn ? (
-                            <span
-                              className={styles[amountTone]}
-                              style={tx.badge_color ? { color: tx.badge_color } : {}}
-                            >
-                              {hideValues ? '*****' : formatAmount(displayAmounts[0])}
-                            </span>
-                          ) : null}
-                          {hasAmountIn && hasAmountOut ? <span className={styles.amountArrow}>→</span> : null}
-                          {hasAmountOut ? (
-                            <span
-                              className={styles[amountTone]}
-                              style={tx.badge_color ? { color: tx.badge_color } : {}}
-                            >
-                              {hideValues ? '*****' : formatAmount(displayAmounts[1])}
-                            </span>
-                          ) : null}
-                          {!hasAmountIn && !hasAmountOut ? <span className={styles.neutral}>—</span> : null}
-                        </div>
-                      </td>
-                      <td>{formatDateTime(tx.tx_timestamp)}</td>
-                      <td>
-                        <a
-                          href={txUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.hashLink}
-                        >
-                          {truncateHash(cleanHash)}
-                        </a>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {transactions.map((tx) => (
+                  <TransactionTableRow
+                    key={tx.tx_hash}
+                    tx={tx}
+                    hideValues={hideValues}
+                    onPlay={setSelectedTxForPlayback}
+                    onReport={handleReportClick}
+                  />
+                ))}
                 {loadingMore && <SkeletonRows count={5} />}
               </>
             )}
@@ -800,12 +200,7 @@ export default function TrxHistory({ walletAddress, refreshTrigger = 0, subscrip
 
       {hasMore && !loading && !error && transactions.length > 0 ? (
         <div className={styles.loadMoreWrap}>
-          <button
-            type="button"
-            className={styles.loadMoreButton}
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-          >
+          <button type="button" className={styles.loadMoreButton} onClick={loadMore} disabled={loadingMore}>
             {loadingMore ? t(language, 'trxLoadingMore') : t(language, 'trxLoadMore')}
           </button>
         </div>

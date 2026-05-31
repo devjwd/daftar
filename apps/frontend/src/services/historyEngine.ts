@@ -20,6 +20,7 @@ export const TX_TYPES = {
   CLAIM: "claim", BRIDGE: "bridge",
   NFT_MINT: "nft_mint", NFT_TRANSFER: "nft_transfer",
   LIQUIDITY: "liquidity",
+  YIELD: "yield",
   ...NFT_TX_TYPES,
   OTHER: "other",
 };
@@ -41,6 +42,7 @@ export const TX_VISUALS = {
   [TX_TYPES.NFT_MINT]: { label: "NFT Mint", icon: "🎨", color: "#A855F7", bg: "rgba(168,85,247,0.1)" },
   [TX_TYPES.NFT_TRANSFER]: { label: "NFT Transfer", icon: "🖼️", color: "#EC4899", bg: "rgba(236,72,153,0.1)" },
   [TX_TYPES.LIQUIDITY]: { label: "Liquidity", icon: "💧", color: "#0EA5E9", bg: "rgba(14,165,233,0.1)" },
+  [TX_TYPES.YIELD]: { label: "Yield", icon: "🌱", color: "#10B981", bg: "rgba(16,185,129,0.1)" },
   ...NFT_TX_VISUALS,
   [TX_TYPES.OTHER]: { label: "Contract", icon: "⚙️", color: "#94A3B8", bg: "rgba(148,163,184,0.1)" },
 };
@@ -66,6 +68,7 @@ const FUNC_MAP = {
   collect_fee: { type: TX_TYPES.CLAIM, label: "Collect Fees" },
   // MovePosition
   lend_v2: { type: TX_TYPES.LEND, label: "Lend Assets" },
+  lend_to_portfolio: { type: TX_TYPES.YIELD, label: "Auto-Compound" },
   borrow_v2: { type: TX_TYPES.BORROW, label: "Borrow Assets" },
   redeem_v2: { type: TX_TYPES.WITHDRAW, label: "Withdraw Assets" },
   redeem: { type: TX_TYPES.WITHDRAW, label: "Withdraw Assets" },
@@ -247,6 +250,7 @@ const KEYWORDS = {
   [TX_TYPES.SEND]: ["transfer", "send", "pay", "send_gift"],
   [TX_TYPES.RECEIVED]: ["receive", "deposit_coins"],
   [TX_TYPES.CLAIM]: ["claim", "harvest", "collect_reward", "claim_rewards", "collect_fee", "collect_multi_rewards", "claim_reward_fa", "claim_prize", "claim_treasure"],
+  [TX_TYPES.YIELD]: ["yield", "compound", "auto_compound"],
   [TX_TYPES.BRIDGE]: ["bridge", "outbound", "inbound", "teleport", "wormhole", "layerzero"],
   [TX_TYPES.NFT_MINT]: ["mint_nft", "create_token", "create_collection", "mint_token", "mint_memory"],
 };
@@ -356,38 +360,55 @@ const decodeEvents = (events = []) => {
 };
 
 // ─── Classifier ──────────────────────────────────────────────
-export const classifyTransaction = (functionName, activities, dapp, eventData) => {
+export const classifyTransaction = (functionName, activities, dapp, eventData, isInitiator = true) => {
   const suffix = getFuncSuffix(functionName);
+  let type = null;
 
   // 1. Exact function match (highest priority)
-  if (FUNC_MAP[suffix]) return FUNC_MAP[suffix].type;
+  if (FUNC_MAP[suffix]) type = FUNC_MAP[suffix].type;
 
   // 2. Event-driven type override
-  if (eventData?.type) return eventData.type;
+  if (!type && eventData?.type) type = eventData.type;
 
   // 3. NFT detection
-  const isNft = activities.some(a => a.type?.includes("token_v2") || a.type?.includes("collection"));
-  if (isNft) {
-    const lower = String(functionName || "").toLowerCase();
-    if (lower.includes("mint")) return TX_TYPES.NFT_MINT;
-    if (lower.includes("transfer")) return TX_TYPES.NFT_TRANSFER;
+  if (!type) {
+    const isNft = activities.some(a => a.type?.includes("token_v2") || a.type?.includes("collection"));
+    if (isNft) {
+      const lower = String(functionName || "").toLowerCase();
+      if (lower.includes("mint")) type = TX_TYPES.NFT_MINT;
+      else if (lower.includes("transfer")) type = TX_TYPES.NFT_TRANSFER;
+    }
   }
 
   // 4. Keyword fallback
-  const lower = String(functionName || "").toLowerCase();
-  for (const [type, kws] of Object.entries(KEYWORDS)) {
-    if (kws.some(k => lower.includes(k))) return type;
+  if (!type) {
+    const lower = String(functionName || "").toLowerCase();
+    for (const [kwType, kws] of Object.entries(KEYWORDS)) {
+      if (kws.some(k => lower.includes(k))) {
+        type = kwType;
+        break;
+      }
+    }
   }
 
   // 5. Activity-direction fallback
-  // Ignore gas fees for direction-based classification
-  const incoming = activities.filter(a => a.direction === "in" && a.amount > 0 && !a.isGas);
-  const outgoing = activities.filter(a => a.direction === "out" && a.amount > 0 && !a.isGas);
-  if (incoming.length > 0 && outgoing.length > 0) return TX_TYPES.SWAP;
-  if (incoming.length > 0) return TX_TYPES.RECEIVED;
-  if (outgoing.length > 0) return TX_TYPES.SEND;
+  if (!type) {
+    // Ignore gas fees for direction-based classification
+    const incoming = activities.filter(a => a.direction === "in" && a.amount > 0 && !a.isGas);
+    const outgoing = activities.filter(a => a.direction === "out" && a.amount > 0 && !a.isGas);
+    if (incoming.length > 0 && outgoing.length > 0) type = TX_TYPES.SWAP;
+    else if (incoming.length > 0) type = TX_TYPES.RECEIVED;
+    else if (outgoing.length > 0) type = TX_TYPES.SEND;
+  }
 
-  return TX_TYPES.OTHER;
+  type = type || TX_TYPES.OTHER;
+
+  // Convert SEND to RECEIVED if the user is not the initiator
+  if (type === TX_TYPES.SEND && !isInitiator) {
+    return TX_TYPES.RECEIVED;
+  }
+
+  return type;
 };
 
 // ─── Metadata Extractor ──────────────────────────────────────
@@ -438,6 +459,23 @@ export const extractMetadata = (activities: any[], eventData: any, dapp?: any, f
 
   let amountIn = primaryOut?.amount || getEventAmount(eventData?.amount_in, eventData?.token_in);
   let amountOut = primaryIn?.amount || getEventAmount(eventData?.amount_out, eventData?.token_out);
+
+  // Fallback for single-sided protocol interactions missing direct user flows (e.g. MovePosition auto-compounding)
+  if (!primaryIn && !primaryOut && allRawActivities.length > 0) {
+    const fallbackAct = allRawActivities.find(a => Number(a.amount || a.data?.amount || a.data?.value || 0) > 0);
+    if (fallbackAct) {
+      const decStr = fallbackAct.metadata?.decimals || fallbackAct.data?.metadata?.decimals || fallbackAct.decimals;
+      const dec = decStr != null ? Number(decStr) : resolveDecimals(fallbackAct.asset_type || fallbackAct.assetType || fallbackAct.coin_type);
+      const amountRaw = fallbackAct.amount || fallbackAct.data?.amount || fallbackAct.data?.value || 0;
+      const fallbackAmount = Number(amountRaw) / Math.pow(10, dec);
+      const fallbackSymbol = resolveSymbol(fallbackAct.asset_type || fallbackAct.assetType || fallbackAct.coin_type, fallbackAct);
+
+      if (!amountOut && fallbackAmount > 0) {
+        amountOut = fallbackAmount;
+        tokenOut = fallbackSymbol;
+      }
+    }
+  }
 
   // High-fidelity overrides for Tradeport NFT Buy/Accept Bid transactions
   const isTradeport = dapp?.key === "tradeport" || functionName.includes("biddings_v2") || functionName.includes("listings_v2");
@@ -539,7 +577,10 @@ export const markTransaction = (tx, walletAddress, dynamicEntities = []) => {
     dynamicEntities,
   });
 
-  const type = classifyTransaction(functionName, activities, dapp, eventData);
+  const senderAddr = String(tx.sender || tx.user_transaction?.sender || "").toLowerCase();
+  const isInitiator = !userAddr || userAddr === senderAddr;
+
+  const type = classifyTransaction(functionName, activities, dapp, eventData, isInitiator);
   const metadata = extractMetadata(activities, eventData, dapp, functionName, type, suffix, deDuplicatedRaw);
   const visuals = TX_VISUALS[type] || TX_VISUALS[TX_TYPES.OTHER];
   const label = FUNC_MAP[suffix]?.label || visuals.label;

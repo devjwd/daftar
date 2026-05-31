@@ -815,7 +815,8 @@ const Dashboard = () => {
         urlAddress={urlAddress}
         canEditProfile={canEditProfile}
         language={language}
-        subscriptionTier={userProfile?.subscription_tier || (userProfile?.is_verified ? 'pro' : 'free')}
+        subscriptionTier={userProfile?.subscription_tier || 'free'}
+        isVerified={Boolean(userProfile?.is_verified)}
       />
 
       <AnimatePresence mode="wait">

@@ -1,5 +1,6 @@
 import { definitions } from './database.types';
 export * from './database.types';
+export * from './subscription';
 
 export interface Database {
   public: {
@@ -66,4 +67,7 @@ export interface AnalyticsData {
     withdrawals: ExchangeStats;
   };
   insights: Array<{ type: string; title: string; desc: string; icon: string }>;
+  truncated?: boolean;
+  loadedTransactionCount?: number;
+  maxTransactionLimit?: number;
 }

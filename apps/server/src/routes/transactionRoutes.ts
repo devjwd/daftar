@@ -2,6 +2,12 @@ import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { normalizeAddress } from '../utils/address.ts';
 import { generalLimiter } from '../middleware/rateLimit.ts';
+import {
+  assertEnrichedWalletAccess,
+  hasAdvancedTransactionFilters,
+  walletAccessErrorHandler,
+} from '../middleware/walletAccess.ts';
+import { isPremiumTier } from '@daftar/shared-types';
 
 const router = express.Router();
 
@@ -71,6 +77,15 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
 
   try {
+    const access = await assertEnrichedWalletAccess(supabaseAdmin, req, wallet);
+
+    if (hasAdvancedTransactionFilters(req) && !isPremiumTier(access.tier)) {
+      return res.status(403).json({
+        error: 'Advanced transaction filters require an active Pro subscription',
+        code: 'WALLET_ACCESS_DENIED',
+      });
+    }
+
     let query = supabaseAdmin
       .from('user_transaction_history')
       .select('*', { count: 'exact' })
@@ -82,7 +97,7 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
       if (type === 'transfers') {
         query = query.in('action', ['SEND', 'RECEIVE', 'TRANSFER']);
       } else if (type === 'lending') {
-        query = query.in('action', ['BORROW', 'DEPOSIT', 'REPAY', 'WITHDRAW']);
+        query = query.in('action', ['BORROW', 'DEPOSIT', 'REPAY', 'WITHDRAW', 'LEND']);
       } else if (type === 'staking') {
         query = query.in('action', ['STAKE', 'UNSTAKE', 'CLAIM']);
       } else {
@@ -227,7 +242,8 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
       page,
       hasMore: (count || 0) > to + 1
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    if (walletAccessErrorHandler(err, res)) return;
     console.error('[Transactions] Error:', err);
     return res.status(500).json({ error: 'Failed to fetch transactions' });
   }

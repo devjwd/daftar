@@ -1,13 +1,11 @@
 /**
  * PortfolioTabs — Tab navigation bar for Dashboard
- * 
- * Extracted from Dashboard.tsx. Renders Portfolio, Transactions,
- * NFTs, and Analytics tabs.
  */
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '../../utils/language';
+import { isPremiumTier, resolveEffectiveTier } from '../../utils/subscription';
 
 const PORTFOLIO_TABS = {
   OVERVIEW: 'overview',
@@ -22,18 +20,23 @@ interface PortfolioTabsProps {
   canEditProfile: boolean;
   language: string;
   subscriptionTier?: 'free' | 'lite' | 'pro';
+  isVerified?: boolean;
 }
 
 const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
   activeTab,
   urlAddress,
-  canEditProfile,
   language,
   subscriptionTier = 'free',
+  isVerified = false,
 }) => {
   const navigate = useNavigate();
 
-  const isPremium = subscriptionTier === 'pro' || subscriptionTier === 'lite';
+  const effectiveTier = resolveEffectiveTier({
+    subscription_tier: subscriptionTier,
+    is_verified: isVerified,
+  });
+  const isPremium = isPremiumTier(effectiveTier);
 
   return (
     <section className="portfolio-tabs-row fade-in">
@@ -56,15 +59,15 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
         className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.NFT ? 'active' : ''}`}
         onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.NFT}`)}
       >
-        NFTS
+        {t(language, 'portfolioTabNfts')}
       </button>
-
 
       <button
         type="button"
         className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
         onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`)}
         style={{ marginLeft: 'auto' }}
+        title={!isPremium ? 'Pro subscription required' : undefined}
       >
         <div className="analytics-btn-content">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
@@ -72,7 +75,12 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
             <line x1="12" y1="20" x2="12" y2="4"></line>
             <line x1="6" y1="20" x2="6" y2="14"></line>
           </svg>
-          Analytics
+          {t(language, 'portfolioTabAnalytics')}
+          {!isPremium && (
+            <span className="portfolio-tab-lock" aria-hidden="true" style={{ marginLeft: '6px', opacity: 0.7 }}>
+              🔒
+            </span>
+          )}
         </div>
       </button>
     </section>

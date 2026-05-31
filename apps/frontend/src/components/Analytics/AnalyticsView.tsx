@@ -1,17 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { AnalyticsData } from '../../types/analytics.types';
+import { resolveEffectiveTier, isPremiumTier } from '../../utils/subscription';
+import { useAnalyticsSync } from '../../hooks/useAnalyticsSync';
 
-// Components
 import SyncStateOverlay from './SyncStateOverlay';
 import AnalyticsOverview from './AnalyticsOverview';
-import VisualizerTab from '../Dashboard/VisualizerTab';
 import PlanGate from '../PlanGate';
 
-// Styles
 import './AnalyticsV5.css';
 
 interface AnalyticsViewProps {
@@ -20,206 +19,125 @@ interface AnalyticsViewProps {
 
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const navigate = useNavigate();
-  const { connected, account, signMessage } = useWallet();
+  const { account, signMessage } = useWallet();
   const [timeframe, setTimeframe] = useState('All');
   const [bottomTimeframe, setBottomTimeframe] = useState('All');
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'completed' | 'error'>('idle');
-  const [syncProgress, setSyncProgress] = useState(0);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [bottomAnalyticsData, setBottomAnalyticsData] = useState<AnalyticsData | null>(null);
 
-  const lastSyncStringRef = React.useRef<string | null>(null);
-  const lastSyncChangeTimeRef = React.useRef<number>(0);
-
   const { profile, loading: profileLoading } = useProfile(walletAddress || null);
-  const rawTier = profile?.subscription_tier || (profile?.is_verified ? 'pro' : 'free');
-  const subscriptionTier = rawTier === 'lite' ? 'pro' : rawTier;
-  const isPremium = subscriptionTier !== 'free';
+  const subscriptionTier = resolveEffectiveTier({
+    subscription_tier: profile?.subscription_tier,
+    subscription_expires_at: profile?.subscription_expires_at,
+    is_verified: profile?.is_verified,
+  });
+  const isPremium = isPremiumTier(subscriptionTier);
 
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
-  // Keep timeframes in refs so the polling interval callback is never stale
   const timeframeRef = useRef(timeframe);
-  useEffect(() => { timeframeRef.current = timeframe; }, [timeframe]);
+  useEffect(() => {
+    timeframeRef.current = timeframe;
+  }, [timeframe]);
 
   const bottomTimeframeRef = useRef(bottomTimeframe);
-  useEffect(() => { bottomTimeframeRef.current = bottomTimeframe; }, [bottomTimeframe]);
-
   useEffect(() => {
-    if (!walletAddress) return;
+    bottomTimeframeRef.current = bottomTimeframe;
+  }, [bottomTimeframe]);
 
-    let isMounted = true;
-    let pollIntervalId: ReturnType<typeof setInterval> | null = null;
-    let syncComplete = false;
-    let failedPolls = 0;
-    const MAX_FAILED_POLLS = 30; // 30 × 6s = 3 minutes
+  const getConnectedAddress = useCallback(() => {
+    if (!account?.address) return null;
+    return (
+      typeof account.address === 'string'
+        ? account.address
+        : (account.address as { toString?: () => string })?.toString?.()
+    )?.toLowerCase() || null;
+  }, [account?.address]);
 
-    const stopPolling = () => {
-      if (pollIntervalId) {
-        clearInterval(pollIntervalId);
-        pollIntervalId = null;
-      }
-    };
+  const fetchAnalyticsData = useCallback(
+    async (tf = timeframeRef.current, bottomTf = bottomTimeframeRef.current) => {
+      if (!walletAddress) return;
 
-    const doFetchAnalytics = async () => {
-      if (!isMounted) return;
       try {
-        if (timeframeRef.current === bottomTimeframeRef.current) {
-          const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${timeframeRef.current}`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (isMounted) {
-            setAnalyticsData(data);
-            setBottomAnalyticsData(data);
+        if (tf === bottomTf) {
+          const res = await fetch(
+            `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(tf)}`
+          );
+          if (!res.ok) {
+            if (res.status === 403) {
+              setFetchError('Analytics require an active Pro subscription for this profile.');
+              return;
+            }
+            throw new Error('Failed to load analytics');
           }
+          const data = await res.json();
+          setAnalyticsData(data);
+          setBottomAnalyticsData(data);
+          setFetchError(null);
         } else {
           const [resGlobal, resBottom] = await Promise.all([
-            fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${timeframeRef.current}`),
-            fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${bottomTimeframeRef.current}`)
+            fetch(
+              `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(tf)}`
+            ),
+            fetch(
+              `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(bottomTf)}`
+            ),
           ]);
-          if (resGlobal.ok && resBottom.ok) {
-            const dataGlobal = await resGlobal.json();
-            const dataBottom = await resBottom.json();
-            if (isMounted) {
-              setAnalyticsData(dataGlobal);
-              setBottomAnalyticsData(dataBottom);
+          if (!resGlobal.ok || !resBottom.ok) {
+            if (resGlobal.status === 403 || resBottom.status === 403) {
+              setFetchError('Analytics require an active Pro subscription for this profile.');
+              return;
             }
+            throw new Error('Failed to load analytics');
           }
+          const dataGlobal = await resGlobal.json();
+          const dataBottom = await resBottom.json();
+          setAnalyticsData(dataGlobal);
+          setBottomAnalyticsData(dataBottom);
+          setFetchError(null);
         }
       } catch (err) {
         console.error('Fetch analytics error:', err);
+        setFetchError('Unable to load analytics right now.');
       }
-    };
+    },
+    [walletAddress, API_URL]
+  );
 
-    const doCheckStatus = async () => {
-      if (!isMounted) return;
-      try {
-        const res = await fetch(`${API_URL}/api/analytics/status?wallet=${walletAddress}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!isMounted) return;
-
-        if (data.total_transactions > 0) {
-          const progress = Math.min(100, Math.round((data.synced_transactions / data.total_transactions) * 100));
-          setSyncProgress(progress);
-        }
-
-        if (data.full_history_synced) {
-          syncComplete = true;
-          failedPolls = 0;
-          setSyncStatus('completed');
-          stopPolling();
-          doFetchAnalytics();
-        } else if (data.is_queued) {
-          setSyncStatus('syncing');
-          setSyncProgress(0);
-        } else if (data.synced_transactions > 0 || data.last_sync_at) {
-          setSyncStatus('syncing');
-        } else {
-          failedPolls++;
-          if (failedPolls >= MAX_FAILED_POLLS) {
-            stopPolling();
-            setSyncStatus('error');
-          }
-        }
-      } catch (err) {
-        console.error('Status check error:', err);
-        failedPolls++;
-        if (failedPolls >= MAX_FAILED_POLLS) {
-          stopPolling();
-          setSyncStatus('error');
-        }
-      }
-    };
-
-    // 1. Immediately fetch whatever data exists
-    doFetchAnalytics();
-
-    // 2. Auto-trigger sync if premium (fire-and-forget)
-    if (isPremium) {
-      fetch(`${API_URL}/api/analytics/sync?wallet=${walletAddress}`).catch(() => {});
-      setSyncStatus('syncing');
+  const {
+    syncStatus,
+    syncProgress,
+    fetchError,
+    setFetchError,
+    handleStartSync
+  } = useAnalyticsSync(
+    walletAddress,
+    isPremium,
+    getConnectedAddress,
+    signMessage,
+    async () => {
+      await fetchAnalyticsData(timeframeRef.current, bottomTimeframeRef.current);
     }
+  );
 
-    // 3. Start polling — check status each tick
-    const doPoll = async () => {
-      if (!isMounted || syncComplete) return;
-      await doCheckStatus();
-    };
+  useEffect(() => {
+    if (walletAddress && isPremium && syncStatus === 'completed') {
+       fetchAnalyticsData(timeframeRef.current, bottomTimeframeRef.current);
+    }
+  }, [walletAddress, isPremium, fetchAnalyticsData]);
 
-    // Initial status check
-    doPoll();
-
-    // Set up polling every 6 seconds
-    pollIntervalId = setInterval(doPoll, 6000);
-
-    return () => {
-      isMounted = false;
-      stopPolling();
-    };
-  }, [walletAddress, isPremium, API_URL]);
-
-  const fetchAnalyticsData = async (tf = timeframe) => {
+  const fetchBottomOnly = async (tf: string, startDate?: string, endDate?: string) => {
     if (!walletAddress) return;
     try {
-      const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`);
-      const data = await res.json();
-      setAnalyticsData(data);
-    } catch (err) {
-      console.error('Fetch analytics error:', err);
-    }
-  };
-
-  const fetchBottomAnalyticsData = async (tf = bottomTimeframe, startDate?: string, endDate?: string) => {
-    if (!walletAddress) return;
-    try {
-      let url = `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${tf}`;
+      let url = `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(tf)}`;
       if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
       if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
       const res = await fetch(url);
+      if (!res.ok) return;
       const data = await res.json();
       setBottomAnalyticsData(data);
     } catch (err) {
       console.error('Fetch bottom analytics error:', err);
-    }
-  };
-
-  const handleStartSync = async () => {
-    if (!walletAddress) return;
-    setSyncStatus('syncing');
-    setSyncProgress(0);
-    lastSyncStringRef.current = null;
-    lastSyncChangeTimeRef.current = Date.now(); // Start the timer
-    try {
-      let queryParams = `wallet=${walletAddress}`;
-
-      const normalizedConnectedAddress = account?.address 
-        ? (typeof account.address === "string" ? account.address : (account.address as any)?.toString?.())?.toLowerCase()
-        : null;
-        
-      const isOwner = normalizedConnectedAddress && normalizedConnectedAddress === walletAddress.toLowerCase();
-
-      if (isOwner && typeof signMessage === 'function') {
-        const timestamp = new Date().toISOString();
-        const message = `Sync transaction history for wallet ${walletAddress}\nTimestamp: ${timestamp}`;
-        
-        const signResult = await signMessage({
-          message,
-          nonce: timestamp
-        });
-        
-        queryParams += `&message=${encodeURIComponent(message)}&signature=${encodeURIComponent(JSON.stringify(signResult))}`;
-      }
-
-      const res = await fetch(`${API_URL}/api/analytics/sync?${queryParams}`);
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Sync trigger failed");
-      }
-    } catch (err: any) {
-      setSyncStatus('error');
-      console.error("Sync trigger error:", err);
-      alert(err.message || "Failed to trigger sync");
     }
   };
 
@@ -251,12 +169,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     );
   }
 
-  // If we have data and it's not totally empty, show dashboard
-  // Only show the full-page overlay if we have received NO response from the server at all
   const hasData = analyticsData !== null;
-  const hasActivity = analyticsData?.activityHistory && analyticsData.activityHistory.length > 0;
-  
-  // Show overlay only while first sync is actively running and we've never gotten any server data
   const isInitialSyncing = syncStatus === 'syncing' && !hasData;
 
   return (
@@ -265,7 +178,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
         {isInitialSyncing ? (
           <SyncStateOverlay
             key="sync-overlay"
-            status={'syncing'}
+            status="syncing"
             progress={syncProgress}
             onStartSync={handleStartSync}
           />
@@ -286,7 +199,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                         {syncProgress === 0 ? 'Queued in background...' : 'Syncing history...'}
                       </span>
                       <div className="analytics-sync-bar">
-                        <div className="analytics-sync-bar-fill" style={{ width: `${syncProgress}%` }} />
+                        <div
+                          className="analytics-sync-bar-fill"
+                          style={{ width: `${syncProgress}%` }}
+                        />
                       </div>
                       <span className="analytics-sync-pct">{syncProgress}%</span>
                     </div>
@@ -295,18 +211,28 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <button className="analytics-visualizer-btn" onClick={handleOpenVisualizer}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                  </svg>
+                <button type="button" className="analytics-visualizer-btn" onClick={handleOpenVisualizer}>
                   Launch Visualizer
                 </button>
-                <button className="analytics-rescan-btn" onClick={handleStartSync}>
+                <button type="button" className="analytics-rescan-btn" onClick={handleStartSync}>
                   Rescan Network
                 </button>
               </div>
             </div>
+
+            {fetchError && (
+              <div className="analytics-error-banner" role="alert">
+                {fetchError}
+              </div>
+            )}
+
+            {analyticsData?.truncated && (
+              <div className="analytics-truncation-banner" role="status">
+                Showing the most recent {analyticsData.loadedTransactionCount?.toLocaleString()} of your
+                transactions (limit {analyticsData.maxTransactionLimit?.toLocaleString()}). Totals may be
+                understated for very active wallets.
+              </div>
+            )}
 
             {analyticsData && bottomAnalyticsData && (
               <AnalyticsOverview
@@ -315,12 +241,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                 timeframe={timeframe}
                 setTimeframe={(tf) => {
                   setTimeframe(tf);
-                  fetchAnalyticsData(tf);
+                  void fetchAnalyticsData(tf, bottomTimeframe);
                 }}
                 bottomTimeframe={bottomTimeframe}
                 setBottomTimeframe={(tf, startDate, endDate) => {
                   setBottomTimeframe(tf);
-                  fetchBottomAnalyticsData(tf, startDate, endDate);
+                  void fetchBottomOnly(tf, startDate, endDate);
                 }}
               />
             )}

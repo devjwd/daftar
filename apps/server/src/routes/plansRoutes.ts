@@ -1,5 +1,6 @@
 import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
+import { resolveEffectiveTier } from '@daftar/shared-types';
 
 const router = express.Router();
 
@@ -92,24 +93,7 @@ router.get('/status', async (req: Request, res: Response) => {
       subscription_expires_at: null
     };
 
-    // Check if subscription has expired
-    let effectiveTier = profile.subscription_tier || 'free';
-    if (profile.subscription_expires_at) {
-      const expiresAt = new Date(profile.subscription_expires_at);
-      if (expiresAt < new Date()) {
-        effectiveTier = 'free';
-      }
-    }
-
-    // Treat 'lite' as 'pro' since 'lite' is deprecated
-    if (effectiveTier === 'lite') {
-      effectiveTier = 'pro';
-    }
-
-    // Backward compat: if is_verified but tier is still free, treat as pro
-    if (profile.is_verified && effectiveTier === 'free') {
-      effectiveTier = 'pro';
-    }
+    const effectiveTier = resolveEffectiveTier(profile);
 
     const plan = PLAN_TIERS.find(p => p.id === effectiveTier) || PLAN_TIERS[0];
 
