@@ -272,6 +272,43 @@ CREATE TABLE IF NOT EXISTS public.sync_queue (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- TABLE: subscription_tiers
+CREATE TABLE IF NOT EXISTS public.subscription_tiers (
+    tier_id       TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    price_usd     NUMERIC NOT NULL DEFAULT 0,
+    features      JSONB NOT NULL DEFAULT '[]',
+    is_active     BOOLEAN NOT NULL DEFAULT true,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- TABLE: subscription_codes
+CREATE TABLE IF NOT EXISTS public.subscription_codes (
+    code          TEXT PRIMARY KEY,
+    tier_id       TEXT NOT NULL REFERENCES public.subscription_tiers(tier_id),
+    duration_days INTEGER NOT NULL DEFAULT 30,
+    max_uses      INTEGER NOT NULL DEFAULT 1,
+    times_used    INTEGER NOT NULL DEFAULT 0,
+    expires_at    TIMESTAMPTZ,
+    is_active     BOOLEAN NOT NULL DEFAULT true,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- TABLE: user_subscriptions
+CREATE TABLE IF NOT EXISTS public.user_subscriptions (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wallet_address TEXT NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE CASCADE,
+    tier_id        TEXT NOT NULL REFERENCES public.subscription_tiers(tier_id),
+    status         TEXT NOT NULL DEFAULT 'active',
+    started_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at     TIMESTAMPTZ,
+    auto_renew     BOOLEAN NOT NULL DEFAULT false,
+    created_at     TIMESTAMPTZ DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT wallet_address_lowercase CHECK (wallet_address = lower(wallet_address))
+);
+
 -- ----------------------------------------------------------------------------
 -- 4. INDEXES DEFINITIONS
 -- ----------------------------------------------------------------------------
@@ -280,6 +317,12 @@ CREATE INDEX IF NOT EXISTS idx_profiles_wallet ON public.profiles (wallet_addres
 CREATE INDEX IF NOT EXISTS idx_profiles_username_trgm ON public.profiles USING gin (username gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_wallet_trgm ON public.profiles USING gin (wallet_address gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_xp_desc ON public.profiles (xp DESC, created_at ASC);
+
+-- subscriptions
+CREATE INDEX IF NOT EXISTS idx_subscription_codes_code ON public.subscription_codes (code);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_wallet ON public.user_subscriptions (wallet_address);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_tier ON public.user_subscriptions (tier_id);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON public.user_subscriptions (status);
 
 -- badge_definitions & attestations
 CREATE INDEX IF NOT EXISTS idx_badge_eligibility_lookup ON public.badge_eligible_wallets (wallet_address, badge_id);
