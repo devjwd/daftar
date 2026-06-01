@@ -90,6 +90,23 @@ export function useTransactions(
 
       if (response.ok) {
         const json = await response.json();
+        
+        const hasAdvancedFilters = advancedFilters && (
+          advancedFilters.protocols?.length > 0 ||
+          advancedFilters.exactTypes?.length > 0 ||
+          Boolean(advancedFilters.minAmount) ||
+          Boolean(advancedFilters.maxAmount) ||
+          Boolean(advancedFilters.startDate) ||
+          Boolean(advancedFilters.endDate)
+        );
+
+        // If the DB has exactly 0 total transactions (for this query)
+        // and we aren't applying any filters, it means the DB hasn't synced this user yet.
+        // Fall back to indexer so the user isn't stuck with an empty screen.
+        if (json.total === 0 && !hasAdvancedFilters && activeFilter === 'all') {
+          throw new Error('Database is empty for this user, falling back to indexer');
+        }
+
         return {
           ...EMPTY_RESPONSE,
           ...json,
