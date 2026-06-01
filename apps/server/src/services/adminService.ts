@@ -20,7 +20,7 @@ const hexToBytes = (value: string): Uint8Array => {
   }
   const bytes = new Uint8Array(normalized.length / 2);
   for (let i = 0; i < normalized.length; i += 2) {
-    bytes[i / 2] = parseInt(normalized.substr(i, 2), 16);
+    bytes[i / 2] = parseInt(normalized.slice(i, i + 2), 16);
   }
   return bytes;
 };

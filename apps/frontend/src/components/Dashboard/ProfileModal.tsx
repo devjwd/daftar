@@ -17,11 +17,20 @@ import { DEFAULT_NETWORK } from '../../config/network';
 import { getLevelBasedPfp } from '../../utils/levelPfp';
 import { t } from '../../utils/language';
 
+import { Profile } from '@daftar/types';
+
 interface ProfileModalProps {
   viewingAddress: string | null;
   canEditProfile: boolean;
   language: string;
   onClose: () => void;
+  preloadedProfile?: Profile | null;
+  preloadedLevel?: number;
+  preloadedXp?: number;
+  preloadedNextLevelXP?: number;
+  preloadedXpProgress?: number;
+  preloadedBadges?: any[];
+  preloadedAvatarSrc?: string;
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -29,11 +38,27 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   canEditProfile,
   language,
   onClose,
+  preloadedProfile,
+  preloadedLevel,
+  preloadedXp,
+  preloadedNextLevelXP,
+  preloadedXpProgress,
+  preloadedBadges,
+  preloadedAvatarSrc,
 }) => {
   const navigate = useNavigate();
 
-  const { profile: userProfile } = useProfile(viewingAddress);
-  const { level, xp, nextLevelXP, xpProgress, badges: userBadges, loading: levelLoading } = useUserLevel(viewingAddress);
+  const { profile: hookProfile } = useProfile(viewingAddress);
+  const { level: hookLevel, xp: hookXp, nextLevelXP: hookNextLevelXP, xpProgress: hookXpProgress, badges: hookBadges, loading: levelLoading } = useUserLevel(viewingAddress);
+
+  const userProfile = hookProfile || preloadedProfile;
+  const level = levelLoading ? (preloadedLevel ?? hookLevel) : hookLevel;
+  const xp = levelLoading ? (preloadedXp ?? hookXp) : hookXp;
+  const nextLevelXP = levelLoading ? (preloadedNextLevelXP ?? hookNextLevelXP) : hookNextLevelXP;
+  const xpProgress = levelLoading ? (preloadedXpProgress ?? hookXpProgress) : hookXpProgress;
+  const userBadges = levelLoading ? (preloadedBadges ?? hookBadges) : hookBadges;
+
+  const isLevelLoading = levelLoading && preloadedLevel === undefined;
 
   const currentNetwork = DEFAULT_NETWORK;
   const { client: movementClient, loading: movementClientLoading } = useMovementClient(currentNetwork.rpc);
@@ -45,11 +70,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   });
   const { earnedBadges: persistedBadges } = useUserBadges(viewingAddress);
 
-  const modalAvatarSrc = getLevelBasedPfp({
-    level,
-    address: viewingAddress,
-    preferredPfp: userProfile?.avatar_url,
-  });
+  const modalAvatarSrc = (hookProfile || !preloadedAvatarSrc)
+    ? getLevelBasedPfp({
+        level,
+        address: viewingAddress,
+        preferredPfp: userProfile?.avatar_url,
+      })
+    : preloadedAvatarSrc;
 
   return (
     <div className="profile-modal-overlay" onClick={onClose}>
@@ -101,7 +128,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </button>
               )}
             </div>
-            {!levelLoading && (
+            {!isLevelLoading && (
               <div className="modal-level-section">
                 <div className="modal-level-row">
                   <span className="modal-level-label">{t(language, 'dashCurrentLevel')}</span>

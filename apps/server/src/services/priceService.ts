@@ -35,10 +35,12 @@ const getCoinGeckoApiUrl = (baseUrl: string): string => {
 
 /** Attempt CoinGecko fetch with correct base URL for demo vs pro vs public keys */
 async function fetchFromCoinGecko(headers: Record<string, string>): Promise<any | null> {
-  const attempts = [
-    'https://demo-api.coingecko.com',
-    'https://api.coingecko.com',
-  ];
+  const apiKey = String(process.env.COINGECKO_API_KEY || '').trim();
+  const isDemoKey = apiKey.startsWith('CG-');
+  
+  const attempts = isDemoKey
+    ? ['https://demo-api.coingecko.com', 'https://api.coingecko.com']
+    : ['https://pro-api.coingecko.com', 'https://api.coingecko.com'];
   for (const base of attempts) {
     try {
       const url = getCoinGeckoApiUrl(base);

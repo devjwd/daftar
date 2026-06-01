@@ -73,7 +73,7 @@ async function fetchHistoricalPriceFromCG(geckoId: string, timestamp: string): P
   // Try demo endpoint first (for demo keys), then standard
   const bases = isDemoKey
     ? ['https://demo-api.coingecko.com', 'https://api.coingecko.com']
-    : ['https://api.coingecko.com'];
+    : ['https://pro-api.coingecko.com', 'https://api.coingecko.com'];
 
   for (const base of bases) {
     const url = `${base}/api/v3/coins/${geckoId}/history?date=${dateStr}&localization=false`;
@@ -254,24 +254,6 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
       if (price) amount = tx.asset_in_amount;
     }
     
-    // Fallback static prices for demo if CoinGecko rate limits
-    if (!price) {
-       const fallbackToken = tokenToPriceOut || tokenToPriceIn || '';
-       amount = tx.asset_out_amount || tx.asset_in_amount || 0;
-       
-       if (fallbackToken.includes('aptos_coin') || fallbackToken === '0x1' || fallbackToken === '0xa') {
-         price = 0.05; // Realistic MOVE price for demo/testnet
-       } else if (fallbackToken.toLowerCase().includes('usd')) {
-         price = 1.00;
-       } else if (fallbackToken.toLowerCase().includes('eth')) {
-         price = 3500.00;
-       } else if (fallbackToken.toLowerCase().includes('btc')) {
-         price = 65000.00;
-       } else {
-         price = 0; // Unknown token — don't assign phantom value
-       }
-    }
-
     // LST fallback: if the symbol is a known LST, use the underlying token's price
     if (!price && (tx.asset_out_symbol || tx.asset_in_symbol)) {
       const sym = tx.asset_out_symbol || tx.asset_in_symbol;
@@ -297,8 +279,25 @@ export async function backfillTransactionPrices(supabase: SupabaseClient, limit:
           retry_count: retryCount + 1
         };
       } else {
-        tx.price_usd = 0;
-        tx.value_usd = 0;
+        // Fallback static prices for demo only as a last resort (after 3 failed retries)
+        const fallbackToken = tokenToPriceOut || tokenToPriceIn || '';
+        const fallbackAmount = tx.asset_out_amount || tx.asset_in_amount || 0;
+        
+        if (fallbackToken.includes('aptos_coin') || fallbackToken === '0x1' || fallbackToken === '0xa') {
+          price = 0.05; // Realistic MOVE price for demo/testnet
+        } else if (fallbackToken.toLowerCase().includes('usd')) {
+          price = 1.00;
+        } else if (fallbackToken.toLowerCase().includes('eth')) {
+          price = 3500.00;
+        } else if (fallbackToken.toLowerCase().includes('btc')) {
+          price = 65000.00;
+        } else {
+          price = 0; // Unknown token — don't assign phantom value
+        }
+
+        const totalValue = price * Number(fallbackAmount);
+        tx.price_usd = price;
+        tx.value_usd = totalValue;
         tx.gas_usd = finalGasUsd;
         tx.is_processed = true;
       }

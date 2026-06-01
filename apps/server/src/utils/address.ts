@@ -19,5 +19,7 @@ export const normalizeAddress = (value: string | null | undefined): string => {
  * Validates if two addresses are the same
  */
 export const isSameAddress = (addr1: string, addr2: string): boolean => {
-  return normalizeAddress(addr1) === normalizeAddress(addr2);
+  const norm1 = normalizeAddress(addr1);
+  const norm2 = normalizeAddress(addr2);
+  return norm1 !== '' && norm1 === norm2;
 };

@@ -295,7 +295,13 @@ const Dashboard = () => {
   const lpLoading = defiLoading;
 
   const { profile: userProfile } = useProfile(viewingAddress);
-  const { level: viewingLevel } = useUserLevel(viewingAddress);
+  const {
+    level: viewingLevel,
+    xp: viewingXp,
+    nextLevelXP: viewingNextLevelXP,
+    xpProgress: viewingXpProgress,
+    badges: viewingBadges,
+  } = useUserLevel(viewingAddress);
   const { label: addressLabel } = useAddressLabel(viewingAddress);
 
   const entityBranding = useMemo(() => resolveEntityBranding(viewingAddress), [viewingAddress]);
@@ -903,6 +909,13 @@ const Dashboard = () => {
           canEditProfile={canEditProfile}
           language={language}
           onClose={() => setShowProfileModal(false)}
+          preloadedProfile={userProfile}
+          preloadedLevel={viewingLevel}
+          preloadedXp={viewingXp}
+          preloadedNextLevelXP={viewingNextLevelXP}
+          preloadedXpProgress={viewingXpProgress}
+          preloadedBadges={viewingBadges}
+          preloadedAvatarSrc={userAvatarSrc}
         />
       )}
 

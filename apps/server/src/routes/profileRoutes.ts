@@ -73,11 +73,13 @@ router.post('/', async (req: Request, res: Response) => {
   const rateLimit = await checkRateLimit(supabaseAdmin, `profile_up:${normalizedAddr}`, 60000, 5);
   if (!rateLimit.ok) return res.status(429).json({ error: 'Too many updates' });
 
-  // Nonce check
-  if (nonce) {
-    const nonceCheck = await checkAndBurnNonce(supabaseAdmin, normalizedAddr, nonce);
-    if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
+  // Nonce check (strictly required)
+  if (nonce === undefined || nonce === null || nonce === '') {
+    return res.status(400).json({ error: 'Security nonce is required' });
   }
+
+  const nonceCheck = await checkAndBurnNonce(supabaseAdmin, normalizedAddr, nonce);
+  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
 
   // Signature verification
   const isValid = verifyWalletSignature(normalizedAddr, signedMessage, signature);

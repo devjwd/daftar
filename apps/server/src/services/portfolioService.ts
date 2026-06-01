@@ -69,6 +69,21 @@ export async function reconstructHistoricalBalances(
     }
   }
 
+  // Delete existing balance snapshots in the range we are going to recalculate to prevent orphan rows
+  let deleteQuery = supabase
+    .from('user_balance_snapshots')
+    .delete()
+    .eq('user_address', address);
+    
+  if (recalcStartDateStr) {
+    deleteQuery = deleteQuery.gte('snapshot_date', recalcStartDateStr);
+  }
+  
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) {
+    console.error(`[Portfolio] Error clearing old snapshots:`, deleteError);
+  }
+
   // 3. Fetch transactions (incremental starting from recalcStartDateStr)
   let txQuery = supabase
     .from('user_transaction_history')
