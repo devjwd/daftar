@@ -72,15 +72,15 @@ async function fetchHistoricalPriceFromCG(geckoId: string, timestamp: string): P
 
   // Try demo endpoint first (for demo keys), then standard
   const bases = isDemoKey
-    ? ['https://demo-api.coingecko.com', 'https://api.coingecko.com']
+    ? ['https://api.coingecko.com']
     : ['https://pro-api.coingecko.com', 'https://api.coingecko.com'];
 
   for (const base of bases) {
     const url = `${base}/api/v3/coins/${geckoId}/history?date=${dateStr}&localization=false`;
     try {
-      const requestHeaders = base.includes('demo-api.coingecko.com')
-        ? headers
-        : (isDemoKey ? { Accept: 'application/json' } : headers);
+      const requestHeaders = base === 'https://api.coingecko.com' && !isDemoKey
+        ? { Accept: 'application/json' }
+        : headers;
       const response = await fetch(url, { headers: requestHeaders });
       if (!response.ok) {
         console.warn(`[PriceBackfill] CoinGecko ${base} returned ${response.status} for ${geckoId} on ${dateStr}`);

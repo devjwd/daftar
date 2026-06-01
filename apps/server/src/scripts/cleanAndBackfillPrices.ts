@@ -130,19 +130,21 @@ async function run() {
     else baseHeaders['x-cg-pro-api-key'] = apiKey;
   }
 
-  const cgAttempts = [
-    `https://demo-api.coingecko.com/api/v3/coins/movement/market_chart?vs_currency=usd&days=365`,
-    `https://api.coingecko.com/api/v3/coins/movement/market_chart?vs_currency=usd&days=365`,
-  ];
+  const cgAttempts = isDemoKey
+    ? [`https://api.coingecko.com/api/v3/coins/movement/market_chart?vs_currency=usd&days=365`]
+    : [
+        `https://pro-api.coingecko.com/api/v3/coins/movement/market_chart?vs_currency=usd&days=365`,
+        `https://api.coingecko.com/api/v3/coins/movement/market_chart?vs_currency=usd&days=365`,
+      ];
 
   let cgPrices: [number, number][] = [];
 
   for (const url of cgAttempts) {
     try {
       console.log(`  Trying: ${url}`);
-      const requestHeaders = url.includes('demo-api.coingecko.com')
+      const requestHeaders = url.includes('pro-api.coingecko.com') || isDemoKey
         ? baseHeaders
-        : (isDemoKey ? { Accept: 'application/json' } : baseHeaders);
+        : { Accept: 'application/json' };
       const res = await (fetch as any)(url, { headers: requestHeaders });
       if (res.ok) {
         const data: any = await res.json();

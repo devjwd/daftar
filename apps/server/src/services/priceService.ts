@@ -39,12 +39,15 @@ async function fetchFromCoinGecko(headers: Record<string, string>): Promise<any 
   const isDemoKey = apiKey.startsWith('CG-');
   
   const attempts = isDemoKey
-    ? ['https://demo-api.coingecko.com', 'https://api.coingecko.com']
+    ? ['https://api.coingecko.com']
     : ['https://pro-api.coingecko.com', 'https://api.coingecko.com'];
   for (const base of attempts) {
     try {
       const url = getCoinGeckoApiUrl(base);
-      const res = await fetch(url, { method: 'GET', headers });
+      const requestHeaders = base === 'https://api.coingecko.com' && !isDemoKey
+        ? { Accept: 'application/json' }
+        : headers;
+      const res = await fetch(url, { method: 'GET', headers: requestHeaders });
       if (res.ok) {
         const json = await res.json();
         // Sanity check: the movement token must be present in the response
