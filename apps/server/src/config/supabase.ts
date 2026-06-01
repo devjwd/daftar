@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@daftar/shared-types';
-import CONFIG from './index';
+import CONFIG from './index.ts';
 
 const { URL: SUPABASE_URL, SERVICE_ROLE_KEY: SUPABASE_SERVICE_KEY } = CONFIG.SUPABASE;
 

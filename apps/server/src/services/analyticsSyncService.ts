@@ -441,7 +441,7 @@ function enrichTransaction(
     [TX_TYPES.REPAY]: ["repay", "repay_v2", "repay_fa"],
     [TX_TYPES.WITHDRAW]: ["withdraw", "redeem", "remove_liquidity", "withdraw_fa", "withdraw_coin", "withdraw_token", "redeem_fa"],
     [TX_TYPES.SEND]: ["transfer", "send", "pay", "send_gift"],
-    [TX_TYPES.RECEIVE]: ["receive", "deposit_coins"],
+    [TX_TYPES.RECEIVED]: ["receive", "deposit_coins"],
     [TX_TYPES.CLAIM]: ["claim", "harvest", "collect_reward", "claim_rewards", "collect_fee", "collect_multi_rewards", "claim_reward_fa", "claim_prize", "claim_treasure"],
     [TX_TYPES.BRIDGE]: ["bridge", "outbound", "inbound", "teleport", "wormhole", "layerzero"],
     [TX_TYPES.NFT_MINT]: ["mint_nft", "create_token", "create_collection", "mint_token", "mint_memory"],
@@ -713,7 +713,7 @@ function enrichTransaction(
     } else {
       description = `Swapped assets via ${protocol}`;
     }
-  } else if (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVE) {
+  } else if (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVED) {
     if (isExchangeDeposit) {
       description = `${exchangeName} ${action === TX_TYPES.SEND ? 'Deposit' : 'Withdrawal'}`;
     } else {

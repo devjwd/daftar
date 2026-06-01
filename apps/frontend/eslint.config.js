@@ -27,7 +27,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['api/**/*.js'],
+    files: ['api/**/*.js', 'scripts/**/*.js', 'eslint.config.js', 'vite.config.js'],
     languageOptions: {
       globals: {
         ...globals.browser,

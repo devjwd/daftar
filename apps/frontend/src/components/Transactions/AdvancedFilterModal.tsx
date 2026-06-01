@@ -4,15 +4,15 @@ import { t } from '../../utils/language';
 import styles from './TrxHistory.module.css';
 
 const PROTOCOL_OPTIONS = [
-  'Amnis', 'Aptos', 'Aries', 'Canopy', 'Cellana', 'Echelon', 'Elysium', 'Gala', 
-  'Joule', 'LayerBank', 'LiquidSwap', 'Macaron', 'Meridian', 'Mosaic', 'MovePosition', 
-  'Movement Core', 'Moversmap', 'Nightly', 'Razor', 'Route-X', 'Secura', 'Tails', 
+  'Amnis', 'Aptos', 'Aries', 'Canopy', 'Cellana', 'Echelon', 'Elysium', 'Gala',
+  'Joule', 'LayerBank', 'LiquidSwap', 'Macaron', 'Meridian', 'Mosaic', 'MovePosition',
+  'Movement Core', 'Moversmap', 'Nightly', 'Razor', 'Route-X', 'Secura', 'Tails',
   'Thala', 'Yuzu'
 ].sort();
 
 const TYPE_OPTIONS = [
-  'SWAP', 'SEND', 'RECEIVED', 'STAKE', 'UNSTAKE', 'LEND', 'BORROW', 'REPAY', 
-  'DEPOSIT', 'WITHDRAW', 'YIELD', 'CLAIM', 'BRIDGE', 'NFT_MINT', 'NFT_TRANSFER', 
+  'SWAP', 'SEND', 'RECEIVED', 'STAKE', 'UNSTAKE', 'LEND', 'BORROW', 'REPAY',
+  'DEPOSIT', 'WITHDRAW', 'YIELD', 'CLAIM', 'BRIDGE', 'NFT_MINT', 'NFT_TRANSFER',
   'LIQUIDITY', 'OTHER'
 ];
 
@@ -36,8 +36,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
   const handleProtocolToggle = (protocol) => {
     setFilters(prev => ({
       ...prev,
-      protocols: prev.protocols.includes(protocol) 
-        ? prev.protocols.filter(p => p !== protocol) 
+      protocols: prev.protocols.includes(protocol)
+        ? prev.protocols.filter(p => p !== protocol)
         : [...prev.protocols, protocol]
     }));
   };
@@ -45,8 +45,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
   const handleTypeToggle = (type) => {
     setFilters(prev => ({
       ...prev,
-      exactTypes: prev.exactTypes.includes(type) 
-        ? prev.exactTypes.filter(t => t !== type) 
+      exactTypes: prev.exactTypes.includes(type)
+        ? prev.exactTypes.filter(t => t !== type)
         : [...prev.exactTypes, type]
     }));
   };
@@ -130,41 +130,41 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
                 <h3>Amount Range</h3>
               </div>
               <div className={styles.inputGroup}>
-                <input 
-                  type="number" 
-                  placeholder="Min Amount" 
-                  value={filters.minAmount} 
-                  onChange={e => setFilters({...filters, minAmount: e.target.value})}
+                <input
+                  type="number"
+                  placeholder="Min Amount"
+                  value={filters.minAmount}
+                  onChange={e => setFilters({ ...filters, minAmount: e.target.value })}
                   className={styles.textInput}
                 />
                 <span className={styles.inputDivider}>to</span>
-                <input 
-                  type="number" 
-                  placeholder="Max Amount" 
-                  value={filters.maxAmount} 
-                  onChange={e => setFilters({...filters, maxAmount: e.target.value})}
+                <input
+                  type="number"
+                  placeholder="Max Amount"
+                  value={filters.maxAmount}
+                  onChange={e => setFilters({ ...filters, maxAmount: e.target.value })}
                   className={styles.textInput}
                 />
               </div>
             </div>
-            
+
             <div className={styles.filterSection}>
               <div className={styles.sectionHeader}>
                 <div className={styles.sectionIcon}>📅</div>
                 <h3>Date Range</h3>
               </div>
               <div className={styles.inputGroup}>
-                <input 
-                  type="date" 
-                  value={filters.startDate} 
-                  onChange={e => setFilters({...filters, startDate: e.target.value})}
+                <input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={e => setFilters({ ...filters, startDate: e.target.value })}
                   className={styles.textInput}
                 />
                 <span className={styles.inputDivider}>to</span>
-                <input 
-                  type="date" 
-                  value={filters.endDate} 
-                  onChange={e => setFilters({...filters, endDate: e.target.value})}
+                <input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={e => setFilters({ ...filters, endDate: e.target.value })}
                   className={styles.textInput}
                 />
               </div>

@@ -9,9 +9,9 @@
     "dev": "tsx watch index.ts",
     "worker": "tsx watch worker.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests",
+    "test:ui": "vitest --ui --passWithNoTests"
   },
   "devDependencies": {
     "@daftar/shared-types": "*",

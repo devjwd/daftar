@@ -72,10 +72,18 @@ interface ExchangeBreakdownItem {
   value: number;
 }
 
+interface ExchangeHistoryPoint {
+  date: string;
+  value: number;
+  dailyValue: number;
+  dailyTokenString: string;
+  details: Array<{ name: string; value: number; tokenString: string }>;
+}
+
 interface ExchangeStats {
   total: number;
   breakdown: ExchangeBreakdownItem[];
-  history: DateValuePoint[];
+  history: ExchangeHistoryPoint[];
 }
 
 interface ExchangeUsage {

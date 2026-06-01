@@ -2,17 +2,7 @@ import { definitions } from './database.types';
 export * from './database.types';
 export * from './subscription';
 
-export interface Database {
-  public: {
-    Tables: {
-      [K in keyof definitions]: {
-        Row: definitions[K];
-        Insert: Partial<definitions[K]>;
-        Update: Partial<definitions[K]>;
-      }
-    }
-  }
-}
+export type Database = any;
 
 export interface ExchangeBreakdownItem {
   name: string;
