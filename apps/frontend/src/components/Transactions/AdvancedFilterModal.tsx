@@ -4,10 +4,9 @@ import { t } from '../../utils/language';
 import styles from './TrxHistory.module.css';
 
 const PROTOCOL_OPTIONS = [
-  'Amnis', 'Aptos', 'Aries', 'Canopy', 'Cellana', 'Echelon', 'Elysium', 'Gala',
-  'Joule', 'LayerBank', 'LiquidSwap', 'Macaron', 'Meridian', 'Mosaic', 'MovePosition',
-  'Movement Core', 'Moversmap', 'Nightly', 'Razor', 'Route-X', 'Secura', 'Tails',
-  'Thala', 'Yuzu'
+  'Avant', 'BRKT', 'Canopy', 'CapyGo', 'ClobX', 'DoubleUp', 
+  'Echelon', 'Joule', 'LayerBank', 'Meridian', 'MMEX', 'Mosaic', 
+  'MovePosition', 'Movement Core', 'Moversmap', 'Route-X', 'Tradeport', 'Yuzu'
 ].sort();
 
 const TYPE_OPTIONS = [
