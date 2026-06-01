@@ -1,6 +1,7 @@
-import { definitions } from './database.types';
-export * from './database.types';
-export * from './subscription';
+import { definitions } from './database.types.ts';
+export * from './database.types.ts';
+export { resolveEffectiveTier, isPremiumTier } from './subscription.ts';
+export type { SubscriptionTier, ProfileTierInput } from './subscription.ts';
 
 export type Database = any;
 
