@@ -131,7 +131,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
                 {collapsed.type ? '▼' : '▲'}
               </div>
             </div>
-            
+
             {!collapsed.type && (
               <div className={styles.sectionContent}>
                 {TYPE_GROUPS.map(group => (
@@ -165,7 +165,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
                 {collapsed.protocol ? '▼' : '▲'}
               </div>
             </div>
-            
+
             {!collapsed.protocol && (
               <div className={styles.sectionContent}>
                 {PROTOCOL_GROUPS.map(group => (

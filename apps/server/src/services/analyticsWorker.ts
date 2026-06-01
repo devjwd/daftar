@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { reProcessUnknownTransactions } from './analyticsSyncService.ts';
 import { reProcessSuspiciousPrices } from './analyticsPriceService.ts';
 import { queueSync } from './analyticsSyncQueue.ts';
+import { resolveEffectiveTier, isPremiumTier } from '@daftar/shared-types';
 
 const USERS_PER_PAGE = 100;
 const CONCURRENCY_LIMIT = 5;
@@ -14,8 +15,45 @@ const CONCURRENCY_LIMIT = 5;
 async function collectSyncWalletAddresses(supabase: SupabaseClient): Promise<Map<string, number>> {
   const userMap = new Map<string, number>();
 
+  // 1. Paginate and filter profiles to ensure they are currently active Premium/Pro or Verified
+  let profilePage = 0;
+  let profilesHasMore = true;
+
+  while (profilesHasMore) {
+    const { data: profiles, error: profileErr } = await supabase
+      .from('profiles')
+      .select('wallet_address, is_verified, subscription_tier, subscription_expires_at')
+      .or('is_verified.eq.true,subscription_tier.eq.pro,subscription_tier.eq.lite')
+      .range(profilePage * USERS_PER_PAGE, (profilePage + 1) * USERS_PER_PAGE - 1);
+
+    if (profileErr) throw profileErr;
+
+    profiles?.forEach((row) => {
+      if (!row.wallet_address) return;
+
+      const effectiveTier = resolveEffectiveTier({
+        is_verified: row.is_verified,
+        subscription_tier: row.subscription_tier,
+        subscription_expires_at: row.subscription_expires_at,
+      });
+
+      if (isPremiumTier(effectiveTier)) {
+        // priority 1 for pro (which includes lite/pro), 0 for verified/free
+        const priority = row.subscription_tier === 'pro' || row.subscription_tier === 'lite' ? 1 : 0;
+        const existing = userMap.get(row.wallet_address);
+        if (existing === undefined || priority > existing) {
+          userMap.set(row.wallet_address, priority);
+        }
+      }
+    });
+
+    profilesHasMore = (profiles?.length || 0) === USERS_PER_PAGE;
+    profilePage++;
+  }
+
+  // 2. Paginate active user subscriptions table
   const paginateTable = async (
-    table: 'profiles' | 'user_subscriptions',
+    table: 'user_subscriptions',
     filter: Record<string, unknown>,
     priority: number
   ) => {
@@ -49,7 +87,6 @@ async function collectSyncWalletAddresses(supabase: SupabaseClient): Promise<Map
     }
   };
 
-  await paginateTable('profiles', { is_verified: true }, 0);
   await paginateTable('user_subscriptions', { status: 'active' }, 1);
 
   return userMap;

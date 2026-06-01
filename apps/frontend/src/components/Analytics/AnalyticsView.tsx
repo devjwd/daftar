@@ -113,8 +113,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   } = useAnalyticsSync(
     walletAddress,
     isPremium,
-    getConnectedAddress,
-    signMessage,
     async () => {
       await fetchAnalyticsData(timeframeRef.current, bottomTimeframeRef.current);
     }

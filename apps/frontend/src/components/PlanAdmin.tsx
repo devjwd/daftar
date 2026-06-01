@@ -120,16 +120,22 @@ export default function PlanAdmin() {
     }
   };
 
-  const setExpiryPreset = (days: number, type: 'new' | 'edit') => {
-    if (days === 0) {
+  const setExpiryPreset = (preset: 'month' | 'year' | 'never', type: 'new' | 'edit') => {
+    if (preset === 'never') {
       if (type === 'new') setNewExpiresAt('');
       else setEditExpiresAt('');
       return;
     }
     const d = new Date();
-    d.setDate(d.getDate() + days);
-    // Format to yyyy-MM-ddThh:mm for datetime-local input
-    const formatted = d.toISOString().slice(0, 16);
+    if (preset === 'month') {
+      d.setMonth(d.getMonth() + 1);
+    } else if (preset === 'year') {
+      d.setFullYear(d.getFullYear() + 1);
+    }
+    // Format to yyyy-MM-ddThh:mm in local time for datetime-local input
+    const offsetMs = d.getTimezoneOffset() * 60 * 1000;
+    const localDate = new Date(d.getTime() - offsetMs);
+    const formatted = localDate.toISOString().slice(0, 16);
     if (type === 'new') setNewExpiresAt(formatted);
     else setEditExpiresAt(formatted);
   };
@@ -247,9 +253,9 @@ export default function PlanAdmin() {
                       style={{ width: '100%', marginTop: '4px' }}
                     />
                     <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-                      <button type="button" className="admin-chip" onClick={() => setExpiryPreset(30, 'new')}>+30 Days</button>
-                      <button type="button" className="admin-chip" onClick={() => setExpiryPreset(365, 'new')}>+1 Year</button>
-                      <button type="button" className="admin-chip" onClick={() => setExpiryPreset(0, 'new')}>Never</button>
+                      <button type="button" className="admin-chip" onClick={() => setExpiryPreset('month', 'new')}>+1 Month</button>
+                      <button type="button" className="admin-chip" onClick={() => setExpiryPreset('year', 'new')}>+1 Year</button>
+                      <button type="button" className="admin-chip" onClick={() => setExpiryPreset('never', 'new')}>Never</button>
                     </div>
                   </div>
                 )}
@@ -360,9 +366,9 @@ export default function PlanAdmin() {
                                 style={{ width: '100%', marginTop: '4px' }}
                               />
                               <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
-                                <button type="button" className="admin-chip" onClick={() => setExpiryPreset(30, 'edit')}>+30 Days</button>
-                                <button type="button" className="admin-chip" onClick={() => setExpiryPreset(365, 'edit')}>+1 Year</button>
-                                <button type="button" className="admin-chip" onClick={() => setExpiryPreset(0, 'edit')}>Never</button>
+                                <button type="button" className="admin-chip" onClick={() => setExpiryPreset('month', 'edit')}>+1 Month</button>
+                                <button type="button" className="admin-chip" onClick={() => setExpiryPreset('year', 'edit')}>+1 Year</button>
+                                <button type="button" className="admin-chip" onClick={() => setExpiryPreset('never', 'edit')}>Never</button>
                               </div>
                             </div>
                           )}

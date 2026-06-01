@@ -5,8 +5,6 @@ export type SyncStatus = 'idle' | 'syncing' | 'completed' | 'error';
 export function useAnalyticsSync(
   walletAddress: string | null | undefined,
   isPremium: boolean,
-  getConnectedAddress: () => string | null,
-  signMessage: any,
   onSyncComplete: () => Promise<void>
 ) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
@@ -15,22 +13,9 @@ export function useAnalyticsSync(
 
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
-  const buildOwnerSyncQuery = useCallback(async () => {
-    if (!walletAddress) return `wallet=${walletAddress}`;
-
-    let queryParams = `wallet=${walletAddress}`;
-    const normalizedConnected = getConnectedAddress();
-    const isOwner = normalizedConnected && normalizedConnected === walletAddress.toLowerCase();
-
-    if (isOwner && typeof signMessage === 'function') {
-      const timestamp = new Date().toISOString();
-      const message = `Sync transaction history for wallet ${walletAddress}\nTimestamp: ${timestamp}`;
-      const signResult = await signMessage({ message, nonce: timestamp });
-      queryParams += `&message=${encodeURIComponent(message)}&signature=${encodeURIComponent(JSON.stringify(signResult))}`;
-    }
-
-    return queryParams;
-  }, [walletAddress, getConnectedAddress, signMessage]);
+  const buildOwnerSyncQuery = useCallback(() => {
+    return `wallet=${walletAddress || ''}`;
+  }, [walletAddress]);
 
   useEffect(() => {
     if (!walletAddress || !isPremium) return;
@@ -95,7 +80,7 @@ export function useAnalyticsSync(
 
     const startSyncIfNeeded = async () => {
       try {
-        const query = await buildOwnerSyncQuery();
+        const query = buildOwnerSyncQuery();
         const res = await fetch(`${API_URL}/api/analytics/sync?${query}`);
         if (res.ok || res.status === 202 || res.status === 429) {
           setSyncStatus('syncing');
@@ -126,7 +111,7 @@ export function useAnalyticsSync(
     setSyncStatus('syncing');
     setSyncProgress(0);
     try {
-      const query = await buildOwnerSyncQuery();
+      const query = buildOwnerSyncQuery();
       const res = await fetch(`${API_URL}/api/analytics/sync?${query}`);
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));

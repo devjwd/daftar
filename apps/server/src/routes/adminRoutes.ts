@@ -5,6 +5,7 @@ import { auditBadgeDefinitions } from '../services/badgeAuditService.ts';
 import { validateBadgeDefinitionPayload } from '../services/validationService.ts';
 import { normalizeAddress } from '../utils/address.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { queueSync } from '../services/analyticsSyncQueue.ts';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -325,6 +326,17 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
           .single();
 
         if (error) throw error;
+
+        // If marked as pro or lite, immediately queue a background sync for the user
+        if (tier === 'pro' || tier === 'lite') {
+          try {
+            await queueSync(supabaseAdmin, normalized, 1);
+            console.log(`[Admin] Automatically queued initial sync for newly upgraded user: ${normalized}`);
+          } catch (queueErr) {
+            console.error(`[Admin] Failed to auto-queue sync for upgraded user ${normalized}:`, queueErr);
+          }
+        }
+
         return res.json({ success: true, user: data });
       }
     }

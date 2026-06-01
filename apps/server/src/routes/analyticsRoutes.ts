@@ -45,39 +45,20 @@ router.get('/sync', generalLimiter, async (req: Request, res: Response) => {
   if (!supabase) return res.status(503).json({ error: 'Service unavailable' });
 
   try {
-    // Verify user profile exists
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_verified')
-      .eq('wallet_address', wallet)
+    // Rate limit sync requests to once every 10 minutes per wallet
+    const { data: statusData } = await supabase
+      .from('user_sync_status')
+      .select('last_sync_at')
+      .eq('user_address', wallet)
       .maybeSingle();
 
-    const tier = await getEffectiveTier(supabase, wallet);
-    const isVerifiedProfile = profile?.is_verified === true;
-    const signature = req.query.signature as string;
-    const message = req.query.message as string;
-
-    if (signature && message) {
-      const isValid = verifyWalletSignature(wallet, message, signature);
-      if (!isValid) return res.status(401).json({ error: 'Invalid sync signature' });
-    } else if (!isVerifiedProfile && !isPremiumTier(tier)) {
-      return res.status(401).json({ error: 'Signature is required for free profiles' });
-    } else {
-      // Verified or Pro profile without signature: rate limit
-      const { data: statusData } = await supabase
-        .from('user_sync_status')
-        .select('last_sync_at')
-        .eq('user_address', wallet)
-        .maybeSingle();
-
-      if (statusData?.last_sync_at) {
-        const lastSyncTime = new Date(statusData.last_sync_at).getTime();
-        const tenMinutes = 10 * 60 * 1000;
-        if (Date.now() - lastSyncTime < tenMinutes) {
-          return res.status(429).json({
-            error: 'Sync requested too recently. Please wait up to 10 minutes between syncs.',
-          });
-        }
+    if (statusData?.last_sync_at) {
+      const lastSyncTime = new Date(statusData.last_sync_at).getTime();
+      const tenMinutes = 10 * 60 * 1000;
+      if (Date.now() - lastSyncTime < tenMinutes) {
+        return res.status(429).json({
+          error: 'Sync requested too recently. Please wait up to 10 minutes between syncs.',
+        });
       }
     }
 
