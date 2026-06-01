@@ -687,6 +687,52 @@
   gap: 10px;
 }
 
+.sectionHeaderClickable {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: 10px 14px;
+  margin: -10px -14px;
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+
+.sectionHeaderClickable:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sectionHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionToggleIcon {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.sectionContent {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 16px;
+  animation: slideDown 0.2s ease-out forwards;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .sectionIcon {
   font-size: 14px;
   opacity: 0.8;

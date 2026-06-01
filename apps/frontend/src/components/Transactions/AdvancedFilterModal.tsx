@@ -50,6 +50,10 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
     startDate: '',
     endDate: ''
   });
+  const [collapsed, setCollapsed] = useState({
+    type: false,
+    protocol: true
+  });
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -57,6 +61,13 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
   }, []);
 
   if (!isOpen) return null;
+
+  const toggleSection = (section) => {
+    setCollapsed(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
 
   const handleProtocolToggle = (protocol) => {
     setFilters(prev => ({
@@ -111,53 +122,71 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
 
         <div className={styles.modalBody}>
           <div className={styles.filterSection}>
-            <div className={styles.sectionHeader}>
-              <div className={styles.sectionIcon}>⚡</div>
-              <h3>Transaction Type</h3>
+            <div className={styles.sectionHeaderClickable} onClick={() => toggleSection('type')}>
+              <div className={styles.sectionHeaderLeft}>
+                <div className={styles.sectionIcon}>⚡</div>
+                <h3>Transaction Type</h3>
+              </div>
+              <div className={styles.sectionToggleIcon}>
+                {collapsed.type ? '▼' : '▲'}
+              </div>
             </div>
             
-            {TYPE_GROUPS.map(group => (
-              <div key={group.title} className={styles.filterGroup}>
-                <div className={styles.filterGroupLabel}>{group.title}</div>
-                <div className={styles.pillGrid}>
-                  {group.options.map(type => (
-                    <button
-                      key={type}
-                      type="button"
-                      className={`${styles.filterPill} ${filters.exactTypes.includes(type) ? styles.filterPillActive : ''}`}
-                      onClick={() => handleTypeToggle(type)}
-                    >
-                      {type.replace('_', ' ')}
-                    </button>
-                  ))}
-                </div>
+            {!collapsed.type && (
+              <div className={styles.sectionContent}>
+                {TYPE_GROUPS.map(group => (
+                  <div key={group.title} className={styles.filterGroup}>
+                    <div className={styles.filterGroupLabel}>{group.title}</div>
+                    <div className={styles.pillGrid}>
+                      {group.options.map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          className={`${styles.filterPill} ${filters.exactTypes.includes(type) ? styles.filterPillActive : ''}`}
+                          onClick={() => handleTypeToggle(type)}
+                        >
+                          {type.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
 
           <div className={styles.filterSection}>
-            <div className={styles.sectionHeader}>
-              <div className={styles.sectionIcon}>🌐</div>
-              <h3>Protocol / dApp</h3>
+            <div className={styles.sectionHeaderClickable} onClick={() => toggleSection('protocol')}>
+              <div className={styles.sectionHeaderLeft}>
+                <div className={styles.sectionIcon}>🌐</div>
+                <h3>Protocol / dApp</h3>
+              </div>
+              <div className={styles.sectionToggleIcon}>
+                {collapsed.protocol ? '▼' : '▲'}
+              </div>
             </div>
             
-            {PROTOCOL_GROUPS.map(group => (
-              <div key={group.title} className={styles.filterGroup}>
-                <div className={styles.filterGroupLabel}>{group.title}</div>
-                <div className={styles.pillGrid}>
-                  {group.options.map(protocol => (
-                    <button
-                      key={protocol}
-                      type="button"
-                      className={`${styles.filterPill} ${filters.protocols.includes(protocol) ? styles.filterPillActive : ''}`}
-                      onClick={() => handleProtocolToggle(protocol)}
-                    >
-                      {protocol}
-                    </button>
-                  ))}
-                </div>
+            {!collapsed.protocol && (
+              <div className={styles.sectionContent}>
+                {PROTOCOL_GROUPS.map(group => (
+                  <div key={group.title} className={styles.filterGroup}>
+                    <div className={styles.filterGroupLabel}>{group.title}</div>
+                    <div className={styles.pillGrid}>
+                      {group.options.map(protocol => (
+                        <button
+                          key={protocol}
+                          type="button"
+                          className={`${styles.filterPill} ${filters.protocols.includes(protocol) ? styles.filterPillActive : ''}`}
+                          onClick={() => handleProtocolToggle(protocol)}
+                        >
+                          {protocol}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
 
           <div className={styles.filterRow}>
