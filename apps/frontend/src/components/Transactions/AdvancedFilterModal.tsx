@@ -4,15 +4,13 @@ import { t } from '../../utils/language';
 import styles from './TrxHistory.module.css';
 
 const PROTOCOL_OPTIONS = [
-  'Avant', 'BRKT', 'Canopy', 'CapyGo', 'ClobX', 'DoubleUp', 
-  'Echelon', 'Joule', 'LayerBank', 'Meridian', 'MMEX', 'Mosaic', 
-  'MovePosition', 'Movement Core', 'Moversmap', 'Route-X', 'Tradeport', 'Yuzu'
+  'Meridian', 'MovePosition', 'Echelon', 'Joule', 
+  'Route-X', 'Moversmap', 'Tradeport', 'Mosaic'
 ].sort();
 
 const TYPE_OPTIONS = [
-  'SWAP', 'SEND', 'RECEIVED', 'STAKE', 'UNSTAKE', 'LEND', 'BORROW', 'REPAY',
-  'DEPOSIT', 'WITHDRAW', 'YIELD', 'CLAIM', 'BRIDGE', 'NFT_MINT', 'NFT_TRANSFER',
-  'LIQUIDITY', 'OTHER'
+  'SWAP', 'SEND', 'RECEIVED', 'DEPOSIT', 
+  'WITHDRAW', 'LEND', 'YIELD', 'CLAIM'
 ];
 
 export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, onApply, language = 'en' }) {
