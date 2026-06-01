@@ -663,7 +663,22 @@
 .filterSection {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filterGroupLabel {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding-left: 4px;
 }
 
 .sectionHeader {
@@ -689,11 +704,7 @@
 .pillGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 10px;
-  max-height: 160px;
-  overflow-y: auto;
-  padding-right: 8px;
-  scrollbar-width: thin;
+  gap: 8px;
 }
 
 .pillGrid::-webkit-scrollbar {

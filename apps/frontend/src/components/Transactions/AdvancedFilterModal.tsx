@@ -3,14 +3,42 @@ import { createPortal } from 'react-dom';
 import { t } from '../../utils/language';
 import styles from './TrxHistory.module.css';
 
-const PROTOCOL_OPTIONS = [
-  'Meridian', 'MovePosition', 'Echelon', 'Joule', 
-  'Route-X', 'Moversmap', 'Tradeport', 'Mosaic'
-].sort();
+const TYPE_GROUPS = [
+  {
+    title: 'Transfers',
+    options: ['SWAP', 'SEND', 'RECEIVED', 'BRIDGE']
+  },
+  {
+    title: 'DeFi',
+    options: ['LEND', 'BORROW', 'REPAY', 'DEPOSIT', 'WITHDRAW', 'LIQUIDITY']
+  },
+  {
+    title: 'Yield',
+    options: ['YIELD', 'CLAIM', 'STAKE', 'UNSTAKE']
+  },
+  {
+    title: 'NFT & Contract',
+    options: ['NFT_MINT', 'NFT_TRANSFER', 'OTHER']
+  }
+];
 
-const TYPE_OPTIONS = [
-  'SWAP', 'SEND', 'RECEIVED', 'DEPOSIT', 
-  'WITHDRAW', 'LEND', 'YIELD', 'CLAIM'
+const PROTOCOL_GROUPS = [
+  {
+    title: 'DEX & Liquidity',
+    options: ['Meridian', 'Route-X', 'Yuzu', 'Mosaic', 'ClobX', 'MMEX']
+  },
+  {
+    title: 'Lending & Yield',
+    options: ['MovePosition', 'Echelon', 'Joule', 'LayerBank', 'Canopy']
+  },
+  {
+    title: 'Gaming & NFT',
+    options: ['BRKT', 'Moversmap', 'CapyGo', 'Tradeport']
+  },
+  {
+    title: 'Ecosystem',
+    options: ['Avant', 'DoubleUp', 'Movement Core']
+  }
 ];
 
 export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, onApply, language = 'en' }) {
@@ -87,18 +115,24 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
               <div className={styles.sectionIcon}>⚡</div>
               <h3>Transaction Type</h3>
             </div>
-            <div className={styles.pillGrid}>
-              {TYPE_OPTIONS.map(type => (
-                <button
-                  key={type}
-                  type="button"
-                  className={`${styles.filterPill} ${filters.exactTypes.includes(type) ? styles.filterPillActive : ''}`}
-                  onClick={() => handleTypeToggle(type)}
-                >
-                  {type.replace('_', ' ')}
-                </button>
-              ))}
-            </div>
+            
+            {TYPE_GROUPS.map(group => (
+              <div key={group.title} className={styles.filterGroup}>
+                <div className={styles.filterGroupLabel}>{group.title}</div>
+                <div className={styles.pillGrid}>
+                  {group.options.map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      className={`${styles.filterPill} ${filters.exactTypes.includes(type) ? styles.filterPillActive : ''}`}
+                      onClick={() => handleTypeToggle(type)}
+                    >
+                      {type.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className={styles.filterSection}>
@@ -106,18 +140,24 @@ export default function AdvancedFilterModal({ isOpen, onClose, initialFilters, o
               <div className={styles.sectionIcon}>🌐</div>
               <h3>Protocol / dApp</h3>
             </div>
-            <div className={styles.pillGrid}>
-              {PROTOCOL_OPTIONS.map(protocol => (
-                <button
-                  key={protocol}
-                  type="button"
-                  className={`${styles.filterPill} ${filters.protocols.includes(protocol) ? styles.filterPillActive : ''}`}
-                  onClick={() => handleProtocolToggle(protocol)}
-                >
-                  {protocol}
-                </button>
-              ))}
-            </div>
+            
+            {PROTOCOL_GROUPS.map(group => (
+              <div key={group.title} className={styles.filterGroup}>
+                <div className={styles.filterGroupLabel}>{group.title}</div>
+                <div className={styles.pillGrid}>
+                  {group.options.map(protocol => (
+                    <button
+                      key={protocol}
+                      type="button"
+                      className={`${styles.filterPill} ${filters.protocols.includes(protocol) ? styles.filterPillActive : ''}`}
+                      onClick={() => handleProtocolToggle(protocol)}
+                    >
+                      {protocol}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className={styles.filterRow}>
