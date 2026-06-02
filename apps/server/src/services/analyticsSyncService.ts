@@ -1137,9 +1137,7 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
 
         if (protocolChanged || actionChanged) {
           updatedRows.push({
-            id: row.id,
-            user_address: row.user_address,
-            version: row.version,
+            ...row,
             protocol: enriched.protocol,
             action: enriched.action,
             category: enriched.category,

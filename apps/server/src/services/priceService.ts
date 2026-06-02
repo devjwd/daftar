@@ -171,6 +171,26 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
           await supabase.from('token_price_history').insert(newEntries);
         }
       }
+
+      // 3. Add to 5-minute Historical Table (for 1D charts)
+      const fiveMinEntries = Object.entries(snapshot.prices)
+        .filter(([addr]) => {
+          // Filters for MOVE (0x1, 0xa), BTC, and ETH
+          return addr === '0x1' || addr === '0xa' ||
+            addr === '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c' ||
+            addr === '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376';
+        })
+        .map(([addr, price]) => ({
+          token_address: addr,
+          price: price,
+          timestamp: now,
+          granularity: '5min',
+          source: 'coingecko'
+        }));
+
+      if (fiveMinEntries.length > 0) {
+        await supabase.from('token_price_history').insert(fiveMinEntries);
+      }
     }
 
     return snapshot;

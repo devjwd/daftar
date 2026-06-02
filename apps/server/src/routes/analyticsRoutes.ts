@@ -256,6 +256,163 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
     else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
     else startDate.setFullYear(startDate.getFullYear() - 5);
 
+    // For 1D timeframe, dynamically project using 5-minute price history if available
+    if (timeframe === '1D') {
+      try {
+        const { data: latestDateRow } = await supabase
+          .from('user_balance_snapshots')
+          .select('snapshot_date')
+          .eq('user_address', wallet)
+          .order('snapshot_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let balances: any[] = [];
+        if (latestDateRow) {
+          const { data: bData } = await supabase
+            .from('user_balance_snapshots')
+            .select('asset_type, symbol, amount')
+            .eq('user_address', wallet)
+            .eq('snapshot_date', latestDateRow.snapshot_date);
+          balances = bData || [];
+        }
+
+        const { data: priceHist } = await supabase
+          .from('token_price_history')
+          .select('token_address, price, timestamp')
+          .eq('granularity', '5min')
+          .gte('timestamp', startDate.toISOString())
+          .order('timestamp', { ascending: true });
+
+        if (priceHist && priceHist.length >= 2 && balances.length > 0) {
+          const { data: cachedPrices } = await supabase.from('price_cache').select('token_id, price_usd');
+          const fallbackPrices: Record<string, number> = {};
+          if (cachedPrices) {
+            cachedPrices.forEach((p: any) => {
+              const token = p.token_id.toLowerCase().replace(/^0x0*/, '0x');
+              fallbackPrices[token] = Number(p.price_usd);
+            });
+          }
+
+          const { LST_PRICE_ALIASES, NATIVE_MOVE_ADDRESSES, INFLOW_ACTIONS, OUTFLOW_ACTIONS, KNOWN_EXCHANGES } = await import('../config/whitelists.ts');
+
+          const pricesByTime: Record<string, Record<string, number>> = {};
+          priceHist.forEach((hp: any) => {
+            const timeKey = new Date(hp.timestamp).toISOString();
+            const token = hp.token_address.toLowerCase().replace(/^0x0*/, '0x');
+            if (!pricesByTime[timeKey]) pricesByTime[timeKey] = {};
+            pricesByTime[timeKey][token] = Number(hp.price);
+          });
+
+          const { data: periodTxs } = await supabase
+            .from('user_transaction_history')
+            .select('timestamp, value_usd, action, protocol')
+            .eq('user_address', wallet)
+            .gte('timestamp', startDate.toISOString())
+            .in('action', [...INFLOW_ACTIONS, ...OUTFLOW_ACTIONS])
+            .order('timestamp', { ascending: true });
+
+          const { data: startingSnap } = await supabase
+            .from('user_networth_snapshots')
+            .select('net_deposits_usd')
+            .eq('user_address', wallet)
+            .gte('timestamp', startDate.toISOString())
+            .order('timestamp', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          const baseNetDeposits = Number(startingSnap?.net_deposits_usd || 0);
+
+          const sortedTxs = (periodTxs || []).map((t: any) => ({
+            time: new Date(t.timestamp).getTime(),
+            val: Number(t.value_usd || 0),
+            action: t.action,
+            protocol: t.protocol || '',
+          }));
+
+          const uniqueTimestamps = Object.keys(pricesByTime).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+          let runningNetDeposits = baseNetDeposits;
+          let txIndex = 0;
+
+          const history = uniqueTimestamps.map((timeISO) => {
+            const timestampMs = new Date(timeISO).getTime();
+
+            while (txIndex < sortedTxs.length && sortedTxs[txIndex].time <= timestampMs) {
+              const tx = sortedTxs[txIndex];
+              const isExchange = KNOWN_EXCHANGES.has(tx.protocol) || tx.protocol.includes('Exchange') || tx.protocol.includes('Bridge');
+              if (isExchange) {
+                if (INFLOW_ACTIONS.includes(tx.action)) {
+                  runningNetDeposits += tx.val;
+                } else if (OUTFLOW_ACTIONS.includes(tx.action)) {
+                  runningNetDeposits -= tx.val;
+                }
+              }
+              txIndex++;
+            }
+
+            let totalValuation = 0;
+            balances.forEach((b: any) => {
+              let tokenKey = b.asset_type.toLowerCase().replace(/^0x0*/, '0x');
+              if (NATIVE_MOVE_ADDRESSES.has(tokenKey)) {
+                tokenKey = '0x1';
+              }
+
+              let price = pricesByTime[timeISO][tokenKey] || 0;
+
+              if (price === 0 && b.symbol) {
+                const upperSym = b.symbol.toUpperCase();
+                if (LST_PRICE_ALIASES[b.symbol]) {
+                  const aliasKey = LST_PRICE_ALIASES[b.symbol];
+                  price = pricesByTime[timeISO][aliasKey] || fallbackPrices[aliasKey] || 0;
+                } else if (upperSym.includes('USDC') || upperSym.includes('USDT') || upperSym.includes('DAI') || upperSym.includes('USDE') || upperSym.includes('USD')) {
+                  price = 1.0;
+                } else if (upperSym.includes('BTC')) {
+                  const btcKey = '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c';
+                  price = pricesByTime[timeISO][btcKey] || fallbackPrices[btcKey] || 80000;
+                } else if (upperSym.includes('ETH')) {
+                  const ethKey = '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376';
+                  price = pricesByTime[timeISO][ethKey] || fallbackPrices[ethKey] || 2500;
+                } else if (upperSym === 'MOVE' || upperSym.includes('MOVE') || tokenKey === '0x1') {
+                  price = pricesByTime[timeISO]['0x1'] || pricesByTime[timeISO]['0xa'] || fallbackPrices['0x1'] || 0.015;
+                }
+              }
+
+              if (price === 0 && fallbackPrices[tokenKey]) {
+                price = fallbackPrices[tokenKey];
+              }
+
+              totalValuation += Number(b.amount || 0) * price;
+            });
+
+            return {
+              date: timeISO,
+              value: totalValuation,
+              netDeposits: runningNetDeposits,
+            };
+          });
+
+          if (history.length >= 2) {
+            const firstPoint = history[0];
+            const lastPoint = history[history.length - 1];
+            const changeUsd = (lastPoint.value - firstPoint.value) - (lastPoint.netDeposits - firstPoint.netDeposits);
+            const baseValue = firstPoint.value > 0 ? firstPoint.value : Math.max(lastPoint.netDeposits - firstPoint.netDeposits, 0.01);
+            const changePercent = baseValue > 0.01 ? (changeUsd / baseValue) * 100 : 0;
+
+            return res.json({
+              history,
+              performance: {
+                changeUsd: Math.round(changeUsd * 100) / 100,
+                changePercent: Math.round(changePercent * 100) / 100,
+              },
+            });
+          }
+        }
+      } catch (err: any) {
+        console.error('[Analytics/PNL/1D] Failed dynamic projection, falling back to standard:', err.message);
+      }
+    }
+
     const { data: snapshots, error: snapError } = await supabase
       .from('user_networth_snapshots')
       .select('total_networth_usd, net_deposits_usd, timestamp')
