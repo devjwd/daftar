@@ -6,6 +6,7 @@ import BadgeAdmin from '../components/BadgeAdmin';
 import EntityAdmin from '../components/EntityAdmin';
 import PlanAdmin from '../components/PlanAdmin';
 import ReportAdmin from '../components/ReportAdmin';
+import SyncAdmin from '../components/SyncAdmin';
 
 import { useMovementClient } from '../hooks/useMovementClient';
 import { useTransactionTracker } from '../hooks/useTransactionTracker';
@@ -401,6 +402,19 @@ export default function Admin() {
                 <span className="admin-tab-meta">View bug & token reports</span>
               </span>
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'sync'}
+              className={`admin-tab ${activeTab === 'sync' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sync')}
+            >
+              <span className="admin-tab-icon" aria-hidden="true">📡</span>
+              <span className="admin-tab-text">
+                <span className="admin-tab-title">Data Sync</span>
+                <span className="admin-tab-meta">Indexer pull status & unknowns</span>
+              </span>
+            </button>
           </div>
         </div>
 
@@ -408,6 +422,7 @@ export default function Admin() {
         {activeTab === 'entities' && <EntityAdmin />}
         {activeTab === 'plans' && <PlanAdmin />}
         {activeTab === 'reports' && <ReportAdmin />}
+        {activeTab === 'sync' && <SyncAdmin />}
 
         {activeTab === 'settings' && (
           <div className="admin-content">

@@ -17,6 +17,97 @@ interface AnalyticsViewProps {
   walletAddress?: string;
 }
 
+// Skeleton placeholder for analytics sections
+const AnalyticsSkeleton = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+    {/* Stats row skeleton */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} style={{
+          background: 'rgba(255,255,255,0.03)',
+          borderRadius: '12px',
+          padding: '20px',
+          border: '1px solid rgba(255,255,255,0.05)',
+        }}>
+          <div style={{
+            width: '60%',
+            height: '10px',
+            background: 'rgba(255,255,255,0.06)',
+            borderRadius: '4px',
+            marginBottom: '12px',
+          }} />
+          <div style={{
+            width: '40%',
+            height: '24px',
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: '6px',
+          }} />
+        </div>
+      ))}
+    </div>
+    {/* Chart skeleton */}
+    <div style={{
+      background: 'rgba(255,255,255,0.02)',
+      borderRadius: '16px',
+      padding: '24px',
+      border: '1px solid rgba(255,255,255,0.05)',
+      height: '280px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <div style={{
+        width: '100%',
+        height: '100%',
+        background: 'linear-gradient(180deg, rgba(205,161,105,0.04) 0%, transparent 100%)',
+        borderRadius: '12px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <motion.div
+          animate={{ opacity: [0.3, 0.6, 0.3] }}
+          transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(90deg, transparent 0%, rgba(205,161,105,0.05) 50%, transparent 100%)',
+          }}
+        />
+      </div>
+    </div>
+    {/* Bottom sections skeleton */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      {[1, 2].map(i => (
+        <div key={i} style={{
+          background: 'rgba(255,255,255,0.02)',
+          borderRadius: '12px',
+          padding: '20px',
+          border: '1px solid rgba(255,255,255,0.05)',
+          height: '200px',
+        }}>
+          <div style={{
+            width: '50%',
+            height: '12px',
+            background: 'rgba(255,255,255,0.06)',
+            borderRadius: '4px',
+            marginBottom: '16px',
+          }} />
+          {[1, 2, 3].map(j => (
+            <div key={j} style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '12px',
+            }}>
+              <div style={{ width: '30%', height: '10px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px' }} />
+              <div style={{ width: '20%', height: '10px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px' }} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const navigate = useNavigate();
   const { account, signMessage } = useWallet();
@@ -24,6 +115,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const [bottomTimeframe, setBottomTimeframe] = useState('All');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [bottomAnalyticsData, setBottomAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [dataLoading, setDataLoading] = useState(false);
 
   const { profile, loading: profileLoading } = useProfile(walletAddress || null);
   const subscriptionTier = resolveEffectiveTier({
@@ -58,6 +150,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     async (tf = timeframeRef.current, bottomTf = bottomTimeframeRef.current) => {
       if (!walletAddress) return;
 
+      setDataLoading(true);
       try {
         if (tf === bottomTf) {
           const res = await fetch(
@@ -99,6 +192,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
       } catch (err) {
         console.error('Fetch analytics error:', err);
         setFetchError('Unable to load analytics right now.');
+      } finally {
+        setDataLoading(false);
       }
     },
     [walletAddress, API_URL]
@@ -118,11 +213,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     }
   );
 
+  // Fetch data as soon as we know the user is premium, even if sync isn't complete yet
   useEffect(() => {
-    if (walletAddress && isPremium && syncStatus === 'completed') {
+    if (walletAddress && isPremium && (syncStatus === 'completed' || syncStatus === 'syncing')) {
        fetchAnalyticsData(timeframeRef.current, bottomTimeframeRef.current);
     }
-  }, [walletAddress, isPremium, fetchAnalyticsData]);
+  }, [walletAddress, isPremium, syncStatus === 'completed']); // Only re-trigger on completed transition
 
   const fetchBottomOnly = async (tf: string, startDate?: string, endDate?: string) => {
     if (!walletAddress) return;
@@ -147,10 +243,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
   if (profileLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px' }}>
-        <div className="radar-pulse-container">
-          <div className="radar-pulse"></div>
-        </div>
+      <div className="analytics-v5-container" style={{ padding: '40px 20px' }}>
+        <AnalyticsSkeleton />
       </div>
     );
   }
@@ -168,89 +262,80 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   }
 
   const hasData = analyticsData !== null;
-  const isInitialSyncing = syncStatus === 'syncing' && !hasData;
+  const isInitialSyncing = syncStatus === 'syncing' && !hasData && !dataLoading;
+  const showSyncBanner = syncStatus === 'syncing' && hasData;
 
   return (
     <div className="analytics-v5-container">
-      <AnimatePresence mode="wait">
-        {isInitialSyncing ? (
-          <SyncStateOverlay
-            key="sync-overlay"
-            status="syncing"
-            progress={syncProgress}
-            onStartSync={handleStartSync}
+      <motion.div
+        key="dashboard-content"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="analytics-page-header">
+          <div className="analytics-page-header-left">
+            <h2>Portfolio Intelligence</h2>
+            <div className="analytics-page-header-sub">
+              <p>Live from database</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button type="button" className="analytics-visualizer-btn" onClick={handleOpenVisualizer}>
+              Launch Visualizer
+            </button>
+            <button type="button" className="analytics-rescan-btn" onClick={handleStartSync}>
+              Rescan Network
+            </button>
+          </div>
+        </div>
+
+        {/* Inline sync banner (non-blocking) */}
+        <AnimatePresence>
+          {(syncStatus === 'syncing' || syncStatus === 'error' || (syncStatus === 'idle' && !hasData && !dataLoading)) && (
+            <SyncStateOverlay
+              status={syncStatus === 'idle' && !hasData ? 'idle' : syncStatus as any}
+              progress={syncProgress}
+              onStartSync={handleStartSync}
+            />
+          )}
+        </AnimatePresence>
+
+        {fetchError && (
+          <div className="analytics-error-banner" role="alert">
+            {fetchError}
+          </div>
+        )}
+
+        {analyticsData?.truncated && (
+          <div className="analytics-truncation-banner" role="status">
+            Showing the most recent {analyticsData.loadedTransactionCount?.toLocaleString()} of your
+            transactions (limit {analyticsData.maxTransactionLimit?.toLocaleString()}). Totals may be
+            understated for very active wallets.
+          </div>
+        )}
+
+        {/* Show data or skeleton */}
+        {analyticsData && bottomAnalyticsData ? (
+          <AnalyticsOverview
+            data={analyticsData}
+            bottomData={bottomAnalyticsData}
+            timeframe={timeframe}
+            setTimeframe={(tf) => {
+              setTimeframe(tf);
+              void fetchAnalyticsData(tf, bottomTimeframe);
+            }}
+            bottomTimeframe={bottomTimeframe}
+            setBottomTimeframe={(tf, startDate, endDate) => {
+              setBottomTimeframe(tf);
+              void fetchBottomOnly(tf, startDate, endDate);
+            }}
           />
         ) : (
-          <motion.div
-            key="dashboard-content"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="analytics-page-header">
-              <div className="analytics-page-header-left">
-                <h2>Portfolio Intelligence</h2>
-                <div className="analytics-page-header-sub">
-                  <p>Live from database</p>
-                  {syncStatus === 'syncing' && (
-                    <div className="analytics-sync-indicator">
-                      <span className="analytics-sync-badge">
-                        {syncProgress === 0 ? 'Queued in background...' : 'Syncing history...'}
-                      </span>
-                      <div className="analytics-sync-bar">
-                        <div
-                          className="analytics-sync-bar-fill"
-                          style={{ width: `${syncProgress}%` }}
-                        />
-                      </div>
-                      <span className="analytics-sync-pct">{syncProgress}%</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <button type="button" className="analytics-visualizer-btn" onClick={handleOpenVisualizer}>
-                  Launch Visualizer
-                </button>
-                <button type="button" className="analytics-rescan-btn" onClick={handleStartSync}>
-                  Rescan Network
-                </button>
-              </div>
-            </div>
-
-            {fetchError && (
-              <div className="analytics-error-banner" role="alert">
-                {fetchError}
-              </div>
-            )}
-
-            {analyticsData?.truncated && (
-              <div className="analytics-truncation-banner" role="status">
-                Showing the most recent {analyticsData.loadedTransactionCount?.toLocaleString()} of your
-                transactions (limit {analyticsData.maxTransactionLimit?.toLocaleString()}). Totals may be
-                understated for very active wallets.
-              </div>
-            )}
-
-            {analyticsData && bottomAnalyticsData && (
-              <AnalyticsOverview
-                data={analyticsData}
-                bottomData={bottomAnalyticsData}
-                timeframe={timeframe}
-                setTimeframe={(tf) => {
-                  setTimeframe(tf);
-                  void fetchAnalyticsData(tf, bottomTimeframe);
-                }}
-                bottomTimeframe={bottomTimeframe}
-                setBottomTimeframe={(tf, startDate, endDate) => {
-                  setBottomTimeframe(tf);
-                  void fetchBottomOnly(tf, startDate, endDate);
-                }}
-              />
-            )}
-          </motion.div>
+          // Show skeleton while loading data (not blocking full screen)
+          hasData === false && syncStatus !== 'idle' && <AnalyticsSkeleton />
         )}
-      </AnimatePresence>
+      </motion.div>
     </div>
   );
 };

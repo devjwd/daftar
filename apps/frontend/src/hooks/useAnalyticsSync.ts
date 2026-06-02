@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export type SyncStatus = 'idle' | 'syncing' | 'completed' | 'error';
 
@@ -10,6 +10,7 @@ export function useAnalyticsSync(
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const hasAttemptedPartialFetch = useRef(false);
 
   const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
@@ -24,6 +25,7 @@ export function useAnalyticsSync(
     let pollIntervalId: ReturnType<typeof setInterval> | null = null;
     let failedPolls = 0;
     const MAX_FAILED_POLLS = 30;
+    hasAttemptedPartialFetch.current = false;
 
     const stopPolling = () => {
       if (pollIntervalId) {
@@ -58,6 +60,17 @@ export function useAnalyticsSync(
 
         if (data.is_queued || data.synced_transactions > 0 || data.last_sync_at) {
           setSyncStatus('syncing');
+
+          // If we have some synced transactions but haven't fetched data yet, do a partial fetch
+          if (data.synced_transactions > 0 && !hasAttemptedPartialFetch.current) {
+            hasAttemptedPartialFetch.current = true;
+            // Trigger a data fetch with whatever partial data is available
+            try {
+              await onSyncComplete();
+            } catch {
+              // Non-critical — data may not be available yet
+            }
+          }
         } else {
           failedPolls++;
           if (failedPolls >= MAX_FAILED_POLLS) {
@@ -94,9 +107,10 @@ export function useAnalyticsSync(
       const alreadyComplete = await checkStatus();
       if (!alreadyComplete) {
         await startSyncIfNeeded();
+        // Poll at 4s for active sync (faster feedback), 6s otherwise
         pollIntervalId = setInterval(() => {
           void checkStatus();
-        }, 6000);
+        }, 4000);
       }
     })();
 
@@ -110,6 +124,7 @@ export function useAnalyticsSync(
     if (!walletAddress) return;
     setSyncStatus('syncing');
     setSyncProgress(0);
+    hasAttemptedPartialFetch.current = false;
     try {
       const query = buildOwnerSyncQuery();
       const res = await fetch(`${API_URL}/api/analytics/sync?${query}`);

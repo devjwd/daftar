@@ -330,7 +330,16 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
         // If marked as pro or lite, immediately queue a background sync for the user
         if (tier === 'pro' || tier === 'lite') {
           try {
-            await queueSync(supabaseAdmin, normalized, 1);
+            // Initialize user_sync_status so the frontend status polling sees the user immediately
+            await supabaseAdmin.from('user_sync_status').upsert({
+              user_address: normalized,
+              full_history_synced: false,
+              synced_transactions: 0,
+              total_transactions: 0,
+              last_sync_at: new Date().toISOString(),
+            }, { onConflict: 'user_address' });
+
+            await queueSync(supabaseAdmin, normalized, 10);
             console.log(`[Admin] Automatically queued initial sync for newly upgraded user: ${normalized}`);
           } catch (queueErr) {
             console.error(`[Admin] Failed to auto-queue sync for upgraded user ${normalized}:`, queueErr);
@@ -338,6 +347,95 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
         }
 
         return res.json({ success: true, user: data });
+      }
+    }
+
+    if (action === 'manage-sync-status') {
+      const { method, address: targetAddress } = req.body;
+
+      if (method === 'LIST') {
+        const { query } = req.body;
+
+        // Get all pro/verified users with their sync status
+        let profileQuery = supabaseAdmin.from('profiles')
+          .select('wallet_address, username, subscription_tier, is_verified, avatar_url')
+          .or('is_verified.eq.true,subscription_tier.eq.pro,subscription_tier.eq.lite')
+          .order('created_at', { ascending: false });
+
+        if (query) {
+          profileQuery = profileQuery.or(`username.ilike.%${query}%,wallet_address.ilike.%${query}%`);
+        }
+
+        const { data: profiles, error: profileErr } = await profileQuery.limit(100);
+        if (profileErr) throw profileErr;
+
+        if (!profiles || profiles.length === 0) {
+          return res.json({ success: true, users: [] });
+        }
+
+        const wallets = profiles.map(p => p.wallet_address).filter(Boolean);
+
+        // Fetch sync status for all these wallets
+        const { data: syncStatuses } = await supabaseAdmin
+          .from('user_sync_status')
+          .select('*')
+          .in('user_address', wallets);
+
+        // Fetch queue status for all these wallets
+        const { data: queueJobs } = await supabaseAdmin
+          .from('sync_queue')
+          .select('*')
+          .in('user_address', wallets)
+          .in('status', ['pending', 'processing', 'failed']);
+
+        // Fetch unknown transaction counts per wallet
+        const unknownCounts: Record<string, number> = {};
+        for (const wallet of wallets) {
+          const { count } = await supabaseAdmin
+            .from('user_transaction_history')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_address', wallet)
+            .eq('protocol', 'Unknown');
+          unknownCounts[wallet] = count || 0;
+        }
+
+        const syncStatusMap = new Map((syncStatuses || []).map(s => [s.user_address, s]));
+        const queueMap = new Map((queueJobs || []).map(j => [j.user_address, j]));
+
+        const users = profiles.map(profile => ({
+          ...profile,
+          sync_status: syncStatusMap.get(profile.wallet_address) || null,
+          queue_status: queueMap.get(profile.wallet_address) || null,
+          unknown_count: unknownCounts[profile.wallet_address] || 0,
+        }));
+
+        return res.json({ success: true, users });
+      }
+
+      if (method === 'FORCE_SYNC') {
+        if (!targetAddress) return res.status(400).json({ error: 'address required' });
+        const normalized = normalizeAddress(targetAddress);
+        
+        // Reset sync status so it picks up everything
+        await supabaseAdmin.from('user_sync_status').upsert({
+          user_address: normalized,
+          full_history_synced: false,
+          last_sync_at: new Date().toISOString(),
+        }, { onConflict: 'user_address' });
+
+        await queueSync(supabaseAdmin, normalized, 10);
+        return res.json({ success: true, message: `Force sync queued for ${normalized}` });
+      }
+
+      if (method === 'REPROCESS_UNKNOWNS') {
+        const { reProcessUnknownTransactions } = await import('../services/analyticsSyncService.ts');
+        
+        // Run asynchronously so the HTTP response returns immediately
+        reProcessUnknownTransactions(supabaseAdmin)
+          .then(() => console.log('[Admin] Finished reprocessing unknown transactions.'))
+          .catch((err: any) => console.error('[Admin] Error during reprocessing:', err));
+
+        return res.json({ success: true, message: 'Reprocess unknown transactions job triggered' });
       }
     }
 

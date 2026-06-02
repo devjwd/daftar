@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Radar, AlertTriangle, ScanSearch } from 'lucide-react';
 
 interface SyncStateOverlayProps {
   status: 'idle' | 'syncing' | 'error';
@@ -9,91 +8,167 @@ interface SyncStateOverlayProps {
 }
 
 const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, onStartSync }) => {
-  return (
-    <motion.div 
-      className="bento-card sync-overlay-v5"
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-    >
-      {status === 'idle' && (
-        <>
-          <div className="radar-pulse-container">
-            <ScanSearch size={48} className="radar-icon" strokeWidth={1.5} />
-          </div>
-          <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>Uncover Your On-Chain Identity</h2>
-            <p style={{ color: 'var(--text-tertiary)', fontSize: '15px', maxWidth: '400px' }}>
-              Run a deep scan of the Movement network to compile your complete transaction history, PNL, and protocol affinity.
-            </p>
-          </div>
-          <button className="btn-glowing-v5" onClick={onStartSync}>
-            <Radar size={20} />
-            <span>Initiate Deep Scan</span>
-          </button>
-        </>
-      )}
+  // Idle state: show a minimal call-to-action card
+  if (status === 'idle') {
+    return (
+      <motion.div
+        className="analytics-sync-inline-card"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        style={{
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(205,161,105,0.15)',
+          borderRadius: '16px',
+          padding: '32px',
+          textAlign: 'center',
+          maxWidth: '480px',
+          margin: '40px auto',
+        }}
+      >
+        <div style={{ fontSize: '36px', marginBottom: '12px' }}>📡</div>
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>
+          Start Data Sync
+        </h3>
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', margin: '0 0 20px', lineHeight: 1.5 }}>
+          Pull your full transaction history from the Movement indexer to unlock analytics.
+        </p>
+        <button
+          className="analytics-rescan-btn"
+          onClick={onStartSync}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 24px',
+            fontSize: '14px',
+            fontWeight: 600,
+          }}
+        >
+          Initiate Scan
+        </button>
+      </motion.div>
+    );
+  }
 
-      {status === 'syncing' && (
-        <>
-          <div className="radar-pulse-container">
-            <div className="radar-pulse"></div>
-            <Radar size={48} className="radar-icon" strokeWidth={1.5} />
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', marginBottom: '4px' }}>
-              {progress === 0 ? 'Scanning Movement Network...' : progress < 100 ? 'Extracting History...' : 'Reconstructing Portfolio...'}
-            </h2>
-            <p style={{ color: 'var(--text-tertiary)', fontSize: '15px', marginBottom: '24px' }}>
-              {progress === 0 
-                ? 'Locating your transactions on the indexer.'
-                : progress < 100 
-                  ? 'Downloading transaction data from Movement Indexer.' 
-                  : 'Finalizing PNL metrics and historical snapshots.'}
-            </p>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '300px', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '100px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                {progress > 0 ? (
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
-                    style={{ height: '100%', background: 'linear-gradient(90deg, #cda169 0%, #ffcc8d 100%)', boxShadow: '0 0 15px rgba(205,161,105,0.4)' }}
-                  ></motion.div>
-                ) : (
-                  <motion.div 
-                    animate={{ x: [-300, 300] }}
-                    transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                    style={{ width: '150px', height: '100%', background: 'linear-gradient(90deg, transparent 0%, #cda169 50%, transparent 100%)' }}
-                  ></motion.div>
-                )}
-              </div>
-              <span style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', fontVariantNumeric: 'tabular-nums' }}>
-                {progress > 0 ? `${progress}%` : 'Scanning...'}
-              </span>
-            </div>
-          </div>
-        </>
-      )}
+  // Syncing state: show a minimal inline progress bar
+  if (status === 'syncing') {
+    return (
+      <motion.div
+        className="analytics-sync-inline-card"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        style={{
+          background: 'rgba(205,161,105,0.04)',
+          border: '1px solid rgba(205,161,105,0.12)',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          marginBottom: '20px',
+        }}
+      >
+        <div style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '50%',
+          background: 'rgba(205,161,105,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+            style={{ fontSize: '16px' }}
+          >
+            🔄
+          </motion.div>
+        </div>
 
-      {status === 'error' && (
-        <>
-          <div className="radar-pulse-container" style={{ background: 'rgba(255, 75, 75, 0.1)', borderRadius: '50%' }}>
-            <AlertTriangle size={48} color="#ff4b4b" strokeWidth={1.5} />
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>
+              {progress === 0 ? 'Scanning network...' : progress < 100 ? 'Syncing history...' : 'Finalizing...'}
+            </span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--primary)', fontVariantNumeric: 'tabular-nums' }}>
+              {progress > 0 ? `${progress}%` : ''}
+            </span>
           </div>
-          <div>
-            <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>Connection Lost</h2>
-            <p style={{ color: 'var(--text-tertiary)', fontSize: '15px' }}>
-              The indexer failed to respond in time. Please try again.
-            </p>
+          <div style={{
+            width: '100%',
+            height: '4px',
+            background: 'rgba(255,255,255,0.06)',
+            borderRadius: '100px',
+            overflow: 'hidden',
+          }}>
+            {progress > 0 ? (
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                style={{
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #cda169, #ffcc8d)',
+                  borderRadius: '100px',
+                }}
+              />
+            ) : (
+              <motion.div
+                animate={{ x: [-200, 300] }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
+                style={{
+                  width: '100px',
+                  height: '100%',
+                  background: 'linear-gradient(90deg, transparent, #cda169, transparent)',
+                }}
+              />
+            )}
           </div>
-          <button className="btn-glowing-v5" style={{ background: '#ff4b4b', boxShadow: '0 0 20px rgba(255, 75, 75, 0.2)' }} onClick={onStartSync}>
-            Retry Scan
-          </button>
-        </>
-      )}
-    </motion.div>
-  );
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Error state: minimal error banner
+  if (status === 'error') {
+    return (
+      <motion.div
+        className="analytics-sync-inline-card"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        style={{
+          background: 'rgba(239,68,68,0.06)',
+          border: '1px solid rgba(239,68,68,0.15)',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          marginBottom: '20px',
+        }}
+      >
+        <span style={{ fontSize: '20px' }}>⚠️</span>
+        <div style={{ flex: 1 }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#fca5a5' }}>
+            Sync failed. The indexer may be temporarily unavailable.
+          </span>
+        </div>
+        <button
+          className="analytics-rescan-btn"
+          onClick={onStartSync}
+          style={{ fontSize: '12px', padding: '6px 16px' }}
+        >
+          Retry
+        </button>
+      </motion.div>
+    );
+  }
+
+  return null;
 };
 
 export default SyncStateOverlay;

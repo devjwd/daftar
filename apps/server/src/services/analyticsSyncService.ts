@@ -287,14 +287,23 @@ function enrichTransaction(
     swap_exact_in_metastable_entry: TX_TYPES.SWAP,
     swap_exact_in_weighted_entry: TX_TYPES.SWAP,
     swap_exact_in_router_entry: TX_TYPES.SWAP,
+    swap_exact_out_stable_entry: TX_TYPES.SWAP,
+    swap_exact_out_weighted_entry: TX_TYPES.SWAP,
+    swap_exact_out_metastable_entry: TX_TYPES.SWAP,
     new_position: TX_TYPES.LIQUIDITY,
     add_liquidity_stable_entry: TX_TYPES.LIQUIDITY,
     add_liquidity_weighted_entry: TX_TYPES.LIQUIDITY,
     remove_liquidity_entry: TX_TYPES.WITHDRAW,
+    increase_liquidity: TX_TYPES.LIQUIDITY,
+    decrease_liquidity: TX_TYPES.WITHDRAW,
     // Route-X
     swap_entry: TX_TYPES.SWAP,
+    swap_exact_input: TX_TYPES.SWAP,
+    swap_exact_output: TX_TYPES.SWAP,
     // Yuzu
     swap_exact_coin_for_fa_multi_hops: TX_TYPES.SWAP,
+    swap_exact_fa_for_coin_multi_hops: TX_TYPES.SWAP,
+    swap_exact_fa_for_fa_multi_hops: TX_TYPES.SWAP,
     collect_multi_rewards: TX_TYPES.CLAIM,
     add_liquidity: TX_TYPES.LIQUIDITY,
     remove_liquidity: TX_TYPES.WITHDRAW,
@@ -324,11 +333,13 @@ function enrichTransaction(
     borrow_fa: TX_TYPES.BORROW,
     repay_fa: TX_TYPES.REPAY,
     claim_rewards: TX_TYPES.CLAIM,
+    claim_all_rewards: TX_TYPES.CLAIM,
     batch_claim_rewards: TX_TYPES.CLAIM,
     batch_claim_rewards_1: TX_TYPES.CLAIM,
     // Canopy
     deposit_fa_with_coin_type: TX_TYPES.STAKE,
     deposit_fa: TX_TYPES.DEPOSIT,
+    deposit_fa_for_coin: TX_TYPES.DEPOSIT,
     deposit_coin: TX_TYPES.DEPOSIT,
     withdraw_coin: TX_TYPES.WITHDRAW,
     withdraw_token: TX_TYPES.WITHDRAW,
@@ -647,9 +658,28 @@ function enrichTransaction(
   
   // Fallback to direction-based classification if OTHER
   if (action === TX_TYPES.OTHER) {
-    if (inFlows.length > 0 && outFlows.length > 0) action = TX_TYPES.SWAP;
-    else if (inFlows.length > 0) action = TX_TYPES.RECEIVED;
-    else if (outFlows.length > 0) action = TX_TYPES.SEND;
+    if (inFlows.length > 0 && outFlows.length > 0) {
+      // Don't classify as SWAP if the function name suggests lending/staking/liquidity
+      const lowerSuffix = suffix.toLowerCase();
+      const isLendingLike = ['lend', 'supply', 'deposit', 'borrow', 'repay', 'redeem', 'stake', 'unstake', 'withdraw'].some(k => lowerSuffix.includes(k));
+      if (isLendingLike) {
+        // If the function name is lending-related, try to classify from the suffix keyword
+        if (lowerSuffix.includes('lend') || lowerSuffix.includes('supply')) action = TX_TYPES.LEND;
+        else if (lowerSuffix.includes('borrow')) action = TX_TYPES.BORROW;
+        else if (lowerSuffix.includes('repay')) action = TX_TYPES.REPAY;
+        else if (lowerSuffix.includes('stake')) action = TX_TYPES.STAKE;
+        else if (lowerSuffix.includes('unstake')) action = TX_TYPES.UNSTAKE;
+        else if (lowerSuffix.includes('deposit')) action = TX_TYPES.DEPOSIT;
+        else if (lowerSuffix.includes('withdraw') || lowerSuffix.includes('redeem')) action = TX_TYPES.WITHDRAW;
+        else action = TX_TYPES.SWAP;
+      } else {
+        action = TX_TYPES.SWAP;
+      }
+    } else if (inFlows.length > 0) {
+      action = TX_TYPES.RECEIVED;
+    } else if (outFlows.length > 0) {
+      action = TX_TYPES.SEND;
+    }
   }
 
   // Handle exchange deposit classification override
@@ -1054,70 +1084,98 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
     .select('*');
   const entitiesList = entitiesData || [];
 
-  // 2. Fetch all transactions marked as Unknown or OTHER action (limited batch)
-  const { data: unknowns, error } = await supabase
-    .from('user_transaction_history')
-    .select('*')
-    .or('protocol.eq.Unknown,action.eq.OTHER')
-    .limit(500);
+  // 2. Fetch and reprocess unknown/OTHER transactions in paginated batches
+  const BATCH_SIZE = 500;
+  const MAX_BATCHES = 4; // Up to 2000 transactions per run
+  let totalFixed = 0;
+  let totalProcessed = 0;
 
-  if (error || !unknowns) return;
-
-  console.log(`[DeepSync] Found ${unknowns.length} unknown transactions to re-process.`);
-
-  const updatedRows: any[] = [];
-  const pseudoTxPairs = unknowns.map(row => {
-    const meta = row.metadata || {};
-    const pseudoTx = {
-      transaction_version: row.version,
-      user_transaction: {
-        hash: row.hash,
-        timestamp: row.timestamp,
-        entry_function_id_str: meta.entry_function_id_str || '',
-        success: meta.success ?? true
-      },
-      fungible_asset_activities: meta.fungible_asset_activities || [],
-      coin_activities: meta.coin_activities || []
-    };
-    return { row, tx: pseudoTx, userAddress: row.user_address };
-  });
-
-  const counterparties = extractCounterparties(pseudoTxPairs);
-  const labelsMap = await getLabelsForAddresses(supabase, counterparties);
-
-  for (const { row, tx: pseudoTx } of pseudoTxPairs) {
-    try {
-      const enriched = enrichTransaction(pseudoTx, row.user_address, labelsMap, entitiesList);
-
-      updatedRows.push({
-        id: row.id,
-        user_address: row.user_address,
-        version: row.version,
-        protocol: enriched.protocol,
-        action: enriched.action,
-        category: enriched.category,
-        description: enriched.description,
-        asset_in_symbol: enriched.asset_in_symbol,
-        asset_in_amount: enriched.asset_in_amount,
-        asset_out_symbol: enriched.asset_out_symbol,
-        asset_out_amount: enriched.asset_out_amount
-      });
-    } catch (err) {
-      console.error(`[DeepSync] Failed to enrich version ${row.version}`);
-    }
-  }
-
-  if (updatedRows.length > 0) {
-    const { error: upsertError } = await supabase
+  for (let batch = 0; batch < MAX_BATCHES; batch++) {
+    const { data: unknowns, error } = await supabase
       .from('user_transaction_history')
-      .upsert(updatedRows, { onConflict: 'user_address,version' });
+      .select('*')
+      .or('protocol.eq.Unknown,action.eq.OTHER')
+      .limit(BATCH_SIZE);
 
-    if (upsertError) {
-      console.error('[DeepSync] Failed to batch update transactions:', upsertError.message);
-    } else {
-      console.log(`[DeepSync] ✅ Successfully batch updated ${updatedRows.length} unknown transactions.`);
+    if (error || !unknowns || unknowns.length === 0) {
+      if (batch === 0) {
+        console.log(`[DeepSync] No unknown transactions found to re-process.`);
+      }
+      break;
     }
+
+    console.log(`[DeepSync] Batch ${batch + 1}: Processing ${unknowns.length} unknown transactions...`);
+    totalProcessed += unknowns.length;
+
+    const updatedRows: any[] = [];
+    const pseudoTxPairs = unknowns.map(row => {
+      const meta = row.metadata || {};
+      const pseudoTx = {
+        transaction_version: row.version,
+        user_transaction: {
+          hash: row.hash,
+          timestamp: row.timestamp,
+          entry_function_id_str: meta.entry_function_id_str || '',
+          success: meta.success ?? true
+        },
+        fungible_asset_activities: meta.fungible_asset_activities || [],
+        coin_activities: meta.coin_activities || []
+      };
+      return { row, tx: pseudoTx, userAddress: row.user_address };
+    });
+
+    const counterparties = extractCounterparties(pseudoTxPairs);
+    const labelsMap = await getLabelsForAddresses(supabase, counterparties);
+
+    for (const { row, tx: pseudoTx } of pseudoTxPairs) {
+      try {
+        const enriched = enrichTransaction(pseudoTx, row.user_address, labelsMap, entitiesList);
+
+        // Only update if something actually changed
+        const protocolChanged = enriched.protocol !== 'Unknown' && enriched.protocol !== row.protocol;
+        const actionChanged = enriched.action !== 'OTHER' && enriched.action !== row.action;
+
+        if (protocolChanged || actionChanged) {
+          updatedRows.push({
+            id: row.id,
+            user_address: row.user_address,
+            version: row.version,
+            protocol: enriched.protocol,
+            action: enriched.action,
+            category: enriched.category,
+            description: enriched.description,
+            asset_in_symbol: enriched.asset_in_symbol,
+            asset_in_amount: enriched.asset_in_amount,
+            asset_out_symbol: enriched.asset_out_symbol,
+            asset_out_amount: enriched.asset_out_amount
+          });
+        }
+      } catch (err) {
+        console.error(`[DeepSync] Failed to enrich version ${row.version}`);
+      }
+    }
+
+    if (updatedRows.length > 0) {
+      const { error: upsertError } = await supabase
+        .from('user_transaction_history')
+        .upsert(updatedRows, { onConflict: 'user_address,version' });
+
+      if (upsertError) {
+        console.error('[DeepSync] Failed to batch update transactions:', upsertError.message);
+      } else {
+        totalFixed += updatedRows.length;
+        console.log(`[DeepSync] ✅ Batch ${batch + 1}: Fixed ${updatedRows.length}/${unknowns.length} transactions.`);
+      }
+    }
+
+    // If we got fewer than BATCH_SIZE, there are no more unknowns
+    if (unknowns.length < BATCH_SIZE) break;
+
+    // Small delay between batches to avoid overloading
+    await new Promise(r => setTimeout(r, 300));
   }
+
+  console.log(`[DeepSync] ✅ Re-processing complete. Fixed ${totalFixed}/${totalProcessed} unknown transactions.`);
 
   // Trigger full portfolio reconstruction for all synced users to recalculate clean net worth history
   try {
