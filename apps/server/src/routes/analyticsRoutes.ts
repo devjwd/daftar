@@ -11,7 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { generalLimiter } from '../middleware/rateLimit.ts';
 import { normalizeAddress } from '../utils/address.ts';
 import { verifyWalletSignature } from '../utils/crypto.ts';
-import { queueSync } from '../services/analyticsSyncQueue.ts';
+import { queueSync, processSyncQueue } from '../services/analyticsSyncQueue.ts';
 import { reconstructHistoricalBalances } from '../services/portfolioService.ts';
 import { aggregateAnalyticsData } from '../services/analyticsDataService.ts';
 import { getEffectiveTier } from '../services/subscriptionService.ts';
@@ -64,6 +64,11 @@ router.get('/sync', generalLimiter, async (req: Request, res: Response) => {
 
     // Queue sync in the database-backed queue at high priority (10)
     await queueSync(supabase, wallet, 10);
+
+    // Immediately trigger processing in the background asynchronously
+    void processSyncQueue(supabase).catch(err => {
+      console.error('[Analytics/Sync] Immediate queue processing error:', err.message);
+    });
 
     return res.status(202).json({
       ok: true,
@@ -463,6 +468,8 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
   }
 });
 
+import { analyticsCache } from '../services/analyticsCache.ts';
+
 /** Full Analytics Data Aggregation */
 router.get('/data', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
@@ -475,7 +482,21 @@ router.get('/data', async (req: Request, res: Response) => {
 
   try {
     await assertEnrichedWalletAccess(supabase, req, wallet);
+
+    const isCustomDate = Boolean(customStartDate || customEndDate);
+    if (!isCustomDate) {
+      const cachedData = analyticsCache.get(wallet, timeframe);
+      if (cachedData) {
+        return res.status(200).json(cachedData);
+      }
+    }
+
     const result = await aggregateAnalyticsData(supabase, wallet, timeframe, customStartDate, customEndDate);
+
+    if (!isCustomDate) {
+      analyticsCache.set(wallet, timeframe, result);
+    }
+
     return res.status(200).json(result);
   } catch (err: unknown) {
     if (walletAccessErrorHandler(err, res)) return;

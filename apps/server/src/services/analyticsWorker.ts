@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { reProcessUnknownTransactions } from './analyticsSyncService.ts';
 import { reProcessSuspiciousPrices } from './analyticsPriceService.ts';
-import { queueSync } from './analyticsSyncQueue.ts';
+import { queueSync, processSyncQueue } from './analyticsSyncQueue.ts';
 import { resolveEffectiveTier, isPremiumTier } from '@daftar/shared-types';
 
 const USERS_PER_PAGE = 100;
@@ -139,6 +139,11 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
 
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
+
+        // Immediately trigger queue processing in the background
+        void processSyncQueue(supabase).catch(err => {
+          console.error('[AnalyticsWorker] Immediate queue processing error:', err.message);
+        });
       } else {
         console.log('[AnalyticsWorker] No wallets to sync this cycle.');
       }

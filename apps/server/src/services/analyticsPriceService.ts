@@ -58,71 +58,6 @@ const DEXSCREENER_FULL_ADDRESSES: Record<string, string> = {
  * Supports demo keys (CG-xxx → demo-api.coingecko.com) and pro keys.
  * Date format for CG: dd-mm-yyyy
  */
-async function fetchHistoricalPriceFromCG(geckoId: string, timestamp: string): Promise<number | null> {
-  const date = new Date(timestamp);
-  const dateStr = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
-
-  const apiKey = String(process.env.COINGECKO_API_KEY || '').trim();
-  const isDemoKey = apiKey.startsWith('CG-');
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (apiKey) {
-    if (isDemoKey) headers['x-cg-demo-api-key'] = apiKey;
-    else headers['x-cg-pro-api-key'] = apiKey;
-  }
-
-  // Try demo endpoint first (for demo keys), then standard
-  const bases = isDemoKey
-    ? ['https://api.coingecko.com']
-    : ['https://pro-api.coingecko.com', 'https://api.coingecko.com'];
-
-  for (const base of bases) {
-    const url = `${base}/api/v3/coins/${geckoId}/history?date=${dateStr}&localization=false`;
-    try {
-      const requestHeaders = base === 'https://api.coingecko.com' && !isDemoKey
-        ? { Accept: 'application/json' }
-        : headers;
-      const response = await fetch(url, { headers: requestHeaders });
-      if (!response.ok) {
-        console.warn(`[PriceBackfill] CoinGecko ${base} returned ${response.status} for ${geckoId} on ${dateStr}`);
-        continue;
-      }
-      const json: any = await response.json();
-      const price = json.market_data?.current_price?.usd;
-      if (price != null) return price;
-    } catch (err: any) {
-      console.warn(`[PriceBackfill] CoinGecko ${base} unreachable: ${err.message}`);
-    }
-  }
-  return null;
-}
-
-/**
- * Fetch a price from DexScreener.
- * Maps short addresses (0x1, 0xa) to their full FA address before querying.
- */
-async function fetchPriceFromDexScreener(tokenAddress: string): Promise<number | null> {
-  // Map short aliases to full addresses DexScreener can resolve
-  const queryAddress = DEXSCREENER_FULL_ADDRESSES[tokenAddress] || tokenAddress;
-  try {
-    const url = `https://api.dexscreener.com/latest/dex/tokens/${queryAddress}`;
-    const response = await fetch(url);
-    const json: any = await response.json();
-    
-    if (json.pairs && json.pairs.length > 0) {
-      // Get highest liquidity pair
-      const bestPair = json.pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
-      return bestPair.priceUsd ? Number(bestPair.priceUsd) : null;
-    }
-    return null;
-  } catch (err) {
-    console.error(`[PriceBackfill] DexScreener Error for ${tokenAddress}:`, err);
-    return null;
-  }
-}
-
-/**
- * Get price from cache or fetch new one
- */
 async function getHistoricalPrice(
   supabase: SupabaseClient, 
   tokenAddress: string, 
@@ -130,7 +65,6 @@ async function getHistoricalPrice(
   cacheMap: Record<string, number | null>
 ): Promise<number | null> {
   const normAddress = normalizeTokenAddress(tokenAddress);
-  const geckoId = TOKEN_GEKO_MAP[normAddress];
   const dateOnly = new Date(timestamp).toISOString().split('T')[0];
   const cacheKey = `${normAddress}_${dateOnly}`;
 
@@ -138,7 +72,7 @@ async function getHistoricalPrice(
     return cacheMap[cacheKey];
   }
 
-  // 1. Check our Cache Table
+  // 1. Check our Cache Table for the exact date
   const { data: cached } = await supabase
     .from('token_price_history')
     .select('price')
@@ -146,7 +80,7 @@ async function getHistoricalPrice(
     .gte('timestamp', `${dateOnly}T00:00:00Z`)
     .lte('timestamp', `${dateOnly}T23:59:59Z`)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (cached) {
     const price = Number(cached.price);
@@ -154,28 +88,46 @@ async function getHistoricalPrice(
     return price;
   }
 
-  // 2. Not in cache, fetch from CoinGecko
-  let price = null;
-  
-  if (geckoId) {
-    price = await fetchHistoricalPriceFromCG(geckoId, timestamp);
+  // 2. Exact date not found, get closest price before this timestamp
+  const { data: closest } = await supabase
+    .from('token_price_history')
+    .select('price')
+    .eq('token_address', normAddress)
+    .lt('timestamp', timestamp)
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (closest) {
+    const price = Number(closest.price);
+    cacheMap[cacheKey] = price;
+    return price;
   }
-  
-  // 3. Fallback to DexScreener if CoinGecko failed or no geckoId
-  if (!price) {
-    console.log(`[PriceBackfill] Falling back to DexScreener for ${normAddress}`);
-    price = await fetchPriceFromDexScreener(normAddress);
+
+  // 3. Not in historical table, check current price cache
+  const { data: currentCache } = await supabase
+    .from('price_cache')
+    .select('price_usd')
+    .eq('token_id', normAddress)
+    .maybeSingle();
+
+  if (currentCache) {
+    const price = Number(currentCache.price_usd);
+    cacheMap[cacheKey] = price;
+    return price;
   }
-  
-  if (price) {
-    // Save to cache for future use
-    await supabase.from('token_price_history').insert({
-      token_address: normAddress,
-      price: price,
-      timestamp: `${dateOnly}T12:00:00Z`, // Mid-day snapshot
-      granularity: 'daily',
-      source: geckoId && price ? 'coingecko' : 'dexscreener'
-    });
+
+  // 4. Default hardcoded fallbacks
+  let price: number | null = null;
+  const upperAddr = normAddress.toLowerCase();
+  if (upperAddr === '0x1' || upperAddr === '0xa') {
+    price = 0.01806; // Standard default MOVE price
+  } else if (upperAddr.includes('usd')) {
+    price = 1.00;
+  } else if (upperAddr.includes('eth')) {
+    price = 2500.00;
+  } else if (upperAddr.includes('btc')) {
+    price = 80000.00;
   }
 
   cacheMap[cacheKey] = price;

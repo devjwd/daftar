@@ -1,6 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { syncFullUserHistory } from './analyticsSyncService.ts';
 import { takeNetworthSnapshot } from './networthService.ts';
+import { backfillTransactionPrices } from './analyticsPriceService.ts';
+import { analyticsCache } from './analyticsCache.ts';
 
 /**
  * Queue a wallet address for transaction sync.
@@ -123,6 +125,14 @@ export async function processSyncQueue(supabase: SupabaseClient) {
       .eq('id', id);
 
     console.log(`[SyncQueue] ✅ Successfully processed sync job for ${address}`);
+
+    // Invalidate server-side analytics cache for this wallet
+    analyticsCache.invalidate(address);
+
+    // Immediately trigger price backfilling in the background asynchronously
+    void backfillTransactionPrices(supabase, 200).catch(err => {
+      console.error('[SyncQueue] Immediate price backfill error:', err.message);
+    });
   } catch (err: any) {
     console.error(`[SyncQueue] ❌ Failed processing sync job for ${address}:`, err.message);
 

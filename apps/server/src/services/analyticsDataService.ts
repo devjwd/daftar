@@ -160,51 +160,86 @@ async function fetchTransactionsPaginated(
   customStartDate?: string,
   customEndDate?: string
 ): Promise<PaginatedTxResult> {
-  let txs: TransactionRow[] = [];
-  let hasMore = true;
-  let page = 0;
-  let truncated = false;
+  const PAGE_SIZE = ANALYTICS_PAGE_SIZE;
 
-  while (hasMore && txs.length < MAX_ANALYTICS_TRANSACTIONS) {
-    let query = supabase
-      .from('user_transaction_history')
-      .select('*')
-      .eq('user_address', wallet)
-      .order('timestamp', { ascending: true })
-      .range(page * ANALYTICS_PAGE_SIZE, (page + 1) * ANALYTICS_PAGE_SIZE - 1);
+  // Build count query
+  let countQuery = supabase
+    .from('user_transaction_history')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_address', wallet);
 
-    if (customStartDate || customEndDate) {
-      if (customStartDate) {
-        query = query.gte('timestamp', new Date(customStartDate).toISOString());
-      }
-      if (customEndDate) {
-        query = query.lte('timestamp', new Date(customEndDate).toISOString());
-      }
-    } else {
-      const filterDate = getTimeframeFilterDate(timeframe);
-      if (filterDate) {
-        query = query.gte('timestamp', filterDate.toISOString());
-      }
+  // Build page 0 query
+  let page0Query = supabase
+    .from('user_transaction_history')
+    .select('user_address, timestamp, value_usd, gas_usd, action, protocol, asset_in_symbol, asset_in_amount, asset_out_symbol, asset_out_amount')
+    .eq('user_address', wallet)
+    .order('timestamp', { ascending: true })
+    .range(0, PAGE_SIZE - 1);
+
+  if (customStartDate || customEndDate) {
+    const startIso = customStartDate ? new Date(customStartDate).toISOString() : null;
+    const endIso = customEndDate ? new Date(customEndDate).toISOString() : null;
+    if (startIso) {
+      countQuery = countQuery.gte('timestamp', startIso);
+      page0Query = page0Query.gte('timestamp', startIso);
     }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      txs = txs.concat(data as TransactionRow[]);
-      page++;
-      if (data.length < ANALYTICS_PAGE_SIZE) {
-        hasMore = false;
-      } else if (txs.length >= MAX_ANALYTICS_TRANSACTIONS) {
-        truncated = true;
-        hasMore = false;
-        txs = txs.slice(0, MAX_ANALYTICS_TRANSACTIONS);
-      }
-    } else {
-      hasMore = false;
+    if (endIso) {
+      countQuery = countQuery.lte('timestamp', endIso);
+      page0Query = page0Query.lte('timestamp', endIso);
+    }
+  } else {
+    const filterDate = getTimeframeFilterDate(timeframe);
+    if (filterDate) {
+      const filterIso = filterDate.toISOString();
+      countQuery = countQuery.gte('timestamp', filterIso);
+      page0Query = page0Query.gte('timestamp', filterIso);
     }
   }
 
+  // Round Trip 1: Fetch count and Page 0 in parallel
+  const [countRes, page0Res] = await Promise.all([countQuery, page0Query]);
+  if (countRes.error) throw countRes.error;
+  if (page0Res.error) throw page0Res.error;
+
+  const count = countRes.count || 0;
+  let txs: TransactionRow[] = (page0Res.data || []) as TransactionRow[];
+
+  // Round Trip 2: Fetch remaining pages in parallel if needed
+  if (count > PAGE_SIZE) {
+    const remainingLimit = Math.min(count, MAX_ANALYTICS_TRANSACTIONS);
+    const numPages = Math.ceil(remainingLimit / PAGE_SIZE);
+    const pagePromises = [];
+
+    for (let page = 1; page < numPages; page++) {
+      let query = supabase
+        .from('user_transaction_history')
+        .select('user_address, timestamp, value_usd, gas_usd, action, protocol, asset_in_symbol, asset_in_amount, asset_out_symbol, asset_out_amount')
+        .eq('user_address', wallet)
+        .order('timestamp', { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (customStartDate || customEndDate) {
+        const startIso = customStartDate ? new Date(customStartDate).toISOString() : null;
+        const endIso = customEndDate ? new Date(customEndDate).toISOString() : null;
+        if (startIso) query = query.gte('timestamp', startIso);
+        if (endIso) query = query.lte('timestamp', endIso);
+      } else {
+        const filterDate = getTimeframeFilterDate(timeframe);
+        if (filterDate) query = query.gte('timestamp', filterDate.toISOString());
+      }
+      pagePromises.push(query);
+    }
+
+    const results = await Promise.all(pagePromises);
+    for (const res of results) {
+      if (res.error) throw res.error;
+      if (res.data) {
+        txs = txs.concat(res.data as TransactionRow[]);
+      }
+    }
+  }
+
+  const truncated = count > MAX_ANALYTICS_TRANSACTIONS;
   return { txs, truncated };
 }
 
@@ -248,29 +283,85 @@ async function fetchNetworthHistory(
   customStartDate?: string,
   customEndDate?: string
 ): Promise<DateValuePoint[]> {
-  let query = supabase
+  const MAX_NETWORTH_SNAPSHOTS = 5000;
+  const PAGE_SIZE = 1000;
+
+  let countQuery = supabase
+    .from('user_networth_snapshots')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_address', wallet);
+
+  let page0Query = supabase
     .from('user_networth_snapshots')
     .select('total_networth_usd, timestamp')
     .eq('user_address', wallet)
-    .order('timestamp', { ascending: true });
+    .order('timestamp', { ascending: true })
+    .range(0, PAGE_SIZE - 1);
 
   if (customStartDate || customEndDate) {
-    if (customStartDate) {
-      query = query.gte('timestamp', new Date(customStartDate).toISOString());
+    const startIso = customStartDate ? new Date(customStartDate).toISOString() : null;
+    const endIso = customEndDate ? new Date(customEndDate).toISOString() : null;
+    if (startIso) {
+      countQuery = countQuery.gte('timestamp', startIso);
+      page0Query = page0Query.gte('timestamp', startIso);
     }
-    if (customEndDate) {
-      query = query.lte('timestamp', new Date(customEndDate).toISOString());
+    if (endIso) {
+      countQuery = countQuery.lte('timestamp', endIso);
+      page0Query = page0Query.lte('timestamp', endIso);
     }
   } else {
     const filterDate = getTimeframeFilterDate(timeframe);
     if (filterDate) {
-      query = query.gte('timestamp', filterDate.toISOString());
+      const filterIso = filterDate.toISOString();
+      countQuery = countQuery.gte('timestamp', filterIso);
+      page0Query = page0Query.gte('timestamp', filterIso);
     }
   }
 
-  const { data } = await query.limit(500);
+  // Round Trip 1
+  const [countRes, page0Res] = await Promise.all([countQuery, page0Query]);
+  if (countRes.error) throw countRes.error;
+  if (page0Res.error) throw page0Res.error;
 
-  return (data || []).map((s: { total_networth_usd: number | string; timestamp: string }) => ({
+  const count = countRes.count || 0;
+  let snaps = page0Res.data || [];
+
+  // Round Trip 2
+  if (count > PAGE_SIZE) {
+    const remainingLimit = Math.min(count, MAX_NETWORTH_SNAPSHOTS);
+    const numPages = Math.ceil(remainingLimit / PAGE_SIZE);
+    const pagePromises = [];
+
+    for (let page = 1; page < numPages; page++) {
+      let query = supabase
+        .from('user_networth_snapshots')
+        .select('total_networth_usd, timestamp')
+        .eq('user_address', wallet)
+        .order('timestamp', { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (customStartDate || customEndDate) {
+        const startIso = customStartDate ? new Date(customStartDate).toISOString() : null;
+        const endIso = customEndDate ? new Date(customEndDate).toISOString() : null;
+        if (startIso) query = query.gte('timestamp', startIso);
+        if (endIso) query = query.lte('timestamp', endIso);
+      } else {
+        const filterDate = getTimeframeFilterDate(timeframe);
+        if (filterDate) query = query.gte('timestamp', filterDate.toISOString());
+      }
+      pagePromises.push(query);
+    }
+
+    const results = await Promise.all(pagePromises);
+    for (const res of results) {
+      if (res.error) throw res.error;
+      if (res.data) {
+        snaps = snaps.concat(res.data);
+      }
+    }
+  }
+
+  return snaps.map((s: { total_networth_usd: number | string; timestamp: string }) => ({
     date: s.timestamp,
     value: Number(s.total_networth_usd),
   }));
@@ -285,28 +376,170 @@ async function fetchTokenBalanceHistory(
   customStartDate?: string,
   customEndDate?: string
 ): Promise<DateValuePoint[]> {
-  // 1. Query user_networth_snapshots for wallet_usd values
-  let nwQuery = supabase
+  const MAX_NETWORTH_SNAPSHOTS = 5000;
+  const MAX_BAL_SNAPSHOTS = 10000;
+  const PAGE_SIZE = 1000;
+
+  // 1. Build Networth queries
+  let nwCountQuery = supabase
+    .from('user_networth_snapshots')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_address', wallet);
+
+  let nwPage0Query = supabase
     .from('user_networth_snapshots')
     .select('wallet_usd, timestamp')
     .eq('user_address', wallet)
-    .order('timestamp', { ascending: true });
+    .order('timestamp', { ascending: true })
+    .range(0, PAGE_SIZE - 1);
+
+  // 2. Build Balance queries
+  let balCountQuery = supabase
+    .from('user_balance_snapshots')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_address', wallet);
+
+  let balPage0Query = supabase
+    .from('user_balance_snapshots')
+    .select('snapshot_date, symbol, amount')
+    .eq('user_address', wallet)
+    .order('snapshot_date', { ascending: true })
+    .range(0, PAGE_SIZE - 1);
 
   if (customStartDate || customEndDate) {
-    if (customStartDate) {
-      nwQuery = nwQuery.gte('timestamp', new Date(customStartDate).toISOString());
+    const startIso = customStartDate ? new Date(customStartDate).toISOString() : null;
+    const endIso = customEndDate ? new Date(customEndDate).toISOString() : null;
+    const startDay = customStartDate ? customStartDate.split('T')[0] : null;
+    const endDay = customEndDate ? customEndDate.split('T')[0] : null;
+
+    if (startIso) {
+      nwCountQuery = nwCountQuery.gte('timestamp', startIso);
+      nwPage0Query = nwPage0Query.gte('timestamp', startIso);
     }
-    if (customEndDate) {
-      nwQuery = nwQuery.lte('timestamp', new Date(customEndDate).toISOString());
+    if (endIso) {
+      nwCountQuery = nwCountQuery.lte('timestamp', endIso);
+      nwPage0Query = nwPage0Query.lte('timestamp', endIso);
+    }
+    if (startDay) {
+      balCountQuery = balCountQuery.gte('snapshot_date', startDay);
+      balPage0Query = balPage0Query.gte('snapshot_date', startDay);
+    }
+    if (endDay) {
+      balCountQuery = balCountQuery.lte('snapshot_date', endDay);
+      balPage0Query = balPage0Query.lte('snapshot_date', endDay);
     }
   } else {
     const filterDate = getTimeframeFilterDate(timeframe);
     if (filterDate) {
-      nwQuery = nwQuery.gte('timestamp', filterDate.toISOString());
+      const filterIso = filterDate.toISOString();
+      const filterDay = filterIso.split('T')[0];
+
+      nwCountQuery = nwCountQuery.gte('timestamp', filterIso);
+      nwPage0Query = nwPage0Query.gte('timestamp', filterIso);
+
+      balCountQuery = balCountQuery.gte('snapshot_date', filterDay);
+      balPage0Query = balPage0Query.gte('snapshot_date', filterDay);
     }
   }
 
-  const { data: nwData } = await nwQuery.limit(500);
+  // Round Trip 1: Fetch NW count/page0 AND BAL count/page0 in parallel
+  const [nwCountRes, nwPage0Res, balCountRes, balPage0Res] = await Promise.all([
+    nwCountQuery,
+    nwPage0Query,
+    balCountQuery,
+    balPage0Query
+  ]);
+
+  if (nwCountRes.error) throw nwCountRes.error;
+  if (nwPage0Res.error) throw nwPage0Res.error;
+  if (balCountRes.error) throw balCountRes.error;
+  if (balPage0Res.error) throw balPage0Res.error;
+
+  const nwCount = nwCountRes.count || 0;
+  let nwData = nwPage0Res.data || [];
+  const balCount = balCountRes.count || 0;
+  let balData = balPage0Res.data || [];
+
+  // Round Trip 2: Fetch remaining pages for BOTH in parallel if needed
+  const promises2 = [];
+
+  const needsMoreNW = nwCount > PAGE_SIZE;
+  const needsMoreBal = balCount > PAGE_SIZE;
+
+  let nwPromisesStartIndex = -1;
+  let balPromisesStartIndex = -1;
+
+  if (needsMoreNW) {
+    nwPromisesStartIndex = promises2.length;
+    const remainingLimit = Math.min(nwCount, MAX_NETWORTH_SNAPSHOTS);
+    const numPages = Math.ceil(remainingLimit / PAGE_SIZE);
+    for (let page = 1; page < numPages; page++) {
+      let query = supabase
+        .from('user_networth_snapshots')
+        .select('wallet_usd, timestamp')
+        .eq('user_address', wallet)
+        .order('timestamp', { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (customStartDate || customEndDate) {
+        const startIso = customStartDate ? new Date(customStartDate).toISOString() : null;
+        const endIso = customEndDate ? new Date(customEndDate).toISOString() : null;
+        if (startIso) query = query.gte('timestamp', startIso);
+        if (endIso) query = query.lte('timestamp', endIso);
+      } else {
+        const filterDate = getTimeframeFilterDate(timeframe);
+        if (filterDate) query = query.gte('timestamp', filterDate.toISOString());
+      }
+      promises2.push(query);
+    }
+  }
+
+  if (needsMoreBal) {
+    balPromisesStartIndex = promises2.length;
+    const remainingLimit = Math.min(balCount, MAX_BAL_SNAPSHOTS);
+    const numPages = Math.ceil(remainingLimit / PAGE_SIZE);
+    for (let page = 1; page < numPages; page++) {
+      let query = supabase
+        .from('user_balance_snapshots')
+        .select('snapshot_date, symbol, amount')
+        .eq('user_address', wallet)
+        .order('snapshot_date', { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (customStartDate || customEndDate) {
+        const startDay = customStartDate ? customStartDate.split('T')[0] : null;
+        const endDay = customEndDate ? customEndDate.split('T')[0] : null;
+        if (startDay) query = query.gte('snapshot_date', startDay);
+        if (endDay) query = query.lte('snapshot_date', endDay);
+      } else {
+        const filterDate = getTimeframeFilterDate(timeframe);
+        if (filterDate) query = query.gte('snapshot_date', filterDate.toISOString().split('T')[0]);
+      }
+      promises2.push(query);
+    }
+  }
+
+  if (promises2.length > 0) {
+    const results2 = await Promise.all(promises2);
+    
+    if (needsMoreNW) {
+      const numNwPromises = Math.ceil(Math.min(nwCount, MAX_NETWORTH_SNAPSHOTS) / PAGE_SIZE) - 1;
+      for (let i = 0; i < numNwPromises; i++) {
+        const res = results2[nwPromisesStartIndex + i];
+        if (res.error) throw res.error;
+        if (res.data) nwData = nwData.concat(res.data as any);
+      }
+    }
+
+    if (needsMoreBal) {
+      const numBalPromises = Math.ceil(Math.min(balCount, MAX_BAL_SNAPSHOTS) / PAGE_SIZE) - 1;
+      for (let i = 0; i < numBalPromises; i++) {
+        const res = results2[balPromisesStartIndex + i];
+        if (res.error) throw res.error;
+        if (res.data) balData = balData.concat(res.data as any);
+      }
+    }
+  }
 
   // Map to daily balance (taking the last one per day since timestamp contains hours)
   const dailyBalanceMap = new Map<string, number>();
@@ -316,29 +549,6 @@ async function fetchTokenBalanceHistory(
       dailyBalanceMap.set(dateKey, Number(s.wallet_usd || 0));
     });
   }
-
-  // 2. Query user_balance_snapshots for historical token balances
-  let balQuery = supabase
-    .from('user_balance_snapshots')
-    .select('snapshot_date, symbol, amount')
-    .eq('user_address', wallet)
-    .order('snapshot_date', { ascending: true });
-
-  if (customStartDate || customEndDate) {
-    if (customStartDate) {
-      balQuery = balQuery.gte('snapshot_date', customStartDate.split('T')[0]);
-    }
-    if (customEndDate) {
-      balQuery = balQuery.lte('snapshot_date', customEndDate.split('T')[0]);
-    }
-  } else {
-    const filterDate = getTimeframeFilterDate(timeframe);
-    if (filterDate) {
-      balQuery = balQuery.gte('snapshot_date', filterDate.toISOString().split('T')[0]);
-    }
-  }
-
-  const { data: balData } = await balQuery.limit(2000);
 
   // Group holdings by date
   const holdingsMap = new Map<string, Array<{ symbol: string; amount: number }>>();

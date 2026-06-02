@@ -150,6 +150,24 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     async (tf = timeframeRef.current, bottomTf = bottomTimeframeRef.current) => {
       if (!walletAddress) return;
 
+      const cacheKeyGlobal = `analytics_cache_${walletAddress.toLowerCase()}_${tf}`;
+      const cacheKeyBottom = `analytics_cache_${walletAddress.toLowerCase()}_${bottomTf}`;
+
+      // 1. Try to load Stale (cached) data first for 0ms page load
+      try {
+        const cachedGlobal = localStorage.getItem(cacheKeyGlobal);
+        const cachedBottom = localStorage.getItem(cacheKeyBottom);
+        if (cachedGlobal && cachedBottom) {
+          setAnalyticsData(JSON.parse(cachedGlobal));
+          setBottomAnalyticsData(JSON.parse(cachedBottom));
+        } else if (cachedGlobal) {
+          setAnalyticsData(JSON.parse(cachedGlobal));
+          setBottomAnalyticsData(JSON.parse(cachedGlobal));
+        }
+      } catch (cacheErr) {
+        console.warn('Failed to parse browser analytics cache:', cacheErr);
+      }
+
       setDataLoading(true);
       try {
         if (tf === bottomTf) {
@@ -167,6 +185,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
           setAnalyticsData(data);
           setBottomAnalyticsData(data);
           setFetchError(null);
+
+          // Save to browser cache
+          try {
+            localStorage.setItem(cacheKeyGlobal, JSON.stringify(data));
+            localStorage.setItem(cacheKeyBottom, JSON.stringify(data));
+          } catch {}
         } else {
           const [resGlobal, resBottom] = await Promise.all([
             fetch(
@@ -188,7 +212,26 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
           setAnalyticsData(dataGlobal);
           setBottomAnalyticsData(dataBottom);
           setFetchError(null);
+
+          // Save to browser cache
+          try {
+            localStorage.setItem(cacheKeyGlobal, JSON.stringify(dataGlobal));
+            localStorage.setItem(cacheKeyBottom, JSON.stringify(dataBottom));
+          } catch {}
         }
+
+        // Clean up old cached items for other wallets to prevent quota exceeded errors
+        try {
+          const currentWalletPrefix = `analytics_cache_${walletAddress.toLowerCase()}_`;
+          const keysToRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('analytics_cache_') && !key.startsWith(currentWalletPrefix)) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(key => localStorage.removeItem(key));
+        } catch {}
       } catch (err) {
         console.error('Fetch analytics error:', err);
         setFetchError('Unable to load analytics right now.');
