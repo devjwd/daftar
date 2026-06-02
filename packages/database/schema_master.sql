@@ -342,9 +342,11 @@ CREATE INDEX IF NOT EXISTS idx_price_history_token_ts ON public.token_price_hist
 
 -- user_networth_snapshots
 CREATE INDEX IF NOT EXISTS idx_networth_snapshots_user_ts ON public.user_networth_snapshots (user_address, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_networth_snapshots_user_ts_asc ON public.user_networth_snapshots (user_address, timestamp ASC);
 
 -- user_transaction_history
 CREATE INDEX IF NOT EXISTS idx_user_tx_address_time ON public.user_transaction_history(user_address, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_user_tx_address_time_asc ON public.user_transaction_history (user_address, timestamp ASC);
 CREATE INDEX IF NOT EXISTS idx_user_tx_protocol ON public.user_transaction_history(user_address, protocol);
 CREATE INDEX IF NOT EXISTS idx_user_tx_action ON public.user_transaction_history(user_address, action);
 
