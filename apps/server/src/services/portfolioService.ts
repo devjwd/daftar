@@ -452,6 +452,21 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
     if (normToken.includes('aptos_coin') || normToken === '0x1') {
       return fallbackPrices['0x1'] || fallbackPrices['0xa'] || 0.05;
     }
+
+    // Symbol-based final fallback for untracked stablecoins and major assets
+    if (symbol) {
+      const upperSym = symbol.toUpperCase();
+      if (upperSym.includes('USDC') || upperSym.includes('USDT') || upperSym.includes('DAI') || upperSym.includes('USDE') || upperSym.includes('USD')) {
+        return 1.0;
+      }
+      if (upperSym.includes('BTC')) {
+        return fallbackPrices['0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c'] || 80000;
+      }
+      if (upperSym.includes('ETH')) {
+        return fallbackPrices['0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376'] || 2500;
+      }
+    }
+
     return 0;
   };
 

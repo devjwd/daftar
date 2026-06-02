@@ -115,10 +115,22 @@ export async function takeNetworthSnapshot(
     const shortAsset = b.asset_type.toLowerCase().replace(/^0x0*/, '0x');
     const lookupKey = NATIVE_MOVE_ADDRESSES.has(shortAsset) ? '0x1' : b.asset_type;
 
-    // Resolve price: direct match → LST alias → 0 (don't blindly fallback to MOVE for unknown tokens)
+    // Resolve price: direct match → LST alias → symbol-based fallback → 0
     let price = priceMap[lookupKey] || priceMap[shortAsset] || 0;
-    if (price === 0 && b.symbol && LST_PRICE_ALIASES[b.symbol]) {
-      price = priceMap[LST_PRICE_ALIASES[b.symbol]] || priceMap['0x1'] || 0;
+    
+    if (price === 0 && b.symbol) {
+      const upperSym = b.symbol.toUpperCase();
+      if (LST_PRICE_ALIASES[b.symbol]) {
+        price = priceMap[LST_PRICE_ALIASES[b.symbol]] || priceMap['0x1'] || 0;
+      } else if (upperSym.includes('USDC') || upperSym.includes('USDT') || upperSym.includes('DAI') || upperSym.includes('USDE') || upperSym.includes('USD')) {
+        price = 1.0;
+      } else if (upperSym.includes('BTC')) {
+        price = priceMap['0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c'] || 80000;
+      } else if (upperSym.includes('ETH')) {
+        price = priceMap['0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376'] || 2500;
+      } else if (upperSym.includes('MOVE') || upperSym === 'APT' || shortAsset.includes('aptos_coin') || shortAsset === '0x1') {
+        price = priceMap['0x1'] || priceMap['0xa'] || 0.05;
+      }
     }
     walletUsd += Number(b.amount) * price;
   });
