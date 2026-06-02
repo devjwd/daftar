@@ -83,44 +83,33 @@ router.get('/status', async (req: Request, res: Response) => {
   const supabase = getSupabaseClient(req);
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
-  // Check if there is a pending job in the queue
-  const { data: queueJob } = await supabase
-    .from('sync_queue')
-    .select('status')
-    .eq('user_address', wallet)
-    .eq('status', 'pending')
-    .maybeSingle();
-
-  if (queueJob) {
-    return res.status(200).json({
-      full_history_synced: false,
-      total_transactions: 0,
-      synced_transactions: 0,
-      is_queued: true,
-      status: 'queued'
-    });
-  }
-
-  const { data, error } = await supabase
+  const { data: statusData, error } = await supabase
     .from('user_sync_status')
     .select('*')
     .eq('user_address', wallet)
     .maybeSingle();
 
   if (error) return res.status(500).json({ error: 'Failed to fetch status' });
-  if (!data) return res.status(200).json({ full_history_synced: false, total_transactions: 0, synced_transactions: 0 });
   
-  // Check if there is an active processing job in the queue
-  const { data: processingJob } = await supabase
+  const data = statusData || { full_history_synced: false, total_transactions: 0, synced_transactions: 0 };
+  
+  // Check if there is an active job in the queue (pending or processing)
+  const { data: activeJob } = await supabase
     .from('sync_queue')
     .select('status')
     .eq('user_address', wallet)
-    .eq('status', 'processing')
+    .in('status', ['pending', 'processing'])
     .maybeSingle();
+
+  let statusStr = data.full_history_synced ? 'completed' : 'idle';
+  if (activeJob) {
+    statusStr = activeJob.status === 'processing' ? 'syncing' : 'queued';
+  }
 
   return res.status(200).json({
     ...data,
-    status: processingJob ? 'syncing' : (data.full_history_synced ? 'completed' : 'idle')
+    is_queued: activeJob?.status === 'pending',
+    status: statusStr
   });
 });
 

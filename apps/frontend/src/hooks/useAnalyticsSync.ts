@@ -50,7 +50,7 @@ export function useAnalyticsSync(
           setSyncProgress(progress);
         }
 
-        if (data.full_history_synced) {
+        if (data.full_history_synced && data.status !== 'syncing' && data.status !== 'queued') {
           failedPolls = 0;
           setSyncStatus('completed');
           stopPolling();
