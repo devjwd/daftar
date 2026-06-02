@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 
 interface SyncStateOverlayProps {
-  status: 'idle' | 'syncing' | 'error';
+  status: 'idle' | 'queued' | 'syncing' | 'error';
   progress: number;
   onStartSync: () => void;
 }
@@ -47,6 +47,72 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
         >
           Initiate Scan
         </button>
+      </motion.div>
+    );
+  }
+
+  // Queued state: show a minimal inline card indicating it's waiting in queue
+  if (status === 'queued') {
+    return (
+      <motion.div
+        className="analytics-sync-inline-card"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        style={{
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          marginBottom: '20px',
+        }}
+      >
+        <div style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.04)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <motion.div
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+            style={{ fontSize: '16px' }}
+          >
+            ⏳
+          </motion.div>
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>
+              Sync request queued...
+            </span>
+          </div>
+          <div style={{
+            width: '100%',
+            height: '4px',
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: '100px',
+            overflow: 'hidden',
+          }}>
+            <motion.div
+              animate={{ x: [-200, 300] }}
+              transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+              style={{
+                width: '100px',
+                height: '100%',
+                background: 'linear-gradient(90deg, transparent, rgba(205,161,105,0.4), transparent)',
+              }}
+            />
+          </div>
+        </div>
       </motion.div>
     );
   }

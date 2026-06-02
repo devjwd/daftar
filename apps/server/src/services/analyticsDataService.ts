@@ -513,11 +513,15 @@ export async function aggregateAnalyticsData(
 
   const activeMonths = [...new Set(txs.map(tx => tx.timestamp.substring(0, 7)))].length;
 
-  // --- Top Entities (whitelisted protocols only) ---
+  // --- Top Entities (all protocols/dapps except Unknown and exchanges/bridges) ---
   const entityMap = new Map<string, { value: number; count: number }>();
   txs.forEach(tx => {
-    if (tx.protocol !== 'Unknown' && WHITELIST_PROTOCOLS.has(tx.protocol)) {
-      const entity = tx.protocol;
+    const protocol = tx.protocol || 'Unknown';
+    const isExchangeOrBridge = KNOWN_EXCHANGES.has(protocol) || 
+                               protocol.toLowerCase().includes('exchange') || 
+                               protocol.toLowerCase().includes('bridge');
+    if (protocol !== 'Unknown' && !isExchangeOrBridge) {
+      const entity = protocol;
       const val = Number(tx.value_usd || 0);
       const existing = entityMap.get(entity) || { value: 0, count: 0 };
       entityMap.set(entity, { value: existing.value + val, count: existing.count + 1 });

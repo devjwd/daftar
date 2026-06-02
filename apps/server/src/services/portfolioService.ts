@@ -429,19 +429,23 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
       normToken = '0x1';
     }
 
-    if (priceHistoryMap[normToken]?.[date]) {
-      return priceHistoryMap[normToken][date];
+    const histPrice = priceHistoryMap[normToken]?.[date];
+    if (histPrice && histPrice > 0) {
+      return histPrice;
     }
     const targetDate = new Date(date);
     for (let i = 1; i <= 3; i++) {
       const prevDate = new Date(targetDate);
       prevDate.setDate(prevDate.getDate() - i);
       const prevDateStr = prevDate.toISOString().split('T')[0];
-      if (priceHistoryMap[normToken]?.[prevDateStr]) {
-        return priceHistoryMap[normToken][prevDateStr];
+      const prevPrice = priceHistoryMap[normToken]?.[prevDateStr];
+      if (prevPrice && prevPrice > 0) {
+        return prevPrice;
       }
     }
-    if (fallbackPrices[normToken]) return fallbackPrices[normToken];
+    if (fallbackPrices[normToken] && fallbackPrices[normToken] > 0) {
+      return fallbackPrices[normToken];
+    }
 
     // LST price resolution: gMOVE/stMOVE/cvMOVE inherit their underlying token's price
     if (symbol && LST_PRICE_ALIASES[symbol]) {
@@ -464,6 +468,9 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
       }
       if (upperSym.includes('ETH')) {
         return fallbackPrices['0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376'] || 2500;
+      }
+      if (upperSym === 'MOVE' || upperSym.includes('MOVE')) {
+        return fallbackPrices['0x1'] || fallbackPrices['0xa'] || 0.05;
       }
     }
 
@@ -506,7 +513,7 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
   while (hasMoreSnapsQuery) {
     const { data: pageUserSnaps, error: snapsErr } = await supabase
       .from('user_networth_snapshots')
-      .select('timestamp, defi_usd, nft_usd, breakdown')
+      .select('timestamp, defi_usd, nft_usd')
       .eq('user_address', address)
       .order('timestamp', { ascending: true })
       .range(snapsQueryPage * SNAPS_QUERY_PAGE_SIZE, (snapsQueryPage + 1) * SNAPS_QUERY_PAGE_SIZE - 1);
@@ -552,20 +559,44 @@ export async function backfillHistoricalNetworth(supabase: SupabaseClient, walle
     console.log(`[Portfolio] ℹ️ Found earliest real-time snapshot for ${address} on ${firstRealDateStr}. Will only backfill dates before this.`);
   }
 
-  // 4c. Delete existing backfilled snapshots (both new format and legacy format)
-  await supabase
-    .from('user_networth_snapshots')
-    .delete()
-    .eq('user_address', address)
-    .filter('breakdown->>is_backfilled', 'eq', 'true');
+  // 4c. Delete existing backfilled snapshots by ID to avoid database-specific type-cast issues with LIKE on timestamptz
+  try {
+    const { data: existingSnaps, error: fetchSnapsErr } = await supabase
+      .from('user_networth_snapshots')
+      .select('id, timestamp, defi_usd, nft_usd')
+      .eq('user_address', address);
 
-  await supabase
-    .from('user_networth_snapshots')
-    .delete()
-    .eq('user_address', address)
-    .eq('defi_usd', 0)
-    .eq('nft_usd', 0)
-    .like('timestamp', '%T23:00:00%');
+    if (fetchSnapsErr) {
+      console.error(`[Portfolio] Error fetching old snapshots to clear:`, fetchSnapsErr.message);
+    } else if (existingSnaps && existingSnaps.length > 0) {
+      const idsToDelete = existingSnaps
+        .filter(snap => {
+          // Backfilled snapshots have defi_usd = 0, nft_usd = 0, and timestamp ending in T23:00:00
+          return Number(snap.defi_usd || 0) === 0 &&
+                 Number(snap.nft_usd || 0) === 0 &&
+                 snap.timestamp.includes('T23:00:00');
+        })
+        .map(snap => snap.id);
+
+      if (idsToDelete.length > 0) {
+        console.log(`[Portfolio] Deleting ${idsToDelete.length} stale backfilled networth snapshots for ${address}...`);
+        const DELETE_BATCH_SIZE = 200;
+        for (let i = 0; i < idsToDelete.length; i += DELETE_BATCH_SIZE) {
+          const batch = idsToDelete.slice(i, i + DELETE_BATCH_SIZE);
+          const { error: delErr } = await supabase
+            .from('user_networth_snapshots')
+            .delete()
+            .in('id', batch);
+
+          if (delErr) {
+            console.error(`[Portfolio] Failed to delete batch of stale snapshots:`, delErr.message);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error(`[Portfolio] Unexpected error during stale snapshots cleanup:`, err.message);
+  }
 
   // 5. Construct user_networth_snapshots records
   const networthSnapshots: any[] = [];

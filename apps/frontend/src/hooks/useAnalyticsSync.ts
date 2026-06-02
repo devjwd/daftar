@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-export type SyncStatus = 'idle' | 'syncing' | 'completed' | 'error';
+export type SyncStatus = 'idle' | 'queued' | 'syncing' | 'completed' | 'error';
 
 export function useAnalyticsSync(
   walletAddress: string | null | undefined,
@@ -58,8 +58,27 @@ export function useAnalyticsSync(
           return true;
         }
 
-        if (data.is_queued || data.synced_transactions > 0 || data.last_sync_at) {
+        if (data.status === 'queued') {
+          setSyncStatus('queued');
+          setSyncProgress(0);
+          
+          // Trigger a partial fetch so the user sees existing data while waiting
+          if (data.synced_transactions > 0 && !hasAttemptedPartialFetch.current) {
+            hasAttemptedPartialFetch.current = true;
+            try {
+              await onSyncComplete();
+            } catch {}
+          }
+        } else if (data.status === 'syncing' || data.synced_transactions > 0 || data.last_sync_at) {
           setSyncStatus('syncing');
+
+          if (data.total_transactions > 0) {
+            const progress = Math.min(
+              99, // cap at 99% while syncing, only show 100% when finalized
+              Math.round((data.synced_transactions / data.total_transactions) * 100)
+            );
+            setSyncProgress(progress);
+          }
 
           // If we have some synced transactions but haven't fetched data yet, do a partial fetch
           if (data.synced_transactions > 0 && !hasAttemptedPartialFetch.current) {

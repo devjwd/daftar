@@ -594,28 +594,28 @@ function enrichTransaction(
     }
   }
 
-  // Fallback: Search by keywords in database, or static fallback list
-  if (protocol === 'Unknown') {
-    if (entitiesList.length > 0) {
-      for (const entity of entitiesList) {
-        const keywords: string[] = Array.isArray(entity.keywords) 
-          ? entity.keywords 
-          : (entity.custom_type ? String(entity.custom_type).split(',').map(k => k.trim()) : []);
-          
-        const allKeywords = [...keywords, entity.name.toLowerCase().replace(/\s/g, '')];
+  // Fallback: Search by keywords in database
+  if (protocol === 'Unknown' && entitiesList.length > 0) {
+    for (const entity of entitiesList) {
+      const keywords: string[] = Array.isArray(entity.keywords) 
+        ? entity.keywords 
+        : (entity.custom_type ? String(entity.custom_type).split(',').map(k => k.trim()) : []);
+        
+      const allKeywords = [...keywords, entity.name.toLowerCase().replace(/\s/g, '')];
 
-        if (allKeywords.some(kw => kw && lowerFn.includes(kw.toLowerCase()))) {
-          protocol = entity.name;
-          break;
-        }
+      if (allKeywords.some(kw => kw && lowerFn.includes(kw.toLowerCase()))) {
+        protocol = entity.name;
+        break;
       }
-    } else {
-      // Static fallback if database has no records
-      for (const p of STATIC_PROTOCOLS) {
-        if (p.addresses.some(addr => lowerFn.includes(addr)) || p.keywords.some(kw => lowerFn.includes(kw))) {
-          protocol = p.name;
-          break;
-        }
+    }
+  }
+
+  // Fallback: Search by keywords/addresses in static fallback list if still unknown
+  if (protocol === 'Unknown') {
+    for (const p of STATIC_PROTOCOLS) {
+      if (p.addresses.some(addr => lowerFn.includes(addr)) || p.keywords.some(kw => lowerFn.includes(kw))) {
+        protocol = p.name;
+        break;
       }
     }
   }
