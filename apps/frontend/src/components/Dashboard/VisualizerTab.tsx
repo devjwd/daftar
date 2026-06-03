@@ -48,7 +48,7 @@ interface Link {
   direction: 'in' | 'out' | 'both';
   // Per-transaction detail for tooltip
   amounts: { amount: number; token: string; direction: 'in' | 'out' }[];
-  offset: number;
+  txs: { direction: 'in' | 'out'; offset: number }[];
   txHash?: string;
   txType?: string;
   timestamp?: string;
@@ -162,7 +162,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
   const draggedNodeIdRef = useRef<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const nodeElementsRef = useRef<Map<string, SVGElement>>(new Map());
-  const linkPathElementsRef = useRef<Map<string, SVGPathElement>>(new Map());
+  const linkInflowElementsRef = useRef<Map<string, SVGPathElement>>(new Map());
+  const linkOutflowElementsRef = useRef<Map<string, SVGPathElement>>(new Map());
   const linkHitElementsRef = useRef<Map<string, SVGPathElement>>(new Map());
   const runPhysicsTickRef = useRef<(() => void) | null>(null);
 
@@ -276,6 +277,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           txHash?: string;
           txType?: string;
           timestamp?: string;
+          rawTxs: { direction: 'in' | 'out' }[];
         }>();
 
         txs.forEach((tx: any) => {
@@ -398,7 +400,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
               amountsMap: new Map<string, { amount: number; token: string; direction: 'in' | 'out' }>(),
               txHash: tx.tx_hash,
               txType: tx.tx_type,
-              timestamp: tx.tx_timestamp
+              timestamp: tx.tx_timestamp,
+              rawTxs: []
             });
           }
 
@@ -406,6 +409,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           linkData.txCount++;
           linkData.inflowUsd += hasInflow ? usdValue : 0;
           linkData.outflowUsd += hasOutflow ? usdValue : 0;
+          linkData.rawTxs.push({ direction: hasInflow ? 'in' : 'out' });
 
           currentAmounts.forEach(a => {
             linkData.tokens.add(a.token);
@@ -476,6 +480,22 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                 ? 'in' 
                 : 'out';
 
+          // Pre-calculate offsets for each individual transaction line of this counterparty
+          const total = linkData.rawTxs.length;
+          const txsWithOffsets = linkData.rawTxs.map((tx, index) => {
+            let offset = 15;
+            if (total > 1) {
+              const spread = Math.min(120, total * 8.0);
+              const start = -spread / 2;
+              const step = spread / (total - 1);
+              offset = start + index * step;
+            }
+            return {
+              direction: tx.direction,
+              offset
+            };
+          });
+
           return {
             id: linkData.id,
             source: linkData.source,
@@ -486,7 +506,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
             tokens: linkData.tokens,
             direction: finalDirection,
             amounts: Array.from(linkData.amountsMap.values()),
-            offset: 15, // single gentle curve since there is only one line per counterparty!
+            txs: txsWithOffsets,
             txHash: linkData.txHash,
             txType: linkData.txType,
             timestamp: linkData.timestamp
@@ -651,13 +671,27 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
         const tNode = nMap.get(link.target);
         if (!sNode || !tNode) continue;
 
-        const pathEl = linkPathElementsRef.current.get(link.id);
+        let inflowD = '';
+        let outflowD = '';
+
+        link.txs.forEach(tx => {
+          const curve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, tx.offset);
+          if (tx.direction === 'in') {
+            inflowD += (inflowD ? ' ' : '') + curve.d;
+          } else {
+            outflowD += (outflowD ? ' ' : '') + curve.d;
+          }
+        });
+
+        const inflowEl = linkInflowElementsRef.current.get(link.id);
+        const outflowEl = linkOutflowElementsRef.current.get(link.id);
         const hitEl = linkHitElementsRef.current.get(link.id);
 
-        const offset = link.offset;
-        const curve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, offset);
-        if (pathEl) pathEl.setAttribute('d', curve.d);
-        if (hitEl) hitEl.setAttribute('d', curve.d);
+        if (inflowEl) inflowEl.setAttribute('d', inflowD);
+        if (outflowEl) outflowEl.setAttribute('d', outflowD);
+
+        const centerCurve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, 15);
+        if (hitEl) hitEl.setAttribute('d', centerCurve.d);
       }
 
       // Check if velocities have settled to pause loop (performance optimization & freeze restlessness)
@@ -939,19 +973,25 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
               {/* Transformed Group (Pan & Zoom) */}
               <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-
                 {/* 1. Curved Flow Links (Thin Wires with hover hit-areas) */}
                 {links.map(link => {
                   const sNode = nodeMapRef.current.get(link.source) || nodes.find(n => n.id === link.source);
                   const tNode = nodeMapRef.current.get(link.target) || nodes.find(n => n.id === link.target);
                   if (!sNode || !tNode) return null;
 
-                  const offset = link.offset;
-                  const curve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, offset);
+                  // Build initial compound paths
+                  let inflowD = '';
+                  let outflowD = '';
+                  link.txs.forEach(tx => {
+                    const curve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, tx.offset);
+                    if (tx.direction === 'in') {
+                      inflowD += (inflowD ? ' ' : '') + curve.d;
+                    } else {
+                      outflowD += (outflowD ? ' ' : '') + curve.d;
+                    }
+                  });
 
-                  const isNetInflow = link.inflowUsd >= link.outflowUsd;
-                  const isIncoming = link.direction === 'in' || (link.direction === 'both' && isNetInflow);
-                  const dashColor = isIncoming ? '#16c784' : '#ff6b6b';
+                  const centerCurve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, 15);
                   const isHovered = hoveredLink?.id === link.id;
 
                   return (
@@ -963,7 +1003,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                           else linkHitElementsRef.current.delete(link.id);
                         }}
                         data-link-hit-id={link.id}
-                        d={curve.d}
+                        d={centerCurve.d}
                         stroke="transparent"
                         strokeWidth={14}
                         fill="none"
@@ -988,20 +1028,38 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                         }}
                         onMouseLeave={() => setHoveredLink(null)}
                       />
-                      {/* Visible thin wire */}
-                      <path
-                        ref={el => {
-                          if (el) linkPathElementsRef.current.set(link.id, el);
-                          else linkPathElementsRef.current.delete(link.id);
-                        }}
-                        data-link-path-id={link.id}
-                        d={curve.d}
-                        stroke={isHovered ? '#ffffff' : dashColor}
-                        strokeWidth={0.25}
-                        fill="none"
-                        opacity={isHovered ? 1.0 : 0.35}
-                        style={{ pointerEvents: 'none', transition: 'stroke 0.15s ease, opacity 0.15s ease' }}
-                      />
+
+                      {/* Inflow Visible compound path */}
+                      {inflowD && (
+                        <path
+                          ref={el => {
+                            if (el) linkInflowElementsRef.current.set(link.id, el);
+                            else linkInflowElementsRef.current.delete(link.id);
+                          }}
+                          d={inflowD}
+                          stroke={isHovered ? '#ffffff' : '#16c784'}
+                          strokeWidth={0.25}
+                          fill="none"
+                          opacity={isHovered ? 1.0 : 0.35}
+                          style={{ pointerEvents: 'none', transition: 'stroke 0.15s ease, opacity 0.15s ease' }}
+                        />
+                      )}
+
+                      {/* Outflow Visible compound path */}
+                      {outflowD && (
+                        <path
+                          ref={el => {
+                            if (el) linkOutflowElementsRef.current.set(link.id, el);
+                            else linkOutflowElementsRef.current.delete(link.id);
+                          }}
+                          d={outflowD}
+                          stroke={isHovered ? '#ffffff' : '#ff6b6b'}
+                          strokeWidth={0.25}
+                          fill="none"
+                          opacity={isHovered ? 1.0 : 0.35}
+                          style={{ pointerEvents: 'none', transition: 'stroke 0.15s ease, opacity 0.15s ease' }}
+                        />
+                      )}
                     </g>
                   );
                 })}
