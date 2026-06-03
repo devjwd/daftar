@@ -306,9 +306,22 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     );
   }
 
-  const hasData = analyticsData !== null;
-  const isInitialSyncing = syncStatus === 'syncing' && !hasData && !dataLoading;
-  const showSyncBanner = syncStatus === 'syncing' && hasData;
+  if (!analyticsData || !bottomAnalyticsData) {
+    return (
+      <div className="analytics-v5-container" style={{ padding: '40px 20px' }}>
+        <AnimatePresence>
+          {syncStatus === 'error' && (
+            <SyncStateOverlay
+              status="error"
+              progress={syncProgress}
+              onStartSync={handleStartSync}
+            />
+          )}
+        </AnimatePresence>
+        <AnalyticsSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="analytics-v5-container">
@@ -337,9 +350,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
         {/* Inline sync banner (non-blocking) */}
         <AnimatePresence>
-          {(syncStatus === 'syncing' || syncStatus === 'error' || (syncStatus === 'idle' && !hasData && !dataLoading)) && (
+          {(syncStatus === 'syncing' || syncStatus === 'error') && (
             <SyncStateOverlay
-              status={syncStatus === 'idle' && !hasData ? 'idle' : syncStatus as any}
+              status={syncStatus as any}
               progress={syncProgress}
               onStartSync={handleStartSync}
             />
@@ -360,26 +373,20 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
           </div>
         )}
 
-        {/* Show data or skeleton */}
-        {analyticsData && bottomAnalyticsData ? (
-          <AnalyticsOverview
-            data={analyticsData}
-            bottomData={bottomAnalyticsData}
-            timeframe={timeframe}
-            setTimeframe={(tf) => {
-              setTimeframe(tf);
-              void fetchAnalyticsData(tf, bottomTimeframe);
-            }}
-            bottomTimeframe={bottomTimeframe}
-            setBottomTimeframe={(tf, startDate, endDate) => {
-              setBottomTimeframe(tf);
-              void fetchBottomOnly(tf, startDate, endDate);
-            }}
-          />
-        ) : (
-          // Show skeleton while loading data (not blocking full screen)
-          hasData === false && syncStatus !== 'idle' && <AnalyticsSkeleton />
-        )}
+        <AnalyticsOverview
+          data={analyticsData}
+          bottomData={bottomAnalyticsData}
+          timeframe={timeframe}
+          setTimeframe={(tf) => {
+            setTimeframe(tf);
+            void fetchAnalyticsData(tf, bottomTimeframe);
+          }}
+          bottomTimeframe={bottomTimeframe}
+          setBottomTimeframe={(tf, startDate, endDate) => {
+            setBottomTimeframe(tf);
+            void fetchBottomOnly(tf, startDate, endDate);
+          }}
+        />
       </motion.div>
     </div>
   );

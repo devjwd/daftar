@@ -17,6 +17,7 @@ import { getOrFetchTransactions } from '../../services/transactionService';
 import { getProfile } from '../../services/api';
 import styles from './VisualizerTab.module.css';
 import PlanGate from '../PlanGate';
+import { resolveEntityBranding, syncEntities } from '../../services/entityStore';
 
 interface Node {
   id: string;
@@ -121,6 +122,24 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
   const [links, setLinks] = useState<Link[]>([]);
   const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'lite' | 'pro' | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingStepText, setLoadingStepText] = useState('Constructing Visualizer Flow...');
+
+  useEffect(() => {
+    if (!loading) return;
+    const steps = [
+      'Constructing Visualizer Flow...',
+      'Mapping transaction nodes...',
+      'Simulating physics layout...',
+      'Optimizing connection graph...'
+    ];
+    let stepIndex = 0;
+    const interval = setInterval(() => {
+      stepIndex = (stepIndex + 1) % steps.length;
+      setLoadingStepText(steps[stepIndex]);
+    }, 1200);
+    return () => clearInterval(interval);
+  }, [loading]);
+
   const [hoveredNode, setHoveredNode] = useState<Node | null>(null);
   const [hoveredLink, setHoveredLink] = useState<Link | null>(null);
   const [linkTooltipPos, setLinkTooltipPos] = useState({ x: 0, y: 0 });
@@ -142,6 +161,9 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
   const nodeMapRef = useRef<Map<string, Node>>(new Map());
   const draggedNodeIdRef = useRef<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const nodeElementsRef = useRef<Map<string, SVGElement>>(new Map());
+  const linkPathElementsRef = useRef<Map<string, SVGPathElement>>(new Map());
+  const linkHitElementsRef = useRef<Map<string, SVGPathElement>>(new Map());
   const runPhysicsTickRef = useRef<(() => void) | null>(null);
 
   const wakePhysics = () => {
@@ -188,6 +210,13 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
     const fetchGraphData = async () => {
       setLoading(true);
       try {
+        // Ensure entities cache is synced before resolving branding
+        try {
+          await syncEntities();
+        } catch (e) {
+          console.warn("Failed to sync Supabase entities:", e);
+        }
+
         let isPremium = false;
         try {
           const profile = await getProfile(viewingAddress);
@@ -234,6 +263,21 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           tokens: Set<string>;
         }>();
 
+        const linksMap = new Map<string, {
+          id: string;
+          source: string;
+          target: string;
+          txCount: number;
+          inflowUsd: number;
+          outflowUsd: number;
+          tokens: Set<string>;
+          direction: 'in' | 'out' | 'both';
+          amountsMap: Map<string, { amount: number; token: string; direction: 'in' | 'out' }>;
+          txHash?: string;
+          txType?: string;
+          timestamp?: string;
+        }>();
+
         txs.forEach((tx: any) => {
           // Skip pure junk/LP transactions
           const tokenIn = tx.token_in;
@@ -246,13 +290,30 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
             return;
           }
 
+          // Check if counterparty is a known entity first to get logo & label
+          let addressToCheck = '';
+          if (tx.counterparty_address) {
+            addressToCheck = tx.counterparty_address;
+          } else if (tx.dapp_contract) {
+            addressToCheck = tx.dapp_contract;
+          } else if (tx.sender && tx.sender.toLowerCase() !== centerId) {
+            addressToCheck = tx.sender;
+          }
+
+          const branding = addressToCheck ? resolveEntityBranding(addressToCheck) : null;
+
           // Identify counterparty / protocol
           let counterpartyId = '';
           let label = '';
           let type: 'wallet' | 'protocol' = 'wallet';
           let logo = null;
 
-          if (tx.dapp_key && tx.dapp_name && tx.dapp_name !== 'Wallet') {
+          if (branding) {
+            counterpartyId = addressToCheck.toLowerCase();
+            label = branding.name;
+            type = 'protocol';
+            logo = branding.logo;
+          } else if (tx.dapp_key && tx.dapp_name && tx.dapp_name !== 'Wallet') {
             counterpartyId = tx.dapp_name.toLowerCase();
             label = tx.dapp_name;
             type = 'protocol';
@@ -278,8 +339,27 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
           if (counterpartyId === centerId) return; // Skip loops to self
 
-          const isTxInflow = tx.tx_type === 'received' || (tx.amount_out_usd && !tx.amount_in_usd);
+          const hasInflow = tx.tx_type === 'received' || (tx.amount_out != null && Number(tx.amount_out) > 0);
+          const hasOutflow = tx.tx_type === 'send' || (tx.amount_in != null && Number(tx.amount_in) > 0);
           const usdValue = Math.max(Number(tx.amount_in_usd || 0), Number(tx.amount_out_usd || 0), Number(tx.pnl_usd || 0));
+
+          const currentAmounts: { amount: number; token: string; direction: 'in' | 'out' }[] = [];
+          if (hasInflow) {
+            const amount = Number(tx.amount_out || tx.amount_in || 0);
+            const token = tx.token_out || tx.token_in || 'MOVE';
+            if (amount > 0 && !isJunkAsset(token)) {
+              currentAmounts.push({ amount, token, direction: 'in' });
+            }
+          }
+          if (hasOutflow) {
+            const amount = Number(tx.amount_in || tx.amount_out || 0);
+            const token = tx.token_in || tx.token_out || 'MOVE';
+            if (amount > 0 && !isJunkAsset(token)) {
+              currentAmounts.push({ amount, token, direction: 'out' });
+            }
+          }
+
+          if (currentAmounts.length === 0) return; // Skip zero-value links
 
           // 1. Update counterparty node details
           if (!nodeMap.has(counterpartyId)) {
@@ -296,12 +376,51 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
           const nodeData = nodeMap.get(counterpartyId)!;
           nodeData.txCount++;
-          if (isTxInflow) {
+          if (hasInflow) {
             nodeData.inflowUsd += usdValue;
-            if (tx.token_out && !isJunkAsset(tx.token_out)) nodeData.tokens.add(tx.token_out);
+            currentAmounts.filter(a => a.direction === 'in').forEach(a => nodeData.tokens.add(a.token));
           } else {
             nodeData.outflowUsd += usdValue;
-            if (tx.token_in && !isJunkAsset(tx.token_in)) nodeData.tokens.add(tx.token_in);
+            currentAmounts.filter(a => a.direction === 'out').forEach(a => nodeData.tokens.add(a.token));
+          }
+
+          // 2. Update aggregated link details
+          if (!linksMap.has(counterpartyId)) {
+            linksMap.set(counterpartyId, {
+              id: `link-${counterpartyId}`,
+              source: counterpartyId,
+              target: centerId,
+              txCount: 0,
+              inflowUsd: 0,
+              outflowUsd: 0,
+              tokens: new Set<string>(),
+              direction: 'in',
+              amountsMap: new Map<string, { amount: number; token: string; direction: 'in' | 'out' }>(),
+              txHash: tx.tx_hash,
+              txType: tx.tx_type,
+              timestamp: tx.tx_timestamp
+            });
+          }
+
+          const linkData = linksMap.get(counterpartyId)!;
+          linkData.txCount++;
+          linkData.inflowUsd += hasInflow ? usdValue : 0;
+          linkData.outflowUsd += hasOutflow ? usdValue : 0;
+
+          currentAmounts.forEach(a => {
+            linkData.tokens.add(a.token);
+            const key = `${a.token}-${a.direction}`;
+            if (!linkData.amountsMap.has(key)) {
+              linkData.amountsMap.set(key, { amount: 0, token: a.token, direction: a.direction });
+            }
+            linkData.amountsMap.get(key)!.amount += a.amount;
+          });
+
+          // Keep latest active transaction
+          if (!linkData.timestamp || new Date(tx.tx_timestamp) > new Date(linkData.timestamp)) {
+            linkData.timestamp = tx.tx_timestamp;
+            linkData.txHash = tx.tx_hash;
+            linkData.txType = tx.tx_type;
           }
         });
 
@@ -336,7 +455,9 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
             y: CANVAS_HEIGHT / 2 + Math.sin(angle) * radius,
             vx: 0,
             vy: 0,
-            radius: Math.min(13, Math.max(8, 8 + data.txCount * 0.5)),
+            radius: data.logo 
+              ? Math.min(22, Math.max(14, 14 + data.txCount * 0.4)) 
+              : Math.min(14, Math.max(8, 8 + data.txCount * 0.5)),
             txCount: data.txCount,
             inflowUsd: data.inflowUsd,
             outflowUsd: data.outflowUsd,
@@ -346,84 +467,30 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
         const allNodes = [centralNode, ...outerNodes];
 
-        // Construct per-transaction links (representing swaps as a single link with both tokens)
-        const allLinks: Link[] = [];
-        const pairCounts = new Map<string, number>();
+        // Convert the aggregated linksMap to the final Link[] array
+        const allLinks: Link[] = Array.from(linksMap.values()).map(linkData => {
+          const finalDirection: 'in' | 'out' | 'both' = 
+            linkData.inflowUsd > 0 && linkData.outflowUsd > 0 
+              ? 'both' 
+              : linkData.inflowUsd > 0 
+                ? 'in' 
+                : 'out';
 
-        txs.forEach((tx: any, index: number) => {
-          let counterpartyId = '';
-          if (tx.dapp_key && tx.dapp_name && tx.dapp_name !== 'Wallet') {
-            counterpartyId = tx.dapp_name.toLowerCase();
-          } else if (tx.counterparty_address) {
-            counterpartyId = tx.counterparty_address.toLowerCase();
-          } else if (tx.dapp_contract) {
-            counterpartyId = tx.dapp_contract.toLowerCase();
-          } else if (tx.sender && tx.sender.toLowerCase() !== centerId) {
-            counterpartyId = tx.sender.toLowerCase();
-          } else {
-            return;
-          }
-
-          if (counterpartyId === centerId) return;
-
-          const hasInflow = tx.tx_type === 'received' || (tx.amount_out != null && Number(tx.amount_out) > 0);
-          const hasOutflow = tx.tx_type === 'send' || (tx.amount_in != null && Number(tx.amount_in) > 0);
-          const usdValue = Math.max(Number(tx.amount_in_usd || 0), Number(tx.amount_out_usd || 0), Number(tx.pnl_usd || 0));
-
-          const amounts: { amount: number; token: string; direction: 'in' | 'out' }[] = [];
-          if (hasInflow) {
-            const amount = Number(tx.amount_out || tx.amount_in || 0);
-            const token = tx.token_out || tx.token_in || 'MOVE';
-            if (amount > 0 && !isJunkAsset(token)) {
-              amounts.push({ amount, token, direction: 'in' });
-            }
-          }
-          if (hasOutflow) {
-            const amount = Number(tx.amount_in || tx.amount_out || 0);
-            const token = tx.token_in || tx.token_out || 'MOVE';
-            if (amount > 0 && !isJunkAsset(token)) {
-              amounts.push({ amount, token, direction: 'out' });
-            }
-          }
-
-          if (amounts.length === 0) return; // Skip zero-value links
-
-          const pairKey = [counterpartyId, centerId].sort().join('-');
-          pairCounts.set(pairKey, (pairCounts.get(pairKey) || 0) + 1);
-
-          allLinks.push({
-            id: `link-${tx.tx_hash || index}-${index}`,
-            source: counterpartyId,
-            target: centerId,
-            txCount: 1,
-            inflowUsd: hasInflow ? usdValue : 0,
-            outflowUsd: hasOutflow ? usdValue : 0,
-            tokens: new Set(amounts.map(a => a.token)),
-            direction: hasInflow && hasOutflow ? 'both' : hasInflow ? 'in' : 'out',
-            amounts,
-            offset: 0,
-            txHash: tx.tx_hash,
-            txType: tx.tx_type,
-            timestamp: tx.tx_timestamp
-          });
-        });
-
-        // Pre-calculate offsets to spread lines between the same pairs
-        const pairIndices = new Map<string, number>();
-        allLinks.forEach(link => {
-          const pairKey = [link.source, link.target].sort().join('-');
-          const total = pairCounts.get(pairKey) || 1;
-          const index = pairIndices.get(pairKey) || 0;
-          pairIndices.set(pairKey, index + 1);
-
-          if (total === 1) {
-            link.offset = 15; // default single curve
-          } else {
-            const spread = Math.min(120, total * 8.0);
-            const start = -spread / 2;
-            const step = total > 1 ? spread / (total - 1) : 0;
-            link.offset = start + index * step;
-          }
+          return {
+            id: linkData.id,
+            source: linkData.source,
+            target: linkData.target,
+            txCount: linkData.txCount,
+            inflowUsd: linkData.inflowUsd,
+            outflowUsd: linkData.outflowUsd,
+            tokens: linkData.tokens,
+            direction: finalDirection,
+            amounts: Array.from(linkData.amountsMap.values()),
+            offset: 15, // single gentle curve since there is only one line per counterparty!
+            txHash: linkData.txHash,
+            txType: linkData.txType,
+            timestamp: linkData.timestamp
+          };
         });
 
         setNodes(allNodes);
@@ -570,30 +637,27 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
       }
 
       // UPDATE SVG DOM DIRECTLY (bypasses React render overhead)
-      const svgEl = svgRef.current;
-      if (svgEl) {
-        for (let i = 0; i < currentNodes.length; i++) {
-          const node = currentNodes[i];
-          const el = svgEl.querySelector(`[data-node-id="${node.id}"]`);
-          if (el) {
-            el.setAttribute('transform', `translate(${node.x}, ${node.y})`);
-          }
+      for (let i = 0; i < currentNodes.length; i++) {
+        const node = currentNodes[i];
+        const el = nodeElementsRef.current.get(node.id);
+        if (el) {
+          el.setAttribute('transform', `translate(${node.x}, ${node.y})`);
         }
+      }
 
-        for (let i = 0; i < currentLinks.length; i++) {
-          const link = currentLinks[i];
-          const sNode = nMap.get(link.source);
-          const tNode = nMap.get(link.target);
-          if (!sNode || !tNode) continue;
+      for (let i = 0; i < currentLinks.length; i++) {
+        const link = currentLinks[i];
+        const sNode = nMap.get(link.source);
+        const tNode = nMap.get(link.target);
+        if (!sNode || !tNode) continue;
 
-          const pathEl = svgEl.querySelector(`[data-link-path-id="${link.id}"]`) as SVGPathElement;
-          const hitEl = svgEl.querySelector(`[data-link-hit-id="${link.id}"]`) as SVGPathElement;
+        const pathEl = linkPathElementsRef.current.get(link.id);
+        const hitEl = linkHitElementsRef.current.get(link.id);
 
-          const offset = link.offset;
-          const curve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, offset);
-          if (pathEl) pathEl.setAttribute('d', curve.d);
-          if (hitEl) hitEl.setAttribute('d', curve.d);
-        }
+        const offset = link.offset;
+        const curve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, offset);
+        if (pathEl) pathEl.setAttribute('d', curve.d);
+        if (hitEl) hitEl.setAttribute('d', curve.d);
       }
 
       // Check if velocities have settled to pause loop (performance optimization & freeze restlessness)
@@ -814,8 +878,33 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
       <div className={styles.canvasContainer}>
         {loading ? (
           <div className={styles.loadingScreen}>
-            <Loader2 size={36} className={styles.spinner} />
-            <p>Constructing Arkham Visualizer Flow...</p>
+            <div className={styles.visualizerLoaderContainer}>
+              <div className={styles.networkLogoAnimation}>
+                <svg width="120" height="120" viewBox="0 0 100 100" className={styles.svgLoader}>
+                  {/* Central Node */}
+                  <circle cx="50" cy="50" r="10" className={styles.centralPulseNode} />
+                  
+                  {/* Connecting Lines */}
+                  <line x1="50" y1="50" x2="25" y2="25" className={styles.loaderLine1} />
+                  <line x1="50" y1="50" x2="75" y2="30" className={styles.loaderLine2} />
+                  <line x1="50" y1="50" x2="65" y2="75" className={styles.loaderLine3} />
+                  <line x1="50" y1="50" x2="30" y2="65" className={styles.loaderLine4} />
+                  
+                  {/* Surrounding Nodes */}
+                  <circle cx="25" cy="25" r="5" className={styles.pulseNode1} />
+                  <circle cx="75" cy="30" r="6" className={styles.pulseNode2} />
+                  <circle cx="65" cy="75" r="4" className={styles.pulseNode3} />
+                  <circle cx="30" cy="65" r="5" className={styles.pulseNode4} />
+                </svg>
+              </div>
+              <h3 className={styles.loadingTitle}>Building Visualizer</h3>
+              <div className={styles.statusStepper}>
+                <div className={styles.statusBar}>
+                  <div className={styles.statusBarProgress} />
+                </div>
+                <p className={styles.loadingSubtitle}>{loadingStepText}</p>
+              </div>
+            </div>
           </div>
         ) : nodes.length === 0 ? (
           <div className={styles.loadingScreen}>
@@ -869,6 +958,10 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                     <g key={link.id} className={styles.linkGroup}>
                       {/* Invisible wide hit-area for hover detection */}
                       <path
+                        ref={el => {
+                          if (el) linkHitElementsRef.current.set(link.id, el);
+                          else linkHitElementsRef.current.delete(link.id);
+                        }}
                         data-link-hit-id={link.id}
                         d={curve.d}
                         stroke="transparent"
@@ -897,6 +990,10 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                       />
                       {/* Visible thin wire */}
                       <path
+                        ref={el => {
+                          if (el) linkPathElementsRef.current.set(link.id, el);
+                          else linkPathElementsRef.current.delete(link.id);
+                        }}
                         data-link-path-id={link.id}
                         d={curve.d}
                         stroke={isHovered ? '#ffffff' : dashColor}
@@ -929,6 +1026,10 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                   return (
                     <g
                       key={node.id}
+                      ref={el => {
+                        if (el) nodeElementsRef.current.set(node.id, el);
+                        else nodeElementsRef.current.delete(node.id);
+                      }}
                       data-node-id={node.id}
                       className={`${styles.nodeContainer} ${hoveredNode?.id === node.id ? styles.nodeHovered : ''}`}
                       transform={`translate(${refNode.x}, ${refNode.y})`}
@@ -1081,17 +1182,47 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
                 {selectedLink && (
                   <div>
-                    <div className={styles.linkTooltipHeader} style={{ marginBottom: '4px' }}>
+                    <div className={styles.linkTooltipHeader} style={{ marginBottom: '6px' }}>
                       <span className={styles.linkTooltipCount} style={{ fontSize: '13px', fontWeight: 700, color: '#f3dfbe' }}>
-                        {selectedLink.txType ? selectedLink.txType.toUpperCase() : 'TRANSACTION'}
+                        CONNECTION FLOW
                       </span>
                       <span className={styles.linkTooltipTokens} style={{ fontSize: '9px', opacity: 0.5 }}>
-                        {formatDateTime(selectedLink.timestamp)}
+                        {selectedLink.txCount} {selectedLink.txCount === 1 ? 'tx' : 'txs'}
                       </span>
                     </div>
-                    <div className={styles.linkTooltipAmounts} style={{ margin: '8px 0' }}>
+                    <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
+                    <div className={styles.tooltipGrid} style={{ marginBottom: '8px' }}>
+                      {selectedLink.inflowUsd > 0 && (
+                        <div className={styles.tooltipItem}>
+                          <span className={styles.tooltipLabel}>Total Inflow</span>
+                          <span className={styles.tooltipValue} style={{ color: '#16c784' }}>
+                            ${selectedLink.inflowUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                      {selectedLink.outflowUsd > 0 && (
+                        <div className={styles.tooltipItem}>
+                          <span className={styles.tooltipLabel}>Total Outflow</span>
+                          <span className={styles.tooltipValue} style={{ color: '#ff6b6b' }}>
+                            ${selectedLink.outflowUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                      <div className={styles.tooltipItem}>
+                        <span className={styles.tooltipLabel}>Last Active</span>
+                        <span className={styles.tooltipValue} style={{ fontSize: '10px' }}>
+                          {formatDateTime(selectedLink.timestamp)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
+                    <div className={styles.linkTooltipCount} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                      Net Transfers
+                    </div>
+                    <div className={styles.linkTooltipAmounts} style={{ margin: '6px 0', maxHeight: '120px', overflowY: 'auto' }}>
                       {selectedLink.amounts.map((a, i) => (
-                        <div key={i} className={styles.linkTooltipRow} style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                        <div key={i} className={styles.linkTooltipRow} style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
                           <span style={{ color: a.direction === 'in' ? '#16c784' : '#ff6b6b', marginRight: '4px' }}>
                             {a.direction === 'in' ? '+' : '-'}
                           </span>
@@ -1101,19 +1232,11 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                         </div>
                       ))}
                     </div>
-                    {(selectedLink.inflowUsd > 0 || selectedLink.outflowUsd > 0) && (
-                      <div className={styles.linkTooltipSummary} style={{ fontSize: '11px', opacity: 0.8, display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-                        <span>Value:</span>
-                        <span style={{ color: selectedLink.direction === 'in' ? '#16c784' : '#ff6b6b', fontWeight: 600 }}>
-                          ${(selectedLink.inflowUsd || selectedLink.outflowUsd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                    )}
                     {selectedLink.txHash && (
                       <>
                         <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
                         <div className={styles.linkTooltipHash} style={{ fontSize: '9px', opacity: 0.4, fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                          TX: {selectedLink.txHash}
+                          Last TX: {truncateHash(selectedLink.txHash)}
                         </div>
                       </>
                     )}

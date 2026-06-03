@@ -409,3 +409,131 @@
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
+
+/* Redesigned Loader Styles */
+.visualizerLoaderContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 40px;
+  background: rgba(13, 11, 10, 0.45);
+  border: 1px solid rgba(205, 161, 105, 0.15);
+  border-radius: 24px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+}
+
+.networkLogoAnimation {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.svgLoader {
+  overflow: visible;
+}
+
+.centralPulseNode {
+  fill: #cda169;
+  filter: drop-shadow(0 0 12px #cda169);
+  animation: centralGlow 2.5s infinite ease-in-out;
+  transform-origin: 50px 50px;
+}
+
+.pulseNode1, .pulseNode2, .pulseNode3, .pulseNode4 {
+  fill: rgba(255, 255, 255, 0.85);
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+  animation: nodeGlow 3s infinite ease-in-out;
+}
+
+.pulseNode1 { transform-origin: 25px 25px; animation-delay: 0.2s; }
+.pulseNode2 { transform-origin: 75px 30px; animation-delay: 0.6s; }
+.pulseNode3 { transform-origin: 65px 75px; animation-delay: 1.0s; }
+.pulseNode4 { transform-origin: 30px 65px; animation-delay: 1.4s; }
+
+.loaderLine1, .loaderLine2, .loaderLine3, .loaderLine4 {
+  stroke: rgba(205, 161, 105, 0.35);
+  stroke-width: 1.5;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: drawLine 2.5s infinite ease-in-out;
+}
+
+.loaderLine1 { animation-delay: 0s; }
+.loaderLine2 { animation-delay: 0.4s; }
+.loaderLine3 { animation-delay: 0.8s; }
+.loaderLine4 { animation-delay: 1.2s; }
+
+@keyframes centralGlow {
+  0%, 100% { transform: scale(1); opacity: 0.8; filter: drop-shadow(0 0 8px rgba(205, 161, 105, 0.6)); }
+  50% { transform: scale(1.18); opacity: 1; filter: drop-shadow(0 0 22px #cda169); }
+}
+
+@keyframes nodeGlow {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+@keyframes drawLine {
+  0% { stroke-dashoffset: 100; opacity: 0; }
+  50% { stroke-dashoffset: 0; opacity: 0.8; }
+  100% { stroke-dashoffset: -100; opacity: 0; }
+}
+
+.loadingTitle {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #fff 0%, #cda169 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.statusStepper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.statusBar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.statusBarProgress {
+  height: 100%;
+  background: linear-gradient(90deg, #cda169, #ffcc8d);
+  border-radius: 10px;
+  width: 100%;
+  animation: loadProgress 3s infinite linear;
+}
+
+@keyframes loadProgress {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0); }
+  100% { transform: translateX(100%); }
+}
+
+.loadingSubtitle {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  margin: 0;
+  font-family: monospace;
+  min-height: 18px;
+}
