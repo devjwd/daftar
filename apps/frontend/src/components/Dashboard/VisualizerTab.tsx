@@ -48,7 +48,7 @@ interface Link {
   direction: 'in' | 'out' | 'both';
   // Per-transaction detail for tooltip
   amounts: { amount: number; token: string; direction: 'in' | 'out' }[];
-  txs: { direction: 'in' | 'out'; offset: number }[];
+  txs: { direction: 'in' | 'out'; offset: number; amounts: { amount: number; token: string; direction: 'in' | 'out' }[] }[];
   txHash?: string;
   txType?: string;
   timestamp?: string;
@@ -142,6 +142,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
   const [hoveredNode, setHoveredNode] = useState<Node | null>(null);
   const [hoveredLink, setHoveredLink] = useState<Link | null>(null);
+  const [hoveredTx, setHoveredTx] = useState<{ linkId: string; offset: number; text: string } | null>(null);
   const [linkTooltipPos, setLinkTooltipPos] = useState({ x: 0, y: 0 });
   const [nodeTooltipPos, setNodeTooltipPos] = useState({ x: 0, y: 0 });
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -277,7 +278,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           txHash?: string;
           txType?: string;
           timestamp?: string;
-          rawTxs: { direction: 'in' | 'out' }[];
+          rawTxs: { direction: 'in' | 'out'; amounts: { amount: number; token: string; direction: 'in' | 'out' }[] }[];
         }>();
 
         txs.forEach((tx: any) => {
@@ -409,7 +410,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
           linkData.txCount++;
           linkData.inflowUsd += hasInflow ? usdValue : 0;
           linkData.outflowUsd += hasOutflow ? usdValue : 0;
-          linkData.rawTxs.push({ direction: hasInflow ? 'in' : 'out' });
+          linkData.rawTxs.push({ direction: hasInflow ? 'in' : 'out', amounts: currentAmounts });
 
           currentAmounts.forEach(a => {
             linkData.tokens.add(a.token);
@@ -492,7 +493,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
             }
             return {
               direction: tx.direction,
-              offset
+              offset,
+              amounts: tx.amounts
             };
           });
 
@@ -996,7 +998,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
                   return (
                     <g key={link.id} className={styles.linkGroup}>
-                      {/* Invisible wide hit-area for hover detection */}
+                      {/* Invisible wide hit-area for hover detection (connection level) */}
                       <path
                         ref={el => {
                           if (el) linkHitElementsRef.current.set(link.id, el);
@@ -1026,7 +1028,10 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                             setLinkTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
                           }
                         }}
-                        onMouseLeave={() => setHoveredLink(null)}
+                        onMouseLeave={() => {
+                          setHoveredLink(null);
+                          setHoveredTx(null);
+                        }}
                       />
 
                       {/* Inflow Visible compound path */}
@@ -1037,11 +1042,11 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                             else linkInflowElementsRef.current.delete(link.id);
                           }}
                           d={inflowD}
-                          stroke={isHovered ? '#ffffff' : '#16c784'}
+                          stroke="#16c784"
                           strokeWidth={0.25}
                           fill="none"
-                          opacity={isHovered ? 1.0 : 0.35}
-                          style={{ pointerEvents: 'none', transition: 'stroke 0.15s ease, opacity 0.15s ease' }}
+                          opacity={isHovered ? 0.7 : 0.35}
+                          style={{ pointerEvents: 'none', transition: 'opacity 0.15s ease' }}
                         />
                       )}
 
@@ -1053,11 +1058,51 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                             else linkOutflowElementsRef.current.delete(link.id);
                           }}
                           d={outflowD}
-                          stroke={isHovered ? '#ffffff' : '#ff6b6b'}
+                          stroke="#ff6b6b"
                           strokeWidth={0.25}
                           fill="none"
-                          opacity={isHovered ? 1.0 : 0.35}
-                          style={{ pointerEvents: 'none', transition: 'stroke 0.15s ease, opacity 0.15s ease' }}
+                          opacity={isHovered ? 0.7 : 0.35}
+                          style={{ pointerEvents: 'none', transition: 'opacity 0.15s ease' }}
+                        />
+                      )}
+
+                      {/* Individual Hit-test paths (Rendered only when connection is hovered) */}
+                      {isHovered && link.txs.map((tx, index) => {
+                        const txCurve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, tx.offset);
+                        return (
+                          <path
+                            key={index}
+                            d={txCurve.d}
+                            stroke="transparent"
+                            strokeWidth={8}
+                            fill="none"
+                            style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                            onMouseEnter={() => {
+                              const text = tx.amounts && tx.amounts.length > 0
+                                ? tx.amounts.map(a => `${a.direction === 'in' ? '+' : '-'} ${a.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${a.token}`).join(' | ')
+                                : 'Transaction';
+                              
+                              setHoveredTx({
+                                linkId: link.id,
+                                offset: tx.offset,
+                                text
+                              });
+                            }}
+                            onMouseLeave={() => {
+                              setHoveredTx(null);
+                            }}
+                          />
+                        );
+                      })}
+
+                      {/* White Highlighted Hovered Sub-Line */}
+                      {hoveredTx && hoveredTx.linkId === link.id && (
+                        <path
+                          d={getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, hoveredTx.offset).d}
+                          stroke="#ffffff"
+                          strokeWidth={1.25}
+                          fill="none"
+                          style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.8))' }}
                         />
                       )}
                     </g>
@@ -1169,18 +1214,20 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                 className={styles.minimalTooltip}
                 style={{ left: linkTooltipPos.x + 12, top: linkTooltipPos.y - 8 }}
               >
-                {hoveredLink.amounts.map((a, i) => (
+                {hoveredTx ? (
                   <span
-                    key={i}
                     style={{
-                      color: a.direction === 'in' ? '#16c784' : '#ff6b6b',
+                      color: hoveredTx.text.startsWith('+') ? '#16c784' : '#ff6b6b',
                       fontWeight: 600,
-                      marginRight: i < hoveredLink.amounts.length - 1 ? '8px' : '0'
                     }}
                   >
-                    {a.direction === 'in' ? '+' : '-'} {a.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {a.token}
+                    {hoveredTx.text}
                   </span>
-                ))}
+                ) : (
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>
+                    {hoveredLink.txCount} {hoveredLink.txCount === 1 ? 'Transaction' : 'Transactions'}
+                  </span>
+                )}
               </div>
             )}
 
