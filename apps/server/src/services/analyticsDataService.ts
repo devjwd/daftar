@@ -606,12 +606,15 @@ export async function aggregateAnalyticsData(
   customStartDate?: string,
   customEndDate?: string
 ): Promise<AnalyticsDataResult> {
-  const [txResult, initialFlow, networthHistory, tokenBalanceHistory] = await Promise.all([
+  const [txResult, initialFlow, networthHistory, tokenBalanceHistory, dbExchangeRes] = await Promise.all([
     fetchTransactionsPaginated(supabase, wallet, timeframe, customStartDate, customEndDate),
     calculateInitialFlow(supabase, wallet, timeframe, customStartDate),
     fetchNetworthHistory(supabase, wallet, timeframe, customStartDate, customEndDate),
     fetchTokenBalanceHistory(supabase, wallet, timeframe, customStartDate, customEndDate),
+    supabase.from('tracked_entities').select('name').eq('category', 'Exchange')
   ]);
+
+  const dbExchanges = new Set(dbExchangeRes.data?.map(e => e.name).filter(Boolean) || []);
 
   const txs = txResult.txs;
   const truncated = txResult.truncated;
@@ -687,7 +690,10 @@ export async function aggregateAnalyticsData(
     }
     dailyStats.set(date, stats);
 
-    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
+    const isExchange = KNOWN_EXCHANGES.has(protocol) || 
+                       dbExchanges.has(protocol) || 
+                       protocol.includes('Exchange') || 
+                       protocol.includes('Bridge');
     if (isExchange) {
       if (isInflowAction(action)) {
         cumulativeFlow += val;
@@ -799,7 +805,10 @@ export async function aggregateAnalyticsData(
   txs.forEach(tx => {
     const val = Number(tx.value_usd || 0);
     const protocol = tx.protocol || 'Unknown';
-    const isExchange = KNOWN_EXCHANGES.has(protocol) || protocol.includes('Exchange') || protocol.includes('Bridge');
+    const isExchange = KNOWN_EXCHANGES.has(protocol) || 
+                       dbExchanges.has(protocol) || 
+                       protocol.includes('Exchange') || 
+                       protocol.includes('Bridge');
 
     if (isExchange) {
       const action = tx.action || '';

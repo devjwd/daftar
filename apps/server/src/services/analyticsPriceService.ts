@@ -137,13 +137,18 @@ async function getHistoricalPrice(
 /**
  * Main worker function to process pending transactions
  */
-export async function backfillTransactionPrices(supabase: SupabaseClient, limit: number = 20) {
+export async function backfillTransactionPrices(supabase: SupabaseClient, limit: number = 20, walletAddress?: string) {
   // 1. Get unprocessed transactions
-  const { data: pending, error } = await supabase
+  let query = supabase
     .from('user_transaction_history')
     .select('*')
-    .eq('is_processed', false)
-    .limit(limit);
+    .eq('is_processed', false);
+
+  if (walletAddress) {
+    query = query.eq('user_address', walletAddress.toLowerCase().trim());
+  }
+
+  const { data: pending, error } = await query.limit(limit);
 
   if (error || !pending || pending.length === 0) return;
 

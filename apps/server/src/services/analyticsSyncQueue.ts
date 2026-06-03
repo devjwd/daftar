@@ -129,8 +129,8 @@ export async function processSyncQueue(supabase: SupabaseClient) {
     // Invalidate server-side analytics cache for this wallet
     analyticsCache.invalidate(address);
 
-    // Immediately trigger price backfilling in the background asynchronously
-    void backfillTransactionPrices(supabase, 200).catch(err => {
+    // Immediately trigger price backfilling in the background asynchronously for this specific wallet first
+    void backfillTransactionPrices(supabase, 200, address).catch(err => {
       console.error('[SyncQueue] Immediate price backfill error:', err.message);
     });
   } catch (err: any) {
