@@ -242,6 +242,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     [walletAddress, API_URL]
   );
 
+  const handleSyncComplete = useCallback(async () => {
+    await fetchAnalyticsData(timeframeRef.current, bottomTimeframeRef.current);
+  }, [fetchAnalyticsData]);
+
   const {
     syncStatus,
     syncProgress,
@@ -251,9 +255,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   } = useAnalyticsSync(
     walletAddress,
     isPremium,
-    async () => {
-      await fetchAnalyticsData(timeframeRef.current, bottomTimeframeRef.current);
-    }
+    handleSyncComplete
   );
 
   // Fetch data as soon as we know the user is premium, even if sync isn't complete yet
