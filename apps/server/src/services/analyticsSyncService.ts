@@ -531,26 +531,47 @@ function enrichTransaction(
   let isExchangeDeposit = false;
   let exchangeName = null;
 
-  if (counterpartyAddress && labelsMap.has(counterpartyAddress)) {
-    const labelObj = labelsMap.get(counterpartyAddress);
-    counterpartyLabel = labelObj.tracked_entities?.name || labelObj.label_name || null;
+  if (counterpartyAddress) {
+    // 1. Try to find the counterparty in tracked_entities (for main cold/hot exchange addresses)
+    let matchedEntity = null;
+    if (entitiesList && entitiesList.length > 0) {
+      matchedEntity = entitiesList.find(e => normalizeAddress(e.address) === counterpartyAddress);
+    }
 
-    // Detect if counterparty is an exchange deposit address
-    const isExchangeCategory = labelObj.tracked_entities?.category === 'Exchange';
-    const isKnownExchangeName = labelObj.tracked_entities?.name && KNOWN_EXCHANGES.has(labelObj.tracked_entities.name);
-    const isDepositLabel = labelObj.label_name && (
-      labelObj.label_name.toLowerCase().includes('deposit') ||
-      labelObj.label_name.toLowerCase().includes('exchange')
-    );
+    if (matchedEntity) {
+      counterpartyLabel = matchedEntity.name;
+      const isExchangeCategory = matchedEntity.category === 'Exchange';
+      const isKnownExchangeName = KNOWN_EXCHANGES.has(matchedEntity.name);
+      if (isExchangeCategory || isKnownExchangeName) {
+        isExchangeDeposit = true;
+        exchangeName = matchedEntity.name;
+      }
+    }
 
-    if (isExchangeCategory || isKnownExchangeName || isDepositLabel) {
-      isExchangeDeposit = true;
-      exchangeName = labelObj.tracked_entities?.name || 'Exchange';
-      if (exchangeName === 'Exchange' && labelObj.label_name) {
-        for (const ex of KNOWN_EXCHANGES) {
-          if (labelObj.label_name.toLowerCase().includes(ex.toLowerCase())) {
-            exchangeName = ex;
-            break;
+    // 2. Try to find the counterparty in address_labels (deposit/withdrawal address mappings)
+    if (labelsMap.has(counterpartyAddress)) {
+      const labelObj = labelsMap.get(counterpartyAddress);
+      
+      if (!counterpartyLabel) {
+        counterpartyLabel = labelObj.tracked_entities?.name || labelObj.label_name || null;
+      }
+
+      const isExchangeCategory = labelObj.tracked_entities?.category === 'Exchange';
+      const isKnownExchangeName = labelObj.tracked_entities?.name && KNOWN_EXCHANGES.has(labelObj.tracked_entities.name);
+      const isDepositLabel = labelObj.label_name && (
+        labelObj.label_name.toLowerCase().includes('deposit') ||
+        labelObj.label_name.toLowerCase().includes('exchange')
+      );
+
+      if (isExchangeCategory || isKnownExchangeName || isDepositLabel) {
+        isExchangeDeposit = true;
+        exchangeName = exchangeName || labelObj.tracked_entities?.name || 'Exchange';
+        if (exchangeName === 'Exchange' && labelObj.label_name) {
+          for (const ex of KNOWN_EXCHANGES) {
+            if (labelObj.label_name.toLowerCase().includes(ex.toLowerCase())) {
+              exchangeName = ex;
+              break;
+            }
           }
         }
       }
