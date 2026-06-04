@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Wallet, Cpu, User, ArrowRightLeft, ZoomIn, ZoomOut, RotateCcw, HelpCircle } from 'lucide-react';
 import styles from './TransactionVisualizer.module.css';
-import { DEFI_PROTOCOL_VISUALS } from '../../config/display';
+import { DEFI_PROTOCOL_VISUALS, getLogoForLabel } from '../../config/display';
 import { findEntityByAddress } from '../../services/entityStore';
 
 interface TransactionVisualizerProps {
@@ -44,14 +44,14 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
     if (walletEntity) {
       return {
         label: walletEntity.name,
-        logo: walletEntity.logo_url || null,
+        logo: walletEntity.logo_url || getLogoForLabel(walletEntity.name) || null,
         isEntity: true,
         badgeColor: walletEntity.badge_color || '#8B5CF6'
       };
     }
     return {
       label: 'My Wallet',
-      logo: null,
+      logo: getLogoForLabel('My Wallet') || null,
       isEntity: false,
       badgeColor: '#8B5CF6'
     };
@@ -62,7 +62,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
     if (tx?.dapp_logo) return tx.dapp_logo;
     if (!tx?.dapp_name) return null;
     const key = String(tx.dapp_name).toLowerCase().replace(/\s/g, '');
-    return (DEFI_PROTOCOL_VISUALS as any)[key]?.logo || null;
+    return (DEFI_PROTOCOL_VISUALS as any)[key]?.logo || getLogoForLabel(tx.dapp_name) || null;
   }, [tx?.dapp_logo, tx?.dapp_name]);
   
   // Inflow details: User received tokens
@@ -88,11 +88,12 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
     if (isSimpleTransfer) {
       if (isReceived) {
         // Left is Sender
+        const entity = tx.counterparty_address ? findEntityByAddress(tx.counterparty_address) : null;
         return {
-          label: 'Sender',
+          label: entity ? entity.name : 'Sender',
           subLabel: tx.counterparty_address ? formatAddress(tx.counterparty_address) : 'Source Wallet',
           isWallet: true,
-          logo: null,
+          logo: entity ? (entity.logo_url || getLogoForLabel(entity.name)) : null,
           color: '#16c784',
           shadow: '0 0 15px rgba(22, 199, 132, 0.08)'
         };
@@ -141,11 +142,12 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
         };
       } else {
         // Right is Recipient
+        const entity = tx.counterparty_address ? findEntityByAddress(tx.counterparty_address) : null;
         return {
-          label: 'Recipient',
+          label: entity ? entity.name : 'Recipient',
           subLabel: tx.counterparty_address ? formatAddress(tx.counterparty_address) : 'Destination Wallet',
           isWallet: true,
-          logo: null,
+          logo: entity ? (entity.logo_url || getLogoForLabel(entity.name)) : null,
           color: '#ff6b6b',
           shadow: '0 0 15px rgba(255, 107, 107, 0.08)'
         };

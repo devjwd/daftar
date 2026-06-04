@@ -45,3 +45,59 @@ export const DEFAULT_PROTOCOL_VISUAL = {
 };
 
 export const DATA_VIZ_COLORS = ["#cda169", "#3b958b", "#8c6b9e", "#c06c50", "#5c8ead"];
+
+export const LOCAL_LOGOS: Record<string, string> = {
+  // Exchanges
+  'binance': '/binance.jpg',
+  'bybit': '/bybit.jpg',
+  'kucoin': '/kucoin.jpg',
+  'gate.io': '/gate.png',
+  'gate': '/gate.png',
+  'mexc': '/mexc.jpg',
+  'okx': '/okx.png',
+  'kast': '/kast.jpg',
+  
+  // Protocols
+  'echelon': '/Echelon.png',
+  'echelon finance': '/Echelon.png',
+  'joule': '/joule-finance.png',
+  'joule finance': '/joule-finance.png',
+  'moveposition': '/moveposition.png',
+  'meridian': '/Meridian.png',
+  'canopy': '/canopy.png',
+  'layerbank': '/LayerBank.png',
+  'mosaic': '/mosaic.png',
+  'yuzu': '/yuzu.png',
+  'yuzuswap': '/yuzu.png',
+  'tradeport': '/tradeport.png',
+  'moversmap': '/moversmap.png',
+  'move match': '/movematch.jpg',
+  'movematch': '/movematch.jpg',
+  'capygo': '/Capygo.png',
+  'capy': '/capy.png',
+  'nightly': '/nightly.png',
+  'leap': '/leap.png',
+  'razor': '/razor.png',
+  
+  // Tokens/others
+  'move': '/movement-logo.svg',
+  'movement': '/movement-logo.svg',
+  'usdc': '/usdc.png',
+  'usdt': '/usdt.png',
+  'eth': '/ETH.png',
+  'btc': '/BTC.png',
+  'lbtc': '/LBTC.webp',
+  'solvbtc': '/SolvBTC.webp',
+  'usda': '/USDa.webp',
+  'usde': '/USDe.webp',
+  'ezeth': '/ezETH.webp',
+  'rseth': '/rsETH.webp',
+  'weeth': '/weETH.webp'
+};
+
+export const getLogoForLabel = (label: string): string | null => {
+  if (!label) return null;
+  const clean = label.toLowerCase().trim();
+  return LOCAL_LOGOS[clean] || null;
+};
+

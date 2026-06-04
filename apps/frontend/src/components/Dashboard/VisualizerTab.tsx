@@ -18,6 +18,7 @@ import { getProfile } from '../../services/api';
 import styles from './VisualizerTab.module.css';
 import PlanGate from '../PlanGate';
 import { resolveEntityBranding, syncEntities } from '../../services/entityStore';
+import { getLogoForLabel } from '../../config/display';
 
 interface Node {
   id: string;
@@ -452,16 +453,17 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
         const outerNodes: Node[] = Array.from(nodeMap.entries()).map(([id, data], index) => {
           const angle = (index / nodeMap.size) * Math.PI * 2;
           const radius = Math.min(280, 130 + data.txCount * 4.5);
+          const resolvedLogo = data.logo || getLogoForLabel(data.label);
           return {
             id,
             label: data.label,
             type: data.type === 'protocol' ? 'protocol' : 'wallet',
-            logo: data.logo,
+            logo: resolvedLogo,
             x: CANVAS_WIDTH / 2 + Math.cos(angle) * radius,
             y: CANVAS_HEIGHT / 2 + Math.sin(angle) * radius,
             vx: 0,
             vy: 0,
-            radius: data.logo 
+            radius: resolvedLogo 
               ? Math.min(22, Math.max(14, 14 + data.txCount * 0.4)) 
               : Math.min(14, Math.max(8, 8 + data.txCount * 0.5)),
             txCount: data.txCount,
