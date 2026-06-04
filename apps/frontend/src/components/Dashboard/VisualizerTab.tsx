@@ -1104,14 +1104,14 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                         );
                       })}
 
-                      {/* Selected Sub-Line (Gold Glow) */}
+                      {/* Selected Sub-Line (Gold) */}
                       {selectedTx && selectedLink?.id === link.id && (
                         <path
                           d={getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, selectedTx.offset).d}
                           stroke="#cda169"
-                          strokeWidth={1.5}
+                          strokeWidth={0.15}
                           fill="none"
-                          style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 4px rgba(205, 161, 105, 0.8))' }}
+                          style={{ pointerEvents: 'none' }}
                         />
                       )}
 
@@ -1120,9 +1120,9 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                         <path
                           d={getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, hoveredTx.offset).d}
                           stroke="#ffffff"
-                          strokeWidth={1.25}
+                          strokeWidth={0.15}
                           fill="none"
-                          style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.8))' }}
+                          style={{ pointerEvents: 'none' }}
                         />
                       )}
                     </g>
