@@ -147,6 +147,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
   const [nodeTooltipPos, setNodeTooltipPos] = useState({ x: 0, y: 0 });
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [selectedLink, setSelectedLink] = useState<Link | null>(null);
+  const [selectedTx, setSelectedTx] = useState<any | null>(null);
   const [txCount, setTxCount] = useState(0);
 
   // Pan and Zoom State
@@ -957,6 +958,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
               onClick={() => {
                 setSelectedNode(null);
                 setSelectedLink(null);
+                setSelectedTx(null);
               }}
               onMouseMove={(e) => {
                 handleCanvasMouseMove(e);
@@ -1014,6 +1016,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                           e.stopPropagation();
                           setSelectedLink(link);
                           setSelectedNode(null);
+                          setSelectedTx(null);
                         }}
                         onMouseEnter={(e) => {
                           setHoveredLink(link);
@@ -1043,9 +1046,9 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                           }}
                           d={inflowD}
                           stroke="#16c784"
-                          strokeWidth={0.25}
+                          strokeWidth={0.15}
                           fill="none"
-                          opacity={isHovered ? 0.7 : 0.35}
+                          opacity={isHovered ? 0.55 : 0.15}
                           style={{ pointerEvents: 'none', transition: 'opacity 0.15s ease' }}
                         />
                       )}
@@ -1059,9 +1062,9 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                           }}
                           d={outflowD}
                           stroke="#ff6b6b"
-                          strokeWidth={0.25}
+                          strokeWidth={0.15}
                           fill="none"
-                          opacity={isHovered ? 0.7 : 0.35}
+                          opacity={isHovered ? 0.55 : 0.15}
                           style={{ pointerEvents: 'none', transition: 'opacity 0.15s ease' }}
                         />
                       )}
@@ -1077,6 +1080,12 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                             strokeWidth={8}
                             fill="none"
                             style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTx(tx);
+                              setSelectedLink(link);
+                              setSelectedNode(null);
+                            }}
                             onMouseEnter={() => {
                               const text = tx.amounts && tx.amounts.length > 0
                                 ? tx.amounts.map(a => `${a.direction === 'in' ? '+' : '-'} ${a.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${a.token}`).join(' | ')
@@ -1095,8 +1104,19 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                         );
                       })}
 
+                      {/* Selected Sub-Line (Gold Glow) */}
+                      {selectedTx && selectedLink?.id === link.id && (
+                        <path
+                          d={getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, selectedTx.offset).d}
+                          stroke="#cda169"
+                          strokeWidth={1.5}
+                          fill="none"
+                          style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 4px rgba(205, 161, 105, 0.8))' }}
+                        />
+                      )}
+
                       {/* White Highlighted Hovered Sub-Line */}
-                      {hoveredTx && hoveredTx.linkId === link.id && (
+                      {hoveredTx && hoveredTx.linkId === link.id && (!selectedTx || selectedTx.offset !== hoveredTx.offset) && (
                         <path
                           d={getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, hoveredTx.offset).d}
                           stroke="#ffffff"
@@ -1142,6 +1162,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                         e.stopPropagation();
                         setSelectedNode(refNode);
                         setSelectedLink(null);
+                        setSelectedTx(null);
                       }}
                       onMouseEnter={(e) => {
                         setHoveredNode(refNode);
@@ -1235,13 +1256,14 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
             {(selectedNode || selectedLink) && (
               <div className={styles.selectionPanel}>
                 <div className={styles.selectionPanelHeader}>
-                  <span>{selectedNode ? 'Wallet Details' : 'Transaction Details'}</span>
+                  <span>{selectedNode ? 'Wallet Details' : selectedTx ? 'Transaction Details' : 'Connection Details'}</span>
                   <button
                     className={styles.closePanelBtn}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedNode(null);
                       setSelectedLink(null);
+                      setSelectedTx(null);
                     }}
                     title="Close Details"
                   >
@@ -1287,15 +1309,94 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
                 {selectedLink && (
                   <div>
-                    <div className={styles.linkTooltipHeader} style={{ marginBottom: '6px' }}>
-                      <span className={styles.linkTooltipCount} style={{ fontSize: '13px', fontWeight: 700, color: '#f3dfbe' }}>
-                        CONNECTION FLOW
-                      </span>
-                      <span className={styles.linkTooltipTokens} style={{ fontSize: '9px', opacity: 0.5 }}>
-                        {selectedLink.txCount} {selectedLink.txCount === 1 ? 'tx' : 'txs'}
-                      </span>
-                    </div>
-                    <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
+                    {selectedTx ? (
+                      <div>
+                        <div className={styles.linkTooltipHeader} style={{ marginBottom: '6px' }}>
+                          <span className={styles.linkTooltipCount} style={{ fontSize: '13px', fontWeight: 700, color: '#f3dfbe' }}>
+                            TRANSACTION FLOW
+                          </span>
+                          <span className={styles.linkTooltipTokens} style={{ fontSize: '9px', opacity: 0.5, textTransform: 'uppercase' }}>
+                            {selectedTx.txType || 'transfer'}
+                          </span>
+                        </div>
+                        <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
+                        <div className={styles.tooltipGrid} style={{ marginBottom: '8px' }}>
+                          {selectedTx.usdValue !== undefined && selectedTx.usdValue > 0 && (
+                            <div className={styles.tooltipItem}>
+                              <span className={styles.tooltipLabel}>USD Value</span>
+                              <span className={styles.tooltipValue} style={{ color: '#fff' }}>
+                                ${selectedTx.usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          <div className={styles.tooltipItem}>
+                            <span className={styles.tooltipLabel}>Direction</span>
+                            <span className={styles.tooltipValue} style={{ color: selectedTx.direction === 'in' ? '#16c784' : '#ff6b6b', fontWeight: 600 }}>
+                              {selectedTx.direction === 'in' ? 'INFLOW (Received)' : 'OUTFLOW (Sent)'}
+                            </span>
+                          </div>
+                          <div className={styles.tooltipItem}>
+                            <span className={styles.tooltipLabel}>Time</span>
+                            <span className={styles.tooltipValue} style={{ fontSize: '10px' }}>
+                              {formatDateTime(selectedTx.timestamp)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
+                        <div className={styles.linkTooltipCount} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                          Transfers
+                        </div>
+                        <div className={styles.linkTooltipAmounts} style={{ margin: '6px 0', maxHeight: '120px', overflowY: 'auto' }}>
+                          {selectedTx.amounts.map((a: any, i: number) => (
+                            <div key={i} className={styles.linkTooltipRow} style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ color: a.direction === 'in' ? '#16c784' : '#ff6b6b', marginRight: '4px' }}>
+                                {a.direction === 'in' ? '+' : '-'}
+                              </span>
+                              <span className={styles.linkTooltipAmount}>
+                                {a.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })} {a.token}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        {selectedTx.txHash && (
+                          <>
+                            <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
+                            <div className={styles.linkTooltipRow} style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span className={styles.tooltipLabel} style={{ fontSize: '9px', opacity: 0.4 }}>TX Hash</span>
+                              <a
+                                href={`https://explorer.movementnetwork.xyz/txn/${selectedTx.txHash.replace(/^v/i, '')}?network=mainnet`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.closePanelBtn}
+                                style={{
+                                  fontSize: '10px',
+                                  color: '#cda169',
+                                  textDecoration: 'underline',
+                                  fontFamily: 'monospace',
+                                  background: 'rgba(205, 161, 105, 0.1)',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  display: 'inline-block'
+                                }}
+                              >
+                                {truncateHash(selectedTx.txHash)} ↗
+                              </a>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <div className={styles.linkTooltipHeader} style={{ marginBottom: '6px' }}>
+                          <span className={styles.linkTooltipCount} style={{ fontSize: '13px', fontWeight: 700, color: '#f3dfbe' }}>
+                            CONNECTION FLOW
+                          </span>
+                          <span className={styles.linkTooltipTokens} style={{ fontSize: '9px', opacity: 0.5 }}>
+                            {selectedLink.txCount} {selectedLink.txCount === 1 ? 'tx' : 'txs'}
+                          </span>
+                        </div>
+                        <div className={styles.tooltipDivider} style={{ margin: '6px 0' }} />
                     <div className={styles.tooltipGrid} style={{ marginBottom: '8px' }}>
                       {selectedLink.inflowUsd > 0 && (
                         <div className={styles.tooltipItem}>
@@ -1349,6 +1450,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                 )}
               </div>
             )}
+          </div>
+        )}
 
             {/* Instructions box in bottom-left */}
             <div className={styles.instructions}>
