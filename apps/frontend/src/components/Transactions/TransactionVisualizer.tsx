@@ -27,9 +27,9 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
   // Transaction details
   const txType = String(tx?.tx_type || 'other').toLowerCase();
   const dappName = String(tx?.dapp_name || 'Wallet');
-  
+
   // Decide flow details
-  const isSimpleTransfer = ['send', 'received', 'transfer'].includes(txType) && 
+  const isSimpleTransfer = ['send', 'received', 'transfer'].includes(txType) &&
     (!tx?.dapp_name || String(tx.dapp_name).toLowerCase() === 'wallet');
   const isReceived = txType === 'received';
   const isSend = txType === 'send';
@@ -64,7 +64,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
     const key = String(tx.dapp_name).toLowerCase().replace(/\s/g, '');
     return (DEFI_PROTOCOL_VISUALS as any)[key]?.logo || getLogoForLabel(tx.dapp_name) || null;
   }, [tx?.dapp_logo, tx?.dapp_name]);
-  
+
   // Inflow details: User received tokens
   // If it's a received transfer, user gets the sent amount.
   const hasInflow = isReceived || (tx.amount_out != null && Number(tx.amount_out) > 0);
@@ -105,8 +105,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
           isWallet: true,
           logo: centerNodeBranding.logo,
           color: centerNodeBranding.badgeColor,
-          shadow: centerNodeBranding.isEntity 
-            ? '0 0 20px rgba(229, 190, 138, 0.15)' 
+          shadow: centerNodeBranding.isEntity
+            ? '0 0 20px rgba(229, 190, 138, 0.15)'
             : '0 0 20px rgba(139, 92, 246, 0.1)'
         };
       }
@@ -118,8 +118,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
         isWallet: true,
         logo: centerNodeBranding.logo,
         color: centerNodeBranding.badgeColor,
-        shadow: centerNodeBranding.isEntity 
-          ? '0 0 20px rgba(229, 190, 138, 0.15)' 
+        shadow: centerNodeBranding.isEntity
+          ? '0 0 20px rgba(229, 190, 138, 0.15)'
           : '0 0 20px rgba(139, 92, 246, 0.1)'
       };
     }
@@ -136,8 +136,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
           isWallet: true,
           logo: centerNodeBranding.logo,
           color: centerNodeBranding.badgeColor,
-          shadow: centerNodeBranding.isEntity 
-            ? '0 0 20px rgba(229, 190, 138, 0.15)' 
+          shadow: centerNodeBranding.isEntity
+            ? '0 0 20px rgba(229, 190, 138, 0.15)'
             : '0 0 20px rgba(139, 92, 246, 0.1)'
         };
       } else {
@@ -156,8 +156,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
       // DeFi transaction: Right is always the DeFi Protocol/dApp
       return {
         label: dappName,
-        subLabel: tx.counterparty_address 
-          ? formatAddress(tx.counterparty_address) 
+        subLabel: tx.counterparty_address
+          ? formatAddress(tx.counterparty_address)
           : (tx.dapp_contract ? formatAddress(tx.dapp_contract) : 'DeFi Protocol'),
         isWallet: false,
         logo: protocolLogo,
@@ -233,7 +233,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
 
   const handleNodeMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!draggedNodeRef.current) return;
-    
+
     const rect = e.currentTarget.getBoundingClientRect();
     const relativeX = (e.clientX - rect.left - pan.x) / zoom;
     const relativeY = (e.clientY - rect.top - pan.y) / zoom;
@@ -306,7 +306,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
   return createPortal(
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={e => e.stopPropagation()}>
-        
+
         {/* Arkham Visualizer Canvas */}
         <div className={styles.visualizerArea}>
           {/* Header Info Overlay */}
@@ -320,10 +320,10 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
           </div>
 
           {/* SVG Visualizer Canvas */}
-          <svg 
+          <svg
             ref={svgRef}
-            className={styles.svgCanvas} 
-            viewBox="0 0 800 320" 
+            className={styles.svgCanvas}
+            viewBox="0 0 800 320"
             preserveAspectRatio="xMidYMid meet"
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={(e) => {
@@ -343,8 +343,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
             <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
               {/* 1. Curved flow lines (Clean thin wires) */}
               {hasInflow && (
-                <path 
-                  d={`M ${nodePositions.right.x} ${nodePositions.right.y} Q ${inflowCtrl.x} ${inflowCtrl.y} ${nodePositions.left.x} ${nodePositions.left.y}`} 
+                <path
+                  d={`M ${nodePositions.right.x} ${nodePositions.right.y} Q ${inflowCtrl.x} ${inflowCtrl.y} ${nodePositions.left.x} ${nodePositions.left.y}`}
                   stroke="#16c784"
                   strokeWidth={0.65}
                   fill="none"
@@ -353,8 +353,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
               )}
 
               {hasOutflow && (
-                <path 
-                  d={`M ${nodePositions.left.x} ${nodePositions.left.y} Q ${outflowCtrl.x} ${outflowCtrl.y} ${nodePositions.right.x} ${nodePositions.right.y}`} 
+                <path
+                  d={`M ${nodePositions.left.x} ${nodePositions.left.y} Q ${outflowCtrl.x} ${outflowCtrl.y} ${nodePositions.right.x} ${nodePositions.right.y}`}
                   stroke="#ff6b6b"
                   strokeWidth={0.65}
                   fill="none"
@@ -364,10 +364,10 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
 
               {/* 2. Value Badges */}
               {hasInflow && (
-                <foreignObject 
-                  x={inflowCtrl.x - 100} 
-                  y={inflowCtrl.y - 15} 
-                  width={200} 
+                <foreignObject
+                  x={inflowCtrl.x - 100}
+                  y={inflowCtrl.y - 15}
+                  width={200}
                   height={30}
                 >
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
@@ -379,10 +379,10 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
               )}
 
               {hasOutflow && (
-                <foreignObject 
-                  x={outflowCtrl.x - 100} 
-                  y={outflowCtrl.y - 15} 
-                  width={200} 
+                <foreignObject
+                  x={outflowCtrl.x - 100}
+                  y={outflowCtrl.y - 15}
+                  width={200}
                   height={30}
                 >
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
@@ -395,21 +395,21 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
 
               {/* 3. Interactive Nodes */}
               {/* Left Node */}
-              <foreignObject 
-                x={nodePositions.left.x - 100} 
-                y={nodePositions.left.y - 26} 
-                width={200} 
+              <foreignObject
+                x={nodePositions.left.x - 100}
+                y={nodePositions.left.y - 26}
+                width={200}
                 height={130}
               >
-                <div 
+                <div
                   className={styles.node}
                   onMouseDown={(e) => handleNodeMouseDown('left', e)}
                 >
-                  <div 
-                    className={styles.nodeContent} 
-                    style={{ 
-                      borderColor: leftNodeDetails.color, 
-                      boxShadow: leftNodeDetails.shadow 
+                  <div
+                    className={styles.nodeContent}
+                    style={{
+                      borderColor: leftNodeDetails.color,
+                      boxShadow: leftNodeDetails.shadow
                     }}
                   >
                     {leftNodeDetails.logo ? (
@@ -428,21 +428,21 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
               </foreignObject>
 
               {/* Right Node */}
-              <foreignObject 
-                x={nodePositions.right.x - 100} 
-                y={nodePositions.right.y - 26} 
-                width={200} 
+              <foreignObject
+                x={nodePositions.right.x - 100}
+                y={nodePositions.right.y - 26}
+                width={200}
                 height={130}
               >
-                <div 
+                <div
                   className={styles.node}
                   onMouseDown={(e) => handleNodeMouseDown('right', e)}
                 >
-                  <div 
-                    className={styles.nodeContent} 
-                    style={{ 
-                      borderColor: rightNodeDetails.color, 
-                      boxShadow: rightNodeDetails.shadow 
+                  <div
+                    className={styles.nodeContent}
+                    style={{
+                      borderColor: rightNodeDetails.color,
+                      boxShadow: rightNodeDetails.shadow
                     }}
                   >
                     {rightNodeDetails.logo ? (
@@ -495,7 +495,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
                 </span>
               </div>
             </div>
-            
+
             <div className={styles.instructionsInline}>
               <HelpCircle size={10} />
               <span>Scroll to zoom · Drag background to pan · Drag nodes to organize</span>
