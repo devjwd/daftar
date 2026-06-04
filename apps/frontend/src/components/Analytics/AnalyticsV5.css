@@ -1114,3 +1114,36 @@
   color: var(--primary);
   flex-shrink: 0;
 }
+
+.download-dropdown-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  letter-spacing: 0.5px;
+  padding: 6px 10px 4px 10px;
+}
+
+.analytics-download-timeframe-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  margin: 4px 10px 8px 10px;
+  transition: all 0.2s ease;
+}
+
+.analytics-download-timeframe-select:focus {
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.analytics-download-timeframe-select option {
+  background: #111;
+  color: #fff;
+}

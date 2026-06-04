@@ -119,6 +119,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const [dataLoading, setDataLoading] = useState(false);
   const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [exportTimeframe, setExportTimeframe] = useState('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -302,12 +303,35 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
   const fetchAllTransactionsForExport = async (): Promise<any[]> => {
     if (!walletAddress) return [];
-    const response = await fetch(`${API_URL}/api/transactions?wallet=${walletAddress}&limit=10000&page=1`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch transactions');
+    
+    let allTxs: any[] = [];
+    let page = 1;
+    let hasMore = true;
+    const limit = 1000;
+
+    let startDateParam = '';
+    if (exportTimeframe !== 'all') {
+      const start = new Date();
+      if (exportTimeframe === '30d') start.setDate(start.getDate() - 30);
+      else if (exportTimeframe === '3m') start.setMonth(start.getMonth() - 3);
+      else if (exportTimeframe === '6m') start.setMonth(start.getMonth() - 6);
+      else if (exportTimeframe === '12m') start.setFullYear(start.getFullYear() - 1);
+      startDateParam = `&startDate=${encodeURIComponent(start.toISOString())}`;
     }
-    const json = await response.json();
-    return json.transactions || [];
+
+    while (hasMore) {
+      const url = `${API_URL}/api/transactions?wallet=${walletAddress}&limit=${limit}&page=${page}${startDateParam}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+      const json = await response.json();
+      const txs = json.transactions || [];
+      allTxs = allTxs.concat(txs);
+      hasMore = json.hasMore && txs.length === limit;
+      page++;
+    }
+    return allTxs;
   };
 
   const handleDownloadPDF = async () => {
@@ -340,7 +364,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     try {
       const txs = await fetchAllTransactionsForExport();
       
-      const headers = ['Date', 'Tx Hash', 'Type', 'Description', 'Sent Asset', 'Sent Amount', 'Received Asset', 'Received Amount', 'Value (USD)', 'Gas Fee (MOVE)', 'Status'];
+      const headers = ['Date', 'Tx Hash', 'Type', 'Description', 'Sent Asset', 'Sent Amount', 'Received Asset', 'Received Amount', 'Value (USD)', 'Status'];
       const rows = txs.map(tx => {
         const date = new Date(tx.tx_timestamp).toISOString();
         const cleanHash = String(tx.tx_hash || '').replace(/^v/i, '');
@@ -360,7 +384,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
           valUsd = tx.amount_in_usd || tx.amount_out_usd || 0;
         }
 
-        const fee = tx.gas_fee != null ? `${Number(tx.gas_fee).toFixed(5)} MOVE` : '';
         const status = tx.status || '';
 
         return [
@@ -373,7 +396,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
           recAsset,
           recAmount,
           valUsd,
-          fee,
           status
         ].join(',');
       });
@@ -485,6 +507,21 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                     exit={{ opacity: 0, y: -4 }}
                     transition={{ duration: 0.15 }}
                   >
+                    <div className="download-dropdown-section-title">
+                      Select Period
+                    </div>
+                    <select
+                      className="analytics-download-timeframe-select"
+                      value={exportTimeframe}
+                      onChange={(e) => setExportTimeframe(e.target.value)}
+                    >
+                      <option value="all">All-Time</option>
+                      <option value="30d">Last 30 Days</option>
+                      <option value="3m">Last 3 Months</option>
+                      <option value="6m">Last 6 Months</option>
+                      <option value="12m">Last 12 Months</option>
+                    </select>
+                    <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '4px 0' }} />
                     <button type="button" onClick={handleDownloadPDF}>
                       <FileText size={14} /> PDF Statement
                     </button>
@@ -550,12 +587,43 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
 const generateStatementHTML = (wallet: string, txs: any[], data: any) => {
   const totalTxs = txs.length;
-  const inflow = data?.totalInflow ?? txs.reduce((sum: number, tx: any) => sum + (tx.amount_out_usd || 0), 0);
-  const outflow = data?.totalOutflow ?? txs.reduce((sum: number, tx: any) => sum + (tx.amount_in_usd || 0), 0);
+  
+  let statementPeriod = 'No Transactions';
+  if (txs.length > 0) {
+    const formatDate = (dateStr: string) => {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    };
+    const oldestDate = formatDate(txs[txs.length - 1].tx_timestamp);
+    const newestDate = formatDate(txs[0].tx_timestamp);
+    statementPeriod = `${oldestDate} - ${newestDate}`;
+  }
+
+  // Calculate inflow/outflow from the actual transaction set being printed
+  const inflow = txs.reduce((sum: number, tx: any) => sum + (tx.tx_type === 'received' ? (tx.amount_out_usd || 0) : 0), 0);
+  const outflow = txs.reduce((sum: number, tx: any) => sum + (tx.tx_type === 'send' ? (tx.amount_in_usd || 0) : 0), 0);
   const netFlow = inflow - outflow;
   
-  const rowsHtml = txs.map((tx: any) => {
-    const date = new Date(tx.tx_timestamp).toLocaleString('en-US', {
+  let currentMonthYear = '';
+  const rows: string[] = [];
+
+  txs.forEach((tx: any) => {
+    const txDate = new Date(tx.tx_timestamp);
+    const monthYear = txDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    
+    if (monthYear !== currentMonthYear) {
+      currentMonthYear = monthYear;
+      rows.push(`
+        <tr class="month-separator-row">
+          <td colspan="6" class="month-separator-cell">${monthYear}</td>
+        </tr>
+      `);
+    }
+
+    const date = txDate.toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -592,20 +660,19 @@ const generateStatementHTML = (wallet: string, txs: any[], data: any) => {
       }
     }
 
-    const fee = tx.gas_fee != null ? `${Number(tx.gas_fee).toFixed(5)} MOVE` : 'N/A';
-
-    return `
+    rows.push(`
       <tr>
         <td>${date}</td>
         <td><a href="https://explorer.movementnetwork.xyz/txn/${encodeURIComponent(cleanHash)}?network=mainnet" target="_blank" class="hash-link">${hashShort}</a></td>
         <td><span class="badge badge-${tx.tx_type}">${tx.tx_type.toUpperCase()}</span></td>
         <td>${details}</td>
         <td class="${valueClass}">${value}</td>
-        <td>${fee}</td>
         <td><span class="status-${tx.status}">${tx.status.toUpperCase()}</span></td>
       </tr>
-    `;
-  }).join('');
+    `);
+  });
+
+  const rowsHtml = rows.join('');
 
   return `
     <!DOCTYPE html>
@@ -743,6 +810,18 @@ const generateStatementHTML = (wallet: string, txs: any[], data: any) => {
           page-break-inside: avoid;
         }
 
+        .month-separator-row td {
+          background-color: #f1f5f9 !important;
+          color: #0f172a;
+          font-weight: 700;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          padding: 10px 10px;
+          border-bottom: 2px solid #CDA169;
+          border-top: 1px solid #e2e8f0;
+        }
+
         .hash-link {
           color: #b2854f;
           text-decoration: none;
@@ -809,7 +888,7 @@ const generateStatementHTML = (wallet: string, txs: any[], data: any) => {
             <div><strong>Wallet:</strong> ${wallet}</div>
             <div><strong>Network:</strong> Movement Network</div>
             <div><strong>Generated:</strong> ${new Date().toLocaleString()}</div>
-            <div><strong>Statement Period:</strong> All-Time</div>
+            <div><strong>Statement Period:</strong> ${statementPeriod}</div>
           </div>
         </div>
 
@@ -843,12 +922,11 @@ const generateStatementHTML = (wallet: string, txs: any[], data: any) => {
               <th>Type</th>
               <th>Detail</th>
               <th>Value (USD)</th>
-              <th>Gas Fee</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml || '<tr><td colspan="7" style="text-align: center; padding: 24px; color: #64748b;">No transactions found.</td></tr>'}
+            ${rowsHtml || '<tr><td colspan="6" style="text-align: center; padding: 24px; color: #64748b;">No transactions found.</td></tr>'}
           </tbody>
         </table>
 
