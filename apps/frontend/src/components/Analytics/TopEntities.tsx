@@ -13,6 +13,22 @@ const COLORS = [
   '#6b5233'  // Deep Chocolate Earth
 ];
 
+const DEPOSIT_COLORS = [
+  '#36c690', // Emerald Green
+  '#00bfa6', // Teal
+  '#20b2aa', // Light Sea Green
+  '#008080', // Dark Teal
+  '#a3e635'  // Lime Green
+];
+
+const WITHDRAWAL_COLORS = [
+  '#7b68ee', // Slate/Medium Slate Blue
+  '#a78bfa', // Lavender/Purple
+  '#1e90ff', // Dodger Blue
+  '#8a2be2', // Blue Violet
+  '#ec4899'  // Pink/Magenta
+];
+
 interface TopEntitiesProps {
   data: AnalyticsData;
   timeframe: string;
@@ -495,8 +511,8 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                       <div className="exchange-pie-wrap">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={deposits.breakdown} innerRadius={0} outerRadius={48} paddingAngle={2} dataKey="value" stroke="none">
-                              {deposits.breakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                            <Pie data={deposits.breakdown} innerRadius={32} outerRadius={48} paddingAngle={3} dataKey="value" stroke="none">
+                              {deposits.breakdown.map((_, i) => <Cell key={i} fill={DEPOSIT_COLORS[i % DEPOSIT_COLORS.length]} />)}
                             </Pie>
                           </PieChart>
                         </ResponsiveContainer>
@@ -520,7 +536,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                                 <tr key={i}>
                                   <td>
                                     <div className="exchange-name-cell">
-                                      <div className="exchange-color-dot" style={{ background: COLORS[i % COLORS.length] }} />
+                                      <div className="exchange-color-dot" style={{ background: DEPOSIT_COLORS[i % DEPOSIT_COLORS.length] }} />
                                       <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
                                     </div>
                                   </td>
@@ -581,8 +597,8 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                       <div className="exchange-pie-wrap">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={withdrawals.breakdown} innerRadius={0} outerRadius={48} paddingAngle={2} dataKey="value" stroke="none">
-                              {withdrawals.breakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                            <Pie data={withdrawals.breakdown} innerRadius={32} outerRadius={48} paddingAngle={3} dataKey="value" stroke="none">
+                              {withdrawals.breakdown.map((_, i) => <Cell key={i} fill={WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length]} />)}
                             </Pie>
                           </PieChart>
                         </ResponsiveContainer>
@@ -606,7 +622,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                                 <tr key={i}>
                                   <td>
                                     <div className="exchange-name-cell">
-                                      <div className="exchange-color-dot" style={{ background: COLORS[i % COLORS.length] }} />
+                                      <div className="exchange-color-dot" style={{ background: WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length] }} />
                                       <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
                                     </div>
                                   </td>

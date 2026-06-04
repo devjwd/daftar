@@ -693,8 +693,8 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
         if (inflowEl) inflowEl.setAttribute('d', inflowD);
         if (outflowEl) outflowEl.setAttribute('d', outflowD);
 
-        const centerCurve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, 15);
-        if (hitEl) hitEl.setAttribute('d', centerCurve.d);
+        const compoundD = (inflowD && outflowD) ? `${inflowD} ${outflowD}` : (inflowD || outflowD);
+        if (hitEl) hitEl.setAttribute('d', compoundD || getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, 15).d);
       }
 
       // Check if velocities have settled to pause loop (performance optimization & freeze restlessness)
@@ -888,31 +888,14 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
 
   return (
     <section className={`${styles.card} ${isFullscreen ? styles.fullscreenCard : ''}`}>
-      <div className={styles.toolbar}>
-        <div className={styles.legend}>
-          <div className={styles.legendItem}>
-            <span className={styles.legendColor} style={{ backgroundColor: 'rgba(22, 199, 132, 0.25)', borderColor: '#16c784' }} />
-            <span>Inflow (Received)</span>
-          </div>
-          <div className={styles.legendItem}>
-            <span className={styles.legendColor} style={{ backgroundColor: 'rgba(239, 68, 68, 0.25)', borderColor: '#ff6b6b' }} />
-            <span>Outflow (Spent)</span>
-          </div>
-          {txCount > 0 && (
-            <div className={styles.legendItem} style={{ marginLeft: '12px', borderLeft: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>
-              <span>Visualizing {txCount} Transactions</span>
-            </div>
-          )}
-        </div>
-
-        <div className={styles.controls}>
-          <button className={styles.btn} onClick={handleZoomIn} title="Zoom In"><ZoomIn size={14} /></button>
-          <button className={styles.btn} onClick={handleZoomOut} title="Zoom Out"><ZoomOut size={14} /></button>
-          <button className={styles.btn} onClick={handleZoomReset} title="Reset View"><RotateCcw size={14} /></button>
-        </div>
-      </div>
-
       <div className={styles.canvasContainer}>
+        {!loading && nodes.length > 0 && (
+          <div className={styles.controls} style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 65 }}>
+            <button className={styles.btn} onClick={handleZoomIn} title="Zoom In"><ZoomIn size={14} /></button>
+            <button className={styles.btn} onClick={handleZoomOut} title="Zoom Out"><ZoomOut size={14} /></button>
+            <button className={styles.btn} onClick={handleZoomReset} title="Reset View"><RotateCcw size={14} /></button>
+          </div>
+        )}
         {loading ? (
           <div className={styles.loadingScreen}>
             <div className={styles.visualizerLoaderContainer}>
@@ -996,10 +979,31 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                   });
 
                   const centerCurve = getCurvePath(sNode.x, sNode.y, tNode.x, tNode.y, 15);
+                  const compoundD = (inflowD && outflowD) ? `${inflowD} ${outflowD}` : (inflowD || outflowD || centerCurve.d);
                   const isHovered = hoveredLink?.id === link.id;
 
                   return (
-                    <g key={link.id} className={styles.linkGroup}>
+                    <g
+                      key={link.id}
+                      className={styles.linkGroup}
+                      onMouseEnter={(e) => {
+                        setHoveredLink(link);
+                        const rect = svgRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          setLinkTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                        }
+                      }}
+                      onMouseMove={(e) => {
+                        const rect = svgRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          setLinkTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredLink(null);
+                        setHoveredTx(null);
+                      }}
+                    >
                       {/* Invisible wide hit-area for hover detection (connection level) */}
                       <path
                         ref={el => {
@@ -1007,9 +1011,9 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                           else linkHitElementsRef.current.delete(link.id);
                         }}
                         data-link-hit-id={link.id}
-                        d={centerCurve.d}
+                        d={compoundD}
                         stroke="transparent"
-                        strokeWidth={14}
+                        strokeWidth={10}
                         fill="none"
                         style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                         onClick={(e) => {
@@ -1017,23 +1021,6 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
                           setSelectedLink(link);
                           setSelectedNode(null);
                           setSelectedTx(null);
-                        }}
-                        onMouseEnter={(e) => {
-                          setHoveredLink(link);
-                          const rect = svgRef.current?.getBoundingClientRect();
-                          if (rect) {
-                            setLinkTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-                          }
-                        }}
-                        onMouseMove={(e) => {
-                          const rect = svgRef.current?.getBoundingClientRect();
-                          if (rect) {
-                            setLinkTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-                          }
-                        }}
-                        onMouseLeave={() => {
-                          setHoveredLink(null);
-                          setHoveredTx(null);
                         }}
                       />
 
@@ -1224,9 +1211,24 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
             {hoveredNode && (
               <div
                 className={styles.minimalTooltip}
-                style={{ left: nodeTooltipPos.x + 12, top: nodeTooltipPos.y - 8 }}
+                style={{ 
+                  left: nodeTooltipPos.x + 12, 
+                  top: nodeTooltipPos.y - 8,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                  alignItems: 'flex-start',
+                  padding: '6px 10px'
+                }}
               >
-                <span>{hoveredNode.type === 'central' ? 'My Wallet' : hoveredNode.label}</span>
+                <span style={{ fontWeight: 600, color: '#f3dfbe' }}>
+                  {hoveredNode.type === 'central' ? 'My Wallet' : hoveredNode.label}
+                </span>
+                <span style={{ fontSize: '10px', opacity: 0.7, fontFamily: 'monospace' }}>
+                  {hoveredNode.txCount} {hoveredNode.txCount === 1 ? 'Transaction' : 'Transactions'}
+                  {hoveredNode.inflowUsd > 0 && ` | +$${hoveredNode.inflowUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                  {hoveredNode.outflowUsd > 0 && ` | -$${hoveredNode.outflowUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                </span>
               </div>
             )}
 
@@ -1456,7 +1458,7 @@ export default function VisualizerTab({ viewingAddress, language = 'en', isFulls
             {/* Instructions box in bottom-left */}
             <div className={styles.instructions}>
               <HelpCircle size={12} />
-              <span>Scroll to zoom · Drag background to pan · Drag nodes to organize · Hover lines for details</span>
+              <span>Scroll to zoom · Drag background to pan · Drag nodes to organize · Double-click node to pin/unpin · Hover lines for details</span>
             </div>
           </>
         )}
