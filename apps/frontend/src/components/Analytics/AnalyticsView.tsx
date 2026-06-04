@@ -340,10 +340,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     try {
       const txs = await fetchAllTransactionsForExport();
       
-      const headers = ['Date', 'Tx Hash', 'Type', 'Description', 'Sent Asset', 'Sent Amount', 'Received Asset', 'Received Amount', 'Value (USD)', 'Gas Fee (USD)', 'Status'];
+      const headers = ['Date', 'Tx Hash', 'Type', 'Description', 'Sent Asset', 'Sent Amount', 'Received Asset', 'Received Amount', 'Value (USD)', 'Gas Fee (MOVE)', 'Status'];
       const rows = txs.map(tx => {
         const date = new Date(tx.tx_timestamp).toISOString();
-        const hash = tx.tx_hash || '';
+        const cleanHash = String(tx.tx_hash || '').replace(/^v/i, '');
         const type = tx.tx_type || '';
         const desc = (tx.tx_label || '').replace(/"/g, '""');
         const sentAsset = tx.token_in || '';
@@ -360,12 +360,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
           valUsd = tx.amount_in_usd || tx.amount_out_usd || 0;
         }
 
-        const fee = tx.gas_fee_usd != null ? tx.gas_fee_usd : '';
+        const fee = tx.gas_fee != null ? `${Number(tx.gas_fee).toFixed(5)} MOVE` : '';
         const status = tx.status || '';
 
         return [
           date,
-          hash,
+          cleanHash,
           type,
           `"${desc}"`,
           sentAsset,
@@ -563,7 +563,8 @@ const generateStatementHTML = (wallet: string, txs: any[], data: any) => {
       minute: '2-digit'
     });
     
-    const hashShort = tx.tx_hash ? `${tx.tx_hash.slice(0, 8)}...${tx.tx_hash.slice(-8)}` : 'N/A';
+    const cleanHash = String(tx.tx_hash || '').replace(/^v/i, '');
+    const hashShort = cleanHash ? (cleanHash.length > 16 ? `${cleanHash.slice(0, 8)}...${cleanHash.slice(-8)}` : cleanHash) : 'N/A';
     
     let details = '';
     if (tx.tx_type === 'swap') {
@@ -591,12 +592,12 @@ const generateStatementHTML = (wallet: string, txs: any[], data: any) => {
       }
     }
 
-    const fee = tx.gas_fee_usd != null ? `$${Number(tx.gas_fee_usd).toFixed(4)}` : 'N/A';
+    const fee = tx.gas_fee != null ? `${Number(tx.gas_fee).toFixed(5)} MOVE` : 'N/A';
 
     return `
       <tr>
         <td>${date}</td>
-        <td><a href="https://explorer.movementnetwork.xyz/txn/${tx.tx_hash}" target="_blank" class="hash-link">${hashShort}</a></td>
+        <td><a href="https://explorer.movementnetwork.xyz/txn/${encodeURIComponent(cleanHash)}?network=mainnet" target="_blank" class="hash-link">${hashShort}</a></td>
         <td><span class="badge badge-${tx.tx_type}">${tx.tx_type.toUpperCase()}</span></td>
         <td>${details}</td>
         <td class="${valueClass}">${value}</td>
