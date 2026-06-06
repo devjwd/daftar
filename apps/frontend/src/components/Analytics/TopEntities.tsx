@@ -647,7 +647,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                   return (
                     <div key={i} className="entity-row-v5">
                       <div className="entity-left">
-                        <div className="entity-avatar" style={{ width: '40px', height: '40px' }}>
+                        <div className="entity-avatar" style={{ width: '32px', height: '32px' }}>
                           {visual.logo ? (
                             <img src={visual.logo} alt={entity.name} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
                           ) : (
@@ -689,7 +689,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                   return (
                     <div key={i} className="entity-row-v5">
                       <div className="entity-left">
-                        <div className="entity-avatar" style={{ width: '40px', height: '40px', background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)', fontSize: '16px' }}>
+                        <div className="entity-avatar" style={{ width: '32px', height: '32px', background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)', fontSize: '13px' }}>
                           {visual.logo ? (
                             <img src={visual.logo} alt={token.symbol} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
                           ) : (
