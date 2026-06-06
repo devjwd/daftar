@@ -402,25 +402,25 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
       <div className="bottom-sections-grid-v5">
         
         {/* PROTOCOLS SECTION */}
-        <div className="bento-card">
+        <div className="bento-card compact-card">
           <h3 className="bento-title" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '14px', marginBottom: '20px' }}>
             <Network size={16} className="bento-icon" />
             Top Interacting Protocols
           </h3>
           <div style={{ padding: '4px 0 8px 0' }}>
             {!hasEntities ? (
-              <div className="empty-state-v5" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div className="empty-state-v5" style={{ minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Ghost size={32} className="empty-state-icon" />
                 <p>No protocol interactions found.</p>
               </div>
             ) : (
               <div className="entities-list-v5">
-                {data.topEntities.slice(0, 8).map((entity, i) => {
+                {data.topEntities.slice(0, 5).map((entity, i) => {
                   const visual = getProtocolVisual(entity.name);
                   return (
                     <div key={i} className="entity-row-v5">
                       <div className="entity-left">
-                        <div className="entity-avatar" style={{ width: '32px', height: '32px' }}>
+                        <div className="entity-avatar" style={{ width: '26px', height: '26px', fontSize: '11px' }}>
                           {visual.logo ? (
                             <img src={visual.logo} alt={entity.name} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
                           ) : (
@@ -444,25 +444,25 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
         </div>
 
         {/* TOKENS SECTION */}
-        <div className="bento-card">
+        <div className="bento-card compact-card">
           <h3 className="bento-title" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '14px', marginBottom: '20px' }}>
             <Coins size={16} className="bento-icon" />
             Top Tokens Handled
           </h3>
           <div style={{ padding: '4px 0 8px 0' }}>
             {!hasTokens ? (
-              <div className="empty-state-v5" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div className="empty-state-v5" style={{ minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Ghost size={32} className="empty-state-icon" />
                 <p>No token transfers found.</p>
               </div>
             ) : (
               <div className="entities-list-v5">
-                {data.topTokens.slice(0, 8).map((token, i) => {
+                {data.topTokens.slice(0, 5).map((token, i) => {
                   const visual = getTokenVisual(token.symbol);
                   return (
                     <div key={i} className="entity-row-v5">
                       <div className="entity-left">
-                        <div className="entity-avatar" style={{ width: '32px', height: '32px', background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)', fontSize: '13px' }}>
+                        <div className="entity-avatar" style={{ width: '26px', height: '26px', background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)', fontSize: '11px' }}>
                           {visual.logo ? (
                             <img src={visual.logo} alt={token.symbol} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
                           ) : (

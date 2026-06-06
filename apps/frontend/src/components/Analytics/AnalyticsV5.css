@@ -1074,3 +1074,28 @@
   border-color: rgba(255, 255, 255, 0.07) !important;
   transform: translateX(4px);
 }
+
+/* === Compact Card Styles === */
+.bento-card.compact-card {
+  padding: 16px 20px 20px 20px;
+}
+
+.bento-card.compact-card .entities-list-v5 {
+  gap: 6px;
+}
+
+.bento-card.compact-card .entity-row-v5 {
+  padding: 8px 4px;
+}
+
+.bento-card.compact-card .entity-name {
+  font-size: 13px;
+}
+
+.bento-card.compact-card .entity-sub {
+  font-size: 11px;
+}
+
+.bento-card.compact-card .entity-value {
+  font-size: 13px;
+}
