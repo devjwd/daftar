@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
 import { Coins, Ghost, ArrowDownRight, ArrowUpRight, Network } from 'lucide-react';
@@ -145,16 +145,6 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
     </div>
   );
 };const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe }) => {
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  // Custom Calendar state
-  const [calMonth, setCalMonth] = useState(new Date().getMonth());
-  const [calYear, setCalYear] = useState(new Date().getFullYear());
-  const [selectedStart, setSelectedStart] = useState<Date | null>(null);
-  const [selectedEnd, setSelectedEnd] = useState<Date | null>(null);
-  const [inputStart, setInputStart] = useState('');
-  const [inputEnd, setInputEnd] = useState('');
-
   const hasEntities = data.topEntities && data.topEntities.length > 0;
   const hasTokens = data.topTokens && data.topTokens.length > 0;
 
@@ -181,103 +171,6 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
     return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   };
 
-  const formatDateString = (date: Date) => {
-    return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
-  };
-
-  const getDaysInMonth = (year: number, month: number) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (year: number, month: number) => {
-    return new Date(year, month, 1).getDay();
-  };
-
-  const handleDayClick = (date: Date) => {
-    if (!selectedStart || (selectedStart && selectedEnd)) {
-      setSelectedStart(date);
-      setSelectedEnd(null);
-      setInputStart(formatDateString(date));
-      setInputEnd('');
-    } else {
-      if (date < selectedStart) {
-        setSelectedStart(date);
-        setInputStart(formatDateString(date));
-      } else {
-        setSelectedEnd(date);
-        setInputEnd(formatDateString(date));
-      }
-    }
-  };
-
-  const handleInputChange = (val: string, isStart: boolean) => {
-    if (isStart) {
-      setInputStart(val);
-      const d = new Date(val);
-      if (!isNaN(d.getTime())) {
-        setSelectedStart(d);
-        setCalMonth(d.getMonth());
-        setCalYear(d.getFullYear());
-      }
-    } else {
-      setInputEnd(val);
-      const d = new Date(val);
-      if (!isNaN(d.getTime())) {
-        setSelectedEnd(d);
-        setCalMonth(d.getMonth());
-        setCalYear(d.getFullYear());
-      }
-    }
-  };
-
-  const handleClear = () => {
-    setSelectedStart(null);
-    setSelectedEnd(null);
-    setInputStart('');
-    setInputEnd('');
-    setTimeframe('All');
-    setShowDropdown(false);
-  };
-
-  const handleApply = () => {
-    if (selectedStart && selectedEnd) {
-      setTimeframe('Custom', selectedStart.toISOString(), selectedEnd.toISOString());
-    } else if (selectedStart) {
-      setTimeframe('Custom', selectedStart.toISOString(), selectedStart.toISOString());
-    }
-    setShowDropdown(false);
-  };
-
-  const getDateRangeString = () => {
-    const allHistory = [...deposits.history, ...withdrawals.history];
-    if (allHistory.length === 0) return 'NO EXCHANGE ACTIVITY';
-
-    const sorted = allHistory.map(h => new Date(h.date)).sort((a, b) => a.getTime() - b.getTime());
-    const minDate = sorted[0];
-    const maxDate = sorted[sorted.length - 1];
-
-    const timeDiff = Math.abs(maxDate.getTime() - minDate.getTime());
-    const diffDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
-
-    const formatDate = (date: Date) => {
-      return date.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric' });
-    };
-
-    return `${formatDate(minDate)} - ${formatDate(maxDate)} (${diffDays} DAYS)`;
-  };
-
-  const getButtonText = () => {
-    if (timeframe === 'Custom' && selectedStart) {
-      const startStr = formatDateString(selectedStart);
-      const endStr = selectedEnd ? formatDateString(selectedEnd) : 'End date';
-      const daysCount = selectedEnd 
-        ? Math.ceil(Math.abs(selectedEnd.getTime() - selectedStart.getTime()) / (1000 * 3600 * 24)) + 1
-        : 1;
-      return `${startStr} - ${endStr} (${daysCount} DAYS)`;
-    }
-    return getDateRangeString();
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
       
@@ -293,154 +186,17 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
             </h3>
           </div>
 
-          {/* Timeframe Selector & Custom Calendar Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {/* Quick Timeframe Presets */}
-            <div className="tabs-container-v5">
-              {['1D', '1W', '1M', '3M', '1Y', 'All'].map(tf => (
-                <button
-                  key={tf}
-                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
-                  onClick={() => {
-                    setTimeframe(tf);
-                    setSelectedStart(null);
-                    setSelectedEnd(null);
-                    setInputStart('');
-                    setInputEnd('');
-                  }}
-                >
-                  {tf}
-                </button>
-              ))}
-            </div>
-
-            {/* Timeframe Filter Dropdown */}
-            <div style={{ position: 'relative' }}>
+          {/* Timeframe Selector */}
+          <div className="tabs-container-v5">
+            {['1D', '1W', '1M', '3M', '1Y', 'All'].map(tf => (
               <button
-                className={`analytics-filter-btn ${timeframe === 'Custom' ? 'active' : ''}`}
-                onClick={() => setShowDropdown(prev => !prev)}
+                key={tf}
+                className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
+                onClick={() => setTimeframe(tf)}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                </svg>
-                <span>{getButtonText()}</span>
-                <span className="filter-arrow">▼</span>
+                {tf}
               </button>
-
-              {showDropdown && (
-                <>
-                  <div 
-                    className="analytics-filter-dropdown-overlay"
-                    onClick={() => setShowDropdown(false)}
-                  />
-                  <div className="analytics-filter-dropdown">
-                    {/* Inputs Row */}
-                    <div className="analytics-filter-inputs">
-                      <input 
-                        className="analytics-filter-input"
-                        type="text" 
-                        placeholder="Start date" 
-                        value={inputStart}
-                        onChange={(e) => handleInputChange(e.target.value, true)}
-                      />
-                      <input 
-                        className="analytics-filter-input"
-                        type="text" 
-                        placeholder="End date" 
-                        value={inputEnd}
-                        onChange={(e) => handleInputChange(e.target.value, false)}
-                      />
-                    </div>
-
-                    {/* Weekdays Header */}
-                    <div className="calendar-weekdays">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                        <span key={d} className="calendar-weekday">{d}</span>
-                      ))}
-                    </div>
-
-                    {/* Month Name & Navigation */}
-                    <div className="calendar-month-nav">
-                      <span className="calendar-month-label">
-                        {new Date(calYear, calMonth).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                      </span>
-                      <div className="calendar-nav-btns">
-                        <button 
-                          className="calendar-nav-btn"
-                          onClick={() => {
-                            if (calMonth === 0) {
-                              setCalMonth(11);
-                              setCalYear(prev => prev - 1);
-                            } else {
-                              setCalMonth(prev => prev - 1);
-                            }
-                          }}
-                          type="button"
-                        >
-                          &lt;
-                        </button>
-                        <button 
-                          className="calendar-nav-btn"
-                          onClick={() => {
-                            if (calMonth === 11) {
-                              setCalMonth(0);
-                              setCalYear(prev => prev + 1);
-                            } else {
-                              setCalMonth(prev => prev + 1);
-                            }
-                          }}
-                          type="button"
-                        >
-                          &gt;
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Calendar Grid */}
-                    <div className="calendar-grid">
-                      {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, idx) => (
-                        <div key={`empty-${idx}`} />
-                      ))}
-                      {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, idx) => {
-                        const dayNum = idx + 1;
-                        const thisDate = new Date(calYear, calMonth, dayNum);
-                        const isStart = selectedStart && thisDate.toDateString() === selectedStart.toDateString();
-                        const isEnd = selectedEnd && thisDate.toDateString() === selectedEnd.toDateString();
-                        const isInRange = selectedStart && selectedEnd && thisDate > selectedStart && thisDate < selectedEnd;
-
-                        const dayClass = [
-                          'calendar-day',
-                          isStart ? 'start' : '',
-                          isEnd ? 'end' : '',
-                          isInRange ? 'in-range' : ''
-                        ].filter(Boolean).join(' ');
-
-                        return (
-                          <button
-                            key={`day-${dayNum}`}
-                            type="button"
-                            className={dayClass}
-                            onClick={() => handleDayClick(thisDate)}
-                          >
-                            {dayNum}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Actions Footer */}
-                    <div className="calendar-footer">
-                      <button className="calendar-footer-btn clear" onClick={handleClear} type="button">
-                        Clear
-                      </button>
-                      <button className="calendar-footer-btn apply" onClick={handleApply} type="button">
-                        Apply
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+            ))}
           </div>
         </div>
 
