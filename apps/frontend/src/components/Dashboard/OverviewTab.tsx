@@ -415,7 +415,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     />
                   </div>
                   <div className="staking-v2-info">
-                    <h4>{pos.name || pos.protocolName || "Movement Native Staking"}</h4>
+                    <div className="staking-v2-title-row">
+                      <h4>{pos.name || pos.protocolName || "Movement Native Staking"}</h4>
+                      <div className="staking-v2-status-badges">
+                        {pos.details?.active > 0 && <span className="staking-status-badge active">Staked</span>}
+                        {pos.details?.pendingInactive > 0 && <span className="staking-status-badge warning">Unlocking</span>}
+                        {pos.details?.inactive > 0 && <span className="staking-status-badge success">Redeemable</span>}
+                      </div>
+                    </div>
                     <span className="staking-v2-type">Native Staking</span>
                   </div>
                   <div className="staking-v2-action-group">
@@ -468,6 +475,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                         <span className="staking-v2-stat-label">Pool</span>
                         <span className="staking-v2-stat-value small font-mono">
                           {pos.poolAddress.slice(0, 6)}...{pos.poolAddress.slice(-4)}
+                        </span>
+                      </div>
+                    )}
+                    {pos.details?.active > 0 && (
+                      <div className="staking-v2-detail-row">
+                        <span className="staking-v2-stat-label">Active Stake</span>
+                        <span className="staking-v2-stat-value small active-stake">
+                          {pos.details.active.toLocaleString(undefined, { maximumFractionDigits: 4 })} MOVE
                         </span>
                       </div>
                     )}

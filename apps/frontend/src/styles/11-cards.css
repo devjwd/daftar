@@ -1108,3 +1108,48 @@
   font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
   letter-spacing: 0.2px;
 }
+
+.staking-v2-detail-row .staking-v2-stat-value.active-stake {
+  color: var(--primary);
+}
+
+.staking-v2-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.staking-v2-status-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.staking-status-badge {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.staking-status-badge.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.18);
+}
+
+.staking-status-badge.warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.18);
+}
+
+.staking-status-badge.active {
+  background: rgba(205, 161, 105, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(205, 161, 105, 0.18);
+}
