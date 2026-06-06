@@ -638,11 +638,19 @@ export async function aggregateAnalyticsData(
   });
 
   // --- Protocol Usage (Sorted by usage frequency descending) ---
-  const protocols = [...new Set(txs.map(tx => tx.protocol))];
+  const protocols = [...new Set(txs.map(tx => (tx.protocol || '').trim()))]
+    .filter(p => {
+      if (!p || p === 'Unknown') return false;
+      const isExchangeOrBridge = KNOWN_EXCHANGES.has(p) || 
+                                 p.toLowerCase().includes('exchange') || 
+                                 p.toLowerCase().includes('bridge');
+      return !isExchangeOrBridge;
+    });
+
   const protocolUsage: ProtocolUsageItem[] = protocols
     .map(p => ({
       name: p,
-      value: txs.filter(tx => tx.protocol === p).length,
+      value: txs.filter(tx => (tx.protocol || '').trim() === p).length,
     }))
     .sort((a, b) => b.value - a.value)
     .map((item, idx) => ({

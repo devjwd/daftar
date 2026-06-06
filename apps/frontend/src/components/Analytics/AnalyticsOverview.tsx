@@ -221,9 +221,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                 (() => {
                   const totalProtocolValue = data.protocolUsage ? data.protocolUsage.reduce((acc, curr) => acc + curr.value, 0) : 0;
                   const sortedProtocols = data.protocolUsage ? [...data.protocolUsage].sort((a, b) => b.value - a.value) : [];
-                  
-                  // Show top 5 protocols directly without grouping into "Others"
-                  const topProtocols = sortedProtocols.slice(0, 5);
 
                   return (
                     <div className="affinity-content-row" style={{ display: 'flex', alignItems: 'center', gap: '20px', minHeight: '180px' }}>
@@ -232,15 +229,15 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                           <PieChart>
                             <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
                             <Pie 
-                              data={topProtocols} 
+                              data={sortedProtocols} 
                               innerRadius={44} 
                               outerRadius={58} 
-                              paddingAngle={topProtocols.length > 1 ? 3 : 0} 
+                              paddingAngle={sortedProtocols.length > 1 ? 2 : 0} 
                               dataKey="value" 
                               stroke="none" 
                               nameKey="name"
                             >
-                              {topProtocols.map((entry, index) => {
+                              {sortedProtocols.map((entry, index) => {
                                 const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
                                 return <Cell key={`cell-${index}`} fill={fillCol} />;
                               })}
@@ -248,8 +245,8 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
-                      <div style={{ width: '58%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {topProtocols.map((item, index) => {
+                      <div style={{ width: '58%', display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
+                        {sortedProtocols.map((item, index) => {
                           const pct = totalProtocolValue > 0 ? ((item.value / totalProtocolValue) * 100).toFixed(1) : '0';
                           const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
                           return (

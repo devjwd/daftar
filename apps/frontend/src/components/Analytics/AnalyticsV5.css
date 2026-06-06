@@ -1145,3 +1145,21 @@
 .minimal-stat-col .stat-value.outflow {
   color: #ff4b4b;
 }
+
+/* Scrollbar styles for scrollable legend */
+.stats-column-v5 .custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.stats-column-v5 .custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.stats-column-v5 .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.stats-column-v5 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
