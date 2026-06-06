@@ -73,25 +73,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                 Transactions
               </button>
             </div>
-
-            {/* Timeframe Selector */}
-            <div className="tabs-container-v5">
-              {TIME_FRAMES.map(tf => (
-                <button
-                  key={tf}
-                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
-                  onClick={() => {
-                    if (tf !== timeframe) {
-                      setIsTransitioning(true);
-                      setTimeframe(tf);
-                      setTimeout(() => setIsTransitioning(false), 400);
-                    }
-                  }}
-                >
-                  {tf}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Stats section below the header row */}
@@ -107,6 +88,25 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                 <span>{data.activeMonths} Months</span>
                 of tracked activity
               </div>
+            </div>
+
+            {/* Timeframe Selector */}
+            <div className="tabs-container-v5" style={{ alignSelf: 'flex-end', marginBottom: '8px' }}>
+              {TIME_FRAMES.map(tf => (
+                <button
+                  key={tf}
+                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
+                  onClick={() => {
+                    if (tf !== timeframe) {
+                      setIsTransitioning(true);
+                      setTimeframe(tf);
+                      setTimeout(() => setIsTransitioning(false), 400);
+                    }
+                  }}
+                >
+                  {tf}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -20,7 +20,7 @@ export const KNOWN_EXCHANGES = new Set([
 /** Integrated/Verified Token Symbols */
 export const WHITELIST_TOKENS = new Set([
   'MOVE', 'USDT', 'USDT.e', 'USDC', 'USDC.e', 'ETH', 'WETH', 'BTC',
-  'WBTC', 'rsETH', 'gMOVE', 'cvMOVE', 'stMOVE', 'USDe', 'ezETH', 'weETH',
+  'WBTC', 'rsETH', 'gMOVE', 'stMOVE', 'USDe', 'ezETH', 'weETH',
   'SolvBTC', 'LBTC', 'USDCx', 'USDa'
 ]);
 
