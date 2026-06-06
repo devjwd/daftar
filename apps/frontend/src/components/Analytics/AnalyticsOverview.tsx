@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
-import { Activity, Droplets, LayoutTemplate, Ghost, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Activity, LayoutTemplate, Ghost } from 'lucide-react';
 import TopEntities from './TopEntities';
 import AnalyticsTooltip from './AnalyticsTooltip';
 import { DATA_VIZ_COLORS } from '../../config/display';
@@ -164,113 +164,115 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
 
         {/* Side Stats & Protocol Affinity */}
         <div className="stats-column-v5">
-          <div className="bento-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px' }}>
-            <h3 className="bento-title" style={{ margin: 0, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              <Activity size={18} className="bento-icon" />
-              Activity Summary
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-              {/* INFLOW */}
-              <div className="premium-stat-row">
-                <div className="premium-stat-icon-wrapper inflow">
-                  <ArrowUpRight size={18} />
+          <div className="bento-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            
+            {/* Minimal Activity Summary Row */}
+            <div>
+              <h3 className="bento-title" style={{ margin: '0 0 16px 0', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <Activity size={16} className="bento-icon" />
+                Activity Summary
+              </h3>
+              <div className="minimal-stats-row">
+                
+                {/* INFLOW */}
+                <div className="minimal-stat-col">
+                  <span className="stat-label">Inflow</span>
+                  <span className="stat-value inflow">
+                    {formatVolumeValue(data.totalInflow).replace('$', '+$')}
+                  </span>
                 </div>
-                <div className="premium-stat-info">
-                  <span className="premium-stat-label">Inflow</span>
-                  <span className="premium-stat-desc">Total assets deposited</span>
-                </div>
-                <span className="premium-stat-value inflow">{formatVolumeValue(data.totalInflow).replace('$', '+$')}</span>
-              </div>
 
-              {/* OUTFLOW */}
-              <div className="premium-stat-row">
-                <div className="premium-stat-icon-wrapper outflow">
-                  <ArrowDownRight size={18} />
+                {/* OUTFLOW */}
+                <div className="minimal-stat-col">
+                  <span className="stat-label">Outflow</span>
+                  <span className="stat-value outflow">
+                    {formatVolumeValue(data.totalOutflow).replace('$', '-$')}
+                  </span>
                 </div>
-                <div className="premium-stat-info">
-                  <span className="premium-stat-label">Outflow</span>
-                  <span className="premium-stat-desc">Total assets withdrawn</span>
-                </div>
-                <span className="premium-stat-value outflow">{formatVolumeValue(data.totalOutflow).replace('$', '-$')}</span>
-              </div>
 
-              {/* TRANSACTIONS */}
-              <div className="premium-stat-row">
-                <div className="premium-stat-icon-wrapper txs">
-                  <Activity size={18} />
+                {/* TRANSACTIONS */}
+                <div className="minimal-stat-col">
+                  <span className="stat-label">Transactions</span>
+                  <span className="stat-value">
+                    {data.interactionCount.toLocaleString()}
+                  </span>
                 </div>
-                <div className="premium-stat-info">
-                  <span className="premium-stat-label">Transactions</span>
-                  <span className="premium-stat-desc">Total transactions executed</span>
-                </div>
-                <span className="premium-stat-value">{data.interactionCount.toLocaleString()}</span>
+
               </div>
             </div>
-          </div>
 
-          <div className="bento-card" style={{ flex: 1, padding: '24px' }}>
-            <h3 className="bento-title" style={{ marginBottom: '16px', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              <LayoutTemplate size={18} className="bento-icon" />
-              Protocol Affinity
-            </h3>
-            {!hasProtocols ? (
-              <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div className="empty-state-v5">
-                  <Ghost size={28} className="empty-state-icon" style={{ marginBottom: 8 }} />
-                  <p style={{ fontSize: '13px' }}>No protocols detected.</p>
+            {/* Divider Line */}
+            <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0 -4px' }} />
+
+            {/* Protocol Affinity Section */}
+            <div>
+              <h3 className="bento-title" style={{ margin: '0 0 16px 0', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <LayoutTemplate size={16} className="bento-icon" />
+                Protocol Affinity
+              </h3>
+              {!hasProtocols ? (
+                <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="empty-state-v5">
+                    <Ghost size={28} className="empty-state-icon" style={{ marginBottom: 8 }} />
+                    <p style={{ fontSize: '13px' }}>No protocols detected.</p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              (() => {
-                const totalProtocolValue = data.protocolUsage ? data.protocolUsage.reduce((acc, curr) => acc + curr.value, 0) : 0;
-                const sortedProtocols = data.protocolUsage ? [...data.protocolUsage].sort((a, b) => b.value - a.value) : [];
-                
-                const top4Protocols = sortedProtocols.slice(0, 4);
-                const othersValue = sortedProtocols.slice(4).reduce((acc, curr) => acc + curr.value, 0);
-                
-                const chartPieData = [...top4Protocols];
-                if (sortedProtocols.length > 4) {
-                  chartPieData.push({ name: 'Others', value: othersValue });
-                }
+              ) : (
+                (() => {
+                  const totalProtocolValue = data.protocolUsage ? data.protocolUsage.reduce((acc, curr) => acc + curr.value, 0) : 0;
+                  const sortedProtocols = data.protocolUsage ? [...data.protocolUsage].sort((a, b) => b.value - a.value) : [];
+                  
+                  // Show top 5 protocols directly without grouping into "Others"
+                  const topProtocols = sortedProtocols.slice(0, 5);
 
-                return (
-                  <div className="affinity-content-row" style={{ display: 'flex', alignItems: 'center', gap: '20px', minHeight: '190px' }}>
-                    <div style={{ width: '42%', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                          <Pie data={chartPieData} innerRadius={48} outerRadius={64} paddingAngle={0} dataKey="value" stroke="none" nameKey="name">
-                            {chartPieData.map((entry, index) => {
-                              const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
-                              return <Cell key={`cell-${index}`} fill={fillCol} />;
-                            })}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div style={{ width: '58%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {chartPieData.map((item, index) => {
-                        const pct = totalProtocolValue > 0 ? ((item.value / totalProtocolValue) * 100).toFixed(1) : '0';
-                        const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
-                        return (
-                          <div key={item.name} className="legend-item-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: fillCol, flexShrink: 0 }} />
-                              <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {item.name}
+                  return (
+                    <div className="affinity-content-row" style={{ display: 'flex', alignItems: 'center', gap: '20px', minHeight: '180px' }}>
+                      <div style={{ width: '42%', height: '170px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                            <Pie 
+                              data={topProtocols} 
+                              innerRadius={44} 
+                              outerRadius={58} 
+                              paddingAngle={topProtocols.length > 1 ? 3 : 0} 
+                              dataKey="value" 
+                              stroke="none" 
+                              nameKey="name"
+                            >
+                              {topProtocols.map((entry, index) => {
+                                const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
+                                return <Cell key={`cell-${index}`} fill={fillCol} />;
+                              })}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div style={{ width: '58%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {topProtocols.map((item, index) => {
+                          const pct = totalProtocolValue > 0 ? ((item.value / totalProtocolValue) * 100).toFixed(1) : '0';
+                          const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
+                          return (
+                            <div key={item.name} className="legend-item-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: fillCol, flexShrink: 0 }} />
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.name}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.4)', marginLeft: '6px', flexShrink: 0 }}>
+                                {pct}%
                               </span>
                             </div>
-                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.4)', marginLeft: '6px', flexShrink: 0 }}>
-                              {pct}%
-                            </span>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })()
-            )}
+                  );
+                })()
+              )}
+            </div>
+
           </div>
         </div>
       </div>
