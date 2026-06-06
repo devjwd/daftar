@@ -384,7 +384,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         </div>
         
-        <div className="staking-minimal-container">
+        <div className="staking-grid">
           {(!lpLoading && !indexerLoading) && visibleStakingPositions.length === 0 && viewingAddress && (
             <div className="empty-state">{t(language, 'dashNoStaking')}</div>
           )}
@@ -393,79 +393,101 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             <div className="empty-state">{t(language, 'dashConnectStaking')}</div>
           )}
 
-          {visibleStakingPositions.length > 0 && visibleStakingPositions.map((pos) => {
+          {visibleStakingPositions.length > 0 && visibleStakingPositions.map((pos, index) => {
             const movePrice = resolveTokenPrice(priceMap, '0xa', 'MOVE');
             const posValue = pos.amount * movePrice;
             const website = pos.protocolWebsite || "https://staking.movementnetwork.xyz/";
             
             return (
-              <div key={pos.id} className="staking-minimal-row">
-                <div className="staking-minimal-left">
-                  <div className="staking-minimal-logo">
+              <div
+                key={pos.id}
+                className="staking-card-v2"
+                style={{
+                  animationDelay: `${index * ANIMATION_DELAYS.TOKEN_CARD}ms`
+                } as React.CSSProperties}
+              >
+                <div className="staking-v2-header">
+                  <div className="staking-v2-logo">
                     <img
                       src="/movement-logo.svg"
                       alt="Movement"
                       onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }}
                     />
                   </div>
-                  <div className="staking-minimal-info">
-                    <div className="staking-minimal-header-group">
-                      <span className="staking-minimal-name">{pos.name || pos.protocolName || "Movement Native Staking"}</span>
-                      <div className="staking-minimal-action-group">
-                        <button
-                          type="button"
-                          className="staking-minimal-report-flag"
-                          onClick={(e) => handleStakingReportClick(e, pos)}
-                          title="Report incorrect staking data"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-                            <line x1="4" y1="22" x2="4" y2="15" />
-                          </svg>
-                        </button>
-                        {website && (
-                          <a
-                            href={website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="staking-minimal-link"
-                            title={`Open ${pos.name || pos.protocolName || "staking"} website`}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                              <polyline points="15 3 21 3 21 9" />
-                              <line x1="10" y1="14" x2="21" y2="3" />
-                            </svg>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    <div className="staking-minimal-meta-group">
-                      {pos.poolAddress && (
-                        <span className="staking-minimal-meta">
-                          Pool: {pos.poolAddress.slice(0, 6)}...{pos.poolAddress.slice(-4)}
-                        </span>
-                      )}
-                      {pos.details?.inactive > 0 && (
-                        <span className="staking-minimal-status success">
-                          Ready to Withdraw: {pos.details.inactive.toLocaleString(undefined, { maximumFractionDigits: 4 })} MOVE
-                        </span>
-                      )}
-                      {pos.details?.pendingInactive > 0 && (
-                        <span className="staking-minimal-status warning">
-                          Unlocking: {pos.details.pendingInactive.toLocaleString(undefined, { maximumFractionDigits: 4 })} MOVE ({getRemainingTimeStr(pos.lockedUntilSecs)})
-                        </span>
-                      )}
-                    </div>
+                  <div className="staking-v2-info">
+                    <h4>{pos.name || pos.protocolName || "Movement Native Staking"}</h4>
+                    <span className="staking-v2-type">Native Staking</span>
+                  </div>
+                  <div className="staking-v2-action-group">
+                    <button
+                      type="button"
+                      className="staking-v2-report-flag"
+                      onClick={(e) => handleStakingReportClick(e, pos)}
+                      title="Report incorrect staking data"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                        <line x1="4" y1="22" x2="4" y2="15" />
+                      </svg>
+                    </button>
+                    {website && (
+                      <a
+                        href={website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="staking-v2-link"
+                        title={`Open ${pos.name || pos.protocolName || "staking"} website`}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                          <polyline points="15 3 21 3 21 9" />
+                          <line x1="10" y1="14" x2="21" y2="3" />
+                        </svg>
+                      </a>
+                    )}
                   </div>
                 </div>
-                <div className="staking-minimal-right">
-                  <span className="staking-minimal-amount">
-                    {hideValues ? '*****' : `${pos.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} MOVE`}
-                  </span>
-                  <span className="staking-minimal-value">
-                    {hideValues ? '*****' : formatCurrencyValue(convertUSD(posValue), undefined, getPrecisionDecimals(convertUSD(posValue)))}
-                  </span>
+                <div className="staking-v2-body">
+                  <div className="staking-v2-stats-row">
+                    <div className="staking-v2-stat">
+                      <span className="staking-v2-stat-label">Balance</span>
+                      <span className="staking-v2-stat-value">
+                        {hideValues ? '*****' : `${pos.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} MOVE`}
+                      </span>
+                    </div>
+                    <div className="staking-v2-stat">
+                      <span className="staking-v2-stat-label">Value</span>
+                      <span className="staking-v2-stat-value highlight">
+                        {hideValues ? '*****' : formatCurrencyValue(convertUSD(posValue), undefined, getPrecisionDecimals(convertUSD(posValue)))}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="staking-v2-details">
+                    {pos.poolAddress && (
+                      <div className="staking-v2-detail-row">
+                        <span className="staking-v2-stat-label">Pool</span>
+                        <span className="staking-v2-stat-value small font-mono">
+                          {pos.poolAddress.slice(0, 6)}...{pos.poolAddress.slice(-4)}
+                        </span>
+                      </div>
+                    )}
+                    {pos.details?.inactive > 0 && (
+                      <div className="staking-v2-detail-row">
+                        <span className="staking-v2-stat-label">Withdrawable</span>
+                        <span className="staking-v2-stat-value small success">
+                          {pos.details.inactive.toLocaleString(undefined, { maximumFractionDigits: 4 })} MOVE
+                        </span>
+                      </div>
+                    )}
+                    {pos.details?.pendingInactive > 0 && (
+                      <div className="staking-v2-detail-row">
+                        <span className="staking-v2-stat-label">Unlocking</span>
+                        <span className="staking-v2-stat-value small warning">
+                          {pos.details.pendingInactive.toLocaleString(undefined, { maximumFractionDigits: 4 })} MOVE ({getRemainingTimeStr(pos.lockedUntilSecs)})
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
