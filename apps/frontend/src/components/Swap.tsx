@@ -19,6 +19,7 @@ import { useTokenPrices } from "../hooks/useTokenPrices";
 import { emit } from "../services/badges/badgeStore";
 import { getStoredLanguagePreference, t } from "../utils/language";
 import TransactionToast from "./TransactionToast";
+import { WalletModal } from "./WalletModal";
 import styles from './Swap.module.css';
 
 
@@ -1202,53 +1203,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
       {renderSettings()}
 
       {/* Wallet Selector Modal */}
-      {showWalletPicker && (
-        <div className={styles['token-selector-overlay']} onClick={() => setShowWalletPicker(false)}>
-          <div className={styles['token-selector-panel']} onClick={(e) => e.stopPropagation()}>
-            <div className={styles['token-selector-header']}>
-              <h3>Connect a Wallet</h3>
-              <button className={styles['close-btn']} onClick={() => setShowWalletPicker(false)}>×</button>
-            </div>
-            <div className={styles['token-list']} style={{ marginTop: "1rem" }}>
-              {wallets?.length === 0 ? (
-                <div className={styles['empty-tokens']}>No wallets available. Please install a compatible wallet.</div>
-              ) : (
-                wallets?.map((walletOption) => {
-                  const logo = getWalletLogo(walletOption.name);
-                  return (
-                    <div
-                      key={walletOption.name}
-                      className={styles['token-option']}
-                      onClick={async () => {
-                        try {
-                          await connect(walletOption.name);
-                          setShowWalletPicker(false);
-                        } catch (err) {
-                          console.error("Wallet connection failed", err);
-                          setError("Failed to connect wallet: " + (err.message || String(err)));
-                        }
-                      }}
-                      style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                    >
-                      <div className={styles['token-option-left']} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        {logo ? (
-                          <img src={logo} alt={`${walletOption.name} logo`} style={{ width: "32px", height: "32px", borderRadius: "8px" }} />
-                        ) : (
-                          <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: "bold" }}>
-                            {walletOption.name.charAt(0)}
-                          </div>
-                        )}
-                        <span style={{ fontWeight: "600", fontSize: "15px" }}>{walletOption.name}</span>
-                      </div>
-                      <span className={styles['aggregator-badge']} style={{ fontSize: "11px" }}>Installable</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <WalletModal isOpen={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
 
       <TransactionToast
         toast={txToast}

@@ -5,7 +5,7 @@
   border: 1px solid var(--border-subtle);
   overflow-x: auto;
   margin-top: 1rem;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .nft-table {

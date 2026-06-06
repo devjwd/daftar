@@ -792,3 +792,68 @@
   color: #f59e0b;
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
+
+.staking-minimal-header-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.staking-minimal-action-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.staking-minimal-report-flag {
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: none;
+  border: none;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.staking-minimal-row:hover .staking-minimal-report-flag {
+  opacity: 0.55;
+  pointer-events: auto;
+}
+
+.staking-minimal-report-flag:hover {
+  transform: scale(1.15);
+  opacity: 1 !important;
+  color: var(--primary);
+}
+
+.staking-minimal-link {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.staking-minimal-link:hover {
+  background: transparent;
+  color: var(--primary);
+  transform: scale(1.15);
+}
+
+.staking-minimal-link:focus-visible {
+  outline: none;
+}

@@ -19,6 +19,7 @@ import { searchEntities } from '../services/entityStore';
 import './Layout.css';
 import { FeedbackModal } from './FeedbackModal';
 import { BugReportModal } from './BugReportModal';
+import { WalletModal } from './WalletModal';
 import { useIndexerBalances } from '../hooks/useIndexerBalances';
 import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useCurrency } from '../hooks/useCurrency';
@@ -241,9 +242,6 @@ export default function Layout({ children }) {
       if (walletDropdownOpen && !event.target.closest('.wallet-dropdown-container')) {
         setWalletDropdownOpen(false);
       }
-      if (walletPickerOpen && !event.target.closest('.wallet-picker-container')) {
-        setWalletPickerOpen(false);
-      }
       if (moreDropdownOpen && !event.target.closest('.more-dropdown-container')) {
         setMoreDropdownOpen(false);
       }
@@ -251,7 +249,7 @@ export default function Layout({ children }) {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [walletDropdownOpen, walletPickerOpen, moreDropdownOpen]);
+  }, [walletDropdownOpen, moreDropdownOpen]);
 
   const handleMoreClick = useCallback(() => {
     setMoreDropdownOpen(prev => !prev);
@@ -948,30 +946,6 @@ export default function Layout({ children }) {
                 <button className={`connect-btn ${walletPickerOpen ? 'active' : ''}`} type="button" onClick={handleConnect}>
                   {t(language, 'connectWallet')}
                 </button>
-                {walletPickerOpen && (
-                  <div className="wallet-picker">
-                    {wallets
-                      .filter((wallet) => !wallet.name.includes('Google') && !wallet.name.includes('Apple'))
-                      .map((wallet) => {
-                        const logo = getWalletLogo(wallet.name);
-                        return (
-                          <button
-                            key={wallet.name}
-                            className="wallet-option"
-                            type="button"
-                            onClick={() => handleSelectWallet(wallet.name)}
-                          >
-                            {logo ? (
-                              <img src={logo} alt={wallet.name} className="wallet-option-logo" />
-                            ) : (
-                              <span className="wallet-option-icon">🔗</span>
-                            )}
-                            {wallet.name}
-                          </button>
-                        );
-                      })}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1040,6 +1014,9 @@ export default function Layout({ children }) {
         initialAddress={bugReportParams.address}
         initialDescription={bugReportParams.description}
       />
+
+      {/* Wallet Connection Modal */}
+      <WalletModal isOpen={walletPickerOpen} onClose={() => setWalletPickerOpen(false)} />
     </div>
   );
 }

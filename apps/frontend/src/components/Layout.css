@@ -1378,14 +1378,16 @@ body[data-theme='light'] .search-suggestion-item.highlighted {
 /* Static Footer Styles */
 .app-footer {
   position: relative;
-  height: 32px;
-  background: #110e0c; /* Very dark surface */
-  border-top: 1px solid rgba(205, 161, 105, 0.15); /* Subtle gold border */
+  height: 42px;
+  background: rgba(18, 15, 13, 0.85); /* Obsidian glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(205, 161, 105, 0.12); /* Subtle gold border */
   z-index: 9980; /* Just below overlay modals but above page contents */
   font-size: 11px;
   font-family: var(--font-primary);
-  color: #9f8d79;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+  color: #a39482;
+  box-shadow: none;
   margin-top: auto;
   flex-shrink: 0;
 }
@@ -1411,6 +1413,12 @@ body[data-theme='light'] .search-suggestion-item.highlighted {
   display: flex;
   align-items: center;
   gap: 8px;
+  background: rgba(205, 161, 105, 0.03);
+  border: 1px solid rgba(205, 161, 105, 0.1);
+  border-radius: 99px;
+  padding: 4px 12px;
+  backdrop-filter: blur(4px);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .status-dot {
@@ -1422,54 +1430,63 @@ body[data-theme='light'] .search-suggestion-item.highlighted {
 
 .status-dot.connected {
   background: #36c690; /* Green success */
-  box-shadow: 0 0 8px rgba(54, 198, 144, 0.6);
+  box-shadow: 0 0 8px rgba(54, 198, 144, 0.8);
   animation: statusPulse 2s infinite ease-in-out;
 }
 
 .status-dot.disconnected {
   background: #e06a6a; /* Red error */
-  box-shadow: 0 0 6px rgba(224, 106, 106, 0.4);
+  box-shadow: 0 0 6px rgba(224, 106, 106, 0.6);
 }
 
 @keyframes statusPulse {
-  0%, 100% { opacity: 0.9; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.92); }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.9); }
 }
 
 .status-text {
   letter-spacing: 0.3px;
-  font-family: 'Courier New', monospace; /* Monospace wallet text matching screenshot */
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace; /* Monospace wallet text */
   font-weight: 600;
-  color: #c9b5a1;
+  color: #cda169;
 }
 
 .footer-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .footer-btn {
-  background: transparent;
-  border: none;
+  background: rgba(205, 161, 105, 0.05);
+  border: 1px solid rgba(205, 161, 105, 0.15);
   outline: none;
-  padding: 4px 8px;
+  padding: 5px 12px;
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #9f8d79;
+  color: #a39482;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border-radius: 4px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 99px;
   font-family: inherit;
-  font-size: inherit;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
   user-select: none;
 }
 
 .footer-btn:hover {
-  color: #deb884;
-  background: rgba(205, 161, 105, 0.08);
+  color: #ffffff;
+  background: rgba(205, 161, 105, 0.15);
+  border-color: rgba(205, 161, 105, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.footer-btn:active {
+  transform: translateY(0);
 }
 
 .footer-btn-icon {

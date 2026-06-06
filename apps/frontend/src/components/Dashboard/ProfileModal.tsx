@@ -81,7 +81,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   return (
     <div className="profile-modal-overlay" onClick={onClose}>
       <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>x</button>
+        <button className="modal-close" onClick={onClose} aria-label="Close modal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
 
         <div className="profile-modal-content">
           <div className="profile-modal-main">
@@ -108,7 +112,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                       }}
                       title="Copy address"
                     >
-                      <img src="/copy.png" alt="Copy" className="copy-icon-img" />
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="modal-copy-icon-svg">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                      </svg>
                     </button>
                   </>
                 )}
@@ -178,7 +185,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   ))}
               </div>
             ) : (
-              <p className="modal-no-badges">{t(language, 'dashNoBadgesEarned')}</p>
+              <div className="modal-no-badges-card">
+                <div className="modal-no-badges-icon-wrapper">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <circle cx="12" cy="11" r="3" />
+                    <line x1="12" y1="14" x2="12" y2="17" />
+                  </svg>
+                </div>
+                <p className="modal-no-badges-text">{t(language, 'dashNoBadgesEarned')}</p>
+              </div>
             )}
           </div>
         </div>

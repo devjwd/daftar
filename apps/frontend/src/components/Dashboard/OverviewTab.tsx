@@ -82,6 +82,19 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   formatCurrencyValue,
   currencySymbol,
 }) => {
+  const handleStakingReportClick = (e: React.MouseEvent, pos: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const event = new CustomEvent('open-bug-report', {
+      detail: {
+        type: 'token',
+        symbol: pos.name || pos.protocolName || 'Movement Native Staking',
+        address: pos.protocolWebsite || pos.poolAddress || pos.id || ''
+      }
+    });
+    window.dispatchEvent(event);
+  };
+
   return (
     <>
       {/* Wallet Balance Section */}
@@ -383,6 +396,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           {visibleStakingPositions.length > 0 && visibleStakingPositions.map((pos) => {
             const movePrice = resolveTokenPrice(priceMap, '0xa', 'MOVE');
             const posValue = pos.amount * movePrice;
+            const website = pos.protocolWebsite || "https://staking.movementnetwork.xyz/";
             
             return (
               <div key={pos.id} className="staking-minimal-row">
@@ -395,7 +409,37 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     />
                   </div>
                   <div className="staking-minimal-info">
-                    <span className="staking-minimal-name">{pos.name || pos.protocolName || "Movement Native Staking"}</span>
+                    <div className="staking-minimal-header-group">
+                      <span className="staking-minimal-name">{pos.name || pos.protocolName || "Movement Native Staking"}</span>
+                      <div className="staking-minimal-action-group">
+                        <button
+                          type="button"
+                          className="staking-minimal-report-flag"
+                          onClick={(e) => handleStakingReportClick(e, pos)}
+                          title="Report incorrect staking data"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                            <line x1="4" y1="22" x2="4" y2="15" />
+                          </svg>
+                        </button>
+                        {website && (
+                          <a
+                            href={website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="staking-minimal-link"
+                            title={`Open ${pos.name || pos.protocolName || "staking"} website`}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                              <polyline points="15 3 21 3 21 9" />
+                              <line x1="10" y1="14" x2="21" y2="3" />
+                            </svg>
+                          </a>
+                        )}
+                      </div>
+                    </div>
                     <div className="staking-minimal-meta-group">
                       {pos.poolAddress && (
                         <span className="staking-minimal-meta">

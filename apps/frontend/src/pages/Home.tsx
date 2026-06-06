@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
+import { WalletModal } from '../components/WalletModal';
 import { isValidAddress, formatAddress } from '../utils/tokenUtils';
 import { getStoredLanguagePreference, t } from '../utils/language';
 import { resolveAddressOrUsernameAsync, searchProfiles, searchProfilesAsync } from '../services/profileService';
@@ -10,7 +11,7 @@ import './Home.css';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { connected, account, connect, wallets } = useWallet();
+  const { connected, account } = useWallet();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchError, setSearchError] = useState('');
   const [showWalletPicker, setShowWalletPicker] = useState(false);
@@ -33,19 +34,6 @@ export default function Home() {
       window.removeEventListener('storage', syncLanguage);
     };
   }, []);
-
-  const handleConnectWallet = async (walletName) => {
-    try {
-      await connect(walletName);
-      setShowWalletPicker(false);
-      // Navigate to portfolio after successful connection
-      if (connected && account) {
-        navigate(`/wallet/${account.address}`);
-      }
-    } catch (err) {
-      console.error("Wallet connect failed", err);
-    }
-  };
 
   // Navigate to portfolio when wallet connects
   useEffect(() => {
@@ -84,7 +72,7 @@ export default function Home() {
     } catch (e) {
       console.warn("Failed to save recent search:", e);
     }
-    
+
     navigate(`/profile/${addr}`);
     setSearchQuery("");
     setShowSuggestions(false);
@@ -461,7 +449,7 @@ export default function Home() {
               <button
                 className="home-connect-btn"
                 type="button"
-                onClick={() => setShowWalletPicker(!showWalletPicker)}
+                onClick={() => setShowWalletPicker(true)}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="7" width="18" height="14" rx="2" />
@@ -470,61 +458,6 @@ export default function Home() {
                 </svg>
                 <span>{t(language, 'connectWallet')}</span>
               </button>
-
-              {showWalletPicker && (
-                <div className="home-wallet-picker">
-                  <div className="wallet-picker-header">
-                    <h4>{t(language, 'homeChooseWallet')}</h4>
-                    <button className="wallet-close" type="button" onClick={() => setShowWalletPicker(false)}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div className="wallet-picker-list">
-                    {wallets
-                      .filter((wallet) => !wallet.name.includes('Google') && !wallet.name.includes('Apple'))
-                      .map((wallet) => {
-                        const getWalletLogo = (name) => {
-                          const lowerName = name.toLowerCase();
-                          if (lowerName.includes('okx')) return '/okx.png';
-                          if (lowerName.includes('leap')) return '/leap.png';
-                          if (lowerName.includes('razor')) return '/razor.png';
-                          if (lowerName.includes('nightly')) return '/nightly.png';
-                          if (lowerName.includes('petra')) return '/logo.png';
-                          return null;
-                        };
-                        const logo = getWalletLogo(wallet.name);
-                        return (
-                          <button
-                            key={wallet.name}
-                            className="home-wallet-option"
-                            type="button"
-                            onClick={() => handleConnectWallet(wallet.name)}
-                          >
-                            <div className="wallet-option-content">
-                              {logo ? (
-                                <img src={logo} alt={wallet.name} className="wallet-option-logo" />
-                              ) : (
-                                <div className="wallet-option-placeholder">
-                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <rect x="3" y="7" width="18" height="14" rx="2" />
-                                    <circle cx="16" cy="14" r="1" fill="currentColor" />
-                                  </svg>
-                                </div>
-                              )}
-                              <span>{wallet.name}</span>
-                            </div>
-                            <svg className="wallet-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <polyline points="9 18 15 12 9 6" />
-                            </svg>
-                          </button>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -579,11 +512,7 @@ export default function Home() {
         </div>
       </div>
 
-      <footer className="home-footer-min" aria-label="Home footer">
-        <span>{t(language, 'homeFooterTitle')}</span>
-        <span>•</span>
-        <span>{t(language, 'homeFooterBuiltOn')}</span>
-      </footer>
+      <WalletModal isOpen={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
     </div>
   );
 }

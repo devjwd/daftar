@@ -64,7 +64,7 @@
 
   backdrop-filter: blur(20px);
 
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 
   display: grid;
 

@@ -142,7 +142,7 @@ const TRANSLATIONS = {
     homeFeaturePricesDesc: "Get accurate token pricing with automatic USD conversion and market data",
     homeFeatureSwapTitle: "Token Swaps",
     homeFeatureSwapDesc: "Seamlessly swap tokens within the app with competitive rates and low fees",
-    homeFooterTitle: "Movement Portfolio Tracker",
+    homeFooterTitle: "Daftar — Created by Udhyana Labs",
     homeFooterBuiltOn: "Built on Movement",
     moreTitle: "More",
     moreSupport: "Support",

@@ -488,25 +488,28 @@
 
 /* Link Button */
 .lp-card-link {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-tertiary);
+  background: transparent;
+  border: none;
   transition: all 0.2s ease;
   text-decoration: none;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
 .lp-card-link:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: transparent;
   color: var(--lp-color);
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
+  transform: scale(1.15);
+}
+
+.lp-card-link:focus-visible {
+  outline: none;
 }
 
 /* Section Title with Icon */
