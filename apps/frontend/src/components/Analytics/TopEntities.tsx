@@ -152,6 +152,9 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
   const hasDeposits = deposits.total > 0;
   const hasWithdrawals = withdrawals.total > 0;
 
+  const activeDepositsBreakdown = deposits.breakdown.filter(ex => ex.value > 0);
+  const activeWithdrawalsBreakdown = withdrawals.breakdown.filter(ex => ex.value > 0);
+
   const getProtocolVisual = (name: string) => {
     const key = name.toLowerCase().replace(/\s/g, '');
     return (DEFI_PROTOCOL_VISUALS as any)[key] || DEFAULT_PROTOCOL_VISUAL;
@@ -247,8 +250,15 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                     <div className="exchange-pie-wrap">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={deposits.breakdown} innerRadius={32} outerRadius={48} paddingAngle={3} dataKey="value" stroke="none">
-                            {deposits.breakdown.map((_, i) => <Cell key={i} fill={DEPOSIT_COLORS[i % DEPOSIT_COLORS.length]} />)}
+                          <Pie 
+                            data={activeDepositsBreakdown} 
+                            innerRadius={32} 
+                            outerRadius={48} 
+                            paddingAngle={activeDepositsBreakdown.length > 1 ? 3 : 0} 
+                            dataKey="value" 
+                            stroke="none"
+                          >
+                            {activeDepositsBreakdown.map((_, i) => <Cell key={i} fill={DEPOSIT_COLORS[i % DEPOSIT_COLORS.length]} />)}
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
@@ -266,7 +276,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                             <td>Total</td>
                             <td className="exchange-val-cell">{formatVolumeValue(deposits.total)} (100%)</td>
                           </tr>
-                          {deposits.breakdown.slice(0, 4).map((ex, i) => {
+                          {activeDepositsBreakdown.slice(0, 4).map((ex, i) => {
                             const pct = deposits.total > 0 ? Math.round((ex.value / deposits.total) * 100) : 0;
                             return (
                               <tr key={i}>
@@ -333,8 +343,15 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                     <div className="exchange-pie-wrap">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={withdrawals.breakdown} innerRadius={32} outerRadius={48} paddingAngle={3} dataKey="value" stroke="none">
-                            {withdrawals.breakdown.map((_, i) => <Cell key={i} fill={WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length]} />)}
+                          <Pie 
+                            data={activeWithdrawalsBreakdown} 
+                            innerRadius={32} 
+                            outerRadius={48} 
+                            paddingAngle={activeWithdrawalsBreakdown.length > 1 ? 3 : 0} 
+                            dataKey="value" 
+                            stroke="none"
+                          >
+                            {activeWithdrawalsBreakdown.map((_, i) => <Cell key={i} fill={WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length]} />)}
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
@@ -352,7 +369,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                             <td>Total</td>
                             <td className="exchange-val-cell">{formatVolumeValue(withdrawals.total)} (100%)</td>
                           </tr>
-                          {withdrawals.breakdown.slice(0, 4).map((ex, i) => {
+                          {activeWithdrawalsBreakdown.slice(0, 4).map((ex, i) => {
                             const pct = withdrawals.total > 0 ? Math.round((ex.value / withdrawals.total) * 100) : 0;
                             return (
                               <tr key={i}>
