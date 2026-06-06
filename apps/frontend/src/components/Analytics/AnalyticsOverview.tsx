@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
-import { Activity, LayoutTemplate, Ghost, Sparkles } from 'lucide-react';
+import { Activity, LayoutTemplate, Ghost } from 'lucide-react';
 import TopEntities from './TopEntities';
 import AnalyticsTooltip from './AnalyticsTooltip';
 import { DATA_VIZ_COLORS } from '../../config/display';
@@ -271,46 +271,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
             </div>
 
             {/* Divider Line */}
-            <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0 -4px' }} />
-
-            {/* Network Insights Section */}
-            <div>
-              <h3 className="bento-title" style={{ margin: '0 0 16px 0', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                <Sparkles size={16} className="bento-icon" style={{ color: 'var(--primary)' }} />
-                Network Insights
-              </h3>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* Gas Spent Stat */}
-                {data.totalGasUsd > 0 && (
-                  <div className="gas-stat-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.03)', transition: 'all 0.2s ease-in-out' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '15px' }}>⛽</span>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>Total Gas Fees</span>
-                    </div>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#ffbe5b' }}>
-                      {formatVolumeValue(data.totalGasUsd)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Dynamic Insights */}
-                {data.insights && data.insights.map((insight, idx) => (
-                  <div key={idx} className="insight-row-v5" style={{ display: 'flex', gap: '12px', padding: '10px 12px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.03)', transition: 'all 0.2s ease-in-out' }}>
-                    <span style={{ fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>{insight.icon}</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {insight.title}
-                      </span>
-                      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', lineHeight: '1.4' }}>
-                        {insight.desc}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
           </div>
         </div>
       </div>

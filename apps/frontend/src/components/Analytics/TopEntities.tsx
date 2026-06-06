@@ -29,6 +29,27 @@ const WITHDRAWAL_COLORS = [
   '#ec4899'  // Pink/Magenta
 ];
 
+const EXCHANGE_BRAND_COLORS: Record<string, string> = {
+  binance: '#F0B90B',       // Binance Yellow
+  okx: '#FFFFFF',           // OKX White
+  coinbase: '#0052FF',      // Coinbase Blue
+  mexc: '#00B4FF',          // MEXC Cyan/Blue
+  gate: '#E14B26',          // Gate.io Red
+  bitget: '#00F0FF',        // Bitget Teal
+  kucoin: '#24DB9C',        // KuCoin Green
+  bybit: '#FFB11A',         // Bybit Orange/Gold
+  kraken: '#5741D9',        // Kraken Purple
+};
+
+const getExchangeColor = (name: string, index: number, type: 'deposit' | 'withdrawal'): string => {
+  const key = name.toLowerCase().trim();
+  if (EXCHANGE_BRAND_COLORS[key]) {
+    return EXCHANGE_BRAND_COLORS[key];
+  }
+  const colorArray = type === 'deposit' ? DEPOSIT_COLORS : WITHDRAWAL_COLORS;
+  return colorArray[index % colorArray.length];
+};
+
 interface TopEntitiesProps {
   data: AnalyticsData;
   timeframe: string;
@@ -258,7 +279,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                             dataKey="value" 
                             stroke="none"
                           >
-                            {activeDepositsBreakdown.map((_, i) => <Cell key={i} fill={DEPOSIT_COLORS[i % DEPOSIT_COLORS.length]} />)}
+                            {activeDepositsBreakdown.map((ex, i) => <Cell key={i} fill={getExchangeColor(ex.name, i, 'deposit')} />)}
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
@@ -282,7 +303,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                               <tr key={i}>
                                 <td>
                                   <div className="exchange-name-cell">
-                                    <div className="exchange-color-dot" style={{ background: DEPOSIT_COLORS[i % DEPOSIT_COLORS.length] }} />
+                                    <div className="exchange-color-dot" style={{ background: getExchangeColor(ex.name, i, 'deposit') }} />
                                     <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
                                   </div>
                                 </td>
@@ -351,7 +372,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                             dataKey="value" 
                             stroke="none"
                           >
-                            {activeWithdrawalsBreakdown.map((_, i) => <Cell key={i} fill={WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length]} />)}
+                            {activeWithdrawalsBreakdown.map((ex, i) => <Cell key={i} fill={getExchangeColor(ex.name, i, 'withdrawal')} />)}
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
@@ -375,7 +396,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                               <tr key={i}>
                                 <td>
                                   <div className="exchange-name-cell">
-                                    <div className="exchange-color-dot" style={{ background: WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length] }} />
+                                    <div className="exchange-color-dot" style={{ background: getExchangeColor(ex.name, i, 'withdrawal') }} />
                                     <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
                                   </div>
                                 </td>
