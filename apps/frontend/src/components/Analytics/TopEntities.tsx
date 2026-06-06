@@ -144,10 +144,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
       </div>
     </div>
   );
-};
-
-const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe }) => {
-  const [activeTab, setActiveTab] = useState<'exchange' | 'protocols' | 'tokens'>('exchange');
+};const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe }) => {
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Custom Calendar state
@@ -284,37 +281,20 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
       
-      {/* UNIFIED BENTO CARD FOR ALL THREE WIDGETS */}
+      {/* SECTION 1: EXCHANGE FLOW CARD */}
       <div className="bento-card" style={{ width: '100%' }}>
         
-        {/* Navigation Tab Menu & Timeframe Filter */}
+        {/* Title & Timeframe Selector Header */}
         <div className="analytics-tab-header">
           <div className="analytics-tab-header-left">
-            <button 
-              className={`analytics-tab-btn ${activeTab === 'exchange' ? 'active' : ''}`}
-              onClick={() => setActiveTab('exchange')}
-            >
-              Exchange Usage
-            </button>
-            
-            <button 
-              className={`analytics-tab-btn ${activeTab === 'protocols' ? 'active' : ''}`}
-              onClick={() => setActiveTab('protocols')}
-            >
-              Top Interacting Protocols
-            </button>
-
-            <button 
-              className={`analytics-tab-btn ${activeTab === 'tokens' ? 'active' : ''}`}
-              onClick={() => setActiveTab('tokens')}
-            >
-              Top Tokens Handled
-            </button>
+            <h3 className="bento-title" style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px' }}>
+              <Network size={18} className="bento-icon" />
+              Exchange Flow
+            </h3>
           </div>
 
           {/* Timeframe Selector & Custom Calendar Dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            
             {/* Quick Timeframe Presets */}
             <div className="tabs-container-v5">
               {['1D', '1W', '1M', '3M', '1Y', 'All'].map(tf => (
@@ -323,7 +303,6 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                   className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
                   onClick={() => {
                     setTimeframe(tf);
-                    // Clear custom calendar selection when clicking a standard preset
                     setSelectedStart(null);
                     setSelectedEnd(null);
                     setInputStart('');
@@ -348,312 +327,321 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
                 <span className="filter-arrow">▼</span>
               </button>
 
-            {showDropdown && (
-              <>
-                <div 
-                  className="analytics-filter-dropdown-overlay"
-                  onClick={() => setShowDropdown(false)}
-                />
-                <div className="analytics-filter-dropdown">
-                  {/* Inputs Row */}
-                  <div className="analytics-filter-inputs">
-                    <input 
-                      className="analytics-filter-input"
-                      type="text" 
-                      placeholder="Start date" 
-                      value={inputStart}
-                      onChange={(e) => handleInputChange(e.target.value, true)}
-                    />
-                    <input 
-                      className="analytics-filter-input"
-                      type="text" 
-                      placeholder="End date" 
-                      value={inputEnd}
-                      onChange={(e) => handleInputChange(e.target.value, false)}
-                    />
-                  </div>
+              {showDropdown && (
+                <>
+                  <div 
+                    className="analytics-filter-dropdown-overlay"
+                    onClick={() => setShowDropdown(false)}
+                  />
+                  <div className="analytics-filter-dropdown">
+                    {/* Inputs Row */}
+                    <div className="analytics-filter-inputs">
+                      <input 
+                        className="analytics-filter-input"
+                        type="text" 
+                        placeholder="Start date" 
+                        value={inputStart}
+                        onChange={(e) => handleInputChange(e.target.value, true)}
+                      />
+                      <input 
+                        className="analytics-filter-input"
+                        type="text" 
+                        placeholder="End date" 
+                        value={inputEnd}
+                        onChange={(e) => handleInputChange(e.target.value, false)}
+                      />
+                    </div>
 
-                  {/* Weekdays Header */}
-                  <div className="calendar-weekdays">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                      <span key={d} className="calendar-weekday">{d}</span>
-                    ))}
-                  </div>
+                    {/* Weekdays Header */}
+                    <div className="calendar-weekdays">
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                        <span key={d} className="calendar-weekday">{d}</span>
+                      ))}
+                    </div>
 
-                  {/* Month Name & Navigation */}
-                  <div className="calendar-month-nav">
-                    <span className="calendar-month-label">
-                      {new Date(calYear, calMonth).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                    </span>
-                    <div className="calendar-nav-btns">
-                      <button 
-                        className="calendar-nav-btn"
-                        onClick={() => {
-                          if (calMonth === 0) {
-                            setCalMonth(11);
-                            setCalYear(prev => prev - 1);
-                          } else {
-                            setCalMonth(prev => prev - 1);
-                          }
-                        }}
-                      >
-                        &lt;
+                    {/* Month Name & Navigation */}
+                    <div className="calendar-month-nav">
+                      <span className="calendar-month-label">
+                        {new Date(calYear, calMonth).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                      </span>
+                      <div className="calendar-nav-btns">
+                        <button 
+                          className="calendar-nav-btn"
+                          onClick={() => {
+                            if (calMonth === 0) {
+                              setCalMonth(11);
+                              setCalYear(prev => prev - 1);
+                            } else {
+                              setCalMonth(prev => prev - 1);
+                            }
+                          }}
+                          type="button"
+                        >
+                          &lt;
+                        </button>
+                        <button 
+                          className="calendar-nav-btn"
+                          onClick={() => {
+                            if (calMonth === 11) {
+                              setCalMonth(0);
+                              setCalYear(prev => prev + 1);
+                            } else {
+                              setCalMonth(prev => prev + 1);
+                            }
+                          }}
+                          type="button"
+                        >
+                          &gt;
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Calendar Grid */}
+                    <div className="calendar-grid">
+                      {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, idx) => (
+                        <div key={`empty-${idx}`} />
+                      ))}
+                      {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, idx) => {
+                        const dayNum = idx + 1;
+                        const thisDate = new Date(calYear, calMonth, dayNum);
+                        const isStart = selectedStart && thisDate.toDateString() === selectedStart.toDateString();
+                        const isEnd = selectedEnd && thisDate.toDateString() === selectedEnd.toDateString();
+                        const isInRange = selectedStart && selectedEnd && thisDate > selectedStart && thisDate < selectedEnd;
+
+                        const dayClass = [
+                          'calendar-day',
+                          isStart ? 'start' : '',
+                          isEnd ? 'end' : '',
+                          isInRange ? 'in-range' : ''
+                        ].filter(Boolean).join(' ');
+
+                        return (
+                          <button
+                            key={`day-${dayNum}`}
+                            type="button"
+                            className={dayClass}
+                            onClick={() => handleDayClick(thisDate)}
+                          >
+                            {dayNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Actions Footer */}
+                    <div className="calendar-footer">
+                      <button className="calendar-footer-btn clear" onClick={handleClear} type="button">
+                        Clear
                       </button>
-                      <button 
-                        className="calendar-nav-btn"
-                        onClick={() => {
-                          if (calMonth === 11) {
-                            setCalMonth(0);
-                            setCalYear(prev => prev + 1);
-                          } else {
-                            setCalMonth(prev => prev + 1);
-                          }
-                        }}
-                      >
-                        &gt;
+                      <button className="calendar-footer-btn apply" onClick={handleApply} type="button">
+                        Apply
                       </button>
                     </div>
                   </div>
-
-                  {/* Calendar Grid */}
-                  <div className="calendar-grid">
-                    {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, idx) => (
-                      <div key={`empty-${idx}`} />
-                    ))}
-                    {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, idx) => {
-                      const dayNum = idx + 1;
-                      const thisDate = new Date(calYear, calMonth, dayNum);
-                      const isStart = selectedStart && thisDate.toDateString() === selectedStart.toDateString();
-                      const isEnd = selectedEnd && thisDate.toDateString() === selectedEnd.toDateString();
-                      const isInRange = selectedStart && selectedEnd && thisDate > selectedStart && thisDate < selectedEnd;
-
-                      const dayClass = [
-                        'calendar-day',
-                        isStart ? 'start' : '',
-                        isEnd ? 'end' : '',
-                        isInRange ? 'in-range' : ''
-                      ].filter(Boolean).join(' ');
-
-                      return (
-                        <button
-                          key={`day-${dayNum}`}
-                          type="button"
-                          className={dayClass}
-                          onClick={() => handleDayClick(thisDate)}
-                        >
-                          {dayNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Actions Footer */}
-                  <div className="calendar-footer">
-                    <button className="calendar-footer-btn clear" onClick={handleClear} type="button">
-                      Clear
-                    </button>
-                    <button className="calendar-footer-btn apply" onClick={handleApply} type="button">
-                      Apply
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {/* TAB CONTENTS */}
-        {activeTab === 'exchange' && (
-          <div>
-            <div className="exchange-grid-v5-arkham" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-              
-              {/* DEPOSITS COLUMN */}
-              <div>
-                <h4 className="exchange-section-title">DEPOSITS</h4>
+        {/* Exchange Usage Content */}
+        <div>
+          <div className="exchange-grid-v5-arkham" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+            
+            {/* DEPOSITS COLUMN */}
+            <div>
+              <h4 className="exchange-section-title">DEPOSITS</h4>
 
-                {!hasDeposits ? (
-                  <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <Ghost size={32} className="empty-state-icon" />
-                    <p>No deposit activity found.</p>
+              {!hasDeposits ? (
+                <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <Ghost size={32} className="empty-state-icon" />
+                  <p>No deposit activity found.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="exchange-chart-wrap">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={deposits.history}>
+                        <defs>
+                          <linearGradient id="depGradArkham" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" hide />
+                        <YAxis 
+                          axisLine={false} 
+                          tickLine={false} 
+                          orientation="left"
+                          tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
+                          tickFormatter={(val) => {
+                            if (val === 0) return '$0';
+                            if (val >= 1000000) return `+$${(val / 1000000).toFixed(0)}M`;
+                            if (val >= 1000) return `+$${(val / 1000).toFixed(0)}k`;
+                            return `+$${val}`;
+                          }}
+                        />
+                        <Tooltip content={<CustomExchangeTooltip type="deposit" />} />
+                        <Area type="monotone" dataKey="value" stroke="#36c690" strokeWidth={2} fill="url(#depGradArkham)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
-                ) : (
-                  <>
-                    <div className="exchange-chart-wrap">
+
+                  <div className="exchange-breakdown-row">
+                    <div className="exchange-pie-wrap">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={deposits.history}>
-                          <defs>
-                            <linearGradient id="depGradArkham" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
-                              <stop offset="95%" stopColor="#36c690" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <XAxis dataKey="date" hide />
-                          <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            orientation="left"
-                            tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
-                            tickFormatter={(val) => {
-                              if (val === 0) return '$0';
-                              if (val >= 1000000) return `+$${(val / 1000000).toFixed(0)}M`;
-                              if (val >= 1000) return `+$${(val / 1000).toFixed(0)}k`;
-                              return `+$${val}`;
-                            }}
-                          />
-                          <Tooltip content={<CustomExchangeTooltip type="deposit" />} />
-                          <Area type="monotone" dataKey="value" stroke="#36c690" strokeWidth={2} fill="url(#depGradArkham)" />
-                        </AreaChart>
+                        <PieChart>
+                          <Pie data={deposits.breakdown} innerRadius={32} outerRadius={48} paddingAngle={3} dataKey="value" stroke="none">
+                            {deposits.breakdown.map((_, i) => <Cell key={i} fill={DEPOSIT_COLORS[i % DEPOSIT_COLORS.length]} />)}
+                          </Pie>
+                        </PieChart>
                       </ResponsiveContainer>
                     </div>
-
-                    <div className="exchange-breakdown-row">
-                      <div className="exchange-pie-wrap">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={deposits.breakdown} innerRadius={32} outerRadius={48} paddingAngle={3} dataKey="value" stroke="none">
-                              {deposits.breakdown.map((_, i) => <Cell key={i} fill={DEPOSIT_COLORS[i % DEPOSIT_COLORS.length]} />)}
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="exchange-table-wrap">
-                        <table className="exchange-table">
-                          <thead>
-                            <tr>
-                              <th>Exchange</th>
-                              <th style={{ textAlign: 'right' }}>Value</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr className="total-row">
-                              <td>Total</td>
-                              <td className="exchange-val-cell">{formatVolumeValue(deposits.total)} (100%)</td>
-                            </tr>
-                            {deposits.breakdown.slice(0, 4).map((ex, i) => {
-                              const pct = deposits.total > 0 ? Math.round((ex.value / deposits.total) * 100) : 0;
-                              return (
-                                <tr key={i}>
-                                  <td>
-                                    <div className="exchange-name-cell">
-                                      <div className="exchange-color-dot" style={{ background: DEPOSIT_COLORS[i % DEPOSIT_COLORS.length] }} />
-                                      <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
-                                    </div>
-                                  </td>
-                                  <td className="exchange-val-cell">
-                                    {formatVolumeValue(ex.value)}<span className="exchange-pct">({pct}%)</span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                    <div className="exchange-table-wrap">
+                      <table className="exchange-table">
+                        <thead>
+                          <tr>
+                            <th>Exchange</th>
+                            <th style={{ textAlign: 'right' }}>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="total-row">
+                            <td>Total</td>
+                            <td className="exchange-val-cell">{formatVolumeValue(deposits.total)} (100%)</td>
+                          </tr>
+                          {deposits.breakdown.slice(0, 4).map((ex, i) => {
+                            const pct = deposits.total > 0 ? Math.round((ex.value / deposits.total) * 100) : 0;
+                            return (
+                              <tr key={i}>
+                                <td>
+                                  <div className="exchange-name-cell">
+                                    <div className="exchange-color-dot" style={{ background: DEPOSIT_COLORS[i % DEPOSIT_COLORS.length] }} />
+                                    <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
+                                  </div>
+                                </td>
+                                <td className="exchange-val-cell">
+                                  {formatVolumeValue(ex.value)}<span className="exchange-pct">({pct}%)</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  </>
-                )}
-              </div>
-
-              {/* WITHDRAWALS COLUMN */}
-              <div>
-                <h4 className="exchange-section-title">WITHDRAWALS</h4>
-
-                {!hasWithdrawals ? (
-                  <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <Ghost size={32} className="empty-state-icon" />
-                    <p>No withdrawal activity found.</p>
                   </div>
-                ) : (
-                  <>
-                    <div className="exchange-chart-wrap">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={withdrawals.history}>
-                          <defs>
-                            <linearGradient id="witGradArkham" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#7b68ee" stopOpacity={0.25} />
-                              <stop offset="95%" stopColor="#7b68ee" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <XAxis dataKey="date" hide />
-                          <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            orientation="left"
-                            tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
-                            tickFormatter={(val) => {
-                              if (val === 0) return '$0';
-                              if (val >= 1000000) return `+$${(val / 1000000).toFixed(0)}M`;
-                              if (val >= 1000) return `+$${(val / 1000).toFixed(0)}k`;
-                              return `+$${val}`;
-                            }}
-                          />
-                          <Tooltip content={<CustomExchangeTooltip type="withdrawal" />} />
-                          <Area type="monotone" dataKey="value" stroke="#7b68ee" strokeWidth={2} fill="url(#witGradArkham)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    <div className="exchange-breakdown-row">
-                      <div className="exchange-pie-wrap">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={withdrawals.breakdown} innerRadius={32} outerRadius={48} paddingAngle={3} dataKey="value" stroke="none">
-                              {withdrawals.breakdown.map((_, i) => <Cell key={i} fill={WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length]} />)}
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="exchange-table-wrap">
-                        <table className="exchange-table">
-                          <thead>
-                            <tr>
-                              <th>Exchange</th>
-                              <th style={{ textAlign: 'right' }}>Value</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr className="total-row">
-                              <td>Total</td>
-                              <td className="exchange-val-cell">{formatVolumeValue(withdrawals.total)} (100%)</td>
-                            </tr>
-                            {withdrawals.breakdown.slice(0, 4).map((ex, i) => {
-                              const pct = withdrawals.total > 0 ? Math.round((ex.value / withdrawals.total) * 100) : 0;
-                              return (
-                                <tr key={i}>
-                                  <td>
-                                    <div className="exchange-name-cell">
-                                      <div className="exchange-color-dot" style={{ background: WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length] }} />
-                                      <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
-                                    </div>
-                                  </td>
-                                  <td className="exchange-val-cell">
-                                    {formatVolumeValue(ex.value)}<span className="exchange-pct">({pct}%)</span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
+                </>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* TOP INTERACTING PROTOCOLS TAB */}
-        {activeTab === 'protocols' && (
+            {/* WITHDRAWALS COLUMN */}
+            <div>
+              <h4 className="exchange-section-title">WITHDRAWALS</h4>
+
+              {!hasWithdrawals ? (
+                <div className="empty-state-v5" style={{ height: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <Ghost size={32} className="empty-state-icon" />
+                  <p>No withdrawal activity found.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="exchange-chart-wrap">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={withdrawals.history}>
+                        <defs>
+                          <linearGradient id="witGradArkham" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#7b68ee" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#7b68ee" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" hide />
+                        <YAxis 
+                          axisLine={false} 
+                          tickLine={false} 
+                          orientation="left"
+                          tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
+                          tickFormatter={(val) => {
+                            if (val === 0) return '$0';
+                            if (val >= 1000000) return `+$${(val / 1000000).toFixed(0)}M`;
+                            if (val >= 1000) return `+$${(val / 1000).toFixed(0)}k`;
+                            return `+$${val}`;
+                          }}
+                        />
+                        <Tooltip content={<CustomExchangeTooltip type="withdrawal" />} />
+                        <Area type="monotone" dataKey="value" stroke="#7b68ee" strokeWidth={2} fill="url(#witGradArkham)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="exchange-breakdown-row">
+                    <div className="exchange-pie-wrap">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={withdrawals.breakdown} innerRadius={32} outerRadius={48} paddingAngle={3} dataKey="value" stroke="none">
+                            {withdrawals.breakdown.map((_, i) => <Cell key={i} fill={WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length]} />)}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="exchange-table-wrap">
+                      <table className="exchange-table">
+                        <thead>
+                          <tr>
+                            <th>Exchange</th>
+                            <th style={{ textAlign: 'right' }}>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="total-row">
+                            <td>Total</td>
+                            <td className="exchange-val-cell">{formatVolumeValue(withdrawals.total)} (100%)</td>
+                          </tr>
+                          {withdrawals.breakdown.slice(0, 4).map((ex, i) => {
+                            const pct = withdrawals.total > 0 ? Math.round((ex.value / withdrawals.total) * 100) : 0;
+                            return (
+                              <tr key={i}>
+                                <td>
+                                  <div className="exchange-name-cell">
+                                    <div className="exchange-color-dot" style={{ background: WITHDRAWAL_COLORS[i % WITHDRAWAL_COLORS.length] }} />
+                                    <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{ex.name}</span>
+                                  </div>
+                                </td>
+                                <td className="exchange-val-cell">
+                                  {formatVolumeValue(ex.value)}<span className="exchange-pct">({pct}%)</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      {/* SECTION 2 & 3: PROTOCOLS AND TOKENS SIDE-BY-SIDE */}
+      <div className="bottom-sections-grid-v5">
+        
+        {/* PROTOCOLS SECTION */}
+        <div className="bento-card">
+          <h3 className="bento-title" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '14px', marginBottom: '20px' }}>
+            <Network size={16} className="bento-icon" />
+            Top Interacting Protocols
+          </h3>
           <div style={{ padding: '4px 0 8px 0' }}>
             {!hasEntities ? (
-              <div className="empty-state-v5" style={{ minHeight: '280px' }}>
+              <div className="empty-state-v5" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Ghost size={32} className="empty-state-icon" />
                 <p>No protocol interactions found.</p>
               </div>
             ) : (
-              <div className="entity-cards-grid">
+              <div className="entities-list-v5">
                 {data.topEntities.slice(0, 8).map((entity, i) => {
                   const visual = getProtocolVisual(entity.name);
                   return (
@@ -680,18 +668,22 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {/* TOP TOKENS HANDLED TAB */}
-        {activeTab === 'tokens' && (
+        {/* TOKENS SECTION */}
+        <div className="bento-card">
+          <h3 className="bento-title" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '14px', marginBottom: '20px' }}>
+            <Coins size={16} className="bento-icon" />
+            Top Tokens Handled
+          </h3>
           <div style={{ padding: '4px 0 8px 0' }}>
             {!hasTokens ? (
-              <div className="empty-state-v5" style={{ minHeight: '280px' }}>
+              <div className="empty-state-v5" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Ghost size={32} className="empty-state-icon" />
                 <p>No token transfers found.</p>
               </div>
             ) : (
-              <div className="entity-cards-grid">
+              <div className="entities-list-v5">
                 {data.topTokens.slice(0, 8).map((token, i) => {
                   const visual = getTokenVisual(token.symbol);
                   return (
@@ -716,7 +708,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe
               </div>
             )}
           </div>
-        )}
+        </div>
 
       </div>
 

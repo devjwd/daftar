@@ -73,22 +73,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                 Transactions
               </button>
             </div>
-          </div>
-
-          {/* Stats section below the header row */}
-          <div className="analytics-stats-header">
-            <div className="analytics-stats-left">
-              <span className="exchange-label">
-                {activeChartTab === 'balance' ? 'Token Balance' : activeChartTab === 'flow' ? 'Total Capital Flow' : 'Transaction Count'}
-              </span>
-              <div className="hero-value">
-                {activeChartTab === 'balance' ? formatVolumeValue(data.totalBalance ?? 0) : activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : data.interactionCount.toLocaleString()}
-              </div>
-              <div className="analytics-months-badge">
-                <span>{data.activeMonths} Months</span>
-                of tracked activity
-              </div>
-            </div>
 
             {/* Timeframe Selector */}
             <div className="tabs-container-v5">
@@ -107,6 +91,22 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                   {tf}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Stats section below the header row */}
+          <div className="analytics-stats-header">
+            <div className="analytics-stats-left">
+              <span className="exchange-label">
+                {activeChartTab === 'balance' ? 'Token Balance' : activeChartTab === 'flow' ? 'Total Capital Flow' : 'Transaction Count'}
+              </span>
+              <div className="hero-value">
+                {activeChartTab === 'balance' ? formatVolumeValue(data.totalBalance ?? 0) : activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : data.interactionCount.toLocaleString()}
+              </div>
+              <div className="analytics-months-badge">
+                <span>{data.activeMonths} Months</span>
+                of tracked activity
+              </div>
             </div>
           </div>
 
@@ -202,7 +202,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                   <PieChart>
                     <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: 'var(--text-secondary)' }} />
-                    <Pie data={data.protocolUsage} innerRadius={60} outerRadius={75} paddingAngle={6} dataKey="value" stroke="none" nameKey="name">
+                    <Pie data={data.protocolUsage} innerRadius={60} outerRadius={75} paddingAngle={0} dataKey="value" stroke="none" nameKey="name">
                       {data.protocolUsage.map((entry, index) => {
                         const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
                         return <Cell key={`cell-${index}`} fill={fillCol} />;

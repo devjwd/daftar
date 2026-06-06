@@ -85,23 +85,46 @@
   font-variant-numeric: tabular-nums;
 }
 
-.analytics-rescan-btn {
+.analytics-rescan-btn-small {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-secondary);
-  padding: 10px 24px;
-  border-radius: 100px;
-  font-size: 13px;
-  font-weight: 700;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  flex-shrink: 0;
 }
 
-.analytics-rescan-btn:hover {
+.analytics-rescan-btn-small:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: var(--text-primary);
-  transform: translateY(-1px);
+  border-color: rgba(205, 161, 105, 0.4);
+  color: var(--primary);
+  transform: translateY(-1px) rotate(15deg);
+  box-shadow: 0 0 12px rgba(205, 161, 105, 0.15);
+}
+
+.analytics-rescan-btn-small:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.analytics-rescan-btn-small svg.spinning {
+  animation: spin-rescan 1.5s linear infinite;
+}
+
+@keyframes spin-rescan {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .analytics-visualizer-btn {
@@ -150,11 +173,6 @@
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
   opacity: 0.5;
-}
-
-.bento-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 /* === Typography === */
@@ -1038,10 +1056,10 @@
 }
 
 .analytics-download-btn {
-  background: rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-secondary);
-  padding: 10px 24px;
+  padding: 10px 22px;
   border-radius: 100px;
   font-size: 13px;
   font-weight: 700;
@@ -1051,13 +1069,22 @@
   gap: 6px;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .analytics-download-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: var(--text-primary);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border-color: rgba(205, 161, 105, 0.45);
+  color: #fff;
   transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(205, 161, 105, 0.12);
+}
+
+.analytics-download-btn.active-dropdown {
+  background: rgba(205, 161, 105, 0.1);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(205, 161, 105, 0.15);
 }
 
 .analytics-download-btn:disabled {
@@ -1074,23 +1101,23 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: rgba(18, 18, 18, 0.98);
+  background: rgba(22, 22, 22, 0.85);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65);
-  padding: 6px;
-  width: 190px;
+  border-radius: 16px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 12px;
+  width: 220px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .analytics-download-dropdown button {
-  background: transparent;
-  border: none;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
   padding: 10px 12px;
   border-radius: 8px;
@@ -1100,50 +1127,89 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   text-align: left;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .analytics-download-dropdown button:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(205, 161, 105, 0.08);
+  border-color: rgba(205, 161, 105, 0.25);
   color: #fff;
+  transform: translateX(2px);
 }
 
 .analytics-download-dropdown button svg {
   color: var(--primary);
   flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.analytics-download-dropdown button:hover svg {
+  transform: scale(1.1);
 }
 
 .download-dropdown-section-title {
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
-  color: var(--text-tertiary);
-  letter-spacing: 0.5px;
-  padding: 6px 10px 4px 10px;
+  color: var(--primary);
+  letter-spacing: 1.2px;
+  padding: 2px 4px;
+  margin-bottom: -2px;
 }
 
 .analytics-download-timeframe-select {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: rgba(0, 0, 0, 0.35);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23cda169' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #fff;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 10px;
+  padding: 10px 32px 10px 12px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   outline: none;
   cursor: pointer;
-  margin: 4px 10px 8px 10px;
-  transition: all 0.2s ease;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.analytics-download-timeframe-select:hover {
+  border-color: rgba(205, 161, 105, 0.4);
+  background-color: rgba(0, 0, 0, 0.55);
 }
 
 .analytics-download-timeframe-select:focus {
   border-color: var(--primary);
-  background: rgba(255, 255, 255, 0.08);
+  background-color: rgba(0, 0, 0, 0.65);
+  box-shadow: 0 0 10px rgba(205, 161, 105, 0.15);
 }
 
 .analytics-download-timeframe-select option {
-  background: #111;
+  background: #161616;
   color: #fff;
+  padding: 8px;
+}
+
+/* Bottom Grid for Protocols and Tokens side-by-side */
+.bottom-sections-grid-v5 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .bottom-sections-grid-v5 {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
 }

@@ -10,7 +10,7 @@ import { useAnalyticsSync } from '../../hooks/useAnalyticsSync';
 import SyncStateOverlay from './SyncStateOverlay';
 import AnalyticsOverview from './AnalyticsOverview';
 import PlanGate from '../PlanGate';
-import { Download, ChevronDown, FileText, Table, Activity } from 'lucide-react';
+import { Download, ChevronDown, FileText, Table, Activity, RefreshCw } from 'lucide-react';
 
 import './AnalyticsV5.css';
 
@@ -475,7 +475,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             <div style={{ position: 'relative' }} ref={dropdownRef}>
               <button
                 type="button"
-                className="analytics-download-btn"
+                className={`analytics-download-btn ${showDownloadDropdown ? 'active-dropdown' : ''}`}
                 onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
                 disabled={exportLoading}
               >
@@ -494,7 +494,15 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
                   <>
                     <Download size={14} style={{ marginRight: 6 }} />
                     Download Statement
-                    <ChevronDown size={12} style={{ marginLeft: 6, opacity: 0.7 }} />
+                    <ChevronDown
+                      size={12}
+                      style={{
+                        marginLeft: 6,
+                        opacity: 0.7,
+                        transform: showDownloadDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.25s ease'
+                      }}
+                    />
                   </>
                 )}
               </button>
@@ -535,8 +543,17 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             <button type="button" className="analytics-visualizer-btn" onClick={handleOpenVisualizer}>
               Launch Visualizer
             </button>
-            <button type="button" className="analytics-rescan-btn" onClick={handleStartSync}>
-              Rescan Network
+            <button
+              type="button"
+              className="analytics-rescan-btn-small"
+              onClick={handleStartSync}
+              title="Rescan Network"
+              disabled={syncStatus === 'syncing'}
+            >
+              <RefreshCw
+                size={14}
+                className={syncStatus === 'syncing' ? 'spinning' : ''}
+              />
             </button>
           </div>
         </div>
