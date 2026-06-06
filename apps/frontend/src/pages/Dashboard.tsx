@@ -46,6 +46,7 @@ import {
 import OverviewTab from '../components/Dashboard/OverviewTab';
 import TransactionsTab from '../components/Dashboard/TransactionsTab';
 import NFTTab from '../components/Dashboard/NFTTab';
+import AnalyticsSkeleton from '../components/Analytics/AnalyticsSkeleton';
 const AnalyticsView = lazy(() => import('../components/Analytics/AnalyticsView'));
 
 // PORTFOLIO_TABS imported from PortfolioTabs component
@@ -894,7 +895,11 @@ const Dashboard = () => {
           )}
 
           {activeTab === PORTFOLIO_TABS.ANALYTICS && (
-            <Suspense fallback={<div className="loading-indicator">Analyzing history...</div>}>
+            <Suspense fallback={
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', padding: '40px 20px 40px 20px' }}>
+                <AnalyticsSkeleton />
+              </div>
+            }>
               <AnalyticsView
                 walletAddress={urlAddress}
               />
