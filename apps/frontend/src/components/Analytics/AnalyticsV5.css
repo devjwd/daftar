@@ -980,3 +980,97 @@
     gap: 20px;
   }
 }
+
+/* === Redesigned Premium Stats === */
+.premium-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.premium-stat-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.07);
+  transform: translateX(4px);
+}
+
+.premium-stat-icon-wrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.premium-stat-icon-wrapper.inflow {
+  background: linear-gradient(135deg, rgba(54, 198, 144, 0.12), rgba(0, 191, 166, 0.03));
+  border: 1px solid rgba(54, 198, 144, 0.18);
+  color: #36c690;
+}
+
+.premium-stat-icon-wrapper.outflow {
+  background: linear-gradient(135deg, rgba(255, 75, 75, 0.12), rgba(236, 72, 153, 0.03));
+  border: 1px solid rgba(255, 75, 75, 0.18);
+  color: #ff4b4b;
+}
+
+.premium-stat-icon-wrapper.txs {
+  background: linear-gradient(135deg, rgba(205, 161, 105, 0.12), rgba(137, 95, 45, 0.03));
+  border: 1px solid rgba(205, 161, 105, 0.18);
+  color: var(--primary);
+}
+
+.premium-stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 12px;
+  flex-grow: 1;
+}
+
+.premium-stat-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.premium-stat-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.22);
+  font-weight: 500;
+}
+
+.premium-stat-value {
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-display);
+}
+
+.premium-stat-value.inflow {
+  color: #36c690;
+}
+
+.premium-stat-value.outflow {
+  color: #ff4b4b;
+}
+
+.legend-item-row {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.legend-item-row:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
+  transform: translateX(4px);
+}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
-import { Activity, Droplets, LayoutTemplate, Ghost } from 'lucide-react';
+import { Activity, Droplets, LayoutTemplate, Ghost, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import TopEntities from './TopEntities';
 import AnalyticsTooltip from './AnalyticsTooltip';
 import { DATA_VIZ_COLORS } from '../../config/display';
@@ -164,54 +164,113 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
 
         {/* Side Stats & Protocol Affinity */}
         <div className="stats-column-v5">
-          <div className="mini-stat-v5">
-            <div className="mini-stat-left">
-              <Droplets size={16} color="#36c690" />
-              <span className="mini-stat-label">Inflow</span>
+          <div className="bento-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px' }}>
+            <h3 className="bento-title" style={{ margin: 0, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <Activity size={18} className="bento-icon" />
+              Activity Summary
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+              {/* INFLOW */}
+              <div className="premium-stat-row">
+                <div className="premium-stat-icon-wrapper inflow">
+                  <ArrowUpRight size={18} />
+                </div>
+                <div className="premium-stat-info">
+                  <span className="premium-stat-label">Inflow</span>
+                  <span className="premium-stat-desc">Total assets deposited</span>
+                </div>
+                <span className="premium-stat-value inflow">{formatVolumeValue(data.totalInflow).replace('$', '+$')}</span>
+              </div>
+
+              {/* OUTFLOW */}
+              <div className="premium-stat-row">
+                <div className="premium-stat-icon-wrapper outflow">
+                  <ArrowDownRight size={18} />
+                </div>
+                <div className="premium-stat-info">
+                  <span className="premium-stat-label">Outflow</span>
+                  <span className="premium-stat-desc">Total assets withdrawn</span>
+                </div>
+                <span className="premium-stat-value outflow">{formatVolumeValue(data.totalOutflow).replace('$', '-$')}</span>
+              </div>
+
+              {/* TRANSACTIONS */}
+              <div className="premium-stat-row">
+                <div className="premium-stat-icon-wrapper txs">
+                  <Activity size={18} />
+                </div>
+                <div className="premium-stat-info">
+                  <span className="premium-stat-label">Transactions</span>
+                  <span className="premium-stat-desc">Total transactions executed</span>
+                </div>
+                <span className="premium-stat-value">{data.interactionCount.toLocaleString()}</span>
+              </div>
             </div>
-            <span className="mini-stat-value positive">{formatVolumeValue(data.totalInflow).replace('$', '+$')}</span>
-          </div>
-          <div className="mini-stat-v5">
-            <div className="mini-stat-left">
-              <Droplets size={16} color="#ff4b4b" style={{ transform: 'rotate(180deg)' }} />
-              <span className="mini-stat-label">Outflow</span>
-            </div>
-            <span className="mini-stat-value negative">{formatVolumeValue(data.totalOutflow).replace('$', '-$')}</span>
-          </div>
-          <div className="mini-stat-v5">
-            <div className="mini-stat-left">
-              <Activity size={16} color="var(--primary)" />
-              <span className="mini-stat-label">Total Transactions</span>
-            </div>
-            <span className="mini-stat-value">{data.interactionCount}</span>
           </div>
 
-          <div className="bento-card" style={{ flex: 1, marginTop: '8px' }}>
-            <h3 className="bento-title">
+          <div className="bento-card" style={{ flex: 1, padding: '24px' }}>
+            <h3 className="bento-title" style={{ marginBottom: '16px', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>
               <LayoutTemplate size={18} className="bento-icon" />
               Protocol Affinity
             </h3>
-            <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {!hasProtocols ? (
+            {!hasProtocols ? (
+              <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="empty-state-v5">
                   <Ghost size={28} className="empty-state-icon" style={{ marginBottom: 8 }} />
                   <p style={{ fontSize: '13px' }}>No protocols detected.</p>
                 </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: 'var(--text-secondary)' }} />
-                    <Pie data={data.protocolUsage} innerRadius={60} outerRadius={75} paddingAngle={0} dataKey="value" stroke="none" nameKey="name">
-                      {data.protocolUsage.map((entry, index) => {
+              </div>
+            ) : (
+              (() => {
+                const totalProtocolValue = data.protocolUsage ? data.protocolUsage.reduce((acc, curr) => acc + curr.value, 0) : 0;
+                const sortedProtocols = data.protocolUsage ? [...data.protocolUsage].sort((a, b) => b.value - a.value) : [];
+                
+                const top4Protocols = sortedProtocols.slice(0, 4);
+                const othersValue = sortedProtocols.slice(4).reduce((acc, curr) => acc + curr.value, 0);
+                
+                const chartPieData = [...top4Protocols];
+                if (sortedProtocols.length > 4) {
+                  chartPieData.push({ name: 'Others', value: othersValue });
+                }
+
+                return (
+                  <div className="affinity-content-row" style={{ display: 'flex', alignItems: 'center', gap: '20px', minHeight: '190px' }}>
+                    <div style={{ width: '42%', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                          <Pie data={chartPieData} innerRadius={48} outerRadius={64} paddingAngle={0} dataKey="value" stroke="none" nameKey="name">
+                            {chartPieData.map((entry, index) => {
+                              const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
+                              return <Cell key={`cell-${index}`} fill={fillCol} />;
+                            })}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div style={{ width: '58%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {chartPieData.map((item, index) => {
+                        const pct = totalProtocolValue > 0 ? ((item.value / totalProtocolValue) * 100).toFixed(1) : '0';
                         const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
-                        return <Cell key={`cell-${index}`} fill={fillCol} />;
+                        return (
+                          <div key={item.name} className="legend-item-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: fillCol, flexShrink: 0 }} />
+                              <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.name}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.4)', marginLeft: '6px', flexShrink: 0 }}>
+                              {pct}%
+                            </span>
+                          </div>
+                        );
                       })}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
           </div>
         </div>
       </div>
