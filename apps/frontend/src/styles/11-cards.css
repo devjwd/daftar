@@ -182,14 +182,15 @@
 }
 
 .token-logo-wrapper.has-image {
-  background: linear-gradient(145deg, rgba(40, 36, 32, 0.95), rgba(25, 23, 20, 0.98));
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
 }
 
-
-
 .token-logo {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
@@ -708,18 +709,15 @@
 .staking-minimal-logo {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .staking-minimal-logo img {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
 }
 
