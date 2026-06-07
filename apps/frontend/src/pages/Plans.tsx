@@ -3,6 +3,7 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useProfile } from '../hooks/useProfile';
 import { getPlanList, getPlansConfig, verifySubscriptionPayment } from '../services/api';
 import { normalizeAddress } from '../utils/address';
+import { useMovementClient } from '../hooks/useMovementClient';
 import './Plans.css';
 
 interface PlanDefinition {
@@ -37,13 +38,16 @@ interface PaymentModalProps {
   onClose: () => void;
   onSuccess: () => void;
   signAndSubmitTransaction: any;
+  client: any;
 }
 
-function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmitTransaction }: PaymentModalProps) {
+function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmitTransaction, client }: PaymentModalProps) {
   const [selectedMonths, setSelectedMonths] = useState<number>(1);
   const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'success' | 'error'>('confirm');
   const [txHash, setTxHash] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [balance, setBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
 
   // Calculate pricing based on selectedMonths and discountScope
   const discountScope = config.discountScope || 'all_months';
@@ -65,6 +69,33 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
   const moveAmountWithBuffer = moveAmount * 1.01;
   const octasToSend = Math.ceil(moveAmountWithBuffer * 1e8);
   const moveDisplay = (octasToSend / 1e8).toFixed(4);
+
+  const isInsufficientBalance = balance !== null && balance < (octasToSend / 1e8);
+
+  useEffect(() => {
+    if (!client || !walletAddress) return;
+    let active = true;
+    setBalanceLoading(true);
+    client.view({
+      payload: {
+        function: "0x1::coin::balance",
+        typeArguments: ["0x1::aptos_coin::AptosCoin"],
+        functionArguments: [walletAddress],
+      }
+    }).then((res: any) => {
+      if (!active) return;
+      const rawBalance = Number(res?.[0]) || 0;
+      setBalance(rawBalance / 1e8);
+      setBalanceLoading(false);
+    }).catch((err: any) => {
+      console.error("Failed to fetch balance:", err);
+      if (active) setBalanceLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [client, walletAddress]);
 
   const handleVerify = useCallback(async (hash: string, monthsCount: number) => {
     setStep('verifying');
@@ -91,6 +122,11 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       setStep('error');
       return;
     }
+    if (isInsufficientBalance) {
+      setErrorMsg('You do not have enough MOVE balance to purchase this plan.');
+      setStep('error');
+      return;
+    }
     setStep('sending');
     try {
       const result = await signAndSubmitTransaction({
@@ -113,7 +149,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       setErrorMsg(err?.message || 'Transaction was rejected or failed.');
       setStep('error');
     }
-  }, [config.treasuryWallet, octasToSend, walletAddress, signAndSubmitTransaction, handleVerify, selectedMonths]);
+  }, [config.treasuryWallet, octasToSend, walletAddress, signAndSubmitTransaction, handleVerify, selectedMonths, isInsufficientBalance]);
 
   return (
     <div className="payment-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -178,17 +214,42 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
                 <span>You Send</span>
                 <strong>{moveDisplay} MOVE</strong>
               </div>
+              <div className="payment-summary-row" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <span>Your Balance</span>
+                <strong>
+                  {balanceLoading ? (
+                    <span style={{ color: 'rgba(255,255,255,0.35)' }}>Loading...</span>
+                  ) : balance !== null ? (
+                    <span style={{ color: isInsufficientBalance ? '#ef4444' : '#10b981' }}>
+                      {balance.toFixed(4)} MOVE
+                    </span>
+                  ) : (
+                    <span style={{ color: 'rgba(255,255,255,0.35)' }}>—</span>
+                  )}
+                </strong>
+              </div>
               <div className="payment-summary-row" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', borderTop: 'none', paddingTop: 0 }}>
                 <span>Rate</span>
                 <span>1 MOVE ≈ ${config.movePriceUsd.toFixed(4)}</span>
               </div>
             </div>
 
-            <button className="payment-cta-btn" onClick={handleSendMove}>
-              Send {moveDisplay} MOVE →
+            <button
+              className="payment-cta-btn"
+              onClick={handleSendMove}
+              disabled={isInsufficientBalance}
+              style={{
+                background: isInsufficientBalance ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #e5be8a, #cda169)',
+                color: isInsufficientBalance ? 'rgba(255,255,255,0.25)' : '#0d0d0d',
+                cursor: isInsufficientBalance ? 'not-allowed' : 'pointer',
+                border: isInsufficientBalance ? '1px solid rgba(255,255,255,0.08)' : 'none',
+                boxShadow: isInsufficientBalance ? 'none' : undefined,
+              }}
+            >
+              {isInsufficientBalance ? 'Insufficient Balance' : 'Purchase Pro Plan'}
             </button>
             <p className="payment-note">
-              Clicking "Send" will open your wallet to confirm the transfer. Your subscription activates instantly after confirmation.
+              Clicking "Purchase Pro Plan" will open your wallet to confirm the transfer. Your subscription activates instantly after confirmation.
             </p>
           </>
         )}
@@ -244,6 +305,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
 // ─── Plans Page ─────────────────────────────────────────────────────────────
 export default function Plans() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
+  const { client: movementClient } = useMovementClient();
   const walletAddress = connected && account?.address ? normalizeAddress(String(account.address)) : null;
   const { profile, loading: profileLoading } = useProfile(walletAddress);
   const [plans, setPlans] = useState<PlanDefinition[]>([]);
@@ -460,6 +522,7 @@ export default function Plans() {
           onClose={() => setShowPaymentModal(false)}
           onSuccess={handlePaymentSuccess}
           signAndSubmitTransaction={signAndSubmitTransaction}
+          client={movementClient}
         />
       )}
     </div>
