@@ -10,15 +10,253 @@ import {
   HIDE_POSITION_THRESHOLD_OPTIONS,
   writeStoredSettings,
 } from '../utils/settings';
+import {
+  getPlanStatus,
+  getNonce,
+  getAlertConfig,
+  saveAlertConfig,
+  linkDiscord,
+  testAlerts
+} from '../services/api';
 import './Settings.css';
 
 export default function Settings() {
-  const { account } = useWallet();
+  const { account, signMessage } = useWallet();
   const [currency, setCurrency] = useState('USD');
   const [theme, setTheme] = useState<any>('dark');
   const [language, setLanguage] = useState('en');
   const [uiLanguage, setUiLanguage] = useState('en'); // Language currently applied to UI labels
   const [hidePositionThreshold, setHidePositionThreshold] = useState(DEFAULT_HIDE_POSITION_THRESHOLD);
+
+  const [isPro, setIsPro] = useState(false);
+  const [isAlertsUnlocked, setIsAlertsUnlocked] = useState(false);
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<any>({
+    email: '',
+    telegram_chat_id: '',
+    discord_user_id: '',
+    email_enabled: false,
+    telegram_enabled: false,
+    discord_enabled: false,
+    min_amount_usd: 0,
+    alert_on_received: true,
+    alert_on_withdrawal: true,
+    alert_on_swaps: false,
+    alert_on_failed: false
+  });
+
+  const [discordLinkTarget, setDiscordLinkTarget] = useState<string | null>(null);
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const uid = queryParams.get('discord_user_id');
+    if (uid) {
+      setDiscordLinkTarget(uid);
+    }
+  }, []);
+
+  // Check Pro status
+  useEffect(() => {
+    if (account?.address) {
+      getPlanStatus(account.address).then((res) => {
+        if (res && (res.tier === 'pro' || res.tier === 'lite')) {
+          setIsPro(true);
+        } else {
+          setIsPro(false);
+          setIsAlertsUnlocked(false);
+        }
+      });
+    } else {
+      setIsPro(false);
+      setIsAlertsUnlocked(false);
+    }
+  }, [account?.address]);
+
+  const handleUnlockAlerts = async () => {
+    if (!account || !signMessage) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+    setLoadingAlerts(true);
+    try {
+      const nonce = await getNonce(account.address);
+      if (nonce === null) throw new Error("Could not retrieve security nonce.");
+
+      const issuedAt = new Date().toISOString();
+      const payloadMsg = JSON.stringify({
+        action: 'get-alerts',
+        address: account.address.toLowerCase(),
+        issuedAt,
+        nonce: String(nonce)
+      });
+
+      const response = await signMessage({
+        address: true,
+        application: true,
+        chainId: true,
+        message: payloadMsg,
+        nonce: String(nonce)
+      });
+
+      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+
+      const data = await getAlertConfig(
+        account.address,
+        {
+          publicKey: account.publicKey,
+          signature
+        },
+        payloadMsg,
+        nonce
+      );
+
+      if (data) {
+        setAlertConfig(data);
+      }
+      setIsAlertsUnlocked(true);
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to authenticate alerts settings: ' + err.message);
+    } finally {
+      setLoadingAlerts(false);
+    }
+  };
+
+  const handleSaveAlerts = async () => {
+    if (!account || !signMessage) return;
+    try {
+      const nonce = await getNonce(account.address);
+      if (nonce === null) throw new Error("Could not retrieve security nonce.");
+
+      const issuedAt = new Date().toISOString();
+      const payloadMsg = JSON.stringify({
+        action: 'save-alerts',
+        address: account.address.toLowerCase(),
+        issuedAt,
+        nonce: String(nonce)
+      });
+
+      const response = await signMessage({
+        address: true,
+        application: true,
+        chainId: true,
+        message: payloadMsg,
+        nonce: String(nonce)
+      });
+
+      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+
+      await saveAlertConfig(
+        account.address,
+        alertConfig,
+        {
+          publicKey: account.publicKey,
+          signature
+        },
+        payloadMsg,
+        nonce
+      );
+
+      alert('Alert settings saved successfully!');
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to save alert settings: ' + err.message);
+    }
+  };
+
+  const handleTestAlerts = async () => {
+    if (!account || !signMessage) return;
+    try {
+      const nonce = await getNonce(account.address);
+      if (nonce === null) throw new Error("Could not retrieve security nonce.");
+
+      const issuedAt = new Date().toISOString();
+      const payloadMsg = JSON.stringify({
+        action: 'test-alerts',
+        address: account.address.toLowerCase(),
+        issuedAt,
+        nonce: String(nonce)
+      });
+
+      const response = await signMessage({
+        address: true,
+        application: true,
+        chainId: true,
+        message: payloadMsg,
+        nonce: String(nonce)
+      });
+
+      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+
+      const res = await testAlerts(
+        account.address,
+        {
+          publicKey: account.publicKey,
+          signature
+        },
+        payloadMsg,
+        nonce
+      );
+
+      if (res && res.success) {
+        alert(`Test alerts dispatched! Triggered channels: ${res.channelsTriggered.join(', ') || 'none'}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to send test alerts: ' + err.message);
+    }
+  };
+
+  const handleConfirmDiscordLink = async () => {
+    if (!account || !signMessage) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+    try {
+      const nonce = await getNonce(account.address);
+      if (nonce === null) throw new Error("Could not retrieve security nonce.");
+
+      const issuedAt = new Date().toISOString();
+      const payloadMsg = JSON.stringify({
+        action: 'link-discord',
+        address: account.address.toLowerCase(),
+        discord_user_id: discordLinkTarget,
+        issuedAt,
+        nonce: String(nonce)
+      });
+
+      const response = await signMessage({
+        address: true,
+        application: true,
+        chainId: true,
+        message: payloadMsg,
+        nonce: String(nonce)
+      });
+
+      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+
+      await linkDiscord(
+        account.address,
+        discordLinkTarget!,
+        {
+          publicKey: account.publicKey,
+          signature
+        },
+        payloadMsg,
+        nonce
+      );
+
+      alert('Discord account successfully linked!');
+      setDiscordLinkTarget(null);
+      
+      // Auto unlock and fetch new state
+      setIsAlertsUnlocked(true);
+      setAlertConfig((prev: any) => ({ ...prev, discord_user_id: discordLinkTarget, discord_enabled: true }));
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to link Discord account: ' + err.message);
+    }
+  };
 
   const accountSettingsKey = account?.address ? getSettingsStorageKey(account.address) : null;
   const settingsKey = accountSettingsKey || getSettingsStorageKey(null);
@@ -170,6 +408,200 @@ export default function Settings() {
               </select>
             </div>
           </div>
+
+          {/* Alerts Configuration Banner & Sections */}
+          {discordLinkTarget && (
+            <div className="discord-link-banner">
+              <h3>Discord Link Request</h3>
+              <p>Do you want to link your current wallet address with Discord User ID <code>{discordLinkTarget}</code>?</p>
+              <div className="banner-actions">
+                <button onClick={handleConfirmDiscordLink} className="confirm-btn">Confirm & Link</button>
+                <button onClick={() => setDiscordLinkTarget(null)} className="cancel-btn">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {!account ? (
+            <div className="settings-section alerts-locked">
+              <h2 className="section-title">🚨 Real-time Alerts</h2>
+              <div className="pro-lock-card">
+                <p>Connect your wallet to configure alert settings.</p>
+              </div>
+            </div>
+          ) : !isPro ? (
+            <div className="settings-section alerts-locked">
+              <h2 className="section-title">🚨 Real-time Alerts (Pro Feature)</h2>
+              <div className="pro-lock-card">
+                <div className="lock-icon">🔒</div>
+                <p>Real-time notifications via Email, Telegram, and Discord are exclusive to <b>Pro/Premium</b> users.</p>
+                <a href="/plans" className="upgrade-btn">Upgrade to Pro</a>
+              </div>
+            </div>
+          ) : !isAlertsUnlocked ? (
+            <div className="settings-section">
+              <h2 className="section-title">🚨 Real-time Alerts</h2>
+              <p className="section-desc">Verify your wallet ownership to view and update your Telegram, Discord, and Email transaction alerts.</p>
+              <button onClick={handleUnlockAlerts} className="auth-alerts-btn" disabled={loadingAlerts}>
+                {loadingAlerts ? 'Signing...' : '🔑 Authenticate Alerts Settings'}
+              </button>
+            </div>
+          ) : (
+            <div className="settings-section alerts-active">
+              <h2 className="section-title">🚨 Real-time Alerts</h2>
+              
+              {/* Email Alerts */}
+              <div className="setting-item">
+                <div className="setting-info">
+                  <label>Email Alerts</label>
+                  <span className="setting-description">Receive transaction updates in your inbox</span>
+                </div>
+                <div className="setting-controls">
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={alertConfig.email_enabled}
+                      onChange={(e) => setAlertConfig({ ...alertConfig, email_enabled: e.target.checked })}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+              {alertConfig.email_enabled && (
+                <div className="sub-setting-item">
+                  <input
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={alertConfig.email || ''}
+                    onChange={(e) => setAlertConfig({ ...alertConfig, email: e.target.value })}
+                    className="alert-input-text"
+                  />
+                </div>
+              )}
+
+              {/* Telegram Alerts */}
+              <div className="setting-item">
+                <div className="setting-info">
+                  <label>Telegram Alerts</label>
+                  <span className="setting-description">Receive real-time notifications in Telegram</span>
+                </div>
+                <div className="setting-controls">
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={alertConfig.telegram_enabled}
+                      disabled={!alertConfig.telegram_chat_id}
+                      onChange={(e) => setAlertConfig({ ...alertConfig, telegram_enabled: e.target.checked })}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+              <div className="sub-setting-item status-info">
+                {alertConfig.telegram_chat_id ? (
+                  <span className="status-linked">Linked Telegram Chat ID: <code>{alertConfig.telegram_chat_id}</code></span>
+                ) : (
+                  <span className="status-unlinked">
+                    Not Linked. Click <a href={`https://t.me/DaftarFi_bot?start=${account.address}`} target="_blank" rel="noreferrer">here to start @DaftarFi_bot</a> and pair your account.
+                  </span>
+                )}
+              </div>
+
+              {/* Discord Alerts */}
+              <div className="setting-item">
+                <div className="setting-info">
+                  <label>Discord Alerts</label>
+                  <span className="setting-description">Receive DMs from our Discord Bot</span>
+                </div>
+                <div className="setting-controls">
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={alertConfig.discord_enabled}
+                      disabled={!alertConfig.discord_user_id}
+                      onChange={(e) => setAlertConfig({ ...alertConfig, discord_enabled: e.target.checked })}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+              <div className="sub-setting-item status-info">
+                {alertConfig.discord_user_id ? (
+                  <span className="status-linked">Linked Discord User ID: <code>{alertConfig.discord_user_id}</code></span>
+                ) : (
+                  <span className="status-unlinked">
+                    Not Linked. Connect your account using the <code>/link</code> command in Discord.
+                  </span>
+                )}
+              </div>
+
+              {/* Alert Criteria Rules */}
+              <div className="alert-rules-box">
+                <h3 className="sub-section-title">Notification Rules</h3>
+                
+                <div className="setting-item">
+                  <div className="setting-info">
+                    <label>Minimum Transaction Value ($ USD)</label>
+                    <span className="setting-description">Only alert for transfers exceeding this amount</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    value={alertConfig.min_amount_usd}
+                    onChange={(e) => setAlertConfig({ ...alertConfig, min_amount_usd: Math.max(0, Number(e.target.value)) })}
+                    className="alert-input-number"
+                  />
+                </div>
+
+                <div className="rule-checkboxes">
+                  <label className="rule-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={alertConfig.alert_on_received}
+                      onChange={(e) => setAlertConfig({ ...alertConfig, alert_on_received: e.target.checked })}
+                    />
+                    <span>Alert on Incoming Funds (Received)</span>
+                  </label>
+
+                  <label className="rule-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={alertConfig.alert_on_withdrawal}
+                      onChange={(e) => setAlertConfig({ ...alertConfig, alert_on_withdrawal: e.target.checked })}
+                    />
+                    <span>Alert on Outgoing Funds (Withdrawal)</span>
+                  </label>
+
+                  <label className="rule-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={alertConfig.alert_on_swaps}
+                      onChange={(e) => setAlertConfig({ ...alertConfig, alert_on_swaps: e.target.checked })}
+                    />
+                    <span>Alert on Swap Actions</span>
+                  </label>
+
+                  <label className="rule-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={alertConfig.alert_on_failed}
+                      onChange={(e) => setAlertConfig({ ...alertConfig, alert_on_failed: e.target.checked })}
+                    />
+                    <span>Alert on Failed Transactions</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="alert-settings-actions">
+                <button onClick={handleTestAlerts} className="test-alerts-btn">
+                  🧪 Send Test Notification
+                </button>
+                <button onClick={handleSaveAlerts} className="save-alerts-btn">
+                  💾 Save Alert Preferences
+                </button>
+              </div>
+            </div>
+          )}
 
         </div>
 

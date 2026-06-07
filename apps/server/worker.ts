@@ -5,12 +5,18 @@ import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { startNFTPriceWorker } from './src/services/nftPriceWorker.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { processSyncQueue } from './src/services/analyticsSyncQueue.ts';
+import { initTelegramBot } from './src/bots/telegram/telegramBot.ts';
+import { initDiscordBot } from './src/bots/discord/discordBot.ts';
 
 dotenv.config();
 
 const supabaseAdmin = getSupabase();
 
 console.log('[Worker] Starting background workers...');
+
+// Start Telegram and Discord bots
+initTelegramBot();
+initDiscordBot();
 
 // Start background price pitcher
 startPricePitcher(supabaseAdmin);

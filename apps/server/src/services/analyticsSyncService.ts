@@ -4,6 +4,7 @@ import { KNOWN_EXCHANGES } from '../config/whitelists.ts';
 import CONFIG from '../config/index.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { reconstructHistoricalBalances } from './portfolioService.ts';
+import { dispatchAlertsForTransactions } from './notificationService.ts';
 import {
   TRADEPORT_SUFFIX_MAP,
   processTradeportAssets,
@@ -938,11 +939,18 @@ export async function syncFullUserHistory(
       const labelsMap = await getLabelsForAddresses(supabase, counterparties);
 
       const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap, entitiesList));
-      const { error: upsertError } = await supabase
+       const { error: upsertError } = await supabase
         .from('user_transaction_history')
         .upsert(enriched, { onConflict: 'user_address,version' });
 
       if (upsertError) throw upsertError;
+
+      // Dispatch real-time alerts for the new forward-synced transactions
+      try {
+        await dispatchAlertsForTransactions(supabase, address, enriched);
+      } catch (alertErr) {
+        console.error(`[DeepSync] Alert dispatch failed for ${address}:`, alertErr);
+      }
 
 
       totalSynced += txs.length;

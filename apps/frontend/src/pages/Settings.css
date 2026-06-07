@@ -341,3 +341,323 @@ body[data-theme='light'] .reset-btn {
     width: 100%;
   }
 }
+
+/* Alerts and Notifications Premium UI Styling */
+.alerts-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.pro-lock-card {
+  width: 100%;
+  background: rgba(205, 161, 105, 0.04);
+  border: 1px dashed rgba(205, 161, 105, 0.25);
+  border-radius: 16px;
+  padding: 30px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
+}
+
+.lock-icon {
+  font-size: 36px;
+  filter: drop-shadow(0 4px 10px rgba(205, 161, 105, 0.3));
+  animation: pulseLock 2.5s infinite ease-in-out;
+}
+
+@keyframes pulseLock {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); filter: drop-shadow(0 4px 15px rgba(205, 161, 105, 0.5)); }
+  100% { transform: scale(1); }
+}
+
+.pro-lock-card p {
+  color: #8a7d6f;
+  font-size: 14px;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+.upgrade-btn {
+  background: linear-gradient(135deg, #cda169 0%, #a77b43 100%);
+  color: #14110f;
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(205, 161, 105, 0.25);
+}
+
+.upgrade-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(205, 161, 105, 0.4);
+}
+
+.section-desc {
+  font-size: 14px;
+  color: #8a7d6f;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.auth-alerts-btn {
+  background: rgba(205, 161, 105, 0.08);
+  border: 1px solid rgba(205, 161, 105, 0.35);
+  color: #cda169;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.auth-alerts-btn:hover:not(:disabled) {
+  background: rgba(205, 161, 105, 0.15);
+  border-color: #cda169;
+  box-shadow: 0 0 15px rgba(205, 161, 105, 0.2);
+  transform: translateY(-2px);
+}
+
+.sub-setting-item {
+  margin-top: -8px;
+  margin-bottom: 16px;
+  padding-left: 0;
+  width: 100%;
+}
+
+.alert-input-text {
+  background: rgba(26, 22, 20, 0.45);
+  border: 1px solid rgba(205, 161, 105, 0.2);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #ffffff;
+  width: 100%;
+  max-width: 400px;
+  transition: all 0.3s ease;
+}
+
+.alert-input-text:focus {
+  outline: none;
+  border-color: #cda169;
+  background: rgba(31, 27, 24, 0.8);
+  box-shadow: 0 0 10px rgba(205, 161, 105, 0.15);
+}
+
+.status-info {
+  font-size: 13px;
+  color: #8a7d6f;
+}
+
+.status-linked {
+  color: #2ec4b6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-unlinked {
+  color: #e76f51;
+}
+
+.status-unlinked a {
+  color: #cda169;
+  text-decoration: underline;
+}
+
+.status-unlinked a:hover {
+  color: #fff;
+}
+
+.alert-rules-box {
+  background: rgba(26, 22, 20, 0.25);
+  border: 1px solid rgba(205, 161, 105, 0.1);
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.sub-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #cda169;
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.alert-input-number {
+  background: rgba(26, 22, 20, 0.45);
+  border: 1px solid rgba(205, 161, 105, 0.2);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #ffffff;
+  max-width: 120px;
+  text-align: right;
+}
+
+.alert-input-number:focus {
+  outline: none;
+  border-color: #cda169;
+}
+
+.rule-checkboxes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.rule-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  color: #ffffff;
+  font-size: 13px;
+  user-select: none;
+}
+
+.rule-checkbox-label input {
+  accent-color: #cda169;
+  width: 16px;
+  height: 16px;
+}
+
+.rule-checkbox-label span {
+  color: #d1c7bd;
+  transition: color 0.2s ease;
+}
+
+.rule-checkbox-label:hover span {
+  color: #ffffff;
+}
+
+.alert-settings-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 30px;
+  gap: 16px;
+}
+
+.test-alerts-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #d1c7bd;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 13px;
+}
+
+.test-alerts-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #ffffff;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.save-alerts-btn {
+  background: linear-gradient(135deg, #cda169 0%, #a77b43 100%);
+  color: #14110f;
+  padding: 12px 28px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 13px;
+  border: none;
+  box-shadow: 0 4px 15px rgba(205, 161, 105, 0.2);
+}
+
+.save-alerts-btn:hover {
+  background: linear-gradient(135deg, #deb884 0%, #cda169 100%);
+  box-shadow: 0 8px 25px rgba(205, 161, 105, 0.35);
+  transform: translateY(-2px);
+}
+
+.discord-link-banner {
+  background: linear-gradient(135deg, #5865F2 0%, #404EED 100%);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px rgba(88, 101, 242, 0.25);
+  color: #ffffff;
+}
+
+.discord-link-banner h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.discord-link-banner p {
+  font-size: 13px;
+  opacity: 0.9;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.banner-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.banner-actions button {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.banner-actions .confirm-btn {
+  background: #ffffff;
+  color: #5865F2;
+  border: none;
+}
+
+.banner-actions .confirm-btn:hover {
+  background: #e2e4f9;
+}
+
+.banner-actions .cancel-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.banner-actions .cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+  .rule-checkboxes {
+    grid-template-columns: 1fr;
+  }
+  .alert-settings-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .test-alerts-btn, .save-alerts-btn {
+    width: 100%;
+  }
+}
+

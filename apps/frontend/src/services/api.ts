@@ -458,6 +458,89 @@ export const manageReports = async (
   return response;
 };
 
+export const getAlertConfig = async (
+  address: string,
+  signature: any,
+  message: string,
+  nonce: number
+): Promise<any> => {
+  const qs = new URLSearchParams({
+    address: normalizeAddress(address),
+    signature: typeof signature === 'string' ? signature : JSON.stringify(signature),
+    message,
+    nonce: String(nonce)
+  });
+  const response = await callApi<any>(`/api/alerts/config?${qs.toString()}`);
+  return response.ok ? response.data : null;
+};
+
+export const saveAlertConfig = async (
+  address: string,
+  config: any,
+  signature: any,
+  signedMessage: string,
+  nonce: number
+): Promise<any> => {
+  const response = await callApi<any>('/api/alerts/config', {
+    method: 'POST',
+    body: JSON.stringify({
+      address: normalizeAddress(address),
+      ...config,
+      signature,
+      signedMessage,
+      nonce
+    })
+  });
+  if (!response.ok) {
+    throw new Error(response.error || 'Failed to save alert configuration');
+  }
+  return response.data;
+};
+
+export const linkDiscord = async (
+  address: string,
+  discordUserId: string,
+  signature: any,
+  signedMessage: string,
+  nonce: number
+): Promise<any> => {
+  const response = await callApi<any>('/api/alerts/link-discord', {
+    method: 'POST',
+    body: JSON.stringify({
+      address: normalizeAddress(address),
+      discord_user_id: discordUserId,
+      signature,
+      signedMessage,
+      nonce
+    })
+  });
+  if (!response.ok) {
+    throw new Error(response.error || 'Failed to link Discord account');
+  }
+  return response.data;
+};
+
+export const testAlerts = async (
+  address: string,
+  signature: any,
+  signedMessage: string,
+  nonce: number
+): Promise<any> => {
+  const response = await callApi<any>('/api/alerts/test', {
+    method: 'POST',
+    body: JSON.stringify({
+      address: normalizeAddress(address),
+      signature,
+      signedMessage,
+      nonce
+    })
+  });
+  if (!response.ok) {
+    throw new Error(response.error || 'Failed to send test notification');
+  }
+  return response.data;
+};
+
 export default {
   getProfile,
   getNFTCollectionStats,
@@ -493,5 +576,10 @@ export default {
   setSubscriptionPaymentConfig,
   submitFeedback,
   submitBugReport,
-  manageReports
+  manageReports,
+  getAlertConfig,
+  saveAlertConfig,
+  linkDiscord,
+  testAlerts
 };
+
