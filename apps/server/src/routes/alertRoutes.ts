@@ -4,7 +4,7 @@ import { normalizeAddress } from '../utils/address.ts';
 import fs from 'fs';
 import { generalLimiter } from '../middleware/rateLimit.ts';
 import { checkRateLimit, checkAndBurnNonce } from '../services/dbService.ts';
-import { verifyWalletSignature } from '../utils/crypto.ts';
+import { verifyWalletSignature, sigVerificationLogs } from '../utils/crypto.ts';
 import { getEffectiveTier } from '../services/subscriptionService.ts';
 import { isPremiumTier } from '@daftar/shared-types';
 import { sendEmailAlert, sendTelegramAlert, sendDiscordAlert } from '../services/notificationService.ts';
@@ -517,12 +517,15 @@ router.get('/sig-debug-log', async (req: Request, res: Response) => {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   try {
+    let fileLogs = '';
     const logPath = 'sig_debug.log';
     if (fs.existsSync(logPath)) {
-      const content = fs.readFileSync(logPath, 'utf8');
-      return res.status(200).json({ logs: content });
+      fileLogs = fs.readFileSync(logPath, 'utf8');
     }
-    return res.status(200).json({ logs: 'No log file found' });
+    return res.status(200).json({
+      inMemoryLogs: sigVerificationLogs,
+      fileLogs: fileLogs || 'No file logs found'
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
