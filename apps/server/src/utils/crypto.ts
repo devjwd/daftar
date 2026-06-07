@@ -28,6 +28,22 @@ export const verifyWalletSignature = (
   signaturePayload: unknown,
   maxAgeMinutes: number = 5
 ): boolean => {
+  const logFail = (reason: string, details?: any) => {
+    try {
+      fs.appendFileSync(
+        'sig_debug.log',
+        `[${new Date().toISOString()}] FAIL: ${reason}\n` +
+        `Wallet: ${walletAddress}\n` +
+        `Message: ${String(message)}\n` +
+        `Payload: ${JSON.stringify(signaturePayload, null, 2)}\n` +
+        `Details: ${JSON.stringify(details || {}, null, 2)}\n` +
+        `--------------------\n`
+      );
+    } catch (e: any) {
+      console.error('Failed to write to sig_debug.log:', e.message);
+    }
+  };
+
   const parsed = parseSignaturePayload(signaturePayload);
 
   // Extract values, handling potential nesting (e.g. from some wallets)
@@ -41,12 +57,12 @@ export const verifyWalletSignature = (
 
   if (!publicKeyInput || !signatureInput || !message) {
     console.warn('[Verification] Missing required signature components');
+    logFail('Missing components', { publicKeyInput, signatureInput, hasMessage: !!message });
     return false;
   }
 
   const publicKeyStr = typeof publicKeyInput === 'string' ? publicKeyInput.trim() : publicKeyInput;
   const signatureStr = typeof signatureInput === 'string' ? signatureInput.trim() : signatureInput;
-
 
   // Parse message for timestamp/nonce if it's JSON
   let signedAt: number | null = null;
@@ -82,7 +98,7 @@ export const verifyWalletSignature = (
         }
       }
     }
-  } catch {
+  } catch (err: any) {
     // Ignore parse error on message, treat as raw string
   }
 
@@ -96,6 +112,7 @@ export const verifyWalletSignature = (
     // Allow 1 minute buffer for clock drift (negative age)
     if (ageMs < -60000 || ageMs > maxAgeMinutes * 60 * 1000) {
       console.warn(`[Verification] Timestamp expired or too far in future: ageMs=${ageMs}`);
+      logFail('Timestamp validation failed', { ageMs, signedAt, now });
       return false;
     }
   } else if (maxAgeMinutes) {
@@ -110,7 +127,6 @@ export const verifyWalletSignature = (
         return Array.from(val as Uint8Array).map(b => b.toString(16).padStart(2, '0')).join('');
       }
       if (val && typeof val === 'object') {
-        // Handle indexed object {0: 1, 1: 2...} which can happen if JSON.stringified Uint8Array
         const record = val as Record<string, number>;
         const keys = Object.keys(record).filter(k => !isNaN(Number(k)));
         if (keys.length > 0) {
@@ -141,9 +157,7 @@ export const verifyWalletSignature = (
 
     if (!verified) {
       console.warn('[Verification] Ed25519 verifySignature returned false');
-      try {
-        fs.appendFileSync('sig_debug.log', `[${new Date().toISOString()}] VERIFY RETURNED FALSE\nWallet: ${walletAddress}\nMessage: ${message}\nPayload: ${JSON.stringify(signaturePayload, null, 2)}\nPublicKeyHex: ${finalPublicKey}\nSigHex: ${finalSignature}\n--------------------\n`);
-      } catch {}
+      logFail('Ed25519 verification false', { finalPublicKey, finalSignature });
       return false;
     }
 
@@ -153,18 +167,14 @@ export const verifyWalletSignature = (
     const match = derivedAddress === normalizedWalletAddr;
     if (!match) {
       console.warn(`[Verification] Address mismatch: Derived=${derivedAddress}, Requested=${normalizedWalletAddr}`);
-      try {
-        fs.appendFileSync('sig_debug.log', `[${new Date().toISOString()}] ADDRESS MISMATCH\nWallet: ${walletAddress}\nDerived: ${derivedAddress}\n--------------------\n`);
-      } catch {}
+      logFail('Address mismatch', { derivedAddress, normalizedWalletAddr });
     }
 
     return match;
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error('[Verification] Crypto error:', error.message, '| Stack:', error.stack);
-    try {
-      fs.appendFileSync('sig_debug.log', `[${new Date().toISOString()}] CRYPTO ERROR\nError: ${error.message}\n--------------------\n`);
-    } catch {}
+    logFail('Crypto error', { error: error.message, stack: error.stack });
     return false;
   }
 };
