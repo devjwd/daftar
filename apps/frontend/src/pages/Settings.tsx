@@ -158,9 +158,6 @@ export default function Settings() {
       });
 
       const response = await signMessage({
-        address: true,
-        application: true,
-        chainId: true,
         message: payloadMsg,
         nonce: String(nonce)
       });
@@ -204,9 +201,6 @@ export default function Settings() {
       });
 
       const response = await signMessage({
-        address: true,
-        application: true,
-        chainId: true,
         message: payloadMsg,
         nonce: String(nonce)
       });
@@ -247,9 +241,6 @@ export default function Settings() {
       });
 
       const response = await signMessage({
-        address: true,
-        application: true,
-        chainId: true,
         message: payloadMsg,
         nonce: String(nonce)
       });
@@ -289,9 +280,6 @@ export default function Settings() {
       });
 
       const response = await signMessage({
-        address: true,
-        application: true,
-        chainId: true,
         message: payloadMsg,
         nonce: String(nonce)
       });
@@ -336,9 +324,6 @@ export default function Settings() {
       });
 
       const response = await signMessage({
-        address: true,
-        application: true,
-        chainId: true,
         message: payloadMsg,
         nonce: String(nonce)
       });
@@ -384,9 +369,6 @@ export default function Settings() {
       });
 
       const response = await signMessage({
-        address: true,
-        application: true,
-        chainId: true,
         message: payloadMsg,
         nonce: String(nonce)
       });
@@ -432,9 +414,6 @@ export default function Settings() {
       });
 
       const response = await signMessage({
-        address: true,
-        application: true,
-        chainId: true,
         message: payloadMsg,
         nonce: String(nonce)
       });
