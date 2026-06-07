@@ -648,3 +648,55 @@ END $$;
 -- 11. DYNAMIC CONFIGURATION MIGRATION
 ALTER TABLE public.tracked_entities ADD COLUMN IF NOT EXISTS keywords TEXT[] DEFAULT '{}';
 
+-- ----------------------------------------------------------------------------
+-- 12. SUBSCRIPTION PAYMENTS TABLE
+-- Ledger for on-chain MOVE token payments used to activate Pro subscriptions.
+-- The UNIQUE constraint on tx_hash prevents a single on-chain transaction
+-- from being submitted more than once (replay-attack protection).
+-- ----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.subscription_payments (
+  id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  wallet_address TEXT         NOT NULL,
+  tx_hash        TEXT         NOT NULL UNIQUE,
+  amount_octas   BIGINT       NOT NULL,
+  price_usd      NUMERIC(12, 4) NOT NULL,
+  move_price_usd NUMERIC(12, 6) NOT NULL,
+  duration_days  INTEGER      NOT NULL DEFAULT 30,
+  expires_at     TIMESTAMPTZ  NOT NULL,
+  created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscription_payments_wallet
+  ON public.subscription_payments (wallet_address);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_payments_tx_hash
+  ON public.subscription_payments (tx_hash);
+
+-- RLS
+ALTER TABLE public.subscription_payments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role full access on subscription_payments"
+  ON public.subscription_payments FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+CREATE POLICY "Users read own subscription_payments"
+  ON public.subscription_payments FOR SELECT TO authenticated
+  USING (wallet_address = lower(auth.jwt() ->> 'sub'));
+
+-- ----------------------------------------------------------------------------
+-- 13. SUBSCRIPTION PRICING CONFIG (system_config keys)
+-- These rows are managed by the admin panel (Plans tab → Payment Settings).
+-- Insert defaults so the GET /api/plans/config endpoint returns something
+-- sensible even before the admin has saved any values.
+-- ----------------------------------------------------------------------------
+
+INSERT INTO public.system_config (key, value, updated_at)
+VALUES
+  ('subscription_price_usd',          '"5"',  now()),
+  ('subscription_discount_price_usd', '""',   now()),
+  ('subscription_discount_label',     '""',   now()),
+  ('subscription_treasury_wallet',    '""',   now()),
+  ('subscription_duration_days',      '"30"', now())
+ON CONFLICT (key) DO NOTHING;
+

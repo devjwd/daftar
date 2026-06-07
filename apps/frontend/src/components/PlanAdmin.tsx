@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { managePlan } from '../services/api';
+import { managePlan, getPlansConfig, setSubscriptionPaymentConfig } from '../services/api';
 import { createAdminProofHeaders } from '../services/adminProof';
 
 interface UserProfile {
@@ -33,6 +33,18 @@ export default function PlanAdmin() {
   const [editTier, setEditTier] = useState<'free' | 'pro'>('pro');
   const [editExpiresAt, setEditExpiresAt] = useState<string>('');
 
+  // Payment config state
+  const [paymentConfig, setPaymentConfig] = useState({
+    price_usd: 5,
+    discount_price_usd: '' as string | number,
+    discount_label: '',
+    treasury_wallet: '',
+    duration_days: 30,
+  });
+  const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configSaving, setConfigSaving] = useState(false);
+
   const showMessage = (type: string, text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
@@ -47,6 +59,52 @@ export default function PlanAdmin() {
       body
     });
   }, [account, signMessage]);
+
+  // Load existing payment config on mount
+  useEffect(() => {
+    getPlansConfig().then(cfg => {
+      if (cfg) {
+        setPaymentConfig({
+          price_usd: cfg.basePriceUsd,
+          discount_price_usd: cfg.discountPriceUsd !== null ? cfg.discountPriceUsd : '',
+          discount_label: cfg.discountLabel,
+          treasury_wallet: cfg.treasuryWallet,
+          duration_days: cfg.durationDays,
+        });
+        setDiscountEnabled(cfg.discountPriceUsd !== null && cfg.discountPriceUsd > 0);
+      }
+      setConfigLoading(false);
+    }).catch(() => setConfigLoading(false));
+  }, []);
+
+  const handleSavePaymentConfig = useCallback(async () => {
+    if (!account || !signMessage) {
+      showMessage('error', 'Wallet not connected');
+      return;
+    }
+    setConfigSaving(true);
+    try {
+      const payload = {
+        ...paymentConfig,
+        discount_price_usd: discountEnabled && paymentConfig.discount_price_usd !== ''
+          ? Number(paymentConfig.discount_price_usd)
+          : '',
+        discount_label: discountEnabled ? paymentConfig.discount_label : '',
+      };
+      const body = { method: 'SET_PAYMENT_CONFIG', ...payload };
+      const auth = await createAdminProofHeaders({ account, signMessage, action: 'manage-subscriptions', body });
+      const result = await setSubscriptionPaymentConfig(payload, auth);
+      if (result.ok) {
+        showMessage('success', 'Payment settings saved successfully!');
+      } else {
+        showMessage('error', result.error || 'Failed to save config');
+      }
+    } catch (err: any) {
+      showMessage('error', err.message);
+    } finally {
+      setConfigSaving(false);
+    }
+  }, [paymentConfig, discountEnabled, account, signMessage]);
 
   const fetchUsers = useCallback(async (query = '', filter = 'all') => {
     setLoading(true);
@@ -89,7 +147,7 @@ export default function PlanAdmin() {
         tier,
         expires_at: isoExpiresAt
       };
-      
+
       const auth = await createAuth(body);
       const res = await managePlan(body as any, auth);
 
@@ -106,7 +164,7 @@ export default function PlanAdmin() {
         } else {
           setEditingAddress(null);
         }
-        
+
         // Reload all users
         fetchUsers(searchQuery, tierFilter);
       } else {
@@ -167,18 +225,124 @@ export default function PlanAdmin() {
 
   return (
     <div className="admin-content">
+
+      {/* ── Subscription Payment Settings ── */}
+      <div className="admin-settings-card" style={{ marginBottom: '28px', borderColor: 'rgba(205,161,105,0.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>💳 Subscription Payment Settings</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>
+              Configure MOVE token payment — users can self-subscribe directly from their wallet.
+            </p>
+          </div>
+          {configLoading && <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>Loading...</span>}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          {/* Base price */}
+          <div className="admin-form-group">
+            <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Base Price (USD / month)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={paymentConfig.price_usd}
+              onChange={e => setPaymentConfig(p => ({ ...p, price_usd: Number(e.target.value) }))}
+              style={{ marginTop: '6px', width: '100%' }}
+            />
+            <small className="admin-field-hint">Standard Pro plan price in USD.</small>
+          </div>
+
+          {/* Duration */}
+          <div className="admin-form-group">
+            <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Subscription Duration (days)</label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={paymentConfig.duration_days}
+              onChange={e => setPaymentConfig(p => ({ ...p, duration_days: Number(e.target.value) }))}
+              style={{ marginTop: '6px', width: '100%' }}
+            />
+            <small className="admin-field-hint">How many days the Pro tier lasts per payment.</small>
+          </div>
+
+          {/* Treasury wallet — full width */}
+          <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
+            <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Treasury Wallet Address</label>
+            <input
+              type="text"
+              placeholder="0x..."
+              value={paymentConfig.treasury_wallet}
+              onChange={e => setPaymentConfig(p => ({ ...p, treasury_wallet: e.target.value }))}
+              style={{ marginTop: '6px', width: '100%', fontFamily: 'monospace' }}
+            />
+            <small className="admin-field-hint">MOVE payments will be sent to this wallet address.</small>
+          </div>
+        </div>
+
+        {/* Discount section */}
+        <div style={{ marginTop: '20px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <label className="admin-checkbox" style={{ marginBottom: discountEnabled ? '16px' : 0 }}>
+            <input
+              type="checkbox"
+              checked={discountEnabled}
+              onChange={e => setDiscountEnabled(e.target.checked)}
+            />
+            Enable Discount Pricing
+          </label>
+
+          {discountEnabled && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px' }}>
+              <div className="admin-form-group">
+                <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Discounted Price (USD)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.25"
+                  placeholder="e.g. 1"
+                  value={paymentConfig.discount_price_usd}
+                  onChange={e => setPaymentConfig(p => ({ ...p, discount_price_usd: e.target.value }))}
+                  style={{ marginTop: '6px', width: '100%' }}
+                />
+              </div>
+              <div className="admin-form-group">
+                <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Discount Label</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Launch Special"
+                  value={paymentConfig.discount_label}
+                  onChange={e => setPaymentConfig(p => ({ ...p, discount_label: e.target.value }))}
+                  style={{ marginTop: '6px', width: '100%' }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: '20px', display: 'flex', gap: '12px' }}>
+          <button
+            className="admin-btn admin-btn-primary"
+            onClick={handleSavePaymentConfig}
+            disabled={configSaving || configLoading}
+          >
+            {configSaving ? 'Saving...' : 'Save Payment Settings'}
+          </button>
+        </div>
+      </div>
+
       <div className="admin-list-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <h2 style={{ margin: 0 }}>User Plans</h2>
-            <button 
-              className="admin-btn admin-btn-primary admin-btn-small" 
+            <button
+              className="admin-btn admin-btn-primary admin-btn-small"
               onClick={() => setShowAddModal(true)}
             >
               + Create Plan Override
             </button>
           </div>
-          
+
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             {/* Filter by Tier */}
             <select
@@ -199,9 +363,9 @@ export default function PlanAdmin() {
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
               </div>
-              <input 
-                type="text" 
-                placeholder="Search address or username..." 
+              <input
+                type="text"
+                placeholder="Search address or username..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && fetchUsers(searchQuery, tierFilter)}
@@ -220,9 +384,9 @@ export default function PlanAdmin() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
               <div className="admin-form-group">
                 <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Wallet Address</label>
-                <input 
-                  type="text" 
-                  placeholder="0x..." 
+                <input
+                  type="text"
+                  placeholder="0x..."
                   value={newAddress}
                   onChange={(e) => setNewAddress(e.target.value)}
                   style={{ width: '100%', marginTop: '4px' }}
@@ -246,8 +410,8 @@ export default function PlanAdmin() {
                 {newTier !== 'free' && (
                   <div className="admin-form-group">
                     <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Expiry Date (Optional)</label>
-                    <input 
-                      type="datetime-local" 
+                    <input
+                      type="datetime-local"
                       value={newExpiresAt}
                       onChange={(e) => setNewExpiresAt(e.target.value)}
                       style={{ width: '100%', marginTop: '4px' }}
@@ -262,15 +426,15 @@ export default function PlanAdmin() {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button 
-                  className="admin-btn admin-btn-primary" 
+                <button
+                  className="admin-btn admin-btn-primary"
                   onClick={() => handleUpdateSubscription(newAddress, newTier, newTier === 'free' ? null : newExpiresAt, true)}
                   disabled={addLoading || !newAddress.startsWith('0x')}
                 >
                   {addLoading ? 'Processing...' : 'Apply Plan'}
                 </button>
-                <button 
-                  className="admin-btn admin-btn-secondary" 
+                <button
+                  className="admin-btn admin-btn-secondary"
                   onClick={() => { setShowAddModal(false); setNewAddress(''); setNewExpiresAt(''); }}
                 >
                   Cancel
@@ -311,8 +475,8 @@ export default function PlanAdmin() {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <strong>{user.username || 'Anonymous'}</strong>
-                            <span className={`current-plan-badge`} style={{ 
-                              background: displayTier === 'pro' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(255,255,255,0.05)', 
+                            <span className={`current-plan-badge`} style={{
+                              background: displayTier === 'pro' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(255,255,255,0.05)',
                               color: displayTier === 'pro' ? '#a78bfa' : '#888',
                               border: displayTier === 'pro' ? '1px solid rgba(139, 92, 246, 0.2)' : '1px solid rgba(255,255,255,0.1)'
                             }}>
@@ -327,7 +491,7 @@ export default function PlanAdmin() {
 
                       {!isEditing && (
                         <div className="admin-item-actions">
-                          <button 
+                          <button
                             className="admin-btn admin-btn-secondary admin-btn-small"
                             onClick={() => startEditing(user)}
                             disabled={actionLoading !== null}
@@ -359,8 +523,8 @@ export default function PlanAdmin() {
                           {editTier !== 'free' && (
                             <div className="admin-form-group" style={{ flex: 2, minWidth: '220px' }}>
                               <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>Expiry Date (Optional)</label>
-                              <input 
-                                type="datetime-local" 
+                              <input
+                                type="datetime-local"
                                 value={editExpiresAt}
                                 onChange={(e) => setEditExpiresAt(e.target.value)}
                                 style={{ width: '100%', marginTop: '4px' }}
@@ -375,15 +539,15 @@ export default function PlanAdmin() {
                         </div>
 
                         <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-                          <button 
-                            className="admin-btn admin-btn-primary admin-btn-small" 
+                          <button
+                            className="admin-btn admin-btn-primary admin-btn-small"
                             onClick={() => handleUpdateSubscription(user.wallet_address, editTier, editTier === 'free' ? null : editExpiresAt)}
                             disabled={actionLoading === user.wallet_address}
                           >
                             {actionLoading === user.wallet_address ? 'Saving...' : 'Save Changes'}
                           </button>
-                          <button 
-                            className="admin-btn admin-btn-secondary admin-btn-small" 
+                          <button
+                            className="admin-btn admin-btn-secondary admin-btn-small"
                             onClick={() => setEditingAddress(null)}
                           >
                             Cancel

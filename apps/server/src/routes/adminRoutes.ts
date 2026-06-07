@@ -348,6 +348,32 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
         return res.json({ success: true, user: data });
       }
+
+      if (method === 'SET_PAYMENT_CONFIG') {
+        const { price_usd, discount_price_usd, discount_label, treasury_wallet, duration_days } = req.body;
+
+        if (treasury_wallet && !/^0x[a-fA-F0-9]{1,64}$/.test(treasury_wallet.trim())) {
+          return res.status(400).json({ error: 'Invalid treasury wallet address format' });
+        }
+
+        const hasDiscount = discount_price_usd !== undefined && discount_price_usd !== '' && discount_price_usd !== null;
+
+        const updates = [
+          { key: 'subscription_price_usd',          value: Number(price_usd ?? 5),         updated_at: new Date().toISOString() },
+          { key: 'subscription_discount_price_usd', value: hasDiscount ? Number(discount_price_usd) : null, updated_at: new Date().toISOString() },
+          { key: 'subscription_discount_label',     value: discount_label || null,          updated_at: new Date().toISOString() },
+          { key: 'subscription_treasury_wallet',    value: treasury_wallet ? String(treasury_wallet).trim().toLowerCase() : null, updated_at: new Date().toISOString() },
+          { key: 'subscription_duration_days',      value: Number(duration_days ?? 30),    updated_at: new Date().toISOString() },
+        ];
+
+        const { error: configError } = await supabaseAdmin
+          .from('system_config')
+          .upsert(updates, { onConflict: 'key' });
+
+        if (configError) throw configError;
+
+        return res.json({ success: true, method: 'SET_PAYMENT_CONFIG' });
+      }
     }
 
     if (action === 'manage-sync-status') {

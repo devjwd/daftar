@@ -344,6 +344,51 @@ export const getPlanList = async (): Promise<any> => {
   return response.ok ? response.data?.plans : [];
 };
 
+export const getPlansConfig = async (): Promise<{
+  basePriceUsd: number;
+  discountPriceUsd: number | null;
+  discountLabel: string;
+  treasuryWallet: string;
+  durationDays: number;
+  movePriceUsd: number;
+} | null> => {
+  const response = await callApi<any>('/api/plans/config');
+  return response.ok ? response.data : null;
+};
+
+export const verifySubscriptionPayment = async (
+  walletAddress: string,
+  txHash: string
+): Promise<{ ok: boolean; tier?: string; expiresAt?: string; error?: string }> => {
+  const response = await callApi<any>('/api/plans/verify-payment', {
+    method: 'POST',
+    body: JSON.stringify({ walletAddress, txHash }),
+  });
+  if (response.ok) {
+    return { ok: true, ...response.data };
+  }
+  return { ok: false, error: response.error || 'Verification failed' };
+};
+
+export const setSubscriptionPaymentConfig = async (
+  config: {
+    price_usd: number;
+    discount_price_usd: string | number;
+    discount_label: string;
+    treasury_wallet: string;
+    duration_days: number;
+  },
+  adminAuth: any
+): Promise<{ ok: boolean; error?: string }> => {
+  const body = { method: 'SET_PAYMENT_CONFIG', ...config };
+  const response = await callApi<any>('/api/admin/manage-badge', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'manage-subscriptions', ...body }),
+    headers: adminAuth || {},
+  });
+  return { ok: response.ok, error: response.error };
+};
+
 export const getNFTCollectionStats = async (): Promise<Record<string, { floor: number; topBid: number }>> => {
   const response = await callApi<{ collections: any[] }>('/api/prices/nft');
   if (!response.ok || !response.data?.collections) return {};
@@ -440,6 +485,9 @@ export default {
   managePlan,
   getPlanStatus,
   getPlanList,
+  getPlansConfig,
+  verifySubscriptionPayment,
+  setSubscriptionPaymentConfig,
   submitFeedback,
   submitBugReport,
   manageReports

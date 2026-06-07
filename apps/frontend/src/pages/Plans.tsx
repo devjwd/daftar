@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useProfile } from '../hooks/useProfile';
-import { getPlanList } from '../services/api';
+import { getPlanList, getPlansConfig, verifySubscriptionPayment } from '../services/api';
+import { normalizeAddress } from '../utils/address';
 import './Plans.css';
 
 interface PlanDefinition {
@@ -19,25 +20,222 @@ interface PlanDefinition {
   };
 }
 
+interface PlansConfig {
+  basePriceUsd: number;
+  discountPriceUsd: number | null;
+  discountLabel: string;
+  treasuryWallet: string;
+  durationDays: number;
+  movePriceUsd: number;
+}
+
+// ─── Payment Modal ──────────────────────────────────────────────────────────
+interface PaymentModalProps {
+  config: PlansConfig;
+  walletAddress: string;
+  onClose: () => void;
+  onSuccess: () => void;
+  signAndSubmitTransaction: any;
+}
+
+function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmitTransaction }: PaymentModalProps) {
+  const effectivePriceUsd = config.discountPriceUsd !== null ? config.discountPriceUsd : config.basePriceUsd;
+  const moveAmount = config.movePriceUsd > 0 ? effectivePriceUsd / config.movePriceUsd : 0;
+  // Add 1% buffer so user pays slightly more than minimum (avoids verification rejection at edge)
+  const moveAmountWithBuffer = moveAmount * 1.01;
+  const octasToSend = Math.ceil(moveAmountWithBuffer * 1e8);
+  const moveDisplay = (octasToSend / 1e8).toFixed(4);
+
+  const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'success' | 'error'>('confirm');
+  const [txHash, setTxHash] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(config.treasuryWallet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSendMove = useCallback(async () => {
+    if (!config.treasuryWallet) {
+      setErrorMsg('Treasury wallet is not configured. Contact the admin.');
+      setStep('error');
+      return;
+    }
+    setStep('sending');
+    try {
+      const result = await signAndSubmitTransaction({
+        sender: walletAddress,
+        data: {
+          function: '0x1::aptos_account::transfer',
+          typeArguments: [],
+          functionArguments: [config.treasuryWallet, String(octasToSend)],
+        },
+      });
+      // The wallet adapter returns { hash } or similar
+      const hash = result?.hash || result?.transactionHash || result?.txHash || result;
+      if (!hash || typeof hash !== 'string') {
+        throw new Error('No transaction hash returned from wallet');
+      }
+      setTxHash(hash);
+      // Auto-verify
+      await handleVerify(hash);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Transaction was rejected or failed.');
+      setStep('error');
+    }
+  }, [config.treasuryWallet, octasToSend, walletAddress, signAndSubmitTransaction]);
+
+  const handleVerify = useCallback(async (hash: string) => {
+    setStep('verifying');
+    try {
+      // Wait a few seconds for tx to be indexed
+      await new Promise(r => setTimeout(r, 3000));
+      const res = await verifySubscriptionPayment(walletAddress, hash);
+      if (res.ok) {
+        setStep('success');
+        setTimeout(() => { onSuccess(); onClose(); }, 3000);
+      } else {
+        setErrorMsg(res.error || 'Verification failed. Contact the admin with your tx hash.');
+        setStep('error');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Verification request failed.');
+      setStep('error');
+    }
+  }, [walletAddress, onSuccess, onClose]);
+
+  return (
+    <div className="payment-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="payment-modal">
+        <button className="payment-modal-close" onClick={onClose} aria-label="Close">✕</button>
+
+        {step === 'confirm' && (
+          <>
+            <div className="payment-modal-icon">⚡</div>
+            <h2 className="payment-modal-title">Upgrade to Pro</h2>
+            <p className="payment-modal-subtitle">
+              Pay with MOVE tokens — instant activation, {config.durationDays} days Pro access.
+            </p>
+
+            <div className="payment-summary-card">
+              <div className="payment-summary-row">
+                <span>Plan</span>
+                <strong>Pro — {config.durationDays} days</strong>
+              </div>
+              <div className="payment-summary-row">
+                <span>Price</span>
+                <strong>
+                  {config.discountPriceUsd !== null && (
+                    <s style={{ color: 'rgba(255,255,255,0.35)', marginRight: '8px' }}>${config.basePriceUsd}</s>
+                  )}
+                  ${effectivePriceUsd}
+                </strong>
+              </div>
+              <div className="payment-summary-row payment-summary-highlight">
+                <span>You Send</span>
+                <strong>{moveDisplay} MOVE</strong>
+              </div>
+              <div className="payment-summary-row" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', borderTop: 'none', paddingTop: 0 }}>
+                <span>Rate</span>
+                <span>1 MOVE ≈ ${config.movePriceUsd.toFixed(4)}</span>
+              </div>
+            </div>
+
+            <div className="payment-treasury-row">
+              <span className="payment-treasury-label">Recipient</span>
+              <code className="payment-treasury-addr">
+                {config.treasuryWallet.slice(0, 10)}...{config.treasuryWallet.slice(-8)}
+              </code>
+              <button className="payment-copy-btn" onClick={handleCopyAddress}>
+                {copied ? '✓' : '⧉'}
+              </button>
+            </div>
+
+            <button className="payment-cta-btn" onClick={handleSendMove}>
+              Send {moveDisplay} MOVE →
+            </button>
+            <p className="payment-note">
+              Clicking "Send" will open your wallet to confirm the transfer. Your subscription activates instantly after confirmation.
+            </p>
+          </>
+        )}
+
+        {step === 'sending' && (
+          <div className="payment-status-state">
+            <div className="payment-spinner" />
+            <h3>Awaiting Wallet Confirmation</h3>
+            <p>Please approve the transaction in your wallet...</p>
+          </div>
+        )}
+
+        {step === 'verifying' && (
+          <div className="payment-status-state">
+            <div className="payment-spinner" />
+            <h3>Verifying On-Chain</h3>
+            <p>Confirming your payment on the Movement Network...</p>
+            {txHash && (
+              <code className="payment-tx-hash">{txHash.slice(0, 14)}...{txHash.slice(-10)}</code>
+            )}
+          </div>
+        )}
+
+        {step === 'success' && (
+          <div className="payment-status-state payment-success">
+            <div className="payment-success-icon">✓</div>
+            <h3>Pro Activated!</h3>
+            <p>Your Pro subscription is active for {config.durationDays} days. Enjoy all premium features!</p>
+          </div>
+        )}
+
+        {step === 'error' && (
+          <div className="payment-status-state payment-error">
+            <div className="payment-error-icon">✕</div>
+            <h3>Payment Issue</h3>
+            <p>{errorMsg}</p>
+            {txHash && (
+              <div style={{ marginTop: '12px' }}>
+                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Your tx hash (for manual verification):</p>
+                <code className="payment-tx-hash">{txHash}</code>
+              </div>
+            )}
+            <button className="payment-retry-btn" onClick={() => setStep('confirm')}>
+              Try Again
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Plans Page ─────────────────────────────────────────────────────────────
 export default function Plans() {
-  const { account, connected } = useWallet();
-  const walletAddress = connected && account?.address ? String(account.address) : null;
+  const { account, connected, signAndSubmitTransaction } = useWallet();
+  const walletAddress = connected && account?.address ? normalizeAddress(String(account.address)) : null;
   const { profile, loading: profileLoading } = useProfile(walletAddress);
   const [plans, setPlans] = useState<PlanDefinition[]>([]);
+  const [plansConfig, setPlansConfig] = useState<PlansConfig | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  // Derive current tier (Map legacy 'lite' to 'pro' for fallback/current plan highlight)
+  // Derive current tier
   const rawTier = profile?.subscription_tier || (profile?.is_verified ? 'pro' : 'free');
   const currentTier = rawTier === 'lite' ? 'pro' : rawTier;
 
   useEffect(() => {
-    async function loadPlans() {
+    async function loadData() {
       try {
-        const fetchedPlans = await getPlanList();
+        const [fetchedPlans, fetchedConfig] = await Promise.all([
+          getPlanList(),
+          getPlansConfig(),
+        ]);
         if (fetchedPlans && fetchedPlans.length > 0) {
-          // Filter out legacy plans if returned by server
-          const filtered = fetchedPlans.filter((p: any) => p.id !== 'lite');
-          setPlans(filtered);
+          setPlans(fetchedPlans.filter((p: any) => p.id !== 'lite'));
+        }
+        if (fetchedConfig) {
+          setPlansConfig(fetchedConfig);
         }
       } catch (err) {
         console.error('Failed to load plans:', err);
@@ -45,71 +243,45 @@ export default function Plans() {
         setLoadingPlans(false);
       }
     }
-    loadPlans();
+    loadData();
   }, []);
 
-  const handleCtaClick = (planId: 'free' | 'pro') => {
-    if (planId === currentTier) return;
-    
-    // Prompt manual subscription admin flow instructions
-    alert(
-      `To upgrade or modify your plan to the ${planId.toUpperCase()} tier, please reach out to the Daftar Administrator on Telegram (@daftarfi) or Discord. Make sure to provide your wallet address: \n\n${walletAddress || 'Your wallet address'}`
-    );
-  };
+  const handlePaymentSuccess = useCallback(() => {
+    // Refresh profile to reflect new tier
+    window.location.reload();
+  }, []);
+
+  const effectivePriceUsd = plansConfig
+    ? (plansConfig.discountPriceUsd !== null ? plansConfig.discountPriceUsd : plansConfig.basePriceUsd)
+    : 5;
+
+  const moveEquivalent = plansConfig && plansConfig.movePriceUsd > 0
+    ? (effectivePriceUsd / plansConfig.movePriceUsd).toFixed(2)
+    : null;
 
   // Fallback plans if API fails
-  const displayPlans = plans.length > 0 ? plans : [
+  const displayPlans: PlanDefinition[] = plans.length > 0 ? plans : [
     {
-      id: 'free' as const,
+      id: 'free',
       name: 'Free',
       price: 0,
       interval: null,
-      features: [
-        'Portfolio Tracker',
-        'Transaction History',
-        'NFT Gallery',
-        '24h PNL Overview',
-      ],
-      limits: {
-        pnlHistory: false,
-        analytics: false,
-        visualizer: false,
-        prioritySupport: false,
-        earlyFeatures: false,
-      }
+      features: ['Portfolio Tracker', 'Transaction History', 'NFT Gallery', '24h PNL Overview'],
+      limits: { pnlHistory: false, analytics: false, visualizer: false, prioritySupport: false, earlyFeatures: false },
     },
     {
-      id: 'pro' as const,
+      id: 'pro',
       name: 'Pro',
       price: 5,
       interval: 'month',
-      features: [
-        'Everything in Free',
-        'Full PNL History (All Timeframes)',
-        'Portfolio Analytics Dashboard',
-        'Transaction Visualizer',
-        'Advanced Transaction Filters',
-        'Priority Support',
-        'Early Access to New Features',
-        'Pro Badge on Profile',
-      ],
-      limits: {
-        pnlHistory: true,
-        analytics: true,
-        visualizer: true,
-        prioritySupport: true,
-        earlyFeatures: true,
-      }
-    }
+      features: ['Everything in Free', 'Full PNL History (All Timeframes)', 'Portfolio Analytics Dashboard', 'Transaction Visualizer', 'Advanced Transaction Filters', 'Priority Support', 'Early Access to New Features', 'Pro Badge on Profile'],
+      limits: { pnlHistory: true, analytics: true, visualizer: true, prioritySupport: true, earlyFeatures: true },
+    },
   ];
 
   const getPlanDescription = (id: 'free' | 'pro') => {
-    switch (id) {
-      case 'free':
-        return 'Standard features for on-chain exploration and wallet tracking.';
-      case 'pro':
-        return 'Maximum capabilities, priority support, and early updates.';
-    }
+    if (id === 'free') return 'Standard features for on-chain exploration and wallet tracking.';
+    return 'Maximum capabilities, priority support, and early updates.';
   };
 
   return (
@@ -131,6 +303,7 @@ export default function Plans() {
         {displayPlans.map((plan) => {
           const isCurrent = plan.id === currentTier;
           const isFeatured = plan.id === 'pro';
+          const hasDiscount = plansConfig?.discountPriceUsd !== null && plansConfig?.discountPriceUsd !== undefined;
 
           return (
             <div
@@ -144,17 +317,39 @@ export default function Plans() {
                   {plan.name}
                   {isCurrent && <span className="current-plan-badge">Current Plan</span>}
                 </h3>
-                
+
                 <p className="plans-plan-desc">{getPlanDescription(plan.id)}</p>
 
                 <div className="plans-price-row">
                   {plan.price === 0 ? (
                     <span className="plans-price-free">Free</span>
                   ) : (
-                    <>
-                      <span className="plans-price">${plan.price}</span>
-                      <span className="plans-price-period">/{plan.interval || 'mo'}</span>
-                    </>
+                    <div className="plans-price-block">
+                      <div className="plans-price-main">
+                        {hasDiscount && plansConfig && (
+                          <s className="plans-price-original">${plansConfig.basePriceUsd}</s>
+                        )}
+                        <span className="plans-price">
+                          ${plansConfig ? effectivePriceUsd : plan.price}
+                        </span>
+                        <span className="plans-price-period">/{plansConfig ? `${plansConfig.durationDays}d` : 'mo'}</span>
+                      </div>
+
+                      {hasDiscount && plansConfig?.discountLabel && (
+                        <div className="plans-discount-badge">
+                          🏷️ {plansConfig.discountLabel}
+                        </div>
+                      )}
+
+                      {moveEquivalent && (
+                        <div className="plans-move-price">
+                          ≈ <strong>{moveEquivalent} MOVE</strong>
+                          <span className="plans-move-rate">
+                            {' '}@ ${plansConfig?.movePriceUsd.toFixed(4)}/MOVE
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -173,60 +368,69 @@ export default function Plans() {
                   </li>
                 ))}
 
-                {/* Excluded features for visual completeness */}
                 {plan.id === 'free' && (
                   <>
-                    <li className="plans-feature-item excluded-feature">
-                      <span className="feature-check excluded">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </span>
-                      Full PNL History
-                    </li>
-                    <li className="plans-feature-item excluded-feature">
-                      <span className="feature-check excluded">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </span>
-                      Portfolio Analytics
-                    </li>
-                    <li className="plans-feature-item excluded-feature">
-                      <span className="feature-check excluded">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </span>
-                      Transaction Visualizer
-                    </li>
-                    <li className="plans-feature-item excluded-feature">
-                      <span className="feature-check excluded">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </span>
-                      Priority Support
-                    </li>
+                    {['Full PNL History', 'Portfolio Analytics', 'Transaction Visualizer', 'Priority Support'].map(f => (
+                      <li key={f} className="plans-feature-item excluded-feature">
+                        <span className="feature-check excluded">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </span>
+                        {f}
+                      </li>
+                    ))}
                   </>
                 )}
               </ul>
 
-              <button
-                className={`plans-cta ${isCurrent ? 'cta-current' : plan.id === 'free' ? 'cta-free' : 'cta-pro'}`}
-                onClick={() => handleCtaClick(plan.id)}
-                disabled={isCurrent}
-              >
-                {isCurrent ? 'Active Plan' : plan.price === 0 ? 'Downgrade' : 'Get Started'}
-              </button>
+              {/* CTA */}
+              {plan.id === 'free' ? (
+                <button
+                  className={`plans-cta ${isCurrent ? 'cta-current' : 'cta-free'}`}
+                  disabled={isCurrent}
+                >
+                  {isCurrent ? 'Active Plan' : 'Downgrade'}
+                </button>
+              ) : isCurrent ? (
+                <button className="plans-cta cta-current" disabled>
+                  ✓ Active Plan
+                </button>
+              ) : !connected ? (
+                <button
+                  className="plans-cta cta-pro"
+                  onClick={() => alert('Connect your wallet to upgrade.')}
+                >
+                  Connect Wallet to Pay
+                </button>
+              ) : (
+                <button
+                  className="plans-cta cta-pro plans-cta-pay"
+                  onClick={() => setShowPaymentModal(true)}
+                  disabled={loadingPlans || profileLoading}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                  Pay with MOVE
+                </button>
+              )}
             </div>
           );
         })}
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && plansConfig && walletAddress && (
+        <PaymentModal
+          config={plansConfig}
+          walletAddress={walletAddress}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={handlePaymentSuccess}
+          signAndSubmitTransaction={signAndSubmitTransaction}
+        />
+      )}
     </div>
   );
 }
