@@ -541,6 +541,36 @@ export const testAlerts = async (
   return response.data;
 };
 
+export const checkAlertLink = async (
+  address: string
+): Promise<{ telegramLinked: boolean; discordLinked: boolean; telegramEnabled: boolean; discordEnabled: boolean } | null> => {
+  const response = await callApi<any>(`/api/alerts/check-link?address=${encodeURIComponent(normalizeAddress(address))}`);
+  return response.ok ? response.data : null;
+};
+
+export const exchangeDiscordOauth = async (
+  address: string,
+  code: string,
+  signature: any,
+  signedMessage: string,
+  nonce: number
+): Promise<any> => {
+  const response = await callApi<any>('/api/alerts/discord-oauth', {
+    method: 'POST',
+    body: JSON.stringify({
+      address: normalizeAddress(address),
+      code,
+      signature,
+      signedMessage,
+      nonce
+    })
+  });
+  if (!response.ok) {
+    throw new Error(response.error || 'Failed to authorize Discord account');
+  }
+  return response.data;
+};
+
 export default {
   getProfile,
   getNFTCollectionStats,
@@ -580,6 +610,8 @@ export default {
   getAlertConfig,
   saveAlertConfig,
   linkDiscord,
-  testAlerts
+  testAlerts,
+  checkAlertLink,
+  exchangeDiscordOauth
 };
 

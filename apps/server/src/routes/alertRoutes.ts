@@ -7,6 +7,7 @@ import { verifyWalletSignature } from '../utils/crypto.ts';
 import { getEffectiveTier } from '../services/subscriptionService.ts';
 import { isPremiumTier } from '@daftar/shared-types';
 import { sendEmailAlert, sendTelegramAlert, sendDiscordAlert } from '../services/notificationService.ts';
+import fetch from 'node-fetch';
 
 const router = express.Router();
 
@@ -253,6 +254,133 @@ router.post('/test', generalLimiter, async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[AlertRoutes] Test alert error:', err);
     return res.status(500).json({ error: 'Failed to send test notifications' });
+  }
+});
+
+/**
+ * GET /api/alerts/check-link
+ * Simple polling endpoint for frontend to check if Telegram/Discord is linked.
+ */
+router.get('/check-link', generalLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = getSupabase();
+  const address = normalizeAddress(req.query.address as string);
+
+  if (!address) return res.status(400).json({ error: 'Invalid address' });
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('user_alert_configs')
+      .select('telegram_chat_id, discord_user_id, telegram_enabled, discord_enabled')
+      .eq('wallet_address', address)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      telegramLinked: !!data?.telegram_chat_id,
+      discordLinked: !!data?.discord_user_id,
+      telegramEnabled: !!data?.telegram_enabled,
+      discordEnabled: !!data?.discord_enabled
+    });
+  } catch (err: any) {
+    console.error('[AlertRoutes] Check link error:', err);
+    return res.status(500).json({ error: 'Failed to check link status' });
+  }
+});
+
+/**
+ * POST /api/alerts/discord-oauth
+ * Exhanges Discord authorization code for User ID and links it to wallet.
+ */
+router.post('/discord-oauth', generalLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = getSupabase();
+  const { address, code, signature, signedMessage, nonce } = req.body;
+  const normalizedAddr = normalizeAddress(address);
+
+  if (!normalizedAddr) return res.status(400).json({ error: 'Invalid wallet address' });
+  if (!code) return res.status(400).json({ error: 'OAuth code is required' });
+  if (!signature || !signedMessage || !nonce) return res.status(401).json({ error: 'Signature and nonce are required' });
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  // Check subscription tier
+  const tier = await getEffectiveTier(supabaseAdmin, normalizedAddr);
+  if (!isPremiumTier(tier)) {
+    return res.status(403).json({ error: 'Alert integrations require a Pro / Premium tier.' });
+  }
+
+  // Nonce check
+  const nonceCheck = await checkAndBurnNonce(supabaseAdmin, normalizedAddr, nonce);
+  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
+
+  // Verify signature
+  const isValid = verifyWalletSignature(normalizedAddr, signedMessage, signature);
+  if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
+
+  try {
+    const clientId = process.env.DISCORD_CLIENT_ID;
+    const clientSecret = process.env.DISCORD_CLIENT_SECRET;
+    const redirectUri = process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/settings';
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Discord client configurations are missing on server');
+    }
+
+    const tokenParams = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: redirectUri
+    });
+
+    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams.toString()
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      console.error('[AlertRoutes] Discord Token Exchange Failed:', errText);
+      return res.status(400).json({ error: 'Failed to exchange Discord OAuth code' });
+    }
+
+    const tokenData: any = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+
+    // Fetch User Profile from Discord
+    const userRes = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!userRes.ok) {
+      const errText = await userRes.text();
+      console.error('[AlertRoutes] Discord User Fetch Failed:', errText);
+      return res.status(400).json({ error: 'Failed to retrieve Discord user profile' });
+    }
+
+    const userData: any = await userRes.json();
+    const discordUserId = userData.id;
+
+    // Upsert into alert configs
+    const { data, error } = await supabaseAdmin
+      .from('user_alert_configs')
+      .upsert({
+        wallet_address: normalizedAddr,
+        discord_user_id: discordUserId,
+        discord_enabled: true,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'wallet_address' })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ message: 'Discord linked successfully via OAuth2!', username: userData.username, config: data });
+  } catch (err: any) {
+    console.error('[AlertRoutes] Discord OAuth linking error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to authorize Discord account' });
   }
 });
 

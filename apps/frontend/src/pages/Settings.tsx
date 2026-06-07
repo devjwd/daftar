@@ -16,8 +16,11 @@ import {
   getAlertConfig,
   saveAlertConfig,
   linkDiscord,
-  testAlerts
+  testAlerts,
+  checkAlertLink,
+  exchangeDiscordOauth
 } from '../services/api';
+import { QRCodeSVG } from 'qrcode.react';
 import './Settings.css';
 
 export default function Settings() {
@@ -45,15 +48,25 @@ export default function Settings() {
     alert_on_failed: false
   });
 
+  const [telegramLinked, setTelegramLinked] = useState(false);
+  const [discordLinked, setDiscordLinked] = useState(false);
+  const [showTelegramModal, setShowTelegramModal] = useState(false);
+
   const [discordLinkTarget, setDiscordLinkTarget] = useState<string | null>(null);
 
+  // Check Discord OAuth parameters and other query triggers on load
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
     const uid = queryParams.get('discord_user_id');
     if (uid) {
       setDiscordLinkTarget(uid);
     }
-  }, []);
+
+    const oauthCode = queryParams.get('code');
+    if (oauthCode && account) {
+      handleDiscordOauthCallback(oauthCode);
+    }
+  }, [account]);
 
   // Check Pro status
   useEffect(() => {
@@ -71,6 +84,27 @@ export default function Settings() {
       setIsAlertsUnlocked(false);
     }
   }, [account?.address]);
+
+  // Poll Telegram status while modal is open
+  useEffect(() => {
+    if (!showTelegramModal || !account) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await checkAlertLink(account.address);
+        if (res && res.telegramLinked) {
+          setTelegramLinked(true);
+          setAlertConfig((prev: any) => ({ ...prev, telegram_chat_id: 'Linked', telegram_enabled: true }));
+          setShowTelegramModal(false);
+          alert('Telegram Alerts linked successfully!');
+        }
+      } catch (err) {
+        console.error('Error polling Telegram link status:', err);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [showTelegramModal, account]);
 
   const handleUnlockAlerts = async () => {
     if (!account || !signMessage) {
@@ -112,6 +146,8 @@ export default function Settings() {
 
       if (data) {
         setAlertConfig(data);
+        setTelegramLinked(!!data.telegram_chat_id);
+        setDiscordLinked(!!data.discord_user_id);
       }
       setIsAlertsUnlocked(true);
     } catch (err: any) {
@@ -251,11 +287,72 @@ export default function Settings() {
       
       // Auto unlock and fetch new state
       setIsAlertsUnlocked(true);
+      setDiscordLinked(true);
       setAlertConfig((prev: any) => ({ ...prev, discord_user_id: discordLinkTarget, discord_enabled: true }));
     } catch (err: any) {
       console.error(err);
       alert('Failed to link Discord account: ' + err.message);
     }
+  };
+
+  const handleDiscordOauthCallback = async (code: string) => {
+    if (!account || !signMessage) return;
+    try {
+      setLoadingAlerts(true);
+      const nonce = await getNonce(account.address);
+      if (nonce === null) throw new Error("Could not retrieve security nonce.");
+
+      const issuedAt = new Date().toISOString();
+      const payloadMsg = JSON.stringify({
+        action: 'link-discord-oauth',
+        address: account.address.toLowerCase(),
+        code,
+        issuedAt,
+        nonce: String(nonce)
+      });
+
+      const response = await signMessage({
+        address: true,
+        application: true,
+        chainId: true,
+        message: payloadMsg,
+        nonce: String(nonce)
+      });
+
+      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+
+      const res = await exchangeDiscordOauth(
+        account.address,
+        code,
+        {
+          publicKey: account.publicKey,
+          signature
+        },
+        payloadMsg,
+        nonce
+      );
+
+      alert(`Discord account linked successfully via OAuth2! Connected username: ${res.username}`);
+      
+      // Clear code from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      setIsAlertsUnlocked(true);
+      setDiscordLinked(true);
+      setAlertConfig((prev: any) => ({ ...prev, discord_user_id: res.config.discord_user_id, discord_enabled: true }));
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to connect Discord account: ' + err.message);
+    } finally {
+      setLoadingAlerts(false);
+    }
+  };
+
+  const triggerDiscordOauth = () => {
+    const clientId = '1500573624954781806';
+    const redirectUri = encodeURIComponent(window.location.origin + '/settings');
+    const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify`;
+    window.location.href = oauthUrl;
   };
 
   const accountSettingsKey = account?.address ? getSettingsStorageKey(account.address) : null;
@@ -409,6 +506,45 @@ export default function Settings() {
             </div>
           </div>
 
+          {/* Telegram QR Linking Modal */}
+          {showTelegramModal && account && (
+            <div className="alert-modal-overlay">
+              <div className="alert-modal-container">
+                <div className="alert-modal-header">
+                  <h3>Scan to Link Telegram Alerts</h3>
+                  <button onClick={() => setShowTelegramModal(false)} className="close-modal-btn">×</button>
+                </div>
+                <div className="alert-modal-content">
+                  <p>Scan this QR code with your phone camera or click to link your wallet <code>{account.address.slice(0, 6)}...{account.address.slice(-4)}</code> with the Telegram bot.</p>
+                  
+                  <div className="qr-wrapper">
+                    <QRCodeSVG
+                      value={`https://t.me/DaftarFi_bot?start=${account.address}`}
+                      size={200}
+                      level="H"
+                      includeMargin={true}
+                      className="qr-code-svg"
+                    />
+                  </div>
+
+                  <a
+                    href={`https://t.me/DaftarFi_bot?start=${account.address}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="qr-telegram-link"
+                  >
+                    Open in Telegram ↗
+                  </a>
+                  
+                  <div className="polling-status">
+                    <span className="spinner"></span>
+                    <span>Waiting for Telegram activation...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Alerts Configuration Banner & Sections */}
           {discordLinkTarget && (
             <div className="discord-link-banner">
@@ -485,26 +621,27 @@ export default function Settings() {
                   <span className="setting-description">Receive real-time notifications in Telegram</span>
                 </div>
                 <div className="setting-controls">
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={alertConfig.telegram_enabled}
-                      disabled={!alertConfig.telegram_chat_id}
-                      onChange={(e) => setAlertConfig({ ...alertConfig, telegram_enabled: e.target.checked })}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
+                  {telegramLinked ? (
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={alertConfig.telegram_enabled}
+                        onChange={(e) => setAlertConfig({ ...alertConfig, telegram_enabled: e.target.checked })}
+                      />
+                      <span className="toggle-slider"></span>
+                    </label>
+                  ) : (
+                    <button onClick={() => setShowTelegramModal(true)} className="connect-channel-btn telegram">
+                      Connect Telegram
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="sub-setting-item status-info">
-                {alertConfig.telegram_chat_id ? (
+              {telegramLinked && (
+                <div className="sub-setting-item status-info">
                   <span className="status-linked">Linked Telegram Chat ID: <code>{alertConfig.telegram_chat_id}</code></span>
-                ) : (
-                  <span className="status-unlinked">
-                    Not Linked. Click <a href={`https://t.me/DaftarFi_bot?start=${account.address}`} target="_blank" rel="noreferrer">here to start @DaftarFi_bot</a> and pair your account.
-                  </span>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Discord Alerts */}
               <div className="setting-item">
@@ -513,26 +650,27 @@ export default function Settings() {
                   <span className="setting-description">Receive DMs from our Discord Bot</span>
                 </div>
                 <div className="setting-controls">
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={alertConfig.discord_enabled}
-                      disabled={!alertConfig.discord_user_id}
-                      onChange={(e) => setAlertConfig({ ...alertConfig, discord_enabled: e.target.checked })}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
+                  {discordLinked ? (
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={alertConfig.discord_enabled}
+                        onChange={(e) => setAlertConfig({ ...alertConfig, discord_enabled: e.target.checked })}
+                      />
+                      <span className="toggle-slider"></span>
+                    </label>
+                  ) : (
+                    <button onClick={triggerDiscordOauth} className="connect-channel-btn discord" disabled={loadingAlerts}>
+                      Connect Discord
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="sub-setting-item status-info">
-                {alertConfig.discord_user_id ? (
+              {discordLinked && (
+                <div className="sub-setting-item status-info">
                   <span className="status-linked">Linked Discord User ID: <code>{alertConfig.discord_user_id}</code></span>
-                ) : (
-                  <span className="status-unlinked">
-                    Not Linked. Connect your account using the <code>/link</code> command in Discord.
-                  </span>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Alert Criteria Rules */}
               <div className="alert-rules-box">
