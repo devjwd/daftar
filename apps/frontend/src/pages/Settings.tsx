@@ -54,8 +54,10 @@ export default function Settings() {
   const [showTelegramModal, setShowTelegramModal] = useState(false);
 
   const [discordLinkTarget, setDiscordLinkTarget] = useState<string | null>(null);
+  // Stores a pending Discord OAuth code until wallet is connected
+  const [pendingOauthCode, setPendingOauthCode] = useState<string | null>(null);
 
-  // Check Discord OAuth parameters and other query triggers on load
+  // On first load: extract discord_user_id and OAuth code from URL
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
     const uid = queryParams.get('discord_user_id');
@@ -64,10 +66,19 @@ export default function Settings() {
     }
 
     const oauthCode = queryParams.get('code');
-    if (oauthCode && walletAddress) {
-      handleDiscordOauthCallback(oauthCode);
+    if (oauthCode) {
+      // Store it — will be processed once walletAddress is available
+      setPendingOauthCode(oauthCode);
     }
-  }, [walletAddress]);
+  }, []); // Only on mount — we want to capture the URL before it's cleared
+
+  // Process pending OAuth code when wallet becomes available
+  useEffect(() => {
+    if (pendingOauthCode && walletAddress && signMessage) {
+      handleDiscordOauthCallback(pendingOauthCode);
+      setPendingOauthCode(null);
+    }
+  }, [pendingOauthCode, walletAddress, signMessage]);
 
   // Check Pro status and load alerts configuration automatically
   useEffect(() => {
@@ -175,9 +186,48 @@ export default function Settings() {
     }
   };
 
-  const handleUnlinkEmail = () => {
-    setEmailInput('');
-    setAlertConfig((prev: any) => ({ ...prev, email: '', email_enabled: false }));
+  const handleUnlinkEmail = async () => {
+    if (!walletAddress || !signMessage) return;
+    setLoadingAlerts(true);
+    try {
+      const nonce = await getNonce(walletAddress);
+      if (nonce === null) throw new Error('Could not retrieve security nonce.');
+
+      const issuedAt = new Date().toISOString();
+      const payloadMsg = JSON.stringify({
+        action: 'save-alerts',
+        address: walletAddress.toLowerCase(),
+        issuedAt,
+        nonce: String(nonce)
+      });
+
+      const response = await signMessage({
+        address: true,
+        application: true,
+        chainId: true,
+        message: payloadMsg,
+        nonce: String(nonce)
+      });
+
+      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+
+      const clearedConfig = { ...alertConfig, email: null, email_enabled: false };
+      await saveAlertConfig(
+        walletAddress,
+        clearedConfig,
+        { publicKey: account.publicKey?.toString() || '', signature },
+        payloadMsg,
+        nonce
+      );
+
+      setEmailInput('');
+      setAlertConfig(clearedConfig);
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to unlink email: ' + err.message);
+    } finally {
+      setLoadingAlerts(false);
+    }
   };
 
   const handleSaveAlerts = async () => {

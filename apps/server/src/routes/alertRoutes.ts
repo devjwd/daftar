@@ -144,15 +144,17 @@ router.post('/config', generalLimiter, async (req: Request, res: Response) => {
   if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
 
   try {
-    // Retrieve existing configuration to preserve actual values of masked fields
+    // Retrieve existing configuration to preserve actual values of linked channels
+    // This prevents email/telegram/discord linking from being wiped on toggle-only saves
     const { data: existingConfig } = await supabaseAdmin
       .from('user_alert_configs')
-      .select('email')
+      .select('email, telegram_chat_id, discord_user_id')
       .eq('wallet_address', normalizedAddr)
       .maybeSingle();
 
     let finalEmail = email;
     if (email && email.includes('*') && existingConfig?.email) {
+      // Restore actual email if client is sending back a masked preview
       finalEmail = existingConfig.email;
     }
 
@@ -161,6 +163,9 @@ router.post('/config', generalLimiter, async (req: Request, res: Response) => {
       .upsert({
         wallet_address: normalizedAddr,
         email: finalEmail || null,
+        // Preserve existing bot-linked IDs — they are managed by separate /link-* endpoints
+        telegram_chat_id: existingConfig?.telegram_chat_id || null,
+        discord_user_id: existingConfig?.discord_user_id || null,
         email_enabled: !!email_enabled,
         telegram_enabled: !!telegram_enabled,
         discord_enabled: !!discord_enabled,

@@ -72,20 +72,22 @@ export async function initDiscordBot(): Promise<Client | null> {
     }
 
     if (commandName === 'link') {
-      // Return link to frontend settings page with Discord User ID payload
-      // To secure linking, the user must log in to the frontend, connect their wallet, and sign a message.
+      // Direct user to Discord OAuth2 flow so they authenticate via daftar.fi frontend
+      // This is consistent with the frontend "Connect Discord" button which uses OAuth2
       const webappUrl = process.env.NODE_ENV === 'production' ? 'https://daftar.fi' : 'http://localhost:3000';
-      const linkUrl = `${webappUrl}/settings?discord_user_id=${userId}`;
+      const redirectUri = encodeURIComponent(`${webappUrl}/settings`);
+      const clientId = process.env.DISCORD_CLIENT_ID;
+      const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify`;
 
       const embed = new EmbedBuilder()
         .setTitle('🔗 Link Your Wallet to Discord')
         .setDescription(
-          `To securely receive real-time notifications when your wallet makes trades or receives/withdraws funds, click the link below to verify ownership of your wallet.\n\n` +
+          `To securely receive real-time notifications, you need to link your Movement wallet with your Discord account.\n\n` +
           `**Steps:**\n` +
-          `1. Click the button/link below to open Daftar.\n` +
+          `1. Click the link below to open Daftar Settings.\n` +
           `2. Connect your Movement wallet (e.g. Razor, Nightly).\n` +
-          `3. Click **"Verify & Link Discord"** and sign the prompt.\n\n` +
-          `[👉 Click here to link your wallet](${linkUrl})`
+          `3. Click the **\"Connect Discord\"** button — you'll be redirected back here automatically.\n\n` +
+          `[👉 Click here to connect your Discord account](${oauthUrl})`
         )
         .setColor(0xD4AF37)
         .setFooter({ text: 'Notifications are exclusive to Pro subscription tiers' });
