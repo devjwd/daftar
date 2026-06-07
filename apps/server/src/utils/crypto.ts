@@ -1,5 +1,6 @@
 import { Ed25519PublicKey, Ed25519Signature } from '@aptos-labs/ts-sdk';
 import { normalizeAddress } from './address.ts';
+import fs from 'fs';
 
 interface SignaturePayload {
   publicKey?: string;
@@ -51,10 +52,26 @@ export const verifyWalletSignature = (
   let signedAt: number | null = null;
   try {
     if (typeof message === 'string') {
+      let jsonStr = '';
       if (message.startsWith('{')) {
-        const msgObj = JSON.parse(message);
-        if (msgObj?.issuedAt) signedAt = new Date(msgObj.issuedAt).getTime();
+        jsonStr = message;
       } else {
+        // Look for a JSON block inside the message (AIP-44 formatted message)
+        const firstBrace = message.indexOf('{');
+        const lastBrace = message.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          jsonStr = message.substring(firstBrace, lastBrace + 1);
+        }
+      }
+
+      if (jsonStr) {
+        const msgObj = JSON.parse(jsonStr);
+        if (msgObj?.issuedAt) {
+          signedAt = new Date(msgObj.issuedAt).getTime();
+        }
+      }
+
+      if (!signedAt) {
         // Look for "Timestamp: 2026-05-08T..."
         const match = message.match(/Timestamp:\s*([^\n]+)/);
         if (match && match[1]) {
@@ -124,7 +141,9 @@ export const verifyWalletSignature = (
 
     if (!verified) {
       console.warn('[Verification] Ed25519 verifySignature returned false');
-      // If it fails, try to see if it's because of the message prefix (some wallets sign differently)
+      try {
+        fs.appendFileSync('sig_debug.log', `[${new Date().toISOString()}] VERIFY RETURNED FALSE\nWallet: ${walletAddress}\nMessage: ${message}\nPayload: ${JSON.stringify(signaturePayload, null, 2)}\nPublicKeyHex: ${finalPublicKey}\nSigHex: ${finalSignature}\n--------------------\n`);
+      } catch {}
       return false;
     }
 
@@ -134,12 +153,18 @@ export const verifyWalletSignature = (
     const match = derivedAddress === normalizedWalletAddr;
     if (!match) {
       console.warn(`[Verification] Address mismatch: Derived=${derivedAddress}, Requested=${normalizedWalletAddr}`);
+      try {
+        fs.appendFileSync('sig_debug.log', `[${new Date().toISOString()}] ADDRESS MISMATCH\nWallet: ${walletAddress}\nDerived: ${derivedAddress}\n--------------------\n`);
+      } catch {}
     }
 
     return match;
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error('[Verification] Crypto error:', error.message, '| Stack:', error.stack);
+    try {
+      fs.appendFileSync('sig_debug.log', `[${new Date().toISOString()}] CRYPTO ERROR\nError: ${error.message}\n--------------------\n`);
+    } catch {}
     return false;
   }
 };

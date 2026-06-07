@@ -171,10 +171,10 @@ export default function Settings() {
         walletAddress,
         updatedConfig,
         {
-          publicKey: account.publicKey?.toString() || '',
+          publicKey: account?.publicKey?.toString() || '',
           signature
         },
-        payloadMsg,
+        response.fullMessage || payloadMsg,
         nonce
       );
 
@@ -217,8 +217,8 @@ export default function Settings() {
       await saveAlertConfig(
         walletAddress,
         clearedConfig,
-        { publicKey: account.publicKey?.toString() || '', signature },
-        payloadMsg,
+        { publicKey: account?.publicKey?.toString() || '', signature },
+        response.fullMessage || payloadMsg,
         nonce
       );
 
@@ -260,10 +260,10 @@ export default function Settings() {
         walletAddress,
         alertConfig,
         {
-          publicKey: account.publicKey?.toString() || '',
+          publicKey: account?.publicKey?.toString() || '',
           signature
         },
-        payloadMsg,
+        response.fullMessage || payloadMsg,
         nonce
       );
 
@@ -301,10 +301,10 @@ export default function Settings() {
       const res = await testAlerts(
         walletAddress,
         {
-          publicKey: account.publicKey?.toString() || '',
+          publicKey: account?.publicKey?.toString() || '',
           signature
         },
-        payloadMsg,
+        response.fullMessage || payloadMsg,
         nonce
       );
 
@@ -348,10 +348,10 @@ export default function Settings() {
       const res = await getTelegramLinkCode(
         walletAddress,
         {
-          publicKey: account.publicKey?.toString() || '',
+          publicKey: account?.publicKey?.toString() || '',
           signature
         },
-        payloadMsg,
+        response.fullMessage || payloadMsg,
         nonce
       );
 
@@ -397,10 +397,10 @@ export default function Settings() {
         walletAddress,
         discordLinkTarget!,
         {
-          publicKey: account.publicKey?.toString() || '',
+          publicKey: account?.publicKey?.toString() || '',
           signature
         },
-        payloadMsg,
+        response.fullMessage || payloadMsg,
         nonce
       );
 
@@ -447,10 +447,10 @@ export default function Settings() {
         code,
         redirectUri,
         {
-          publicKey: account.publicKey?.toString() || '',
+          publicKey: account?.publicKey?.toString() || '',
           signature
         },
-        payloadMsg,
+        response.fullMessage || payloadMsg,
         nonce
       );
 
