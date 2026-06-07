@@ -119,7 +119,9 @@ export function initTelegramBot(): Telegraf | null {
     return null;
   }
 
-  bot = new Telegraf(token);
+  const apiRoot = process.env.TELEGRAM_API_ROOT;
+  console.log(`[TelegramBot] Initializing Telegraf bot${apiRoot ? ` with API root: ${apiRoot}` : ''}...`);
+  bot = new Telegraf(token, apiRoot ? { telegram: { apiRoot } } : undefined);
 
   // ─── /start ──────────────────────────────────────────────────────────────
   bot.start(async (ctx) => {
@@ -752,8 +754,8 @@ export function initTelegramBot(): Telegraf | null {
       const oldestVersion = Number(data.oldest_ledger_version || 0).toLocaleString();
       const ledgerTs = data.ledger_timestamp
         ? new Date(Number(data.ledger_timestamp) / 1000).toLocaleTimeString('en-US', {
-            hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC'
-          }) + ' UTC'
+          hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC'
+        }) + ' UTC'
         : 'N/A';
 
       // Fetch MOVE price for context
