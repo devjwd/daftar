@@ -697,6 +697,7 @@ VALUES
   ('subscription_discount_price_usd', '""',   now()),
   ('subscription_discount_label',     '""',   now()),
   ('subscription_treasury_wallet',    '""',   now()),
-  ('subscription_duration_days',      '"30"', now())
+  ('subscription_duration_days',      '"30"', now()),
+  ('subscription_discount_scope',     '"all_months"', now())
 ON CONFLICT (key) DO NOTHING;
 

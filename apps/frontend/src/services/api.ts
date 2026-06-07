@@ -351,6 +351,7 @@ export const getPlansConfig = async (): Promise<{
   treasuryWallet: string;
   durationDays: number;
   movePriceUsd: number;
+  discountScope: 'first_month' | 'all_months';
 } | null> => {
   const response = await callApi<any>('/api/plans/config');
   return response.ok ? response.data : null;
@@ -358,11 +359,12 @@ export const getPlansConfig = async (): Promise<{
 
 export const verifySubscriptionPayment = async (
   walletAddress: string,
-  txHash: string
+  txHash: string,
+  months: number = 1
 ): Promise<{ ok: boolean; tier?: string; expiresAt?: string; error?: string }> => {
   const response = await callApi<any>('/api/plans/verify-payment', {
     method: 'POST',
-    body: JSON.stringify({ walletAddress, txHash }),
+    body: JSON.stringify({ walletAddress, txHash, months }),
   });
   if (response.ok) {
     return { ok: true, ...response.data };
@@ -377,6 +379,7 @@ export const setSubscriptionPaymentConfig = async (
     discount_label: string;
     treasury_wallet: string;
     duration_days: number;
+    discount_scope: 'first_month' | 'all_months';
   },
   adminAuth: any
 ): Promise<{ ok: boolean; error?: string }> => {

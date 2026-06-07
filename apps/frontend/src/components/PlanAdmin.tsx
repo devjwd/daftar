@@ -40,6 +40,7 @@ export default function PlanAdmin() {
     discount_label: '',
     treasury_wallet: '',
     duration_days: 30,
+    discount_scope: 'all_months' as 'first_month' | 'all_months',
   });
   const [discountEnabled, setDiscountEnabled] = useState(false);
   const [configLoading, setConfigLoading] = useState(true);
@@ -70,6 +71,7 @@ export default function PlanAdmin() {
           discount_label: cfg.discountLabel,
           treasury_wallet: cfg.treasuryWallet,
           duration_days: cfg.durationDays,
+          discount_scope: cfg.discountScope || 'all_months',
         });
         setDiscountEnabled(cfg.discountPriceUsd !== null && cfg.discountPriceUsd > 0);
       }
@@ -90,6 +92,7 @@ export default function PlanAdmin() {
           ? Number(paymentConfig.discount_price_usd)
           : '',
         discount_label: discountEnabled ? paymentConfig.discount_label : '',
+        discount_scope: discountEnabled ? paymentConfig.discount_scope : 'all_months',
       };
       const body = { method: 'SET_PAYMENT_CONFIG', ...payload };
       const auth = await createAdminProofHeaders({ account, signMessage, action: 'manage-subscriptions', body });
@@ -315,6 +318,35 @@ export default function PlanAdmin() {
                   onChange={e => setPaymentConfig(p => ({ ...p, discount_label: e.target.value }))}
                   style={{ marginTop: '6px', width: '100%' }}
                 />
+              </div>
+
+              {/* Discount Application Scope */}
+              <div className="admin-form-group" style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+                <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Discount Application</label>
+                <div style={{ display: 'flex', gap: '24px', marginTop: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+                    <input
+                      type="radio"
+                      name="discount_scope"
+                      value="all_months"
+                      checked={paymentConfig.discount_scope === 'all_months'}
+                      onChange={() => setPaymentConfig(p => ({ ...p, discount_scope: 'all_months' }))}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    Flat all months (Discount applies to all selected months)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+                    <input
+                      type="radio"
+                      name="discount_scope"
+                      value="first_month"
+                      checked={paymentConfig.discount_scope === 'first_month'}
+                      onChange={() => setPaymentConfig(p => ({ ...p, discount_scope: 'first_month' }))}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    First month only (Discount applies to month 1; subsequent months at base price)
+                  </label>
+                </div>
               </div>
             </div>
           )}

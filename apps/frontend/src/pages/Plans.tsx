@@ -27,6 +27,7 @@ interface PlansConfig {
   treasuryWallet: string;
   durationDays: number;
   movePriceUsd: number;
+  discountScope?: 'first_month' | 'all_months';
 }
 
 // ─── Payment Modal ──────────────────────────────────────────────────────────
@@ -39,23 +40,50 @@ interface PaymentModalProps {
 }
 
 function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmitTransaction }: PaymentModalProps) {
-  const effectivePriceUsd = config.discountPriceUsd !== null ? config.discountPriceUsd : config.basePriceUsd;
-  const moveAmount = config.movePriceUsd > 0 ? effectivePriceUsd / config.movePriceUsd : 0;
+  const [selectedMonths, setSelectedMonths] = useState<number>(1);
+  const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'success' | 'error'>('confirm');
+  const [txHash, setTxHash] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Calculate pricing based on selectedMonths and discountScope
+  const discountScope = config.discountScope || 'all_months';
+  const hasDiscount = config.discountPriceUsd !== null;
+  
+  let totalPriceUsd = 0;
+  if (hasDiscount && config.discountPriceUsd !== null) {
+    if (discountScope === 'first_month') {
+      totalPriceUsd = config.discountPriceUsd + (selectedMonths - 1) * config.basePriceUsd;
+    } else {
+      totalPriceUsd = config.discountPriceUsd * selectedMonths;
+    }
+  } else {
+    totalPriceUsd = config.basePriceUsd * selectedMonths;
+  }
+
+  const moveAmount = config.movePriceUsd > 0 ? totalPriceUsd / config.movePriceUsd : 0;
   // Add 1% buffer so user pays slightly more than minimum (avoids verification rejection at edge)
   const moveAmountWithBuffer = moveAmount * 1.01;
   const octasToSend = Math.ceil(moveAmountWithBuffer * 1e8);
   const moveDisplay = (octasToSend / 1e8).toFixed(4);
 
-  const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'success' | 'error'>('confirm');
-  const [txHash, setTxHash] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyAddress = () => {
-    navigator.clipboard.writeText(config.treasuryWallet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleVerify = useCallback(async (hash: string, monthsCount: number) => {
+    setStep('verifying');
+    try {
+      // Wait a few seconds for tx to be indexed
+      await new Promise(r => setTimeout(r, 3000));
+      const res = await verifySubscriptionPayment(walletAddress, hash, monthsCount);
+      if (res.ok) {
+        setStep('success');
+        setTimeout(() => { onSuccess(); onClose(); }, 3000);
+      } else {
+        setErrorMsg(res.error || 'Verification failed. Contact the admin with your tx hash.');
+        setStep('error');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Verification request failed.');
+      setStep('error');
+    }
+  }, [walletAddress, onSuccess, onClose]);
 
   const handleSendMove = useCallback(async () => {
     if (!config.treasuryWallet) {
@@ -80,31 +108,12 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       }
       setTxHash(hash);
       // Auto-verify
-      await handleVerify(hash);
+      await handleVerify(hash, selectedMonths);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Transaction was rejected or failed.');
       setStep('error');
     }
-  }, [config.treasuryWallet, octasToSend, walletAddress, signAndSubmitTransaction]);
-
-  const handleVerify = useCallback(async (hash: string) => {
-    setStep('verifying');
-    try {
-      // Wait a few seconds for tx to be indexed
-      await new Promise(r => setTimeout(r, 3000));
-      const res = await verifySubscriptionPayment(walletAddress, hash);
-      if (res.ok) {
-        setStep('success');
-        setTimeout(() => { onSuccess(); onClose(); }, 3000);
-      } else {
-        setErrorMsg(res.error || 'Verification failed. Contact the admin with your tx hash.');
-        setStep('error');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Verification request failed.');
-      setStep('error');
-    }
-  }, [walletAddress, onSuccess, onClose]);
+  }, [config.treasuryWallet, octasToSend, walletAddress, signAndSubmitTransaction, handleVerify, selectedMonths]);
 
   return (
     <div className="payment-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -116,21 +125,53 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
             <div className="payment-modal-icon">⚡</div>
             <h2 className="payment-modal-title">Upgrade to Pro</h2>
             <p className="payment-modal-subtitle">
-              Pay with MOVE tokens — instant activation, {config.durationDays} days Pro access.
+              Pay with MOVE tokens — instant activation, premium Pro access.
             </p>
+
+            {/* Month Selection Buttons */}
+            <div style={{ marginBottom: '20px', width: '100%' }}>
+              <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: '8px', textAlign: 'left', fontWeight: 500 }}>
+                Select Duration
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                {[1, 2, 3].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    style={{
+                      padding: '10px 6px',
+                      borderRadius: '8px',
+                      background: selectedMonths === m ? 'rgba(205, 161, 105, 0.15)' : 'rgba(255,255,255,0.03)',
+                      border: selectedMonths === m ? '1px solid #cda169' : '1px solid rgba(255,255,255,0.08)',
+                      color: selectedMonths === m ? '#cda169' : 'rgba(255,255,255,0.65)',
+                      fontWeight: selectedMonths === m ? 'bold' : 'normal',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      outline: 'none',
+                      fontSize: '13px'
+                    }}
+                    onClick={() => setSelectedMonths(m)}
+                  >
+                    {m} {m === 1 ? 'Month' : 'Months'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="payment-summary-card">
               <div className="payment-summary-row">
                 <span>Plan</span>
-                <strong>Pro — {config.durationDays} days</strong>
+                <strong>Pro — {config.durationDays * selectedMonths} days</strong>
               </div>
               <div className="payment-summary-row">
                 <span>Price</span>
                 <strong>
-                  {config.discountPriceUsd !== null && (
-                    <s style={{ color: 'rgba(255,255,255,0.35)', marginRight: '8px' }}>${config.basePriceUsd}</s>
+                  {hasDiscount && (
+                    <s style={{ color: 'rgba(255,255,255,0.35)', marginRight: '8px' }}>
+                      ${(config.basePriceUsd * selectedMonths).toFixed(2)}
+                    </s>
                   )}
-                  ${effectivePriceUsd}
+                  ${totalPriceUsd.toFixed(2)}
                 </strong>
               </div>
               <div className="payment-summary-row payment-summary-highlight">
@@ -141,16 +182,6 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
                 <span>Rate</span>
                 <span>1 MOVE ≈ ${config.movePriceUsd.toFixed(4)}</span>
               </div>
-            </div>
-
-            <div className="payment-treasury-row">
-              <span className="payment-treasury-label">Recipient</span>
-              <code className="payment-treasury-addr">
-                {config.treasuryWallet.slice(0, 10)}...{config.treasuryWallet.slice(-8)}
-              </code>
-              <button className="payment-copy-btn" onClick={handleCopyAddress}>
-                {copied ? '✓' : '⧉'}
-              </button>
             </div>
 
             <button className="payment-cta-btn" onClick={handleSendMove}>
@@ -185,7 +216,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
           <div className="payment-status-state payment-success">
             <div className="payment-success-icon">✓</div>
             <h3>Pro Activated!</h3>
-            <p>Your Pro subscription is active for {config.durationDays} days. Enjoy all premium features!</p>
+            <p>Your Pro subscription is active for {config.durationDays * selectedMonths} days. Enjoy all premium features!</p>
           </div>
         )}
 
@@ -413,7 +444,7 @@ export default function Plans() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                   </svg>
-                  Pay with MOVE
+                  Get Pro Plan
                 </button>
               )}
             </div>

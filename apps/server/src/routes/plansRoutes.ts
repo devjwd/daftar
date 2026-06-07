@@ -127,6 +127,7 @@ async function getSubscriptionConfig(supabase: any) {
       'subscription_discount_label',
       'subscription_treasury_wallet',
       'subscription_duration_days',
+      'subscription_discount_scope',
     ]);
 
   const cfg: Record<string, any> = {};
@@ -150,6 +151,7 @@ async function getSubscriptionConfig(supabase: any) {
     discountLabel:    toStr(cfg.subscription_discount_label),
     treasuryWallet:   toStr(cfg.subscription_treasury_wallet),
     durationDays:     toNum(cfg.subscription_duration_days, 30),
+    discountScope:    toStr(cfg.subscription_discount_scope) || 'all_months',
   };
 }
 
@@ -201,6 +203,7 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
 
   const walletAddress = normalizeAddress((req.body.walletAddress as string) || '');
   const txHash = ((req.body.txHash as string) || '').trim();
+  const months = Math.min(3, Math.max(1, Number(req.body.months) || 1));
 
   if (!walletAddress) return res.status(400).json({ error: 'walletAddress required' });
   if (!txHash) return res.status(400).json({ error: 'txHash required' });
@@ -220,10 +223,21 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
       return res.status(503).json({ error: 'MOVE price unavailable. Please try again shortly.' });
     }
 
-    const effectivePriceUsd = cfg.discountPriceUsd !== null ? cfg.discountPriceUsd : cfg.basePriceUsd;
+    const hasDiscount = cfg.discountPriceUsd !== null;
+    let totalUsd = 0;
+    if (hasDiscount && cfg.discountPriceUsd !== null) {
+      if (cfg.discountScope === 'first_month') {
+        totalUsd = cfg.discountPriceUsd + (months - 1) * cfg.basePriceUsd;
+      } else {
+        totalUsd = cfg.discountPriceUsd * months;
+      }
+    } else {
+      totalUsd = cfg.basePriceUsd * months;
+    }
+
     // MOVE has 8 decimals (1 MOVE = 1e8 octas)
     const MOVE_DECIMALS = 1e8;
-    const requiredMoveAmount = effectivePriceUsd / movePriceUsd; // in MOVE
+    const requiredMoveAmount = totalUsd / movePriceUsd; // in MOVE
     const requiredOctas = Math.floor(requiredMoveAmount * MOVE_DECIMALS);
 
     // 2. Prevent duplicate activations — check if this txHash was already used
@@ -292,7 +306,8 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
 
     // 7. All checks passed — upgrade the subscription
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + cfg.durationDays * 24 * 60 * 60 * 1000);
+    const totalDurationDays = cfg.durationDays * months;
+    const expiresAt = new Date(now.getTime() + totalDurationDays * 24 * 60 * 60 * 1000);
 
     const { data: updatedProfile, error: updateError } = await supabase
       .from('profiles')
@@ -315,9 +330,9 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
         wallet_address: walletAddress,
         tx_hash: txHash,
         amount_octas: txOctas,
-        price_usd: effectivePriceUsd,
+        price_usd: totalUsd,
         move_price_usd: movePriceUsd,
-        duration_days: cfg.durationDays,
+        duration_days: totalDurationDays,
         expires_at: expiresAt.toISOString(),
         created_at: now.toISOString(),
       });
@@ -347,7 +362,7 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
       ok: true,
       tier: 'pro',
       expiresAt: expiresAt.toISOString(),
-      durationDays: cfg.durationDays,
+      durationDays: totalDurationDays,
     });
   } catch (err: any) {
     console.error('[Plans] Verify payment error:', err);
