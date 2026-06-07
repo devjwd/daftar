@@ -558,6 +558,7 @@ export const checkAlertLink = async (
 export const exchangeDiscordOauth = async (
   address: string,
   code: string,
+  redirectUri: string,
   signature: any,
   signedMessage: string,
   nonce: number
@@ -567,6 +568,7 @@ export const exchangeDiscordOauth = async (
     body: JSON.stringify({
       address: normalizeAddress(address),
       code,
+      redirectUri,
       signature,
       signedMessage,
       nonce

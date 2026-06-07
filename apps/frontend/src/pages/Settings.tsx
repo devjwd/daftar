@@ -279,9 +279,11 @@ export default function Settings() {
 
       const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
 
+      const redirectUri = window.location.origin + '/settings';
       const res = await exchangeDiscordOauth(
         walletAddress,
         code,
+        redirectUri,
         {
           publicKey: account.publicKey?.toString() || '',
           signature

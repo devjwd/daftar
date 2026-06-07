@@ -369,7 +369,7 @@ router.post('/discord-oauth', generalLimiter, async (req: Request, res: Response
   try {
     const clientId = process.env.DISCORD_CLIENT_ID;
     const clientSecret = process.env.DISCORD_CLIENT_SECRET;
-    const redirectUri = process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/settings';
+    const redirectUri = req.body.redirectUri || process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/settings';
 
     if (!clientId || !clientSecret) {
       throw new Error('Discord client configurations are missing on server');
