@@ -11,10 +11,28 @@ import fetch from 'node-fetch';
 
 const router = express.Router();
 
+// Masking Helper Functions
+function maskEmail(email: string): string {
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***';
+  const name = parts[0];
+  const domain = parts[1];
+  if (name.length <= 2) {
+    return `${name[0]}*@${domain}`;
+  }
+  return `${name.slice(0, 2)}${'*'.repeat(name.length - 3)}${name.slice(-1)}@${domain}`;
+}
+
+function maskId(id: string): string {
+  const str = String(id);
+  if (str.length <= 4) return '****';
+  return `${str.slice(0, 2)}****${str.slice(-2)}`;
+}
+
 /**
  * GET /api/alerts/config
- * Retrieves the current alert configuration for a wallet
- * Authenticated via signature verification
+ * Retrieves the current alert configuration for a wallet.
+ * Supports both authenticated (unmasked) and unauthenticated (masked) fetches.
  */
 router.get('/config', generalLimiter, async (req: Request, res: Response) => {
   const supabaseAdmin = getSupabase();
@@ -24,16 +42,20 @@ router.get('/config', generalLimiter, async (req: Request, res: Response) => {
   const nonce = req.query.nonce as string;
 
   if (!address) return res.status(400).json({ error: 'Invalid address' });
-  if (!signature || !message || !nonce) return res.status(401).json({ error: 'Signature and nonce are required' });
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
 
-  // Nonce check
-  const nonceCheck = await checkAndBurnNonce(supabaseAdmin, address, nonce);
-  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
-
-  // Verify signature
-  const isValid = verifyWalletSignature(address, message, signature);
-  if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
+  let isAuthenticated = false;
+  if (signature && message && nonce) {
+    // Nonce check
+    const nonceCheck = await checkAndBurnNonce(supabaseAdmin, address, nonce);
+    if (nonceCheck.ok) {
+      // Verify signature
+      const isValid = verifyWalletSignature(address, message, signature);
+      if (isValid) {
+        isAuthenticated = true;
+      }
+    }
+  }
 
   try {
     const { data, error } = await supabaseAdmin
@@ -44,7 +66,7 @@ router.get('/config', generalLimiter, async (req: Request, res: Response) => {
 
     if (error) throw error;
 
-    return res.status(200).json(data || {
+    const config = data || {
       wallet_address: address,
       email: '',
       telegram_chat_id: '',
@@ -57,7 +79,22 @@ router.get('/config', generalLimiter, async (req: Request, res: Response) => {
       alert_on_withdrawal: true,
       alert_on_swaps: false,
       alert_on_failed: false
-    });
+    };
+
+    if (!isAuthenticated) {
+      // Mask sensitive fields
+      if (config.email) {
+        config.email = maskEmail(config.email);
+      }
+      if (config.telegram_chat_id) {
+        config.telegram_chat_id = maskId(config.telegram_chat_id);
+      }
+      if (config.discord_user_id) {
+        config.discord_user_id = maskId(config.discord_user_id);
+      }
+    }
+
+    return res.status(200).json(config);
   } catch (err: any) {
     console.error('[AlertRoutes] Fetch config error:', err);
     return res.status(500).json({ error: 'Failed to fetch alert configuration' });
@@ -107,11 +144,23 @@ router.post('/config', generalLimiter, async (req: Request, res: Response) => {
   if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
 
   try {
+    // Retrieve existing configuration to preserve actual values of masked fields
+    const { data: existingConfig } = await supabaseAdmin
+      .from('user_alert_configs')
+      .select('email')
+      .eq('wallet_address', normalizedAddr)
+      .maybeSingle();
+
+    let finalEmail = email;
+    if (email && email.includes('*') && existingConfig?.email) {
+      finalEmail = existingConfig.email;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('user_alert_configs')
       .upsert({
         wallet_address: normalizedAddr,
-        email: email || null,
+        email: finalEmail || null,
         email_enabled: !!email_enabled,
         telegram_enabled: !!telegram_enabled,
         discord_enabled: !!discord_enabled,

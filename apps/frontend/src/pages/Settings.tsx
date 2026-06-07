@@ -33,7 +33,6 @@ export default function Settings() {
   const [hidePositionThreshold, setHidePositionThreshold] = useState(DEFAULT_HIDE_POSITION_THRESHOLD);
 
   const [isPro, setIsPro] = useState(false);
-  const [isAlertsUnlocked, setIsAlertsUnlocked] = useState(false);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [alertConfig, setAlertConfig] = useState<any>({
     email: '',
@@ -69,20 +68,32 @@ export default function Settings() {
     }
   }, [walletAddress]);
 
-  // Check Pro status
+  // Check Pro status and load alerts configuration automatically
   useEffect(() => {
     if (walletAddress) {
-      getPlanStatus(walletAddress).then((res) => {
+      getPlanStatus(walletAddress).then(async (res) => {
         if (res && (res.tier === 'pro' || res.tier === 'lite')) {
           setIsPro(true);
+          // Auto-load alerts configuration (unauthenticated - yields masked values)
+          try {
+            setLoadingAlerts(true);
+            const data = await getAlertConfig(walletAddress);
+            if (data) {
+              setAlertConfig(data);
+              setTelegramLinked(!!data.telegram_chat_id);
+              setDiscordLinked(!!data.discord_user_id);
+            }
+          } catch (err) {
+            console.error('Failed to auto-load alert configuration:', err);
+          } finally {
+            setLoadingAlerts(false);
+          }
         } else {
           setIsPro(false);
-          setIsAlertsUnlocked(false);
         }
       });
     } else {
       setIsPro(false);
-      setIsAlertsUnlocked(false);
     }
   }, [walletAddress]);
 
@@ -106,58 +117,6 @@ export default function Settings() {
 
     return () => clearInterval(interval);
   }, [showTelegramModal, walletAddress]);
-
-  const handleUnlockAlerts = async () => {
-    if (!walletAddress || !signMessage) {
-      alert('Please connect your wallet first.');
-      return;
-    }
-    setLoadingAlerts(true);
-    try {
-      const nonce = await getNonce(walletAddress);
-      if (nonce === null) throw new Error("Could not retrieve security nonce.");
-
-      const issuedAt = new Date().toISOString();
-      const payloadMsg = JSON.stringify({
-        action: 'get-alerts',
-        address: walletAddress.toLowerCase(),
-        issuedAt,
-        nonce: String(nonce)
-      });
-
-      const response = await signMessage({
-        address: true,
-        application: true,
-        chainId: true,
-        message: payloadMsg,
-        nonce: String(nonce)
-      });
-
-      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
-
-      const data = await getAlertConfig(
-        walletAddress,
-        {
-          publicKey: account.publicKey?.toString() || '',
-          signature
-        },
-        payloadMsg,
-        nonce
-      );
-
-      if (data) {
-        setAlertConfig(data);
-        setTelegramLinked(!!data.telegram_chat_id);
-        setDiscordLinked(!!data.discord_user_id);
-      }
-      setIsAlertsUnlocked(true);
-    } catch (err: any) {
-      console.error(err);
-      alert('Failed to authenticate alerts settings: ' + err.message);
-    } finally {
-      setLoadingAlerts(false);
-    }
-  };
 
   const handleSaveAlerts = async () => {
     if (!walletAddress || !signMessage) return;
@@ -286,8 +245,6 @@ export default function Settings() {
       alert('Discord account successfully linked!');
       setDiscordLinkTarget(null);
       
-      // Auto unlock and fetch new state
-      setIsAlertsUnlocked(true);
       setDiscordLinked(true);
       setAlertConfig((prev: any) => ({ ...prev, discord_user_id: discordLinkTarget, discord_enabled: true }));
     } catch (err: any) {
@@ -338,7 +295,6 @@ export default function Settings() {
       // Clear code from URL
       window.history.replaceState({}, document.title, window.location.pathname);
       
-      setIsAlertsUnlocked(true);
       setDiscordLinked(true);
       setAlertConfig((prev: any) => ({ ...prev, discord_user_id: res.config.discord_user_id, discord_enabled: true }));
     } catch (err: any) {
@@ -573,14 +529,6 @@ export default function Settings() {
                 <p>Real-time notifications via Email, Telegram, and Discord are exclusive to <b>Pro/Premium</b> users.</p>
                 <a href="/plans" className="upgrade-btn">Upgrade to Pro</a>
               </div>
-            </div>
-          ) : !isAlertsUnlocked ? (
-            <div className="settings-section">
-              <h2 className="section-title">🚨 Real-time Alerts</h2>
-              <p className="section-desc">Verify your wallet ownership to view and update your Telegram, Discord, and Email transaction alerts.</p>
-              <button onClick={handleUnlockAlerts} className="auth-alerts-btn" disabled={loadingAlerts}>
-                {loadingAlerts ? 'Signing...' : '🔑 Authenticate Alerts Settings'}
-              </button>
             </div>
           ) : (
             <div className="settings-section alerts-active">

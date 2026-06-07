@@ -460,16 +460,23 @@ export const manageReports = async (
 
 export const getAlertConfig = async (
   address: string,
-  signature: any,
-  message: string,
-  nonce: number
+  signature?: any,
+  message?: string,
+  nonce?: number
 ): Promise<any> => {
-  const qs = new URLSearchParams({
-    address: normalizeAddress(address),
-    signature: typeof signature === 'string' ? signature : JSON.stringify(signature),
-    message,
-    nonce: String(nonce)
-  });
+  const params: Record<string, string> = {
+    address: normalizeAddress(address)
+  };
+  if (signature !== undefined) {
+    params.signature = typeof signature === 'string' ? signature : JSON.stringify(signature);
+  }
+  if (message !== undefined) {
+    params.message = message;
+  }
+  if (nonce !== undefined) {
+    params.nonce = String(nonce);
+  }
+  const qs = new URLSearchParams(params);
   const response = await callApi<any>(`/api/alerts/config?${qs.toString()}`);
   return response.ok ? response.data : null;
 };
