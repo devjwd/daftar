@@ -25,6 +25,7 @@ import './Settings.css';
 
 export default function Settings() {
   const { account, signMessage } = useWallet();
+  const walletAddress = account?.address ? account.address.toString() : '';
   const [currency, setCurrency] = useState('USD');
   const [theme, setTheme] = useState<any>('dark');
   const [language, setLanguage] = useState('en');
@@ -63,15 +64,15 @@ export default function Settings() {
     }
 
     const oauthCode = queryParams.get('code');
-    if (oauthCode && account) {
+    if (oauthCode && walletAddress) {
       handleDiscordOauthCallback(oauthCode);
     }
-  }, [account]);
+  }, [walletAddress]);
 
   // Check Pro status
   useEffect(() => {
-    if (account?.address) {
-      getPlanStatus(account.address).then((res) => {
+    if (walletAddress) {
+      getPlanStatus(walletAddress).then((res) => {
         if (res && (res.tier === 'pro' || res.tier === 'lite')) {
           setIsPro(true);
         } else {
@@ -83,15 +84,15 @@ export default function Settings() {
       setIsPro(false);
       setIsAlertsUnlocked(false);
     }
-  }, [account?.address]);
+  }, [walletAddress]);
 
   // Poll Telegram status while modal is open
   useEffect(() => {
-    if (!showTelegramModal || !account) return;
+    if (!showTelegramModal || !walletAddress) return;
 
     const interval = setInterval(async () => {
       try {
-        const res = await checkAlertLink(account.address);
+        const res = await checkAlertLink(walletAddress);
         if (res && res.telegramLinked) {
           setTelegramLinked(true);
           setAlertConfig((prev: any) => ({ ...prev, telegram_chat_id: 'Linked', telegram_enabled: true }));
@@ -104,22 +105,22 @@ export default function Settings() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [showTelegramModal, account]);
+  }, [showTelegramModal, walletAddress]);
 
   const handleUnlockAlerts = async () => {
-    if (!account || !signMessage) {
+    if (!walletAddress || !signMessage) {
       alert('Please connect your wallet first.');
       return;
     }
     setLoadingAlerts(true);
     try {
-      const nonce = await getNonce(account.address);
+      const nonce = await getNonce(walletAddress);
       if (nonce === null) throw new Error("Could not retrieve security nonce.");
 
       const issuedAt = new Date().toISOString();
       const payloadMsg = JSON.stringify({
         action: 'get-alerts',
-        address: account.address.toLowerCase(),
+        address: walletAddress.toLowerCase(),
         issuedAt,
         nonce: String(nonce)
       });
@@ -135,9 +136,9 @@ export default function Settings() {
       const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
 
       const data = await getAlertConfig(
-        account.address,
+        walletAddress,
         {
-          publicKey: account.publicKey,
+          publicKey: account.publicKey?.toString() || '',
           signature
         },
         payloadMsg,
@@ -159,15 +160,15 @@ export default function Settings() {
   };
 
   const handleSaveAlerts = async () => {
-    if (!account || !signMessage) return;
+    if (!walletAddress || !signMessage) return;
     try {
-      const nonce = await getNonce(account.address);
+      const nonce = await getNonce(walletAddress);
       if (nonce === null) throw new Error("Could not retrieve security nonce.");
 
       const issuedAt = new Date().toISOString();
       const payloadMsg = JSON.stringify({
         action: 'save-alerts',
-        address: account.address.toLowerCase(),
+        address: walletAddress.toLowerCase(),
         issuedAt,
         nonce: String(nonce)
       });
@@ -183,10 +184,10 @@ export default function Settings() {
       const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
 
       await saveAlertConfig(
-        account.address,
+        walletAddress,
         alertConfig,
         {
-          publicKey: account.publicKey,
+          publicKey: account.publicKey?.toString() || '',
           signature
         },
         payloadMsg,
@@ -201,15 +202,15 @@ export default function Settings() {
   };
 
   const handleTestAlerts = async () => {
-    if (!account || !signMessage) return;
+    if (!walletAddress || !signMessage) return;
     try {
-      const nonce = await getNonce(account.address);
+      const nonce = await getNonce(walletAddress);
       if (nonce === null) throw new Error("Could not retrieve security nonce.");
 
       const issuedAt = new Date().toISOString();
       const payloadMsg = JSON.stringify({
         action: 'test-alerts',
-        address: account.address.toLowerCase(),
+        address: walletAddress.toLowerCase(),
         issuedAt,
         nonce: String(nonce)
       });
@@ -225,9 +226,9 @@ export default function Settings() {
       const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
 
       const res = await testAlerts(
-        account.address,
+        walletAddress,
         {
-          publicKey: account.publicKey,
+          publicKey: account.publicKey?.toString() || '',
           signature
         },
         payloadMsg,
@@ -244,18 +245,18 @@ export default function Settings() {
   };
 
   const handleConfirmDiscordLink = async () => {
-    if (!account || !signMessage) {
+    if (!walletAddress || !signMessage) {
       alert('Please connect your wallet first.');
       return;
     }
     try {
-      const nonce = await getNonce(account.address);
+      const nonce = await getNonce(walletAddress);
       if (nonce === null) throw new Error("Could not retrieve security nonce.");
 
       const issuedAt = new Date().toISOString();
       const payloadMsg = JSON.stringify({
         action: 'link-discord',
-        address: account.address.toLowerCase(),
+        address: walletAddress.toLowerCase(),
         discord_user_id: discordLinkTarget,
         issuedAt,
         nonce: String(nonce)
@@ -272,10 +273,10 @@ export default function Settings() {
       const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
 
       await linkDiscord(
-        account.address,
+        walletAddress,
         discordLinkTarget!,
         {
-          publicKey: account.publicKey,
+          publicKey: account.publicKey?.toString() || '',
           signature
         },
         payloadMsg,
@@ -296,16 +297,16 @@ export default function Settings() {
   };
 
   const handleDiscordOauthCallback = async (code: string) => {
-    if (!account || !signMessage) return;
+    if (!walletAddress || !signMessage) return;
     try {
       setLoadingAlerts(true);
-      const nonce = await getNonce(account.address);
+      const nonce = await getNonce(walletAddress);
       if (nonce === null) throw new Error("Could not retrieve security nonce.");
 
       const issuedAt = new Date().toISOString();
       const payloadMsg = JSON.stringify({
         action: 'link-discord-oauth',
-        address: account.address.toLowerCase(),
+        address: walletAddress.toLowerCase(),
         code,
         issuedAt,
         nonce: String(nonce)
@@ -322,10 +323,10 @@ export default function Settings() {
       const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
 
       const res = await exchangeDiscordOauth(
-        account.address,
+        walletAddress,
         code,
         {
-          publicKey: account.publicKey,
+          publicKey: account.publicKey?.toString() || '',
           signature
         },
         payloadMsg,
@@ -355,7 +356,7 @@ export default function Settings() {
     window.location.href = oauthUrl;
   };
 
-  const accountSettingsKey = account?.address ? getSettingsStorageKey(account.address) : null;
+  const accountSettingsKey = walletAddress ? getSettingsStorageKey(walletAddress) : null;
   const settingsKey = accountSettingsKey || getSettingsStorageKey(null);
 
   const persistSettings = (overrides = {}) => {
@@ -507,7 +508,7 @@ export default function Settings() {
           </div>
 
           {/* Telegram QR Linking Modal */}
-          {showTelegramModal && account && (
+          {showTelegramModal && walletAddress && (
             <div className="alert-modal-overlay">
               <div className="alert-modal-container">
                 <div className="alert-modal-header">
@@ -515,11 +516,11 @@ export default function Settings() {
                   <button onClick={() => setShowTelegramModal(false)} className="close-modal-btn">×</button>
                 </div>
                 <div className="alert-modal-content">
-                  <p>Scan this QR code with your phone camera or click to link your wallet <code>{account.address.slice(0, 6)}...{account.address.slice(-4)}</code> with the Telegram bot.</p>
+                  <p>Scan this QR code with your phone camera or click to link your wallet <code>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</code> with the Telegram bot.</p>
                   
                   <div className="qr-wrapper">
                     <QRCodeSVG
-                      value={`https://t.me/DaftarFi_bot?start=${account.address}`}
+                      value={`https://t.me/DaftarFi_bot?start=${walletAddress}`}
                       size={200}
                       level="H"
                       includeMargin={true}
@@ -528,7 +529,7 @@ export default function Settings() {
                   </div>
 
                   <a
-                    href={`https://t.me/DaftarFi_bot?start=${account.address}`}
+                    href={`https://t.me/DaftarFi_bot?start=${walletAddress}`}
                     target="_blank"
                     rel="noreferrer"
                     className="qr-telegram-link"
@@ -557,7 +558,7 @@ export default function Settings() {
             </div>
           )}
 
-          {!account ? (
+          {!walletAddress ? (
             <div className="settings-section alerts-locked">
               <h2 className="section-title">🚨 Real-time Alerts</h2>
               <div className="pro-lock-card">
