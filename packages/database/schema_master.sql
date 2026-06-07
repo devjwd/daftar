@@ -676,6 +676,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_payments_tx_hash
 -- RLS
 ALTER TABLE public.subscription_payments ENABLE ROW LEVEL SECURITY;
 
+DO $$
+BEGIN
+    DROP POLICY IF EXISTS "Service role full access on subscription_payments" ON public.subscription_payments;
+    DROP POLICY IF EXISTS "Users read own subscription_payments" ON public.subscription_payments;
+END $$;
+
 CREATE POLICY "Service role full access on subscription_payments"
   ON public.subscription_payments FOR ALL TO service_role
   USING (true) WITH CHECK (true);
@@ -732,6 +738,12 @@ CREATE TABLE IF NOT EXISTS public.user_alert_configs (
 
 -- Setup RLS
 ALTER TABLE public.user_alert_configs ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    DROP POLICY IF EXISTS "Read for anon alert config" ON public.user_alert_configs;
+    DROP POLICY IF EXISTS "Service role full access on alert config" ON public.user_alert_configs;
+END $$;
 
 CREATE POLICY "Read for anon alert config" ON public.user_alert_configs FOR SELECT USING (true);
 CREATE POLICY "Service role full access on alert config" ON public.user_alert_configs FOR ALL TO service_role USING (true) WITH CHECK (true);
