@@ -34,6 +34,7 @@ export default function Settings() {
 
   const [isPro, setIsPro] = useState(false);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
   const [alertConfig, setAlertConfig] = useState<any>({
     email: '',
     telegram_chat_id: '',
@@ -117,6 +118,67 @@ export default function Settings() {
 
     return () => clearInterval(interval);
   }, [showTelegramModal, walletAddress]);
+
+  const handleLinkEmail = async () => {
+    if (!emailInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    if (!walletAddress || !signMessage) return;
+    setLoadingAlerts(true);
+    try {
+      const nonce = await getNonce(walletAddress);
+      if (nonce === null) throw new Error("Could not retrieve security nonce.");
+
+      const updatedConfig = {
+        ...alertConfig,
+        email: emailInput,
+        email_enabled: true
+      };
+
+      const issuedAt = new Date().toISOString();
+      const payloadMsg = JSON.stringify({
+        action: 'save-alerts',
+        address: walletAddress.toLowerCase(),
+        issuedAt,
+        nonce: String(nonce)
+      });
+
+      const response = await signMessage({
+        address: true,
+        application: true,
+        chainId: true,
+        message: payloadMsg,
+        nonce: String(nonce)
+      });
+
+      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+
+      await saveAlertConfig(
+        walletAddress,
+        updatedConfig,
+        {
+          publicKey: account.publicKey?.toString() || '',
+          signature
+        },
+        payloadMsg,
+        nonce
+      );
+
+      setAlertConfig(updatedConfig);
+      alert('Email linked successfully!');
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to link email: ' + err.message);
+    } finally {
+      setLoadingAlerts(false);
+    }
+  };
+
+  const handleUnlinkEmail = () => {
+    setEmailInput('');
+    setAlertConfig((prev: any) => ({ ...prev, email: '', email_enabled: false }));
+  };
 
   const handleSaveAlerts = async () => {
     if (!walletAddress || !signMessage) return;
@@ -543,25 +605,36 @@ export default function Settings() {
                   <span className="setting-description">Receive transaction updates in your inbox</span>
                 </div>
                 <div className="setting-controls">
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={alertConfig.email_enabled}
-                      onChange={(e) => setAlertConfig({ ...alertConfig, email_enabled: e.target.checked })}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
+                  {alertConfig.email ? (
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={alertConfig.email_enabled}
+                        onChange={(e) => setAlertConfig({ ...alertConfig, email_enabled: e.target.checked })}
+                      />
+                      <span className="toggle-slider"></span>
+                    </label>
+                  ) : (
+                    <div className="email-connect-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="email"
+                        placeholder="Enter your email address"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        className="alert-input-text email-connect-input"
+                        style={{ maxWidth: '240px' }}
+                      />
+                      <button onClick={handleLinkEmail} className="connect-channel-btn email" disabled={loadingAlerts}>
+                        Link Email
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-              {alertConfig.email_enabled && (
-                <div className="sub-setting-item">
-                  <input
-                    type="email"
-                    placeholder="Enter your email address"
-                    value={alertConfig.email || ''}
-                    onChange={(e) => setAlertConfig({ ...alertConfig, email: e.target.value })}
-                    className="alert-input-text"
-                  />
+              {alertConfig.email && (
+                <div className="sub-setting-item status-info" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '400px' }}>
+                  <span className="status-linked">Linked Email: <code>{alertConfig.email}</code></span>
+                  <button onClick={handleUnlinkEmail} className="change-email-btn">Change Email</button>
                 </div>
               )}
 

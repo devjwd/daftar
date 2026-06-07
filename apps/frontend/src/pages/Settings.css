@@ -859,3 +859,47 @@ body[data-theme='light'] .reset-btn {
   to { transform: translateY(0); opacity: 1; }
 }
 
+/* Email Alerts CSS Custom styling */
+.connect-channel-btn.email {
+  background: linear-gradient(135deg, #cda169 0%, #a77b43 100%);
+  color: #14110f;
+  white-space: nowrap;
+}
+
+.connect-channel-btn.email:hover {
+  background: linear-gradient(135deg, #deb884 0%, #cda169 100%);
+  color: #000;
+  box-shadow: 0 8px 20px rgba(205, 161, 105, 0.35);
+}
+
+.change-email-btn {
+  background: transparent;
+  border: none;
+  color: #cda169;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  margin-left: 12px;
+  transition: color 0.2s ease;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.change-email-btn:hover {
+  color: #ffffff;
+}
+
+@media (max-width: 768px) {
+  .email-connect-wrapper {
+    flex-direction: column;
+    align-items: stretch !important;
+    width: 100%;
+  }
+  .email-connect-input {
+    max-width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 8px;
+  }
+}
+
