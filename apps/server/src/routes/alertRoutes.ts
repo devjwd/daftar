@@ -1,6 +1,7 @@
 import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { normalizeAddress } from '../utils/address.ts';
+import fs from 'fs';
 import { generalLimiter } from '../middleware/rateLimit.ts';
 import { checkRateLimit, checkAndBurnNonce } from '../services/dbService.ts';
 import { verifyWalletSignature } from '../utils/crypto.ts';
@@ -507,6 +508,23 @@ router.post('/discord-oauth', generalLimiter, async (req: Request, res: Response
   } catch (err: any) {
     console.error('[AlertRoutes] Discord OAuth linking error:', err);
     return res.status(500).json({ error: err.message || 'Failed to authorize Discord account' });
+  }
+});
+
+router.get('/sig-debug-log', async (req: Request, res: Response) => {
+  const key = req.query.key;
+  if (key !== 'daftar-sig-debug-2026') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  try {
+    const logPath = 'sig_debug.log';
+    if (fs.existsSync(logPath)) {
+      const content = fs.readFileSync(logPath, 'utf8');
+      return res.status(200).json({ logs: content });
+    }
+    return res.status(200).json({ logs: 'No log file found' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
