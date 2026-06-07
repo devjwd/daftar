@@ -158,7 +158,6 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
 
         {step === 'confirm' && (
           <>
-            <div className="payment-modal-icon">⚡</div>
             <h2 className="payment-modal-title">Upgrade to Pro</h2>
             <p className="payment-modal-subtitle">
               Pay with MOVE tokens — instant activation, premium Pro access.
@@ -385,7 +384,6 @@ export default function Plans() {
       </div>
 
       <header className="plans-header">
-        <span className="plans-badge">Plan Tiers</span>
         <h1 className="plans-title">Flexible Plan Tiers</h1>
         <p className="plans-subtitle">
           Scale your on-chain portfolio intelligence with tools built for the Movement Network.
