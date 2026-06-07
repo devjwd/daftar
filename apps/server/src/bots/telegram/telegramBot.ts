@@ -135,13 +135,29 @@ export function initTelegramBot(): Telegraf | null {
       return ctx.reply('⚠️ Service temporarily unavailable. Please try again later.');
     }
 
-    // Deep-link: t.me/DaftarFi_bot?start=0x...
-    if (startPayload && startPayload.toLowerCase().startsWith('0x')) {
-      const wallet = normalizeAddress(startPayload);
-      if (!wallet) {
-        return ctx.reply('⚠️ Invalid wallet address provided in link.');
+    // Deep-link lookup: t.me/DaftarFi_bot?start=CONNCODE
+    if (startPayload && startPayload.trim()) {
+      const codePayload = `temp_code:${startPayload.trim()}`;
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+      const { data, error } = await supabase
+        .from('user_alert_configs')
+        .select('wallet_address')
+        .eq('telegram_chat_id', codePayload)
+        .gte('updated_at', fiveMinutesAgo)
+        .maybeSingle();
+
+      if (error || !data) {
+        return ctx.reply(
+          '❌ <b>Link Code Invalid or Expired</b>\n\n' +
+          'For security, linking codes expire after 5 minutes.\n\n' +
+          'Please return to <a href="https://daftar.fi/settings">Daftar Settings</a>, ' +
+          'sign the request, and scan the new QR code / use the new link.',
+          { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+        );
       }
-      return await performLinkWallet(ctx, supabase, wallet, chatId);
+
+      return await performLinkWallet(ctx, supabase, data.wallet_address, chatId);
     }
 
     await ctx.reply(
@@ -170,29 +186,14 @@ export function initTelegramBot(): Telegraf | null {
     const chatId = String(ctx.chat.id);
     if (isRateLimited(chatId)) return;
 
-    const text = ctx.message.text.trim();
-    const parts = text.split(/\s+/);
-    const walletArg = parts[1];
-    const supabase = getSupabase();
-
-    if (!supabase) {
-      return ctx.reply('⚠️ Service temporarily unavailable.');
-    }
-
-    if (!walletArg || !walletArg.startsWith('0x')) {
-      return ctx.reply(
-        '⚠️ <b>Usage:</b> <code>/link [wallet_address]</code>\n\n' +
-        'Example: <code>/link 0x1a2b3c...</code>',
-        { parse_mode: 'HTML' }
-      );
-    }
-
-    const wallet = normalizeAddress(walletArg);
-    if (!wallet) {
-      return ctx.reply('⚠️ Invalid wallet address format.');
-    }
-
-    await performLinkWallet(ctx, supabase, wallet, chatId);
+    await ctx.reply(
+      '🔒 <b>Secure Linking Required</b>\n\n' +
+      'Direct linking via <code>/link [address]</code> is disabled to prevent unauthorized account linking.\n\n' +
+      'Please link your Telegram account securely by visiting the ' +
+      '<a href="https://daftar.fi/settings">Settings page</a> on Daftar.fi, ' +
+      'signing a verification message with your wallet, and scanning the one-time QR code.',
+      { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+    );
   });
 
   // ─── /unlink ─────────────────────────────────────────────────────────────

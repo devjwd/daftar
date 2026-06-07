@@ -344,6 +344,78 @@ router.get('/check-link', generalLimiter, async (req: Request, res: Response) =>
 });
 
 /**
+ * POST /api/alerts/telegram-code
+ * Generates a temporary connection code for linking Telegram.
+ * Authenticated via signature verification.
+ */
+router.post('/telegram-code', generalLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = getSupabase();
+  const { address, signature, signedMessage, nonce } = req.body;
+  const normalizedAddr = normalizeAddress(address);
+
+  if (!normalizedAddr) return res.status(400).json({ error: 'Invalid wallet address' });
+  if (!signature || !signedMessage || !nonce) return res.status(401).json({ error: 'Signature and nonce are required' });
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  // Check subscription tier
+  const tier = await getEffectiveTier(supabaseAdmin, normalizedAddr);
+  if (!isPremiumTier(tier)) {
+    return res.status(403).json({ error: 'Alert integrations require a Pro / Premium tier.' });
+  }
+
+  // Nonce check
+  const nonceCheck = await checkAndBurnNonce(supabaseAdmin, normalizedAddr, nonce);
+  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
+
+  // Verify signature
+  const isValid = verifyWalletSignature(normalizedAddr, signedMessage, signature);
+  if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
+
+  try {
+    // Generate secure connection code (alphanumeric, 8 chars)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const codePayload = `temp_code:${code}`;
+
+    // Get existing config to preserve other channels
+    const { data: existingConfig } = await supabaseAdmin
+      .from('user_alert_configs')
+      .select('*')
+      .eq('wallet_address', normalizedAddr)
+      .maybeSingle();
+
+    const { error } = await supabaseAdmin
+      .from('user_alert_configs')
+      .upsert({
+        wallet_address: normalizedAddr,
+        email: existingConfig?.email || null,
+        telegram_chat_id: codePayload,
+        discord_user_id: existingConfig?.discord_user_id || null,
+        email_enabled: existingConfig?.email_enabled ?? false,
+        telegram_enabled: false,
+        discord_enabled: existingConfig?.discord_enabled ?? false,
+        min_amount_usd: existingConfig?.min_amount_usd ?? 0,
+        alert_on_received: existingConfig?.alert_on_received ?? true,
+        alert_on_withdrawal: existingConfig?.alert_on_withdrawal ?? true,
+        alert_on_swaps: existingConfig?.alert_on_swaps ?? false,
+        alert_on_failed: existingConfig?.alert_on_failed ?? false,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'wallet_address' });
+
+    if (error) throw error;
+
+    return res.status(200).json({ code });
+  } catch (err: any) {
+    console.error('[AlertRoutes] Generate telegram code error:', err);
+    return res.status(500).json({ error: 'Failed to generate connection code' });
+  }
+});
+
+/**
  * POST /api/alerts/discord-oauth
  * Exhanges Discord authorization code for User ID and links it to wallet.
  */

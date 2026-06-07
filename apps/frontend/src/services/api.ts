@@ -580,6 +580,27 @@ export const exchangeDiscordOauth = async (
   return response.data;
 };
 
+export const getTelegramLinkCode = async (
+  address: string,
+  signature: any,
+  signedMessage: string,
+  nonce: number
+): Promise<{ code: string }> => {
+  const response = await callApi<any>('/api/alerts/telegram-code', {
+    method: 'POST',
+    body: JSON.stringify({
+      address: normalizeAddress(address),
+      signature,
+      signedMessage,
+      nonce
+    })
+  });
+  if (!response.ok) {
+    throw new Error(response.error || 'Failed to generate connection code');
+  }
+  return response.data;
+};
+
 export default {
   getProfile,
   getNFTCollectionStats,
@@ -621,6 +642,7 @@ export default {
   linkDiscord,
   testAlerts,
   checkAlertLink,
-  exchangeDiscordOauth
+  exchangeDiscordOauth,
+  getTelegramLinkCode
 };
 

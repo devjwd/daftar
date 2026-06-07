@@ -18,7 +18,8 @@ import {
   linkDiscord,
   testAlerts,
   checkAlertLink,
-  exchangeDiscordOauth
+  exchangeDiscordOauth,
+  getTelegramLinkCode
 } from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
 import './Settings.css';
@@ -52,6 +53,7 @@ export default function Settings() {
   const [telegramLinked, setTelegramLinked] = useState(false);
   const [discordLinked, setDiscordLinked] = useState(false);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
+  const [telegramLinkCode, setTelegramLinkCode] = useState<string | null>(null);
 
   const [discordLinkTarget, setDiscordLinkTarget] = useState<string | null>(null);
   // Stores a pending Discord OAuth code until wallet is connected
@@ -312,6 +314,54 @@ export default function Settings() {
     } catch (err: any) {
       console.error(err);
       alert('Failed to send test alerts: ' + err.message);
+    }
+  };
+
+  const handleConnectTelegram = async () => {
+    if (!walletAddress || !signMessage) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+    setLoadingAlerts(true);
+    try {
+      const nonce = await getNonce(walletAddress);
+      if (nonce === null) throw new Error("Could not retrieve security nonce.");
+
+      const issuedAt = new Date().toISOString();
+      const payloadMsg = JSON.stringify({
+        action: 'link-telegram-code',
+        address: walletAddress.toLowerCase(),
+        issuedAt,
+        nonce: String(nonce)
+      });
+
+      const response = await signMessage({
+        address: true,
+        application: true,
+        chainId: true,
+        message: payloadMsg,
+        nonce: String(nonce)
+      });
+
+      const signature = Array.isArray(response.signature) ? response.signature[0] : response.signature;
+
+      const res = await getTelegramLinkCode(
+        walletAddress,
+        {
+          publicKey: account.publicKey?.toString() || '',
+          signature
+        },
+        payloadMsg,
+        nonce
+      );
+
+      setTelegramLinkCode(res.code);
+      setShowTelegramModal(true);
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to initiate Telegram link: ' + err.message);
+    } finally {
+      setLoadingAlerts(false);
     }
   };
 
@@ -590,7 +640,7 @@ export default function Settings() {
                   
                   <div className="qr-wrapper">
                     <QRCodeSVG
-                      value={`https://t.me/DaftarFi_bot?start=${walletAddress}`}
+                      value={`https://t.me/DaftarFi_bot?start=${telegramLinkCode || ''}`}
                       size={200}
                       level="H"
                       includeMargin={true}
@@ -599,7 +649,7 @@ export default function Settings() {
                   </div>
 
                   <a
-                    href={`https://t.me/DaftarFi_bot?start=${walletAddress}`}
+                    href={`https://t.me/DaftarFi_bot?start=${telegramLinkCode || ''}`}
                     target="_blank"
                     rel="noreferrer"
                     className="qr-telegram-link"
@@ -705,7 +755,7 @@ export default function Settings() {
                       <span className="toggle-slider"></span>
                     </label>
                   ) : (
-                    <button onClick={() => setShowTelegramModal(true)} className="connect-channel-btn telegram">
+                    <button onClick={handleConnectTelegram} className="connect-channel-btn telegram" disabled={loadingAlerts}>
                       Connect Telegram
                     </button>
                   )}
