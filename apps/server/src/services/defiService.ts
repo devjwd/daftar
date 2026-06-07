@@ -108,10 +108,90 @@ export async function fetchUserDeFiPositions(
     }
 
     // 3. Joule Discovery
-    const jouleStore = resources.find(r => r.type.includes("::pool::UserStore") && r.type.includes(PROTOCOLS.JOULE));
-    if (jouleStore) {
-      // Simplification: In a real production app, we'd iterate markets like Echelon
-      // For this implementation, we'll mark it as detected
+    const joulePositionsMap = resources.find(r => r.type.includes("::pool::UserPositionsMap") && r.type.includes(PROTOCOLS.JOULE));
+    if (joulePositionsMap) {
+      const data = joulePositionsMap.data as any;
+      const positionsMap = data.positions_map?.data || [];
+
+      for (const pos of positionsMap) {
+        // Process Lend Positions
+        const lendPositions = pos.value?.lend_positions?.data || [];
+        for (const lp of lendPositions) {
+          const coinType = lp.key;
+          const amountRaw = Number(lp.value || 0);
+          if (amountRaw > 0) {
+            const parts = coinType.split("::");
+            const rawSymbol = parts[parts.length - 1] || "Unknown";
+            const symbol = rawSymbol === "AptosCoin" ? "MOVE" : rawSymbol;
+            const amount = amountRaw / 1e8;
+            const price = priceMap[coinType] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
+
+            if (amount > 0.0001) {
+              positions.push({
+                protocol: "Joule",
+                type: "Lending",
+                amount,
+                usdValue: amount * price,
+                symbol
+              });
+            }
+          }
+        }
+
+        // Process Borrow Positions
+        const borrowPositions = pos.value?.borrow_positions?.data || [];
+        for (const bp of borrowPositions) {
+          const coinType = bp.key;
+          const amountRaw = Number(bp.value?.borrow_amount || 0);
+          if (amountRaw > 0) {
+            const parts = coinType.split("::");
+            const rawSymbol = parts[parts.length - 1] || "Unknown";
+            const symbol = rawSymbol === "AptosCoin" ? "MOVE" : rawSymbol;
+            const amount = amountRaw / 1e8;
+            const price = priceMap[coinType] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
+
+            if (amount > 0.0001) {
+              positions.push({
+                protocol: "Joule",
+                type: "Debt",
+                amount,
+                usdValue: -amount * price,
+                symbol
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Joule Staking/Rewards Discovery
+    const jouleUserPoolsMap = resources.find(r => r.type.includes("::rewards::UserPoolsMap") && r.type.includes(PROTOCOLS.JOULE));
+    if (jouleUserPoolsMap) {
+      const data = jouleUserPoolsMap.data as any;
+      const poolsMap = data.user_pools_map?.data || [];
+
+      for (const pool of poolsMap) {
+        const stakeAmount = Number(pool.value?.stake_amount || 0);
+        if (stakeAmount > 0) {
+          const coinName = pool.value?.coin_name || pool.key;
+          const parts = coinName.split("::");
+          let rawSymbol = parts[parts.length - 1] || "Unknown";
+          rawSymbol = rawSymbol.replace(/\d+$/, ''); 
+          const symbol = rawSymbol === "AptosCoin" ? "MOVE" : rawSymbol;
+          const amount = stakeAmount / 1e8;
+          const price = priceMap[coinName] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
+
+          if (amount > 0.0001) {
+            positions.push({
+              protocol: "Joule",
+              type: "Staking",
+              amount,
+              usdValue: amount * price,
+              symbol
+            });
+          }
+        }
+      }
     }
 
     // 4. Canopy Staking Discovery
