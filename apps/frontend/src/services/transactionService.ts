@@ -1364,9 +1364,107 @@ export const getOrFetchTransactions = async (walletAddress, options: any = {}) =
   }
 };
 
+export const getTransactionByHash = async (txHash: string) => {
+  let cleanHash = String(txHash || "").trim();
+  if (cleanHash && !cleanHash.startsWith("0x")) {
+    cleanHash = "0x" + cleanHash;
+  }
+
+  const query = `
+    query GetTransactionByHash($hash: String!) {
+      user_transactions(where: {hash: {_eq: $hash}}, limit: 1) {
+        version
+        hash
+        sender
+        timestamp
+        gas_used
+        gas_unit_price
+        success
+        entry_function_id_str
+        payload
+        fungible_asset_activities {
+          transaction_version
+          transaction_timestamp
+          owner_address
+          amount
+          asset_type
+          type
+          is_transaction_success
+          entry_function_id_str
+          metadata {
+            symbol
+            decimals
+          }
+        }
+        events {
+          type
+          data
+          account_address
+          sequence_number
+        }
+      }
+    }
+  `;
+
+  let rawTx = null;
+  try {
+    const { data, error } = await postGraphQL(query, { hash: cleanHash });
+    if (!error && data?.user_transactions?.length > 0) {
+      rawTx = data.user_transactions[0];
+    }
+  } catch (err) {
+    devLog("getTransactionByHash indexer lookup failed:", err);
+  }
+
+  if (!rawTx) {
+    const { rpcUrl } = resolveEnv();
+    if (rpcUrl) {
+      try {
+        const response = await fetchWithTimeout(`${rpcUrl}/transactions/by_hash/${cleanHash}`);
+        if (response.ok) {
+          const nodeTx = await response.json();
+          if (nodeTx) {
+            rawTx = {
+              hash: nodeTx.hash,
+              sender: nodeTx.sender,
+              timestamp: nodeTx.timestamp,
+              gas_used: nodeTx.gas_used,
+              gas_unit_price: nodeTx.gas_unit_price,
+              success: nodeTx.success,
+              entry_function_id_str: nodeTx.payload?.function || null,
+              payload: nodeTx.payload || null,
+              version: nodeTx.version,
+              fungible_asset_activities: [],
+              events: nodeTx.events || []
+            };
+          }
+        }
+      } catch (err) {
+        devLog("getTransactionByHash Node RPC lookup failed:", err);
+      }
+    }
+  }
+
+  if (!rawTx) {
+    return null;
+  }
+
+  const normalized = normalizeUserTransactionRow(rawTx);
+  const parsed = await parseTransaction(normalized, normalized.sender || "");
+  
+  // Apply project branding to show logo and dApp name
+  const branded = applyProjectBranding([parsed])[0] || parsed;
+  branded.wallet_address = normalized.sender;
+  branded.sender = normalized.sender;
+  branded.version = normalized.transaction_version;
+  return branded;
+};
+
 export default {
   fetchTransactions,
   parseTransaction,
   getTokenPrice,
   getOrFetchTransactions,
+  getTransactionByHash,
 };
+

@@ -792,6 +792,11 @@ body[data-theme='light'] .search-suggestion-item.highlighted {
   color: #cda169;
 }
 
+.suggestion-badge.transaction {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
 .suggestion-address {
   font-size: 12px;
   color: #98a2b3;

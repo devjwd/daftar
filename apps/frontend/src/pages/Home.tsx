@@ -7,6 +7,8 @@ import { getStoredLanguagePreference, t } from '../utils/language';
 import { resolveAddressOrUsernameAsync, searchProfiles, searchProfilesAsync } from '../services/profileService';
 import { checkAccountExists } from '../services/indexer';
 import { searchEntities } from '../services/entityStore';
+import { getTransactionByHash } from '../services/transactionService';
+import TransactionVisualizer from '../components/Transactions/TransactionVisualizer';
 import './Home.css';
 
 export default function Home() {
@@ -54,15 +56,20 @@ export default function Home() {
   const searchTimeoutRef = useRef(null);
   const latestQueryRef = useRef("");
 
+  const [selectedTxForPlayback, setSelectedTxForPlayback] = useState<any | null>(null);
+
+
+
   const isValidAvatarUrl = (url) => {
     if (!url) return false;
     const trimmed = url.trim();
     return trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('/');
   };
 
-  const goToWallet = useCallback((address, name) => {
+  const goToWallet = useCallback(async (address, name, type?: string) => {
     if (!address) return;
     const addr = address.trim();
+
     try {
       const indexData = localStorage.getItem('recentSearches');
       let index = indexData ? JSON.parse(indexData) : [];
@@ -192,6 +199,7 @@ export default function Home() {
             verified: exists,
           });
         }
+
         setSearchResults(results.slice(0, 5));
         setSuggestionsLoading(false);
         setActiveSuggestionIndex(-1);
@@ -236,7 +244,7 @@ export default function Home() {
       if (activeSuggestionIndex >= 0 && activeSuggestionIndex < searchResults.length) {
         e.preventDefault();
         const selected = searchResults[activeSuggestionIndex];
-        goToWallet(selected.address, selected.username);
+        goToWallet(selected.address, selected.username, selected.type);
       }
     } else if (e.key === "Escape") {
       e.preventDefault();
@@ -258,6 +266,9 @@ export default function Home() {
 
     if (isValidAddress(query)) {
       navigate(`/profile/${query}`);
+      setSearchQuery("");
+      setShowSuggestions(false);
+      setSearchResults([]);
       return;
     }
 
@@ -267,6 +278,9 @@ export default function Home() {
       const resolvedAddress = await resolveAddressOrUsernameAsync(query);
       if (resolvedAddress) {
         navigate(`/profile/${resolvedAddress}`);
+        setSearchQuery("");
+        setShowSuggestions(false);
+        setSearchResults([]);
       } else {
         setSearchError(t(language, 'searchErrorInvalid') || 'Invalid address or username');
       }
@@ -378,7 +392,7 @@ export default function Home() {
                           key={`${result.type}_${result.address}_${i}`}
                           type="button"
                           className={`search-suggestion-item ${isHighlighted ? 'highlighted' : ''}`}
-                          onClick={() => goToWallet(result.address, result.username)}
+                          onClick={() => goToWallet(result.address, result.username, result.type)}
                           onMouseEnter={() => setActiveSuggestionIndex(i)}
                         >
                           {/* Avatar/Icon */}
@@ -401,6 +415,8 @@ export default function Home() {
                                   (e.target as HTMLImageElement).src = '/movement-logo.svg';
                                 }}
                               />
+                            ) : result.type === 'transaction' ? (
+                              <span className="suggestion-icon">⛓️</span>
                             ) : (
                               <span className={`suggestion-icon ${result.type}`}>
                                 {result.type === 'blockchain' ? '⛓️' : result.type === 'profile' ? '👤' : '🎟️'}
@@ -416,7 +432,8 @@ export default function Home() {
                                 {result.type === 'blockchain' ? `✓ ${t(language, 'onChain')}`
                                   : result.type === 'profile' ? t(language, 'profile')
                                     : result.type === 'platform' ? (result.category || 'Platform')
-                                      : t(language, 'address')}
+                                      : result.type === 'transaction' ? 'Transaction'
+                                        : t(language, 'address')}
                               </span>
                             </div>
                             <span className="suggestion-address">
@@ -513,6 +530,14 @@ export default function Home() {
       </div>
 
       <WalletModal isOpen={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
+
+      {selectedTxForPlayback && (
+        <TransactionVisualizer
+          tx={selectedTxForPlayback}
+          onClose={() => setSelectedTxForPlayback(null)}
+          language={language}
+        />
+      )}
     </div>
   );
 }

@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Wallet, Cpu, User, ArrowRightLeft, ZoomIn, ZoomOut, RotateCcw, HelpCircle } from 'lucide-react';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import styles from './TransactionVisualizer.module.css';
 import { DEFI_PROTOCOL_VISUALS, getLogoForLabel } from '../../config/display';
 import { findEntityByAddress } from '../../services/entityStore';
+import { getProfile, getProfileAsync } from '../../services/profileService';
+import { areAddressesEqual } from '../../utils/address';
 
 interface TransactionVisualizerProps {
   tx: any;
@@ -12,9 +15,41 @@ interface TransactionVisualizerProps {
 }
 
 export default function TransactionVisualizer({ tx, onClose, language = 'en' }: TransactionVisualizerProps) {
+  const { account } = useWallet();
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
+
+  const connectedAddress = account?.address ? String(account.address).trim().toLowerCase() : null;
+  const isOwnWallet = useMemo(() => {
+    if (!connectedAddress || !tx?.wallet_address) return false;
+    const match = areAddressesEqual(connectedAddress, tx.wallet_address);
+    console.log("DEBUG VISUALIZER:", { connectedAddress, tx_wallet_address: tx.wallet_address, match });
+    return match;
+  }, [connectedAddress, tx?.wallet_address]);
+
+  const [asyncProfile, setAsyncProfile] = useState<any>(null);
+
+  useEffect(() => {
+    if (!tx?.wallet_address) {
+      setAsyncProfile(null);
+      return;
+    }
+    let active = true;
+    getProfileAsync(tx.wallet_address).then((p) => {
+      if (active && p) {
+        setAsyncProfile(p);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [tx?.wallet_address]);
+
+  const profile = useMemo(() => {
+    if (!tx?.wallet_address) return null;
+    return asyncProfile || getProfile(tx.wallet_address);
+  }, [tx?.wallet_address, asyncProfile]);
 
   const panStartRef = useRef({ x: 0, y: 0 });
   const draggedNodeRef = useRef<'left' | 'right' | null>(null);
@@ -49,13 +84,14 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
         badgeColor: walletEntity.badge_color || '#8B5CF6'
       };
     }
+    const label = isOwnWallet ? 'My Wallet' : (profile?.username || 'User Wallet');
     return {
-      label: 'My Wallet',
-      logo: getLogoForLabel('My Wallet') || null,
+      label,
+      logo: getLogoForLabel(label) || null,
       isEntity: false,
       badgeColor: '#8B5CF6'
     };
-  }, [walletEntity]);
+  }, [walletEntity, isOwnWallet, profile]);
 
   // Resolve protocol logo
   const protocolLogo = useMemo(() => {
@@ -83,77 +119,58 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  // Node 1: Left Node details
-  const leftNodeDetails = useMemo(() => {
-    if (isSimpleTransfer) {
-      if (isReceived) {
-        // Left is Sender
-        const entity = tx.counterparty_address ? findEntityByAddress(tx.counterparty_address) : null;
-        return {
-          label: entity ? entity.name : 'Sender',
-          subLabel: tx.counterparty_address ? formatAddress(tx.counterparty_address) : 'Source Wallet',
-          isWallet: true,
-          logo: entity ? (entity.logo_url || getLogoForLabel(entity.name)) : null,
-          color: '#16c784',
-          shadow: '0 0 15px rgba(22, 199, 132, 0.08)'
-        };
-      } else {
-        // Left is My Wallet
-        return {
-          label: centerNodeBranding.label,
-          subLabel: formatAddress(tx.wallet_address || '0xUserAddress'),
-          isWallet: true,
-          logo: centerNodeBranding.logo,
-          color: centerNodeBranding.badgeColor,
-          shadow: centerNodeBranding.isEntity
-            ? '0 0 20px rgba(229, 190, 138, 0.15)'
-            : '0 0 20px rgba(139, 92, 246, 0.1)'
-        };
-      }
-    } else {
-      // DeFi transaction: Left is always My Wallet
-      return {
-        label: centerNodeBranding.label,
-        subLabel: formatAddress(tx.wallet_address || '0xUserAddress'),
-        isWallet: true,
-        logo: centerNodeBranding.logo,
-        color: centerNodeBranding.badgeColor,
-        shadow: centerNodeBranding.isEntity
-          ? '0 0 20px rgba(229, 190, 138, 0.15)'
-          : '0 0 20px rgba(139, 92, 246, 0.1)'
-      };
-    }
-  }, [isSimpleTransfer, isReceived, tx, centerNodeBranding]);
+  const formatAddressLong = (addr: string) => {
+    if (!addr) return '';
+    const clean = addr.trim();
+    if (clean.length < 24) return clean;
+    return `${clean.slice(0, 12)}...${clean.slice(-10)}`;
+  };
 
-  // Node 2: Right Node details
-  const rightNodeDetails = useMemo(() => {
+  const formattedDate = useMemo(() => {
+    if (!tx?.tx_timestamp) return 'Unknown';
+    try {
+      const date = new Date(typeof tx.tx_timestamp === 'number' ? tx.tx_timestamp * 1000 : tx.tx_timestamp);
+      return date.toLocaleString(language === 'zh' ? 'zh-CN' : language === 'ko' ? 'ko-KR' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    } catch (e) {
+      return String(tx.tx_timestamp);
+    }
+  }, [tx?.tx_timestamp, language]);
+
+  // Determine if My Wallet should be on the right (i.e. incoming flow from sending entity)
+  const showWalletOnRight = isReceived || (hasInflow && !hasOutflow);
+
+  const walletNode = useMemo(() => {
+    return {
+      label: centerNodeBranding.label,
+      subLabel: formatAddress(tx.wallet_address || '0xUserAddress'),
+      isWallet: true,
+      logo: centerNodeBranding.logo,
+      color: centerNodeBranding.badgeColor,
+      shadow: centerNodeBranding.isEntity
+        ? '0 0 20px rgba(229, 190, 138, 0.15)'
+        : '0 0 20px rgba(139, 92, 246, 0.1)'
+    };
+  }, [centerNodeBranding, tx]);
+
+  const counterpartyNode = useMemo(() => {
     if (isSimpleTransfer) {
-      if (isReceived) {
-        // Right is My Wallet
-        return {
-          label: centerNodeBranding.label,
-          subLabel: formatAddress(tx.wallet_address || '0xUserAddress'),
-          isWallet: true,
-          logo: centerNodeBranding.logo,
-          color: centerNodeBranding.badgeColor,
-          shadow: centerNodeBranding.isEntity
-            ? '0 0 20px rgba(229, 190, 138, 0.15)'
-            : '0 0 20px rgba(139, 92, 246, 0.1)'
-        };
-      } else {
-        // Right is Recipient
-        const entity = tx.counterparty_address ? findEntityByAddress(tx.counterparty_address) : null;
-        return {
-          label: entity ? entity.name : 'Recipient',
-          subLabel: tx.counterparty_address ? formatAddress(tx.counterparty_address) : 'Destination Wallet',
-          isWallet: true,
-          logo: entity ? (entity.logo_url || getLogoForLabel(entity.name)) : null,
-          color: '#ff6b6b',
-          shadow: '0 0 15px rgba(255, 107, 107, 0.08)'
-        };
-      }
+      const entity = tx.counterparty_address ? findEntityByAddress(tx.counterparty_address) : null;
+      return {
+        label: entity ? entity.name : (isReceived ? 'Sender' : 'Recipient'),
+        subLabel: tx.counterparty_address ? formatAddress(tx.counterparty_address) : (isReceived ? 'Source Wallet' : 'Destination Wallet'),
+        isWallet: true,
+        logo: entity ? (entity.logo_url || getLogoForLabel(entity.name)) : null,
+        color: isReceived ? '#16c784' : '#ff6b6b',
+        shadow: isReceived ? '0 0 15px rgba(22, 199, 132, 0.08)' : '0 0 15px rgba(255, 107, 107, 0.08)'
+      };
     } else {
-      // DeFi transaction: Right is always the DeFi Protocol/dApp
       return {
         label: dappName,
         subLabel: tx.counterparty_address
@@ -165,13 +182,16 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
         shadow: '0 0 15px rgba(205, 161, 105, 0.1)'
       };
     }
-  }, [isSimpleTransfer, isReceived, tx, centerNodeBranding, dappName, protocolLogo]);
+  }, [isSimpleTransfer, isReceived, tx, dappName, protocolLogo]);
+
+  const leftNodeDetails = showWalletOnRight ? counterpartyNode : walletNode;
+  const rightNodeDetails = showWalletOnRight ? walletNode : counterpartyNode;
   // Spacing for 2 nodes centered in the canvas
   const coords = useMemo(() => {
     return {
-      left: 260,
-      right: 540,
-      y: 160
+      left: 280,
+      right: 620,
+      y: 180
     };
   }, []);
 
@@ -241,8 +261,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
     setNodePositions(prev => ({
       ...prev,
       [draggedNodeRef.current!]: {
-        x: Math.max(40, Math.min(760, relativeX)),
-        y: Math.max(40, Math.min(280, relativeY))
+        x: Math.max(40, Math.min(860, relativeX)),
+        y: Math.max(40, Math.min(320, relativeY))
       }
     }));
   };
@@ -323,7 +343,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
           <svg
             ref={svgRef}
             className={styles.svgCanvas}
-            viewBox="0 0 800 320"
+            viewBox="0 0 900 360"
             preserveAspectRatio="xMidYMid meet"
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={(e) => {
@@ -414,7 +434,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
                   >
                     {leftNodeDetails.logo ? (
                       <img src={leftNodeDetails.logo} alt={leftNodeDetails.label} className={styles.nodeLogo} />
-                    ) : leftNodeDetails.label === 'My Wallet' ? (
+                    ) : (leftNodeDetails.label === 'My Wallet' || leftNodeDetails.label === 'Wallet' || leftNodeDetails.label === 'User Wallet') ? (
                       <Wallet size={24} color="#a78bfa" />
                     ) : leftNodeDetails.isWallet ? (
                       <User size={24} color={leftNodeDetails.color} />
@@ -447,7 +467,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
                   >
                     {rightNodeDetails.logo ? (
                       <img src={rightNodeDetails.logo} alt={rightNodeDetails.label} className={styles.nodeLogo} />
-                    ) : rightNodeDetails.label === 'My Wallet' ? (
+                    ) : (rightNodeDetails.label === 'My Wallet' || rightNodeDetails.label === 'Wallet' || rightNodeDetails.label === 'User Wallet') ? (
                       <Wallet size={24} color="#a78bfa" />
                     ) : rightNodeDetails.isWallet ? (
                       <User size={24} color={rightNodeDetails.color} />
@@ -471,37 +491,80 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
             <button className={styles.closeBtn} onClick={onClose} aria-label="Close"><X size={14} /></button>
           </div>
 
-          {/* Details & Instructions Footer (Inline Overlay) */}
-          <div className={styles.detailsFooterInline}>
-            <div className={styles.detailsRow}>
-              <div className={styles.detailItemInline}>
-                <span className={styles.detailLabel}>Type</span>
-                <span className={styles.detailValue} style={{ color: tx.tx_color || '#fff' }}>{txType.toUpperCase()}</span>
+          {/* Instructions Overlay */}
+          <div className={styles.instructionsInline} style={{ position: 'absolute', bottom: '16px', right: '20px', pointerEvents: 'none' }}>
+            <HelpCircle size={10} />
+            <span>Scroll to zoom · Drag background to pan · Drag nodes to organize</span>
+          </div>
+
+        </div>
+
+        {/* Details & Addresses Section below the Canvas */}
+        <div className={styles.infoSection}>
+          <div className={styles.infoGrid}>
+            
+            {/* Left side: Meta details */}
+            <div className={styles.infoColumn}>
+              <h3 className={styles.columnTitle}>Transaction Details</h3>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Type</span>
+                <span className={styles.infoValuePill} style={{ backgroundColor: `${tx.tx_color || '#3b82f6'}1a`, color: tx.tx_color || '#60a5fa', borderColor: `${tx.tx_color || '#3b82f6'}33` }}>
+                  {txType.toUpperCase()}
+                </span>
               </div>
-              <div className={styles.detailItemInline}>
-                <span className={styles.detailLabel}>Protocol</span>
-                <span className={styles.detailValue}>{dappName}</span>
-              </div>
-              {tx.gas_fee != null && (
-                <div className={styles.detailItemInline}>
-                  <span className={styles.detailLabel}>Gas Fee</span>
-                  <span className={styles.detailValue}>{Number(tx.gas_fee).toFixed(5)} MOVE</span>
-                </div>
-              )}
-              <div className={styles.detailItemInline}>
-                <span className={styles.detailLabel}>Status</span>
-                <span className={styles.detailValue} style={{ color: tx.status === 'failed' ? '#ff6b6b' : '#16c784' }}>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Status</span>
+                <span className={styles.statusPill} style={{ backgroundColor: tx.status === 'failed' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(22, 199, 132, 0.1)', color: tx.status === 'failed' ? '#ff6b6b' : '#16c784', borderColor: tx.status === 'failed' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(22, 199, 132, 0.2)' }}>
                   {tx.status?.toUpperCase() || 'SUCCESS'}
                 </span>
               </div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Time</span>
+                <span className={styles.infoValue}>{formattedDate}</span>
+              </div>
+              {tx.version && (
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>Version</span>
+                  <span className={styles.infoValueMono}>{tx.version}</span>
+                </div>
+              )}
             </div>
 
-            <div className={styles.instructionsInline}>
-              <HelpCircle size={10} />
-              <span>Scroll to zoom · Drag background to pan · Drag nodes to organize</span>
+            {/* Right side: Connection details */}
+            <div className={styles.infoColumn}>
+              <h3 className={styles.columnTitle}>Addresses & Network</h3>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Sender</span>
+                <span className={styles.infoValueAddress} title={tx.wallet_address || tx.sender}>
+                  {tx.wallet_address || tx.sender ? formatAddressLong(tx.wallet_address || tx.sender) : 'N/A'}
+                </span>
+              </div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Recipient/dApp</span>
+                <span className={styles.infoValueAddress} title={tx.counterparty_address || tx.dapp_contract}>
+                  {tx.counterparty_address || tx.dapp_contract ? formatAddressLong(tx.counterparty_address || tx.dapp_contract) : 'N/A'}
+                </span>
+              </div>
+              {tx.gas_fee != null && (
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>Gas Cost</span>
+                  <span className={styles.infoValueGold}>{Number(tx.gas_fee).toFixed(6)} MOVE</span>
+                </div>
+              )}
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Explorer</span>
+                <a 
+                  href={`https://explorer.movementnetwork.xyz/txn/${cleanHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.explorerLink}
+                >
+                  View on Explorer ↗
+                </a>
+              </div>
             </div>
+
           </div>
-
         </div>
 
       </div>

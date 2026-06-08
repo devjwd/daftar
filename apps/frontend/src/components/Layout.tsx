@@ -16,6 +16,8 @@ import {
 import { checkAccountExists } from '../services/indexer';
 import { getEnv } from '../config/envValidator';
 import { searchEntities } from '../services/entityStore';
+import { getTransactionByHash } from '../services/transactionService';
+import TransactionVisualizer from './Transactions/TransactionVisualizer';
 import './Layout.css';
 import { FeedbackModal } from './FeedbackModal';
 import { BugReportModal } from './BugReportModal';
@@ -78,6 +80,7 @@ export default function Layout({ children }) {
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  const [selectedTxForPlayback, setSelectedTxForPlayback] = useState<any | null>(null);
   const [recentSearches, setRecentSearches] = useState(() => {
     const saved = localStorage.getItem('recentSearches');
     if (!saved) return [];
@@ -92,6 +95,8 @@ export default function Layout({ children }) {
   const searchTimeoutRef = useRef(null);
   const latestQueryRef = useRef("");
   const blurTimeoutRef = useRef(null);
+
+
   const passAddress = account?.address ? String(account.address) : null;
   const { level: passLevel, loading: passLevelLoading } = useUserLevel(passAddress);
 
@@ -302,7 +307,7 @@ export default function Layout({ children }) {
   };
 
   // Navigate to a profile address
-  const goToWallet = useCallback((address, name) => {
+  const goToWallet = useCallback(async (address, name, type?: string) => {
     if (!address) return;
     const addr = address.trim();
     saveRecentSearch(addr, name);
@@ -478,7 +483,7 @@ export default function Layout({ children }) {
 
     // If we have any search results, go to first
     if (searchResults.length > 0 && searchResults[0].address) {
-      goToWallet(searchResults[0].address, searchResults[0].username);
+      goToWallet(searchResults[0].address, searchResults[0].username, searchResults[0].type);
       return;
     }
 
@@ -718,7 +723,7 @@ export default function Layout({ children }) {
                       const currentSuggestions = searchQuery.trim() ? searchResults : recentSearches;
                       if (showSuggestions && activeSuggestionIndex >= 0 && activeSuggestionIndex < currentSuggestions.length) {
                         const selected = currentSuggestions[activeSuggestionIndex];
-                        goToWallet(selected.address, selected.username);
+                        goToWallet(selected.address, selected.username, selected.type);
                       } else {
                         handleSearch();
                       }
@@ -829,17 +834,21 @@ export default function Layout({ children }) {
                           const isHighlighted = activeSuggestionIndex === i;
                           const hasValidAvatar = isValidAvatarUrl(result.pfp);
                           return (
-                            <button
+                             <button
                               key={`${result.type}-${result.address}-${i}`}
                               className={`search-suggestion-item ${isHighlighted ? 'highlighted' : ''}`}
                               onMouseDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                goToWallet(result.address, result.username);
+                                goToWallet(result.address, result.username, result.type);
                               }}
                             >
                               <div className="suggestion-avatar">
-                                <img src={hasValidAvatar ? result.pfp : '/pfp/default.png'} alt={`${result.username} profile`} className="suggestion-pfp" />
+                                {result.type === 'transaction' ? (
+                                  <span className="suggestion-icon">⛓️</span>
+                                ) : (
+                                  <img src={hasValidAvatar ? result.pfp : '/pfp/default.png'} alt={`${result.username} profile`} className="suggestion-pfp" />
+                                )}
                               </div>
                               <div className="suggestion-info">
                                 <div className="suggestion-main">
@@ -848,7 +857,8 @@ export default function Layout({ children }) {
                                     {result.type === 'blockchain' ? `✓ ${t(language, 'onChain')}`
                                       : result.type === 'profile' ? t(language, 'profile')
                                         : result.type === 'platform' ? (result.category || 'Platform')
-                                          : t(language, 'address')}
+                                          : result.type === 'transaction' ? 'Transaction'
+                                            : t(language, 'address')}
                                   </span>
                                 </div>
                                 <span className="suggestion-address">{formatAddress(result.address, 10, 6)}</span>
@@ -1017,6 +1027,14 @@ export default function Layout({ children }) {
 
       {/* Wallet Connection Modal */}
       <WalletModal isOpen={walletPickerOpen} onClose={() => setWalletPickerOpen(false)} />
+
+      {selectedTxForPlayback && (
+        <TransactionVisualizer
+          tx={selectedTxForPlayback}
+          onClose={() => setSelectedTxForPlayback(null)}
+          language={language}
+        />
+      )}
     </div>
   );
 }

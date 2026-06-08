@@ -16,7 +16,7 @@
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 24px;
   width: 100%;
-  max-width: 780px;
+  max-width: 960px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
@@ -77,7 +77,7 @@
 /* Visualizer area */
 .visualizerArea {
   position: relative;
-  height: 380px;
+  height: 420px;
   background: #050504;
   overflow: hidden;
   display: flex;
@@ -360,4 +360,108 @@
   gap: 6px;
   color: rgba(255, 255, 255, 0.35);
   font-size: 10px;
+}
+
+/* New Info Section Styles */
+.infoSection {
+  background: rgba(0, 0, 0, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 24px;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+@media (max-width: 640px) {
+  .infoGrid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+.infoColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.columnTitle {
+  margin: 0 0 4px 0;
+  color: #f3dfbe;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-family: var(--font-display);
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  padding-bottom: 8px;
+}
+
+.infoLabel {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+}
+
+.infoValue {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+}
+
+.infoValueMono {
+  color: rgba(255, 255, 255, 0.85);
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.infoValueAddress {
+  color: rgba(205, 161, 105, 0.85);
+  font-family: monospace;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
+.infoValueGold {
+  color: #deb884;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.infoValuePill {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+
+.statusPill {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+
+.explorerLink {
+  color: #60a5fa;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+
+.explorerLink:hover {
+  color: #93c5fd;
+  text-decoration: underline;
 }
