@@ -22,6 +22,8 @@ export const parseSignaturePayload = (signature: unknown): SignaturePayload | nu
   }
 };
 
+export const sigVerificationLogs: string[] = [];
+
 export const verifyWalletSignature = (
   walletAddress: string,
   message: string,
@@ -29,16 +31,18 @@ export const verifyWalletSignature = (
   maxAgeMinutes: number = 5
 ): boolean => {
   const logFail = (reason: string, details?: any) => {
+    const logStr = `[${new Date().toISOString()}] FAIL: ${reason}\n` +
+      `Wallet: ${walletAddress}\n` +
+      `Message: ${String(message)}\n` +
+      `Payload: ${JSON.stringify(signaturePayload, null, 2)}\n` +
+      `Details: ${JSON.stringify(details || {}, null, 2)}\n` +
+      `--------------------\n`;
+    sigVerificationLogs.push(logStr);
+    if (sigVerificationLogs.length > 100) {
+      sigVerificationLogs.shift();
+    }
     try {
-      fs.appendFileSync(
-        'sig_debug.log',
-        `[${new Date().toISOString()}] FAIL: ${reason}\n` +
-        `Wallet: ${walletAddress}\n` +
-        `Message: ${String(message)}\n` +
-        `Payload: ${JSON.stringify(signaturePayload, null, 2)}\n` +
-        `Details: ${JSON.stringify(details || {}, null, 2)}\n` +
-        `--------------------\n`
-      );
+      fs.appendFileSync('sig_debug.log', logStr);
     } catch (e: any) {
       console.error('Failed to write to sig_debug.log:', e.message);
     }
@@ -141,15 +145,15 @@ export const verifyWalletSignature = (
     const finalPublicKey = finalizeHex(publicKeyStr);
     const finalSignature = finalizeHex(signatureStr);
 
-    console.log('[Verification] Final strings:', { 
-      publicKey: finalPublicKey.slice(0, 10) + '...', 
+    console.log('[Verification] Final strings:', {
+      publicKey: finalPublicKey.slice(0, 10) + '...',
       signature: finalSignature.slice(0, 10) + '...',
       messageType: typeof message
     });
 
     const publicKey = new Ed25519PublicKey(finalPublicKey);
     const aptosSignature = new Ed25519Signature(finalSignature);
-    
+
     const verified = publicKey.verifySignature({
       message: new TextEncoder().encode(String(message)),
       signature: aptosSignature,
