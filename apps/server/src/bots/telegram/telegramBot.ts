@@ -79,8 +79,8 @@ async function requireLinkedWallet(ctx: any): Promise<{ wallet: string; config: 
   if (!result) {
     await ctx.reply(
       '❌ <b>No wallet linked</b>\n\n' +
-      'Link your wallet first using:\n<code>/link [wallet_address]</code>\n\n' +
-      'Or scan the QR code on <a href="https://daftar.fi/settings">Daftar Settings</a>.',
+      'Please link your wallet securely via the <a href="https://daftar.fi/settings">Settings page</a>.\n\n' +
+      'Sign a message with your wallet and scan the one-time QR code to connect.',
       { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
     );
     return null;
@@ -164,8 +164,9 @@ export function initTelegramBot(): Telegraf | null {
       '👋 <b>Welcome to the Daftar Bot!</b>\n\n' +
       '🏦 Your all-in-one Movement Network portfolio companion.\n\n' +
       '<b>Get Started:</b>\n' +
-      '• Link your wallet: <code>/link [address]</code>\n' +
-      '• Or scan the QR code on <a href="https://daftar.fi/settings">Daftar Settings</a>\n\n' +
+      '• Visit <a href="https://daftar.fi/settings">Daftar Settings</a>\n' +
+      '• Sign a verification message with your wallet\n' +
+      '• Scan the one-time QR code to link securely\n\n' +
       '<b>Free Commands:</b>\n' +
       '• /price — Live token prices\n' +
       '• /network — Movement chain stats\n\n' +
@@ -225,8 +226,8 @@ export function initTelegramBot(): Telegraf | null {
         '✅ <b>Wallet Unlinked</b>\n\n' +
         `Wallet <code>${truncateAddr(linked.wallet)}</code> has been disconnected from this chat.\n\n` +
         'You will no longer receive alert notifications here.\n' +
-        'To reconnect, use <code>/link [wallet_address]</code>.',
-        { parse_mode: 'HTML' }
+        'To reconnect, visit the <a href="https://daftar.fi/settings">Settings page</a> and use the secure QR code flow.',
+        { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
       );
     } catch (err: any) {
       console.error('[TelegramBot] Unlink error:', err);
@@ -799,7 +800,7 @@ export function initTelegramBot(): Telegraf | null {
     ctx.reply(
       '💡 <b>Daftar Bot — Command Reference</b>\n\n' +
       '<b>🔗 Wallet Management</b>\n' +
-      '• <code>/link [address]</code> — Link your Movement wallet\n' +
+      '• Link via <a href="https://daftar.fi/settings">Settings page</a> (secure QR code)\n' +
       '• <code>/unlink</code> — Disconnect your wallet\n\n' +
       '<b>📊 Portfolio (Pro)</b>\n' +
       '• <code>/portfolio</code> — Net worth overview & PnL\n' +
