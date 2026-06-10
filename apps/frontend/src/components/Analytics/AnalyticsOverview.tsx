@@ -178,7 +178,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
 
         {/* Side Stats & Protocol Affinity */}
         <div className="stats-column-v5">
-          <div className="bento-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="bento-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
             
             {/* Minimal Activity Summary Row */}
             <div>
