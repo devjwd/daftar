@@ -427,10 +427,8 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, walletAddres
 
           </div>
         </div>
-
       </div>
 
-      </div>
     </div>
   );
 };
