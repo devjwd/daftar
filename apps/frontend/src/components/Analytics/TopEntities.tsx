@@ -160,14 +160,10 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
       {/* SECTION 1: EXCHANGE FLOW CARD */}
       <div className="bento-card" style={{ width: '100%' }}>
         
-        <div className="analytics-tab-header">
-          <div className="analytics-tab-header-left">
-            <h3 className="bento-title" style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px' }}>
-              <Network size={18} className="bento-icon" />
-              Exchange Flow
-            </h3>
-          </div>
-        </div>
+        <h3 className="bento-title" style={{ margin: '0 0 24px 0', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px' }}>
+          <Network size={18} className="bento-icon" />
+          Exchange Flow
+        </h3>
 
         {/* Exchange Usage Content */}
         <div>
