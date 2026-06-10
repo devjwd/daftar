@@ -73,27 +73,6 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                 Transactions
               </button>
             </div>
-
-            {/* Timeframe Selector */}
-            <div className="tabs-container-v5" style={{ marginBottom: '0' }} role="tablist" aria-label="Timeframes">
-              {TIME_FRAMES.map(tf => (
-                <button
-                  key={tf}
-                  role="tab"
-                  aria-selected={timeframe === tf}
-                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
-                  onClick={() => {
-                    if (tf !== timeframe) {
-                      setIsTransitioning(true);
-                      setTimeframe(tf);
-                      setTimeout(() => setIsTransitioning(false), 400);
-                    }
-                  }}
-                >
-                  {tf}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Stats section below the header row */}
@@ -118,7 +97,33 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
             </div>
           </div>
 
-          <div className={`analytics-chart-wrap${isTransitioning ? ' transitioning' : ''}`}>
+          <div className={`analytics-chart-wrap${isTransitioning ? ' transitioning' : ''}`} style={{ position: 'relative' }}>
+            {/* Floating Timeframe Selector in Chart Area */}
+            <div 
+              className="tabs-container-v5" 
+              style={{ position: 'absolute', top: '-10px', right: '0', zIndex: 10, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }} 
+              role="tablist" 
+              aria-label="Timeframes"
+            >
+              {TIME_FRAMES.map(tf => (
+                <button
+                  key={tf}
+                  role="tab"
+                  aria-selected={timeframe === tf}
+                  className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
+                  onClick={() => {
+                    if (tf !== timeframe) {
+                      setIsTransitioning(true);
+                      setTimeframe(tf);
+                      setTimeout(() => setIsTransitioning(false), 400);
+                    }
+                  }}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+
             {!hasHistory ? (
               <div className="empty-state-v5" style={{ height: '100%' }}>
                 <Ghost size={32} className="empty-state-icon" />
@@ -126,7 +131,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData as any[]}>
+                <AreaChart data={chartData as any[]} margin={{ top: 30, right: 0, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="balanceGradV5" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4} />
