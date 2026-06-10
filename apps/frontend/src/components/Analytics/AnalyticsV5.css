@@ -1170,6 +1170,6 @@
   outline: none;
 }
 .recharts-pie-sector:hover {
-  filter: brightness(1.25) drop-shadow(0 0 8px rgba(255, 255, 255, 0.2));
+  filter: brightness(1.15);
   opacity: 0.95;
 }
