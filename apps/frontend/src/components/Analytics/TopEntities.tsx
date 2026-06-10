@@ -260,9 +260,9 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
                         <PieChart>
                           <Pie 
                             data={activeDepositsBreakdown} 
-                            innerRadius={32} 
+                            innerRadius={0} 
                             outerRadius={48} 
-                            paddingAngle={activeDepositsBreakdown.length > 1 ? 3 : 0} 
+                            paddingAngle={0} 
                             dataKey="value" 
                             stroke="none"
                           >
@@ -353,9 +353,9 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
                         <PieChart>
                           <Pie 
                             data={activeWithdrawalsBreakdown} 
-                            innerRadius={32} 
+                            innerRadius={0} 
                             outerRadius={48} 
-                            paddingAngle={activeWithdrawalsBreakdown.length > 1 ? 3 : 0} 
+                            paddingAngle={0} 
                             dataKey="value" 
                             stroke="none"
                           >

@@ -238,9 +238,9 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                             <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
                             <Pie 
                               data={sortedProtocols} 
-                              innerRadius={44} 
+                              innerRadius={0} 
                               outerRadius={58} 
-                              paddingAngle={sortedProtocols.length > 1 ? 2 : 0} 
+                              paddingAngle={0} 
                               dataKey="value" 
                               stroke="none" 
                               nameKey="name"
