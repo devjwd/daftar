@@ -23,9 +23,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   const navigate = useNavigate();
   const { account, signMessage } = useWallet();
   const [timeframe, setTimeframe] = useState('All');
-  const [bottomTimeframe, setBottomTimeframe] = useState('All');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-  const [bottomAnalyticsData, setBottomAnalyticsData] = useState<AnalyticsData | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -57,10 +55,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     timeframeRef.current = timeframe;
   }, [timeframe]);
 
-  const bottomTimeframeRef = useRef(bottomTimeframe);
-  useEffect(() => {
-    bottomTimeframeRef.current = bottomTimeframe;
-  }, [bottomTimeframe]);
 
   const getConnectedAddress = useCallback(() => {
     if (!account?.address) return null;
@@ -72,22 +66,16 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   }, [account?.address]);
 
   const fetchAnalyticsData = useCallback(
-    async (tf = timeframeRef.current, bottomTf = bottomTimeframeRef.current) => {
+    async (tf = timeframeRef.current) => {
       if (!walletAddress) return;
 
       const cacheKeyGlobal = `analytics_cache_${walletAddress.toLowerCase()}_${tf}`;
-      const cacheKeyBottom = `analytics_cache_${walletAddress.toLowerCase()}_${bottomTf}`;
 
       // 1. Try to load Stale (cached) data first for 0ms page load
       try {
         const cachedGlobal = localStorage.getItem(cacheKeyGlobal);
-        const cachedBottom = localStorage.getItem(cacheKeyBottom);
-        if (cachedGlobal && cachedBottom) {
+        if (cachedGlobal) {
           setAnalyticsData(JSON.parse(cachedGlobal));
-          setBottomAnalyticsData(JSON.parse(cachedBottom));
-        } else if (cachedGlobal) {
-          setAnalyticsData(JSON.parse(cachedGlobal));
-          setBottomAnalyticsData(JSON.parse(cachedGlobal));
         }
       } catch (cacheErr) {
         console.warn('Failed to parse browser analytics cache:', cacheErr);
@@ -95,55 +83,24 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
       setDataLoading(true);
       try {
-        if (tf === bottomTf) {
-          const res = await fetch(
-            `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(tf)}`
-          );
-          if (!res.ok) {
-            if (res.status === 403) {
-              setFetchError('Analytics require an active Pro subscription for this profile.');
-              return;
-            }
-            throw new Error('Failed to load analytics');
+        const res = await fetch(
+          `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(tf)}`
+        );
+        if (!res.ok) {
+          if (res.status === 403) {
+            setFetchError('Analytics require an active Pro subscription for this profile.');
+            return;
           }
-          const data = await res.json();
-          setAnalyticsData(data);
-          setBottomAnalyticsData(data);
-          setFetchError(null);
-
-          // Save to browser cache
-          try {
-            localStorage.setItem(cacheKeyGlobal, JSON.stringify(data));
-            localStorage.setItem(cacheKeyBottom, JSON.stringify(data));
-          } catch {}
-        } else {
-          const [resGlobal, resBottom] = await Promise.all([
-            fetch(
-              `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(tf)}`
-            ),
-            fetch(
-              `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(bottomTf)}`
-            ),
-          ]);
-          if (!resGlobal.ok || !resBottom.ok) {
-            if (resGlobal.status === 403 || resBottom.status === 403) {
-              setFetchError('Analytics require an active Pro subscription for this profile.');
-              return;
-            }
-            throw new Error('Failed to load analytics');
-          }
-          const dataGlobal = await resGlobal.json();
-          const dataBottom = await resBottom.json();
-          setAnalyticsData(dataGlobal);
-          setBottomAnalyticsData(dataBottom);
-          setFetchError(null);
-
-          // Save to browser cache
-          try {
-            localStorage.setItem(cacheKeyGlobal, JSON.stringify(dataGlobal));
-            localStorage.setItem(cacheKeyBottom, JSON.stringify(dataBottom));
-          } catch {}
+          throw new Error('Failed to load analytics');
         }
+        const data = await res.json();
+        setAnalyticsData(data);
+        setFetchError(null);
+
+        // Save to browser cache
+        try {
+          localStorage.setItem(cacheKeyGlobal, JSON.stringify(data));
+        } catch {}
 
         // Clean up old cached items for other wallets to prevent quota exceeded errors
         try {
@@ -168,7 +125,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   );
 
   const handleSyncComplete = useCallback(async () => {
-    await fetchAnalyticsData(timeframeRef.current, bottomTimeframeRef.current);
+    await fetchAnalyticsData(timeframeRef.current);
   }, [fetchAnalyticsData]);
 
   const {
@@ -186,24 +143,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   // Fetch data as soon as we know the user is premium, even if sync isn't complete yet
   useEffect(() => {
     if (walletAddress && isPremium && (syncStatus === 'completed' || syncStatus === 'syncing')) {
-       fetchAnalyticsData(timeframeRef.current, bottomTimeframeRef.current);
+       fetchAnalyticsData(timeframeRef.current);
     }
   }, [walletAddress, isPremium, syncStatus === 'completed']); // Only re-trigger on completed transition
 
-  const fetchBottomOnly = async (tf: string, startDate?: string, endDate?: string) => {
-    if (!walletAddress) return;
-    try {
-      let url = `${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(tf)}`;
-      if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
-      if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const data = await res.json();
-      setBottomAnalyticsData(data);
-    } catch (err) {
-      console.error('Fetch bottom analytics error:', err);
-    }
-  };
 
   const handleOpenVisualizer = () => {
     if (walletAddress) {
@@ -349,7 +292,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     );
   }
 
-  if (!analyticsData || !bottomAnalyticsData) {
+  if (!analyticsData) {
     return (
       <div className="analytics-v5-container" style={{ padding: '40px 20px' }}>
         <AnimatePresence>
@@ -492,16 +435,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
 
         <AnalyticsOverview
           data={analyticsData}
-          bottomData={bottomAnalyticsData}
           timeframe={timeframe}
           setTimeframe={(tf) => {
             setTimeframe(tf);
-            void fetchAnalyticsData(tf, bottomTimeframe);
-          }}
-          bottomTimeframe={bottomTimeframe}
-          setBottomTimeframe={(tf, startDate, endDate) => {
-            setBottomTimeframe(tf);
-            void fetchBottomOnly(tf, startDate, endDate);
+            void fetchAnalyticsData(tf);
           }}
         />
       </motion.div>

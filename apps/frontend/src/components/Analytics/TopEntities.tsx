@@ -53,7 +53,6 @@ const getExchangeColor = (name: string, index: number, type: 'deposit' | 'withdr
 interface TopEntitiesProps {
   data: AnalyticsData;
   timeframe: string;
-  setTimeframe: (tf: string, startDate?: string, endDate?: string) => void;
 }
 
 const CustomExchangeTooltip = ({ active, payload, type }: any) => {
@@ -165,7 +164,9 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
       </div>
     </div>
   );
-};const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, setTimeframe }) => {
+};
+
+const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
   const hasEntities = data.topEntities && data.topEntities.length > 0;
   const hasTokens = data.topTokens && data.topTokens.length > 0;
 
@@ -201,26 +202,12 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
       {/* SECTION 1: EXCHANGE FLOW CARD */}
       <div className="bento-card" style={{ width: '100%' }}>
         
-        {/* Title & Timeframe Selector Header */}
         <div className="analytics-tab-header">
           <div className="analytics-tab-header-left">
             <h3 className="bento-title" style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px' }}>
               <Network size={18} className="bento-icon" />
               Exchange Flow
             </h3>
-          </div>
-
-          {/* Timeframe Selector */}
-          <div className="tabs-container-v5">
-            {['1D', '1W', '1M', '3M', '1Y', 'All'].map(tf => (
-              <button
-                key={tf}
-                className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
-                onClick={() => setTimeframe(tf)}
-              >
-                {tf}
-              </button>
-            ))}
           </div>
         </div>
 
@@ -349,9 +336,9 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
                           tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
                           tickFormatter={(val) => {
                             if (val === 0) return '$0';
-                            if (val >= 1000000) return `+$${(val / 1000000).toFixed(0)}M`;
-                            if (val >= 1000) return `+$${(val / 1000).toFixed(0)}k`;
-                            return `+$${val}`;
+                            if (val >= 1000000) return `-$${(val / 1000000).toFixed(0)}M`;
+                            if (val >= 1000) return `-$${(val / 1000).toFixed(0)}k`;
+                            return `-$${val}`;
                           }}
                         />
                         <Tooltip content={<CustomExchangeTooltip type="withdrawal" />} />
@@ -422,47 +409,7 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
       {/* SECTION 2 & 3: PROTOCOLS AND TOKENS SIDE-BY-SIDE */}
       <div className="bottom-sections-grid-v5">
         
-        {/* PROTOCOLS SECTION */}
-        <div className="bento-card compact-card">
-          <h3 className="bento-title" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '14px', marginBottom: '20px' }}>
-            <Network size={16} className="bento-icon" />
-            Top Interacting Protocols
-          </h3>
-          <div style={{ padding: '4px 0 8px 0' }}>
-            {!hasEntities ? (
-              <div className="empty-state-v5" style={{ minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <Ghost size={32} className="empty-state-icon" />
-                <p>No protocol interactions found.</p>
-              </div>
-            ) : (
-              <div className="entities-list-v5">
-                {data.topEntities.slice(0, 5).map((entity, i) => {
-                  const visual = getProtocolVisual(entity.name);
-                  return (
-                    <div key={i} className="entity-row-v5">
-                      <div className="entity-left">
-                        <div className="entity-avatar" style={{ width: '26px', height: '26px', fontSize: '11px' }}>
-                          {visual.logo ? (
-                            <img src={visual.logo} alt={entity.name} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
-                          ) : (
-                            entity.name.substring(0, 1).toUpperCase()
-                          )}
-                        </div>
-                        <div className="entity-info">
-                          <span className="entity-name">{entity.name}</span>
-                          <span className="entity-sub">
-                            {entity.count ? `${entity.count} interactions` : 'DeFi Position'}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="entity-value">{formatVolumeValue(entity.value)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+        {/* PROTOCOLS SECTION REMOVED TO PREVENT DUPLICATION */}
 
         {/* TOKENS SECTION */}
         <div className="bento-card compact-card">

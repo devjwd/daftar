@@ -8,22 +8,16 @@ import { DATA_VIZ_COLORS } from '../../config/display';
 
 interface AnalyticsOverviewProps {
   data: AnalyticsData;
-  bottomData: AnalyticsData;
   timeframe: string;
   setTimeframe: (tf: string) => void;
-  bottomTimeframe: string;
-  setBottomTimeframe: (tf: string, startDate?: string, endDate?: string) => void;
 }
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', '1Y', 'All'];
 
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
   data,
-  bottomData,
   timeframe,
-  setTimeframe,
-  bottomTimeframe,
-  setBottomTimeframe
+  setTimeframe
 }) => {
   const [activeChartTab, setActiveChartTab] = useState<'balance' | 'flow' | 'txs'>('balance');
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -53,20 +47,26 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
 
           {/* Top Header Row */}
           <div className="analytics-tab-header">
-            <div className="analytics-tab-header-left">
+            <div className="analytics-tab-header-left" role="tablist" aria-label="Chart Views">
               <button
+                role="tab"
+                aria-selected={activeChartTab === 'balance'}
                 className={`analytics-tab-btn ${activeChartTab === 'balance' ? 'active' : ''}`}
                 onClick={() => setActiveChartTab('balance')}
               >
                 Token Balance
               </button>
               <button
+                role="tab"
+                aria-selected={activeChartTab === 'flow'}
                 className={`analytics-tab-btn ${activeChartTab === 'flow' ? 'active' : ''}`}
                 onClick={() => setActiveChartTab('flow')}
               >
                 Capital Flow
               </button>
               <button
+                role="tab"
+                aria-selected={activeChartTab === 'txs'}
                 className={`analytics-tab-btn ${activeChartTab === 'txs' ? 'active' : ''}`}
                 onClick={() => setActiveChartTab('txs')}
               >
@@ -91,10 +91,12 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
             </div>
 
             {/* Timeframe Selector */}
-            <div className="tabs-container-v5" style={{ alignSelf: 'flex-end', marginBottom: '8px' }}>
+            <div className="tabs-container-v5" style={{ alignSelf: 'flex-end', marginBottom: '8px' }} role="tablist" aria-label="Timeframes">
               {TIME_FRAMES.map(tf => (
                 <button
                   key={tf}
+                  role="tab"
+                  aria-selected={timeframe === tf}
                   className={`tab-v5 ${timeframe === tf ? 'active' : ''}`}
                   onClick={() => {
                     if (tf !== timeframe) {
@@ -275,7 +277,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
         </div>
       </div>
 
-      <TopEntities data={bottomData} timeframe={bottomTimeframe} setTimeframe={setBottomTimeframe} />
+      <TopEntities data={data} timeframe={timeframe} />
     </div>
   );
 };
