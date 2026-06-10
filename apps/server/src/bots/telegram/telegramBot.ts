@@ -835,6 +835,20 @@ export function initTelegramBot(): Telegraf | null {
     }
   });
 
+  // ─── Set Bot Commands ────────────────────────────────────────────────────
+  bot.telegram.setMyCommands([
+    { command: 'portfolio', description: 'Net worth overview & PnL (Pro)' },
+    { command: 'balance', description: 'Token holdings & values (Pro)' },
+    { command: 'defi', description: 'DeFi lending & staking positions (Pro)' },
+    { command: 'transactions', description: 'Recent activity (Pro)' },
+    { command: 'alerts', description: 'View alert configuration (Pro)' },
+    { command: 'profile', description: 'XP, badges & account info (Pro)' },
+    { command: 'price', description: 'Live MOVE, BTC, ETH prices' },
+    { command: 'network', description: 'Movement chain stats' },
+    { command: 'unlink', description: 'Disconnect your wallet' },
+    { command: 'help', description: 'Command reference' }
+  ]).catch(err => console.error('[TelegramBot] Failed to set commands:', err));
+
   // ─── Launch Bot ──────────────────────────────────────────────────────────
   bot.launch()
     .then(() => {
