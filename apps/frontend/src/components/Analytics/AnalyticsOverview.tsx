@@ -82,7 +82,13 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                 {activeChartTab === 'balance' ? 'Token Balance' : activeChartTab === 'flow' ? 'Total Capital Flow' : 'Transaction Count'}
               </span>
               <div className="hero-value">
-                {activeChartTab === 'balance' ? formatVolumeValue(data.totalBalance ?? 0) : activeChartTab === 'flow' ? formatVolumeValue(data.totalVolume) : data.interactionCount.toLocaleString()}
+                {activeChartTab === 'balance' 
+                  ? formatVolumeValue(data.totalBalance ?? 0) 
+                  : activeChartTab === 'flow' 
+                    ? formatVolumeValue(data.totalVolume) 
+                    : (activeChartTab === 'txs' && chartData.length > 0
+                        ? chartData.reduce((sum: number, point: any) => sum + (point.txCount || 0), 0)
+                        : data.interactionCount).toLocaleString()}
               </div>
               <div className="analytics-months-badge">
                 <span>{data.activeMonths} Months</span>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { Radio, Hourglass, RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface SyncStateOverlayProps {
   status: 'idle' | 'queued' | 'syncing' | 'error';
@@ -26,7 +27,9 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
           margin: '40px auto',
         }}
       >
-        <div style={{ fontSize: '36px', marginBottom: '12px' }}>📡</div>
+        <div style={{ marginBottom: '12px', color: 'var(--primary)' }}>
+          <Radio size={36} />
+        </div>
         <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>
           Start Data Sync
         </h3>
@@ -83,9 +86,9 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
           <motion.div
             animate={{ opacity: [0.4, 1, 0.4] }}
             transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-            style={{ fontSize: '16px' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            ⏳
+            <Hourglass size={16} />
           </motion.div>
         </div>
 
@@ -149,9 +152,9 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
-            style={{ fontSize: '16px' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            🔄
+            <RefreshCw size={16} />
           </motion.div>
         </div>
 
@@ -217,7 +220,7 @@ const SyncStateOverlay: React.FC<SyncStateOverlayProps> = ({ status, progress, o
           marginBottom: '20px',
         }}
       >
-        <span style={{ fontSize: '20px' }}>⚠️</span>
+        <AlertTriangle size={20} color="#fca5a5" />
         <div style={{ flex: 1 }}>
           <span style={{ fontSize: '13px', fontWeight: 600, color: '#fca5a5' }}>
             Sync failed. The indexer may be temporarily unavailable.

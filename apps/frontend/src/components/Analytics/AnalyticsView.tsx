@@ -319,6 +319,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
         <div className="analytics-page-header">
           <div className="analytics-page-header-left">
             <h2>Portfolio Intelligence</h2>
+            <div className="analytics-page-header-sub">
+              <p>Historical performance & exchange activity</p>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
