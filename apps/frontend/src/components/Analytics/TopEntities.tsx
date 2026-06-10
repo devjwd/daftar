@@ -2,52 +2,10 @@ import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
 import { Coins, Ghost, ArrowDownRight, ArrowUpRight, Network } from 'lucide-react';
-import { DEFI_PROTOCOL_VISUALS, TOKEN_VISUALS, DEFAULT_PROTOCOL_VISUAL } from '../../config/display';
-
-const COLORS = [
-  '#cda169', // Main Brand Gold
-  '#b2854f', // Deep Bronze
-  '#e5be8a', // Warm Amber
-  '#895f2d', // Copper Brown
-  '#f4d9b1', // Champagne
-  '#6b5233'  // Deep Chocolate Earth
-];
-
-const DEPOSIT_COLORS = [
-  '#36c690', // Emerald Green
-  '#00bfa6', // Teal
-  '#20b2aa', // Light Sea Green
-  '#008080', // Dark Teal
-  '#a3e635'  // Lime Green
-];
-
-const WITHDRAWAL_COLORS = [
-  '#7b68ee', // Slate/Medium Slate Blue
-  '#a78bfa', // Lavender/Purple
-  '#1e90ff', // Dodger Blue
-  '#8a2be2', // Blue Violet
-  '#ec4899'  // Pink/Magenta
-];
-
-const EXCHANGE_BRAND_COLORS: Record<string, string> = {
-  binance: '#F0B90B',       // Binance Yellow
-  okx: '#FFFFFF',           // OKX White
-  coinbase: '#0052FF',      // Coinbase Blue
-  mexc: '#00B4FF',          // MEXC Cyan/Blue
-  gate: '#E14B26',          // Gate.io Red
-  bitget: '#00F0FF',        // Bitget Teal
-  kucoin: '#24DB9C',        // KuCoin Green
-  bybit: '#FFB11A',         // Bybit Orange/Gold
-  kraken: '#5741D9',        // Kraken Purple
-};
+import { DEFI_PROTOCOL_VISUALS, TOKEN_VISUALS, DEFAULT_PROTOCOL_VISUAL, DATA_VIZ_COLORS } from '../../config/display';
 
 const getExchangeColor = (name: string, index: number, type: 'deposit' | 'withdrawal'): string => {
-  const key = name.toLowerCase().trim();
-  if (EXCHANGE_BRAND_COLORS[key]) {
-    return EXCHANGE_BRAND_COLORS[key];
-  }
-  const colorArray = type === 'deposit' ? DEPOSIT_COLORS : WITHDRAWAL_COLORS;
-  return colorArray[index % colorArray.length];
+  return DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
 };
 
 interface TopEntitiesProps {
