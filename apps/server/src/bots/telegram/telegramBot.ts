@@ -499,9 +499,19 @@ export function initTelegramBot(): Telegraf | null {
     const chatId = String(ctx.chat.id);
     if (isRateLimited(chatId)) return;
 
-    const linked = await requireLinkedWallet(ctx);
-    if (!linked) return;
-    if (!(await requireProTier(ctx, linked.wallet))) return;
+    const args = ctx.message.text.split(' ').slice(1);
+    const targetArg = args[0]?.trim();
+
+    let targetWallet = '';
+
+    if (targetArg && targetArg.startsWith('0x')) {
+      targetWallet = targetArg;
+    } else {
+      const linked = await requireLinkedWallet(ctx);
+      if (!linked) return;
+      if (!(await requireProTier(ctx, linked.wallet))) return;
+      targetWallet = linked.wallet;
+    }
 
     const supabase = getSupabase();
     if (!supabase) return ctx.reply('⚠️ Service temporarily unavailable.');
@@ -510,7 +520,7 @@ export function initTelegramBot(): Telegraf | null {
       const { data: txs, error } = await supabase
         .from('user_transaction_history')
         .select('hash, timestamp, action, protocol, description, asset_in_symbol, asset_in_amount, asset_out_symbol, asset_out_amount, value_usd')
-        .eq('user_address', linked.wallet)
+        .eq('user_address', targetWallet)
         .order('timestamp', { ascending: false })
         .limit(10);
 
@@ -518,7 +528,7 @@ export function initTelegramBot(): Telegraf | null {
 
       if (!txs || txs.length === 0) {
         return ctx.reply(
-          `📜 <b>Recent Transactions</b>\n<code>${truncateAddr(linked.wallet)}</code>\n\n` +
+          `📜 <b>Recent Transactions</b>\n<code>${truncateAddr(targetWallet)}</code>\n\n` +
           'No transactions found yet.',
           { parse_mode: 'HTML' }
         );
@@ -547,9 +557,9 @@ export function initTelegramBot(): Telegraf | null {
 
       await ctx.reply(
         `📜 <b>Recent Transactions</b>\n` +
-        `<code>${truncateAddr(linked.wallet)}</code>\n\n` +
+        `<code>${truncateAddr(targetWallet)}</code>\n\n` +
         lines.join('\n\n') +
-        `\n\n<a href="https://daftar.fi/profile/${linked.wallet}">View all on Daftar →</a>`,
+        `\n\n<a href="https://daftar.fi/profile/${targetWallet}">View all on Daftar →</a>`,
         { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
       );
     } catch (err: any) {
@@ -557,6 +567,59 @@ export function initTelegramBot(): Telegraf | null {
       await ctx.reply('❌ Failed to fetch transactions. Please try again.');
     }
   });
+
+  // ─── /search ─────────────────────────────────────────────────────────────
+  bot.command('search', async (ctx) => {
+    const chatId = String(ctx.chat.id);
+    if (isRateLimited(chatId)) return;
+
+    const args = ctx.message.text.split(' ').slice(1);
+    const targetWallet = args[0]?.trim();
+
+    if (!targetWallet || !targetWallet.startsWith('0x')) {
+      return ctx.reply('❌ Please provide a valid wallet address.\nUsage: <code>/search 0x...</code>', { parse_mode: 'HTML' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) return ctx.reply('⚠️ Service temporarily unavailable.');
+
+    try {
+      // 1. Get snapshot
+      const { data: snapshot } = await supabase
+        .from('user_networth_snapshots')
+        .select('total_networth_usd, wallet_usd, defi_usd')
+        .eq('user_address', targetWallet)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // 2. Get transaction count
+      const { count } = await supabase
+        .from('user_transaction_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_address', targetWallet);
+
+      const totalUsd = snapshot ? Number(snapshot.total_networth_usd || 0) : 0;
+      const walletUsd = snapshot ? Number(snapshot.wallet_usd || 0) : 0;
+      const defiUsd = snapshot ? Number(snapshot.defi_usd || 0) : 0;
+      const txCount = count || 0;
+
+      await ctx.reply(
+        `🔍 <b>Wallet Search</b>\n<code>${truncateAddr(targetWallet)}</code>\n\n` +
+        `💰 <b>Total Balance:</b> ${fmtUsd(totalUsd)}\n` +
+        `👛 <b>Wallet:</b> ${fmtUsd(walletUsd)}\n` +
+        `🚜 <b>DeFi:</b> ${fmtUsd(defiUsd)}\n` +
+        `🔄 <b>Total Transactions:</b> ${txCount}\n\n` +
+        `👉 Use <code>/transactions ${targetWallet}</code> to see recent activity.\n` +
+        `<a href="https://daftar.fi/profile/${targetWallet}">View full profile →</a>`,
+        { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+      );
+    } catch (err: any) {
+      console.error('[TelegramBot] Search error:', err);
+      await ctx.reply('❌ Failed to search wallet. Please try again.');
+    }
+  });
+
 
   // ─── /price ──────────────────────────────────────────────────────────────
   bot.command('price', async (ctx) => {
@@ -807,13 +870,15 @@ export function initTelegramBot(): Telegraf | null {
       '• <code>/balance</code> — Token holdings & values\n' +
       '• <code>/defi</code> — DeFi lending & staking positions\n' +
       '• <code>/transactions</code> — Recent activity (last 10)\n\n' +
+      '<b>🔍 Explorer (Free)</b>\n' +
+      '• <code>/search [wallet]</code> — Search a wallet overview\n' +
+      '• <code>/transactions [wallet]</code> — View wallet activity\n' +
+      '• <code>/price</code> — Live MOVE, BTC, ETH prices\n' +
+      '• <code>/network</code> — Movement chain stats\n\n' +
       '<b>🔔 Alerts (Pro)</b>\n' +
       '• <code>/alerts</code> — View alert configuration\n\n' +
       '<b>👤 Profile (Pro)</b>\n' +
       '• <code>/profile</code> — XP, badges & account info\n\n' +
-      '<b>🌐 Network (Free)</b>\n' +
-      '• <code>/price</code> — Live MOVE, BTC, ETH prices\n' +
-      '• <code>/network</code> — Movement chain stats\n\n' +
       '<i>Pro commands require a Daftar Pro subscription.</i>\n' +
       '👉 <a href="https://daftar.fi/plans">View Plans</a> • <a href="https://daftar.fi/settings">Settings</a>',
       { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
@@ -837,10 +902,11 @@ export function initTelegramBot(): Telegraf | null {
 
   // ─── Set Bot Commands ────────────────────────────────────────────────────
   bot.telegram.setMyCommands([
+    { command: 'search', description: 'Search a wallet overview' },
     { command: 'portfolio', description: 'Net worth overview & PnL (Pro)' },
     { command: 'balance', description: 'Token holdings & values (Pro)' },
     { command: 'defi', description: 'DeFi lending & staking positions (Pro)' },
-    { command: 'transactions', description: 'Recent activity (Pro)' },
+    { command: 'transactions', description: 'Recent activity (Pro or with wallet)' },
     { command: 'alerts', description: 'View alert configuration (Pro)' },
     { command: 'profile', description: 'XP, badges & account info (Pro)' },
     { command: 'price', description: 'Live MOVE, BTC, ETH prices' },
