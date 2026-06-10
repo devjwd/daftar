@@ -49,7 +49,7 @@
   border-radius: 12px;
   background: rgba(205, 161, 105, 0.08);
   color: var(--legal-accent);
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   cursor: pointer;
   transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
@@ -70,7 +70,7 @@
   background: rgba(205, 161, 105, 0.14);
   border: 1px solid rgba(205, 161, 105, 0.28);
   color: var(--legal-accent);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -87,7 +87,7 @@
   max-width: 720px;
   margin: 14px 0 0;
   color: var(--legal-text);
-  font-size: 16px;
+  font-size: var(--font-size-md);
   line-height: 1.72;
 }
 
@@ -104,7 +104,7 @@
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(205, 161, 105, 0.16);
   color: var(--legal-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.04em;
 }
 
@@ -161,7 +161,7 @@
 .privacy-section h2 {
   margin: 0 0 10px;
   color: var(--legal-headline);
-  font-size: 21px;
+  font-size: var(--font-size-xl);
   line-height: 1.2;
 }
 
@@ -169,7 +169,7 @@
   margin: 0 0 10px;
   color: var(--legal-text);
   line-height: 1.75;
-  font-size: 15px;
+  font-size: var(--font-size-sm);
 }
 
 .privacy-section p:last-child {

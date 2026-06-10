@@ -27,7 +27,7 @@
 }
 
 .analytics-page-header-left h2 {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   font-weight: 900;
   color: #fff;
   letter-spacing: -0.5px;
@@ -43,7 +43,7 @@
 
 .analytics-page-header-sub p {
   color: var(--text-tertiary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   margin: 0;
 }
 
@@ -54,7 +54,7 @@
 }
 
 .analytics-sync-badge {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   background: rgba(205, 161, 105, 0.1);
   color: var(--primary);
   padding: 3px 8px;
@@ -79,7 +79,7 @@
 }
 
 .analytics-sync-pct {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -133,7 +133,7 @@
   color: var(--primary);
   padding: 10px 24px;
   border-radius: 100px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -177,7 +177,7 @@
 
 /* === Typography === */
 .bento-title {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: var(--text-secondary);
   display: flex;
@@ -192,7 +192,7 @@
 }
 
 .hero-value {
-  font-size: 44px;
+  font-size: var(--font-size-4xl);
   font-weight: 900;
   color: #fff;
   font-family: var(--font-display);
@@ -220,7 +220,7 @@
   flex: 1;
   background: transparent;
   border: none;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   color: rgba(255, 255, 255, 0.4);
   letter-spacing: 1px;
@@ -267,7 +267,7 @@
 }
 
 .floating-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   font-weight: 700;
   text-transform: uppercase;
@@ -275,7 +275,7 @@
 }
 
 .floating-value {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   font-weight: 900;
   color: #fff;
   font-family: var(--font-display);
@@ -283,7 +283,7 @@
 
 .floating-badge {
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -296,7 +296,7 @@
   padding: 3px 8px;
   border-radius: 6px;
   font-weight: 800;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 /* === Chart Container === */
@@ -334,13 +334,13 @@
 }
 
 .mini-stat-label {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   font-weight: 600;
 }
 
 .mini-stat-value {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 800;
   color: #fff;
   font-variant-numeric: tabular-nums;
@@ -409,7 +409,7 @@
   border: none;
   padding: 14px 40px;
   border-radius: 99px;
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 0 20px var(--bento-glow);
@@ -443,7 +443,7 @@
   color: rgba(255, 255, 255, 0.4);
   border: none;
   padding: 0;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   cursor: pointer;
   transition: color 0.2s ease;
@@ -502,7 +502,7 @@
   justify-content: center;
   color: var(--text-secondary);
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   overflow: hidden;
 }
@@ -517,14 +517,14 @@
 .entity-name {
   font-weight: 700;
   color: #fff;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .entity-sub {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.35);
   font-weight: 500;
 }
@@ -533,7 +533,7 @@
   font-weight: 800;
   color: var(--primary-muted, var(--primary));
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   flex-shrink: 0;
   margin-left: 12px;
 }
@@ -553,7 +553,7 @@
 }
 
 .exchange-label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--text-quaternary, rgba(255, 255, 255, 0.35));
@@ -561,7 +561,7 @@
 }
 
 .exchange-total {
-  font-size: 32px;
+  font-size: var(--font-size-3xl);
   font-weight: 900;
   color: #fff;
   font-family: var(--font-display);
@@ -569,7 +569,7 @@
 
 /* === Exchange Section Column Header === */
 .exchange-section-title {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.4);
   font-weight: 800;
   letter-spacing: 1.2px;
@@ -605,13 +605,13 @@
 .exchange-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .exchange-table th {
   padding: 6px 0;
   text-transform: uppercase;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.5px;
   color: rgba(255, 255, 255, 0.3);
   font-weight: 700;
@@ -680,7 +680,7 @@
 
 .empty-state-v5 p {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .empty-state-icon {
@@ -733,7 +733,7 @@
   }
 
   .hero-value {
-    font-size: 36px;
+    font-size: var(--font-size-3xl);
   }
 }
 
@@ -756,7 +756,7 @@
 
   .analytics-tab-btn {
     margin-right: 20px;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     margin-bottom: 4px;
   }
 
@@ -776,7 +776,7 @@
   }
 
   .hero-value {
-    font-size: 32px;
+    font-size: var(--font-size-3xl);
   }
 
   .tabs-container-v5 {
@@ -789,7 +789,7 @@
 .analytics-error-banner {
   padding: 12px 16px;
   border-radius: 12px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   line-height: 1.45;
   margin-bottom: 8px;
 }
@@ -812,7 +812,7 @@
   color: var(--text-secondary);
   padding: 10px 22px;
   border-radius: 100px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -872,7 +872,7 @@
   color: var(--text-secondary);
   padding: 10px 12px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -902,7 +902,7 @@
 }
 
 .download-dropdown-section-title {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   text-transform: uppercase;
   color: var(--primary);
@@ -924,7 +924,7 @@
   color: #fff;
   border-radius: 10px;
   padding: 10px 32px 10px 12px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   outline: none;
   cursor: pointer;
@@ -1020,7 +1020,7 @@
 }
 
 .premium-stat-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -1028,13 +1028,13 @@
 }
 
 .premium-stat-desc {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.22);
   font-weight: 500;
 }
 
 .premium-stat-value {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 900;
   color: #fff;
   font-variant-numeric: tabular-nums;
@@ -1073,15 +1073,15 @@
 }
 
 .bento-card.compact-card .entity-name {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
 }
 
 .bento-card.compact-card .entity-sub {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .bento-card.compact-card .entity-value {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
 }
 
 /* === Minimal Activity Summary === */
@@ -1107,7 +1107,7 @@
 
 .minimal-stat-col .stat-label {
   display: block;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.4);
@@ -1116,7 +1116,7 @@
 }
 
 .minimal-stat-col .stat-value {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 900;
   color: #fff;
   font-family: var(--font-display);

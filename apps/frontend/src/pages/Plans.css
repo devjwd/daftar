@@ -68,7 +68,7 @@
   gap: 6px;
   padding: 5px 14px;
   border-radius: 100px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -79,7 +79,7 @@
 }
 
 .plans-title {
-  font-size: 32px;
+  font-size: var(--font-size-3xl);
   font-weight: 600;
   margin-bottom: 8px;
   background: linear-gradient(135deg, #cda169, #deb884);
@@ -90,7 +90,7 @@
 }
 
 .plans-subtitle {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   color: #8a7d6f;
   text-align: center;
   max-width: 500px;
@@ -172,7 +172,7 @@
 }
 
 .plan-tier-label {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
@@ -191,19 +191,19 @@
 }
 
 .plans-price {
-  font-size: 42px;
+  font-size: var(--font-size-4xl);
   font-weight: 700;
   letter-spacing: -0.04em;
   color: var(--text-primary, #fff);
 }
 
 .plans-price-period {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-muted, rgba(255, 255, 255, 0.45));
 }
 
 .plans-price-free {
-  font-size: 32px;
+  font-size: var(--font-size-3xl);
   font-weight: 600;
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
   letter-spacing: -0.02em;
@@ -216,7 +216,7 @@
   gap: 4px;
   padding: 3px 10px;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -233,7 +233,7 @@
   right: 20px;
   padding: 5px 14px 7px;
   border-radius: 0 0 10px 10px;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -256,7 +256,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   line-height: 1.5;
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
 }
@@ -297,7 +297,7 @@
   padding: 12px 20px;
   border-radius: 12px;
   border: none;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.25s ease;
@@ -346,7 +346,7 @@
 
 /* Plan Description */
 .plans-plan-desc {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted, rgba(255, 255, 255, 0.4));
   line-height: 1.5;
   margin: 0 0 20px;
@@ -368,7 +368,7 @@
 }
 
 .plans-price-original {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.3);
   text-decoration-color: rgba(255, 255, 255, 0.25);
@@ -387,7 +387,7 @@
   gap: 4px;
   padding: 4px 10px;
   border-radius: 100px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   background: rgba(205, 161, 105, 0.12);
   color: #e5be8a;
@@ -403,7 +403,7 @@
 }
 
 .plans-move-price {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.4);
   margin-top: 4px;
 }
@@ -482,7 +482,7 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
   color: rgba(255, 255, 255, 0.5);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -496,13 +496,13 @@
 }
 
 .payment-modal-icon {
-  font-size: 36px;
+  font-size: var(--font-size-3xl);
   text-align: center;
   margin-bottom: 16px;
 }
 
 .payment-modal-title {
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   text-align: center;
   margin: 0 0 8px;
@@ -513,7 +513,7 @@
 }
 
 .payment-modal-subtitle {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.45);
   text-align: center;
   margin: 0 0 28px;
@@ -536,7 +536,7 @@
   align-items: center;
   padding: 8px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.5);
 }
 
@@ -561,7 +561,7 @@
 
 .payment-summary-highlight strong {
   color: #e5be8a;
-  font-size: 15px;
+  font-size: var(--font-size-sm);
 }
 
 /* Treasury row */
@@ -577,14 +577,14 @@
 }
 
 .payment-treasury-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.35);
   white-space: nowrap;
 }
 
 .payment-treasury-addr {
   font-family: 'Courier New', monospace;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.55);
   flex: 1;
   overflow: hidden;
@@ -597,7 +597,7 @@
   border: none;
   color: rgba(255, 255, 255, 0.35);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   padding: 2px 6px;
   border-radius: 6px;
   transition: all 0.2s;
@@ -617,7 +617,7 @@
   border: none;
   background: linear-gradient(135deg, #e5be8a, #cda169);
   color: #0d0d0d;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   cursor: pointer;
   letter-spacing: 0.01em;
@@ -636,7 +636,7 @@
 }
 
 .payment-note {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.3);
   text-align: center;
   line-height: 1.5;
@@ -656,14 +656,14 @@
 }
 
 .payment-status-state h3 {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   margin: 0;
   color: #fff;
 }
 
 .payment-status-state p {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.45);
   margin: 0;
   line-height: 1.5;
@@ -694,7 +694,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   color: #36c690;
   animation: successPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -718,7 +718,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   color: #ff5050;
 }
 
@@ -728,7 +728,7 @@
 
 .payment-tx-hash {
   font-family: 'Courier New', monospace;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -745,7 +745,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.7);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;

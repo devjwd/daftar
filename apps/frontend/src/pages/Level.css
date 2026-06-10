@@ -63,7 +63,7 @@ body[data-theme='light'] .level-card-label {
   color: #cda169;
   width: 42px;
   height: 42px;
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
@@ -81,7 +81,7 @@ body[data-theme='light'] .level-card-label {
 
 .level-header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
   color: #f0e2cf;
   font-weight: 700;
 }
@@ -162,7 +162,7 @@ body[data-theme='light'] .level-card-label {
   justify-content: flex-start;
   align-items: center;
   padding: 12px 14px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #deb884;
   font-weight: 600;
 }
@@ -175,7 +175,7 @@ body[data-theme='light'] .level-card-label {
 }
 
 .level-card-label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: #bfa07b;
   font-weight: 700;
   margin-bottom: 10px;
@@ -208,13 +208,13 @@ body[data-theme='light'] .level-card-label {
 }
 
 .level-stat-key {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: #9e8f7d;
 }
 
 .level-stat-value {
   color: #f0e2cf;
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   font-weight: 800;
 }
 
@@ -241,7 +241,7 @@ body[data-theme='light'] .level-card-label {
 }
 
 .level-progress-text {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: #bca78e;
 }
 
@@ -252,7 +252,7 @@ body[data-theme='light'] .level-card-label {
   color: #cda169;
   padding: 10px 22px;
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -284,13 +284,13 @@ body[data-theme='light'] .level-card-label {
 .level-roadmap-header h2 {
   margin: 0 0 6px;
   color: #f0e2cf;
-  font-size: 22px;
+  font-size: var(--font-size-xl);
 }
 
 .level-roadmap-header p {
   margin: 0;
   color: #ad9b89;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .level-roadmap-grid {
@@ -340,14 +340,14 @@ body[data-theme='light'] .level-card-label {
 
 .level-roadmap-level {
   color: #f0e2cf;
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 
 .level-roadmap-status {
   padding: 5px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   background: rgba(205, 161, 105, 0.16);
   color: #cda169;
@@ -365,7 +365,7 @@ body[data-theme='light'] .level-card-label {
 
 .level-roadmap-reward {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   color: #f0e2cf;
   min-height: 44px;
@@ -374,7 +374,7 @@ body[data-theme='light'] .level-card-label {
 .level-roadmap-xp {
   margin: 0;
   color: #a88f76;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .level-max-note {
@@ -384,7 +384,7 @@ body[data-theme='light'] .level-card-label {
   color: #8de0ad;
   border-radius: 12px;
   padding: 12px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
 }
 
 .level-empty {
@@ -394,7 +394,7 @@ body[data-theme='light'] .level-card-label {
 }
 
 .level-empty-icon {
-  font-size: 42px;
+  font-size: var(--font-size-4xl);
   margin-bottom: 8px;
 }
 
@@ -423,7 +423,7 @@ body[data-theme='light'] .level-card-label {
   }
 
   .level-header h1 {
-    font-size: 22px;
+    font-size: var(--font-size-xl);
   }
 
   .level-main-panel {

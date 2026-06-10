@@ -17,7 +17,7 @@
 
 .nft-table th {
   padding: 12px 20px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -81,7 +81,7 @@
   background: var(--bg-tertiary);
   border: 1px solid var(--border-subtle);
   color: var(--primary);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   display: flex;
   align-items: center;
@@ -99,7 +99,7 @@
 .collection-name-text {
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-family: var(--font-display);
 }
 
@@ -112,11 +112,11 @@
 .native-price {
   font-weight: 700;
   color: var(--primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .usd-price {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
 }
 
@@ -128,7 +128,7 @@
   background: var(--primary);
   color: var(--bg-primary);
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-decoration: none;
   transition: all var(--transition-base);
@@ -184,12 +184,12 @@
 }
 
 .empty-icon {
-  font-size: 48px;
+  font-size: var(--font-size-4xl);
   opacity: 0.5;
 }
 
 .nft-tab-count {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   background: var(--primary);
   color: var(--bg-primary);
   padding: 1px 6px;
@@ -220,7 +220,7 @@
 }
 
 .summary-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -228,13 +228,13 @@
 }
 
 .summary-value-move {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: var(--primary);
 }
 
 .summary-value-usd {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-secondary);
   opacity: 0.3;
@@ -252,7 +252,7 @@
 
 .valuation-toggle-btn {
   padding: 5px 12px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-tertiary);
   background: transparent;
@@ -276,7 +276,7 @@
 }
 
 .valuation-note {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   font-weight: 500;
   letter-spacing: 0.01em;

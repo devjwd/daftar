@@ -196,7 +196,7 @@
 }
 
 .token-initial {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 800;
   color: var(--primary);
   font-family: var(--font-display);
@@ -228,7 +228,7 @@
 }
 
 .token-symbol {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-tertiary);
   font-family: var(--font-primary);
@@ -242,7 +242,7 @@
 }
 
 .token-network {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 800;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -265,7 +265,7 @@
 }
 
 .token-balance {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -275,7 +275,7 @@
 }
 
 .token-value {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-tertiary);
   opacity: 0.7;
@@ -290,7 +290,7 @@
 }
 
 .token-unit-price {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-tertiary);
   opacity: 0.5;
@@ -454,7 +454,7 @@
 
 .token-symbol-badge {
 
-  font-size: 20px;
+  font-size: var(--font-size-xl);
 
   font-weight: 900;
 
@@ -499,7 +499,7 @@
 
 .token-name {
 
-  font-size: 18px;
+  font-size: var(--font-size-lg);
 
   font-weight: 700;
 
@@ -535,7 +535,7 @@
 
   color: var(--success);
 
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 
   font-weight: 900;
 
@@ -569,7 +569,7 @@
 
 .token-amount {
 
-  font-size: 18px;
+  font-size: var(--font-size-lg);
 
   font-weight: 700;
 
@@ -589,7 +589,7 @@
 
 .token-usd {
 
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 
   color: var(--text-tertiary);
 
@@ -645,7 +645,7 @@
 
 .staking-name {
 
-  font-size: 16px;
+  font-size: var(--font-size-md);
 
   font-weight: 700;
 
@@ -657,7 +657,7 @@
 
 .staking-value {
 
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 
   color: var(--text-secondary);
 
@@ -728,14 +728,14 @@
 }
 
 .staking-minimal-name {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-primary);
   font-family: var(--font-primary);
 }
 
 .staking-minimal-meta {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   opacity: 0.8;
   font-family: var(--font-primary);
@@ -749,14 +749,14 @@
 }
 
 .staking-minimal-amount {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-display);
 }
 
 .staking-minimal-value {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: var(--primary);
   font-weight: 500;
   font-family: var(--font-display);
@@ -770,7 +770,7 @@
 }
 
 .staking-minimal-status {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   padding: 2px 8px;
   border-radius: 6px;
   font-weight: 500;
@@ -930,7 +930,7 @@
 
 .staking-v2-info h4 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -938,7 +938,7 @@
 }
 
 .staking-v2-type {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.6px;
@@ -1040,7 +1040,7 @@
 }
 
 .staking-v2-stat-label {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -1049,7 +1049,7 @@
 }
 
 .staking-v2-stat-value {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 800;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -1092,7 +1092,7 @@
 }
 
 .staking-v2-detail-row .staking-v2-stat-value.small {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -1127,7 +1127,7 @@
 }
 
 .staking-status-badge {
-  font-size: 8px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;

@@ -12,7 +12,7 @@
 
   color: var(--text-primary);
 
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 
   font-weight: 700;
 
@@ -125,7 +125,7 @@
   border: none;
   border-radius: 10px;
   color: #ffffff;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -147,7 +147,7 @@
 }
 
 .dropdown-icon {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -240,7 +240,7 @@
 
   color: var(--text-primary);
 
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 
   font-weight: 600;
 
@@ -302,7 +302,7 @@
 
 .wallet-divider {
 
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 
   font-weight: 700;
 
@@ -315,4 +315,4 @@
   letter-spacing: 1px;
 
 }
-
+

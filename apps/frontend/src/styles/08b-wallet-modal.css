@@ -53,7 +53,7 @@
 }
 
 .wallet-modal-icon {
-  font-size: 2rem;
+  font-size: var(--font-size-3xl);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -66,7 +66,7 @@
 
 .wallet-modal-title h2 {
   margin: 0 0 0.25rem 0;
-  font-size: 1.35rem;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--text-primary);
   font-family: 'Space Grotesk', sans-serif;
@@ -74,7 +74,7 @@
 
 .wallet-modal-title p {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-tertiary);
 }
 
@@ -88,7 +88,7 @@
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -132,7 +132,7 @@
 }
 
 .wallet-option-icon {
-  font-size: 2rem;
+  font-size: var(--font-size-3xl);
   width: 52px;
   height: 52px;
   display: flex;
@@ -146,7 +146,7 @@
 .wallet-option-name {
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .wallet-option-badge {
@@ -155,7 +155,7 @@
   right: 8px;
   background: var(--success);
   color: var(--bg-primary);
-  font-size: 0.6rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   padding: 0.2rem 0.4rem;
   border-radius: 6px;
@@ -170,7 +170,7 @@
 }
 
 .no-wallet-icon {
-  font-size: 2.5rem;
+  font-size: var(--font-size-3xl);
   display: block;
   margin-bottom: 0.75rem;
 }
@@ -191,7 +191,7 @@
 }
 
 .wallet-modal-divider span {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -222,7 +222,7 @@
 }
 
 .install-icon {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   width: 40px;
   height: 40px;
   display: flex;
@@ -242,18 +242,18 @@
 .install-name {
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .install-desc {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   margin-top: 0.1rem;
 }
 
 .install-arrow {
   color: var(--text-tertiary);
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   transition: transform 0.2s ease;
 }
 
@@ -270,7 +270,7 @@
 
 .wallet-modal-footer p {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
 
@@ -520,7 +520,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
+  font-size: var(--font-size-4xl);
   font-weight: 600;
   color: #14110f;
 }
@@ -539,7 +539,7 @@
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #14110f;
   box-shadow: 0 4px 12px rgba(205, 161, 105, 0.4);
 }
@@ -574,7 +574,7 @@
 }
 
 .hero-profile-name {
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   color: #cda169;
   margin: 0;
@@ -599,13 +599,13 @@
 }
 
 .badge-check-blue {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: white;
 }
 
 .hero-profile-bio {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #c9b5a1;
   line-height: 1.5;
   margin: 4px 0 0 0;
@@ -660,7 +660,7 @@
   background: #cda169;
   color: #14110f;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   display: flex;
   align-items: center;
@@ -700,7 +700,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 900;
   display: flex;
   align-items: center;
@@ -720,7 +720,7 @@
 }
 
 .hero-social-icon {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: inherit;
 }
 
@@ -816,12 +816,12 @@
 }
 
 .social-icon {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   color: #cda169;
 }
 
 .hero-v3-title {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
@@ -842,7 +842,7 @@
   font-weight: 800;
   text-transform: none;
   letter-spacing: -0.2px;
-  font-size: 16px;
+  font-size: var(--font-size-md);
   margin-right: 0;
   display: inline-block;
   font-family: var(--font-display);
@@ -850,7 +850,7 @@
 
 .hero-v3-title-suffix {
   opacity: 0.8;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 /* Profile Modal */
@@ -974,7 +974,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 56px;
+  font-size: var(--font-size-4xl);
   font-weight: 600;
   color: #14110f;
 }
@@ -991,7 +991,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: #14110f;
   box-shadow: 0 4px 12px rgba(205, 161, 105, 0.4);
@@ -1013,7 +1013,7 @@
 }
 
 .modal-badge-check {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: white;
 }
@@ -1048,7 +1048,7 @@
 
 .modal-level-label,
 .modal-xp-label {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: #c9b5a1;
   text-transform: uppercase;
@@ -1057,7 +1057,7 @@
 
 .modal-level-value,
 .modal-xp-value {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: #cda169;
 }
@@ -1082,7 +1082,7 @@
 
 .modal-username {
   font-family: var(--font-display), inherit;
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1104,7 +1104,7 @@
   justify-content: center;
   gap: 8px;
   color: #a39482;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
 }
 
@@ -1133,7 +1133,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: #cda169;
   background: rgba(26, 22, 20, 0.7);
@@ -1141,7 +1141,7 @@
 }
 
 .modal-bio {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   color: #c9b5a1;
   line-height: 1.6;
   margin: 0 0 24px 0;
@@ -1159,7 +1159,7 @@
   padding: 7px 18px;
   color: #cda169;
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.2px;
@@ -1185,7 +1185,7 @@
 }
 
 .modal-badges-title {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: #deb884;
   text-transform: uppercase;
@@ -1206,7 +1206,7 @@
 }
 
 .modal-onchain-title {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: #deb884;
   margin: 0 0 8px 0;
@@ -1257,7 +1257,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: var(--font-size-xl);
 }
 
 .badge-fallback-letter {
@@ -1268,12 +1268,12 @@
 .modal-onchain-badge-name {
   color: #deb884;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
 }
 
 .modal-onchain-badge-meta {
   color: #9a8f83;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 
@@ -1325,7 +1325,7 @@
 }
 
 .modal-badge-icon {
-  font-size: 22px;
+  font-size: var(--font-size-xl);
 }
 
 .modal-badge-info {
@@ -1337,14 +1337,14 @@
 }
 
 .modal-badge-name {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #cda169;
   font-weight: 600;
   word-break: break-word;
 }
 
 .modal-badge-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: #a39580;
   line-height: 1.4;
   word-break: break-word;
@@ -1384,7 +1384,7 @@
 }
 
 .modal-no-badges-text {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   line-height: 1.5;
   color: #8c7e6e;
   margin: 0;
@@ -1422,11 +1422,11 @@
   .modal-level-badge {
     width: 40px;
     height: 40px;
-    font-size: 18px;
+    font-size: var(--font-size-lg);
   }
 
   .modal-username {
-    font-size: 24px;
+    font-size: var(--font-size-2xl);
   }
 
   .modal-badges-grid {
@@ -1444,12 +1444,12 @@
   }
 
   .modal-badge-icon {
-    font-size: 24px;
+    font-size: var(--font-size-2xl);
   }
 }
 
 .hero-v3-value {
-  font-size: 48px;
+  font-size: var(--font-size-4xl);
   font-weight: 700;
   font-family: var(--font-display);
   letter-spacing: -1.5px;
@@ -1546,7 +1546,7 @@
 
 @media (max-width: 768px) {
   .hero-v3-value {
-    font-size: 42px;
+    font-size: var(--font-size-4xl);
   }
 
   .hero-networth-skeleton-value {
@@ -1591,7 +1591,7 @@
   padding-top: 16px;
   border-top: 1px solid var(--border-subtle);
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.3px;
   opacity: 0.85;
 }
@@ -1599,7 +1599,7 @@
 @media (max-width: 768px) {
   .dashboard-min-footer {
     margin: 6px 0 20px;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     gap: 8px;
   }
 }
@@ -1613,7 +1613,7 @@
 }
 
 .hero-v3-label {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   font-weight: 500;
 }
@@ -1623,13 +1623,13 @@
   align-items: center;
   gap: 12px;
   color: var(--text-tertiary);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   margin-top: 4px;
 }
 
 .hero-v3-address-inline .address-text {
   font-family: monospace;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: rgba(205, 161, 105, 0.6);
   letter-spacing: 0.5px;
 }
@@ -1658,7 +1658,7 @@
   background: rgba(239, 68, 68, 0.15);
   /* Soft red for hot wallet / exchange warning */
   color: #ef4444;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1731,7 +1731,7 @@
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.3px;
   text-transform: uppercase;
 }
@@ -1739,13 +1739,13 @@
 .address-age-separator {
   color: var(--text-tertiary);
   opacity: 0.4;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   margin: 0 6px;
   user-select: none;
 }
 
 .address-age-text {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-family: 'Courier New', monospace;
   color: var(--text-secondary);
   opacity: 0.6;
@@ -1759,7 +1759,7 @@
 }
 
 .hero-v3-bio {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   color: #f7f3ee;
   line-height: 1.6;
   margin-top: 12px;
@@ -1779,7 +1779,7 @@
 }
 
 .hero-v3-address .address-text {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-family: 'Courier New', monospace;
   color: #cda169;
   font-weight: 500;
@@ -1793,7 +1793,7 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 16px;
+  font-size: var(--font-size-md);
   padding: 4px;
   display: flex;
   align-items: center;
@@ -1816,7 +1816,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   font-family: var(--font-display);
   padding: 6px 14px;
@@ -1837,7 +1837,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: #10b981;
   font-weight: 600;
   padding: 4px 10px;
@@ -1847,7 +1847,7 @@
 }
 
 .age-icon {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 /* Stats Row */
@@ -1869,7 +1869,7 @@
 }
 
 .hero-v3-stat-value {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   font-family: var(--font-display);
   color: var(--text-primary);
@@ -1893,7 +1893,7 @@
 }
 
 .hero-v3-stat-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -1916,7 +1916,7 @@
   border: none;
   background: transparent;
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   font-family: var(--font-display);
   letter-spacing: 0.15em;
@@ -1993,7 +1993,7 @@
   margin-left: 8px;
   background: rgba(205, 161, 105, 0.15);
   color: var(--primary);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 6px;
@@ -2065,7 +2065,7 @@
   }
 
   .portfolio-tab-btn {
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     letter-spacing: 0.08em;
   }
 }
@@ -2113,7 +2113,7 @@
 
 .timeframe-btn {
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   font-family: var(--font-display);
   color: var(--text-tertiary);
@@ -2196,7 +2196,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 2.5px;
   text-transform: uppercase;
@@ -2205,11 +2205,11 @@
 }
 
 .hero-v2-icon {
-  font-size: 16px;
+  font-size: var(--font-size-md);
 }
 
 .hero-v2-value {
-  font-size: 68px;
+  font-size: var(--font-size-5xl);
   font-weight: 900;
   font-family: var(--font-display);
   letter-spacing: -3px;
@@ -2237,7 +2237,7 @@
 
 @media (max-width: 768px) {
   .hero-v2-value {
-    font-size: 48px;
+    font-size: var(--font-size-4xl);
     letter-spacing: -2px;
   }
 }
@@ -2282,7 +2282,7 @@
 }
 
 .hero-v2-breakdown-icon {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   opacity: 0.9;
 }
 
@@ -2294,7 +2294,7 @@
 }
 
 .hero-v2-breakdown-label {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -2303,7 +2303,7 @@
 }
 
 .hero-v2-breakdown-value {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   font-family: var(--font-display);
   color: var(--text-primary);
@@ -2326,7 +2326,7 @@
   background: rgba(255, 255, 255, 0.04);
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   font-family: var(--font-display);
   color: var(--text-tertiary);

@@ -202,7 +202,12 @@ export default function Admin() {
       }
 
       if (changes.length === 0) {
-        showMessage('No on-chain changes detected');
+        // Save local-only settings immediately if there are no on-chain changes
+        updateSwapSettings({
+          enableMosaicToggle: swapSettings.enableMosaicToggle,
+          defaultProvider: swapSettings.defaultProvider,
+        });
+        showMessage('Local settings saved. No on-chain changes detected.');
         return;
       }
 
@@ -241,7 +246,8 @@ export default function Admin() {
           feeReceiver: swapSettings.feeReceiver,
           chargeFeeBy: swapSettings.chargeFeeBy,
           defaultSlippagePercent: Number(swapSettings.defaultSlippagePercent),
-          routingMode: 'mosaic',
+          enableMosaicToggle: swapSettings.enableMosaicToggle,
+          defaultProvider: swapSettings.defaultProvider,
         });
         setSwapSettings((prev) => ({ ...prev, ...nextLocal }));
         await loadRouterSettings();
@@ -427,10 +433,32 @@ export default function Admin() {
         {activeTab === 'settings' && (
           <div className="admin-content">
             <div className="admin-settings-section">
-              <h2>Mosaic Swap Settings</h2>
+              <h2>Swap Provider Settings</h2>
               <p className="section-description">
-                Configure router partner settings on-chain. Routing is fixed to Mosaic.
+                Configure router settings and provider preferences.
               </p>
+              <div className="admin-summary-card" style={{ marginBottom: '1rem' }}>
+                <h4>Provider Preferences</h4>
+                <div className="admin-form-group">
+                  <label>Default Provider</label>
+                  <select
+                    value={swapSettings.defaultProvider || 'yuzu'}
+                    onChange={(e) => setSwapSettings((prev) => ({ ...prev, defaultProvider: e.target.value as 'yuzu' | 'mosaic' }))}
+                  >
+                    <option value="yuzu">Yuzu (Main Provider)</option>
+                    <option value="mosaic">Mosaic Aggregator</option>
+                  </select>
+                </div>
+                <label className="admin-checkbox" style={{ marginTop: '0.75rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(swapSettings.enableMosaicToggle ?? true)}
+                    onChange={(e) => setSwapSettings((prev) => ({ ...prev, enableMosaicToggle: e.target.checked }))}
+                  />
+                  Enable Mosaic Toggle in User Swap Settings
+                </label>
+              </div>
+
               <div className="admin-summary-card" style={{ marginBottom: '1rem' }}>
                 <h4>Router Status</h4>
                 <div className="admin-summary-item">
@@ -556,8 +584,12 @@ export default function Admin() {
                   <div className="admin-summary-card">
                     <h4>Current Setup</h4>
                     <div className="admin-summary-item">
-                      <span>Routing</span>
-                      <strong>Mosaic Only</strong>
+                      <span>Default Provider</span>
+                      <strong>{swapSettings.defaultProvider === 'yuzu' ? 'Yuzu' : 'Mosaic'}</strong>
+                    </div>
+                    <div className="admin-summary-item">
+                      <span>User Toggle</span>
+                      <strong>{swapSettings.enableMosaicToggle ? 'Enabled' : 'Disabled'}</strong>
                     </div>
                     <div className="admin-summary-item">
                       <span>Default Slippage</span>
@@ -582,7 +614,7 @@ export default function Admin() {
                   </div>
 
                   <div className="admin-routing-pill">
-                    Routing Mode: <strong>Mosaic Only</strong>
+                    Routing Mode: <strong>{swapSettings.defaultProvider === 'yuzu' ? 'Yuzu Primary' : 'Mosaic Primary'}</strong>
                   </div>
                 </aside>
               </div>

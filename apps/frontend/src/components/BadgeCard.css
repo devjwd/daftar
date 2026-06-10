@@ -75,7 +75,7 @@
   right: 10px;
   padding: 4px 12px;
   border-radius: 20px;
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -114,7 +114,7 @@
   filter: drop-shadow(0 0 8px var(--rg));
 }
 .bc-image-fallback {
-  font-size: 3.5rem;
+  font-size: var(--font-size-4xl);
   animation: bc-float 3s ease-in-out infinite;
 }
 
@@ -124,7 +124,7 @@
   left: 10px;
   padding: 3px 10px;
   border-radius: 12px;
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -137,7 +137,7 @@
   right: 10px;
   padding: 4px 10px;
   border-radius: 12px;
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   background: linear-gradient(135deg, #e57c23, #d97706);
   color: #fff;
@@ -154,14 +154,14 @@
 }
 .bc-name {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: rgba(255, 255, 255, 0.95);
   font-family: 'Space Grotesk', sans-serif;
 }
 .bc-desc {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: rgba(255, 255, 255, 0.6);
   line-height: 1.4;
 }
@@ -177,7 +177,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   padding: 6px 10px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.15);
@@ -207,7 +207,7 @@
   margin-left: auto;
   color: rgba(255, 255, 255, 0.5);
   font-family: 'Space Grotesk', monospace;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 
 /* ─── Progress Bar ────────────────────────────────────────────────── */
@@ -221,14 +221,14 @@
   margin-bottom: 6px;
 }
 .bc-progress-label {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
   color: rgba(255, 255, 255, 0.5);
 }
 .bc-progress-pct {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   color: var(--rc);
   font-family: 'Space Grotesk', monospace;
@@ -256,7 +256,7 @@
 
 /* ─── Earned Date ─────────────────────────────────────────────────── */
 .bc-earned-date {
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   color: #22c55e;
   font-weight: 500;
   padding: 8px 12px;
@@ -275,7 +275,7 @@
   border: none;
   border-radius: 8px;
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.25s ease;
   margin-top: 4px;
@@ -291,7 +291,7 @@
 
 /* ─── Locked Label ────────────────────────────────────────────────── */
 .bc-locked-label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.35);
   text-align: center;
   display: flex;
@@ -301,7 +301,7 @@
   padding: 8px;
 }
 .bc-lock-icon {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 /* ─── Shimmer (earned) ────────────────────────────────────────────── */
@@ -358,16 +358,16 @@
     max-height: 80px;
   }
   .bc-image-fallback {
-    font-size: 2.5rem;
+    font-size: var(--font-size-3xl);
   }
   .bc-content {
     padding: 12px;
     gap: 8px;
   }
   .bc-name {
-    font-size: 0.95rem;
+    font-size: var(--font-size-md);
   }
   .bc-desc {
-    font-size: 0.8rem;
+    font-size: var(--font-size-xs);
   }
 }

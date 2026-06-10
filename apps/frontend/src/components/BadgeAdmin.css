@@ -10,7 +10,7 @@
 .ba-message {
   padding: 12px 16px;
   border-radius: 8px;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   margin-bottom: 20px;
   animation: ba-slideDown 0.3s ease-out;
@@ -44,7 +44,7 @@
   background: rgba(31, 26, 23, 0.58);
   color: #8a7d6f;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   transition: all 0.2s ease;
   white-space: nowrap;
@@ -99,7 +99,7 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.18);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .ba-subtab-label {
@@ -114,7 +114,7 @@
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   transition: all 0.2s ease;
   white-space: nowrap;
@@ -149,13 +149,13 @@
 }
 .ba-btn-sm {
   padding: 5px 12px;
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
 }
 .ba-btn-icon {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   padding: 4px 8px;
   border-radius: 6px;
   transition: background 0.15s;
@@ -165,7 +165,7 @@
 }
 .ba-btn-remove {
   color: #ef4444;
-  font-size: 1.3rem;
+  font-size: var(--font-size-xl);
   font-weight: bold;
 }
 
@@ -176,7 +176,7 @@
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.25);
   color: #deb884;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   transition: border-color 0.2s ease;
   font-family: inherit;
 }
@@ -200,7 +200,7 @@
   margin-bottom: 16px;
 }
 .ba-field label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: #c8ad8e;
   text-transform: uppercase;
@@ -225,7 +225,7 @@
   border: 1px solid rgba(205, 161, 105, 0.2);
   border-radius: 999px;
   color: #c8ad8e;
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -259,13 +259,13 @@
 }
 
 .ba-setup-icon {
-  font-size: 3rem;
+  font-size: var(--font-size-4xl);
   display: block;
   margin-bottom: 1rem;
 }
 
 .ba-setup-header h4 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   color: var(--text-primary);
   margin-bottom: 0.5rem;
 }
@@ -291,7 +291,7 @@
 
 .ba-btn-large {
   padding: 1rem 3rem;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   min-width: 300px;
 }
 .ba-required {
@@ -299,7 +299,7 @@
   margin-left: 3px;
 }
 .ba-hint {
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   color: #8a7d6f;
   margin: 0 0 16px 0;
   line-height: 1.4;
@@ -320,7 +320,7 @@
   gap: 10px;
   cursor: pointer;
   color: #c8ad8e;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
 }
 .ba-toggle-label input[type="checkbox"] {
   width: 18px;
@@ -368,7 +368,7 @@
 }
 .ba-manage-header h3 {
   color: #deb884;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   margin: 0;
 }
 .ba-manage-actions {
@@ -395,7 +395,7 @@
   border: none;
   background: none;
   color: #8a7d6f;
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
   border-radius: 6px;
@@ -462,7 +462,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   background: rgba(0, 0, 0, 0.2);
   border: 2px dashed;
 }
@@ -480,13 +480,13 @@
 }
 .ba-badge-title-row h4 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   color: #deb884;
 }
 .ba-rarity-pill {
   padding: 2px 8px;
   border-radius: 12px;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   color: #fff;
@@ -495,14 +495,14 @@
 .ba-xp-pill {
   padding: 2px 8px;
   border-radius: 12px;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   background: rgba(229, 124, 35, 0.15);
   color: #e57c23;
 }
 .ba-badge-desc {
   margin: 0 0 6px 0;
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   color: #8a7d6f;
   white-space: nowrap;
   overflow: hidden;
@@ -516,7 +516,7 @@
 .ba-criteria-tag {
   padding: 2px 8px;
   border-radius: 6px;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   background: rgba(139, 92, 246, 0.1);
   color: #a78bfa;
   border: 1px solid rgba(139, 92, 246, 0.2);
@@ -524,7 +524,7 @@
 .ba-category-tag {
   padding: 2px 8px;
   border-radius: 6px;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   background: rgba(59, 130, 246, 0.1);
   color: #76a6c3;
   border: 1px solid rgba(59, 130, 246, 0.2);
@@ -549,7 +549,7 @@
 }
 .ba-form-left h3, .ba-form-right h3 {
   color: #deb884;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   margin: 0 0 16px 0;
 }
 
@@ -569,7 +569,7 @@
 }
 
 .ba-live-preview-head span {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   color: #c8ad8e;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -601,7 +601,7 @@
 }
 
 .ba-live-card-fallback {
-  font-size: 2.8rem;
+  font-size: var(--font-size-4xl);
 }
 
 .ba-live-rarity-pill {
@@ -611,7 +611,7 @@
   padding: 3px 8px;
   border-radius: 999px;
   color: #fff;
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -626,7 +626,7 @@
   background: rgba(229, 124, 35, 0.2);
   border: 1px solid rgba(229, 124, 35, 0.35);
   color: #f5c27a;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
 }
 
@@ -637,13 +637,13 @@
 .ba-live-card-content h4 {
   margin: 0;
   color: #deb884;
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
 }
 
 .ba-live-card-content p {
   margin: 5px 0 10px;
   color: #9a8f83;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   line-height: 1.4;
 }
 
@@ -660,7 +660,7 @@
   border: 1px solid rgba(205, 161, 105, 0.24);
   background: rgba(205, 161, 105, 0.12);
   color: #d8b892;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -701,7 +701,7 @@
   margin-bottom: 12px;
 }
 .ba-criterion-num {
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: #cda169;
   text-transform: uppercase;
@@ -745,7 +745,7 @@
 
 .ba-special-panel h4 {
   margin: 0 0 8px;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   color: #deb884;
 }
 
@@ -759,7 +759,7 @@
 }
 .ba-template-section h3 {
   color: #deb884;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   margin: 0 0 8px 0;
 }
 .ba-template-grid {
@@ -785,16 +785,16 @@
   opacity: 0.5;
 }
 .ba-template-emoji {
-  font-size: 2rem;
+  font-size: var(--font-size-3xl);
 }
 .ba-template-card h4 {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   color: #deb884;
 }
 .ba-template-card p {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   color: #8a7d6f;
 }
 .ba-template-meta {
@@ -818,13 +818,13 @@
 }
 .ba-ie-section h3 {
   color: #deb884;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   margin: 0 0 8px 0;
 }
 .ba-import-textarea {
   margin-bottom: 12px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
 }
 .ba-danger-zone {
   border-color: rgba(239, 68, 68, 0.2);
@@ -868,13 +868,13 @@
 
 .ba-onchain-header h3 {
   color: #deb884;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   margin: 0;
 }
 
 .ba-onchain-header .ba-hint {
   color: #8a7d6f;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   margin: 0;
 }
 
@@ -882,14 +882,14 @@
   text-align: center;
   padding: 40px;
   color: #8a7d6f;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .ba-empty {
   text-align: center;
   padding: 40px;
   color: #6b6058;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   background: rgba(0, 0, 0, 0.1);
   border-radius: 12px;
   border: 1px dashed rgba(205, 161, 105, 0.15);
@@ -941,7 +941,7 @@
 }
 
 .ba-onchain-placeholder {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: #6b6058;
   font-weight: 600;
 }
@@ -964,7 +964,7 @@
 .ba-onchain-title-row h4 {
   margin: 0;
   color: #deb884;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -973,7 +973,7 @@
 .ba-status-pill {
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -983,7 +983,7 @@
 .ba-onchain-desc {
   margin: 0;
   color: #9a8f83;
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -995,7 +995,7 @@
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   color: #8a7d6f;
 }
 
@@ -1011,7 +1011,7 @@
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: #6b6058;
 }
 
@@ -1028,7 +1028,7 @@
 }
 
 .ba-discontinued-label {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: #6b6058;
   font-style: italic;
   text-align: center;
@@ -1053,7 +1053,7 @@
 
 .ba-registry-section-header h3 {
   color: #deb884;
-  font-size: 1.05rem;
+  font-size: var(--font-size-md);
   margin: 0 0 4px;
 }
 
@@ -1075,7 +1075,7 @@
 }
 
 .ba-registry-stat-label {
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   color: #6b6058;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1083,14 +1083,14 @@
 }
 
 .ba-registry-stat-value {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   color: #deb884;
   font-weight: 600;
 }
 
 .ba-address-mono {
   font-family: 'Courier New', monospace;
-  font-size: 0.8rem !important;
+  font-size: var(--font-size-xs) !important;
   letter-spacing: 0;
 }
 
@@ -1119,7 +1119,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
   color: #c5b49a;
   font-weight: 500;
 }
@@ -1154,7 +1154,7 @@
 
 .ba-registry-key-section h4 {
   margin: 0 0 6px;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   color: #cda169;
 }
 
@@ -1168,13 +1168,13 @@
 .ba-key-input {
   flex: 1;
   font-family: 'Courier New', monospace;
-  font-size: 0.78rem !important;
+  font-size: var(--font-size-xs) !important;
   letter-spacing: 0.02em;
 }
 
 .ba-inline-code {
   font-family: 'Courier New', monospace;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   background: rgba(0, 0, 0, 0.25);
   padding: 2px 6px;
   border-radius: 4px;
@@ -1218,7 +1218,7 @@
     grid-template-columns: 1fr;
   }
   .ba-subtab {
-    font-size: 0.78rem;
+    font-size: var(--font-size-xs);
     padding: 6px 12px;
   }
   .ba-manage-header {
@@ -1249,7 +1249,7 @@
 .ba-new-badge {
   background: linear-gradient(135deg, #e57c23, #ee8f3a);
   color: #fff;
-  font-size: 0.62rem;
+  font-size: var(--font-size-xs);
   padding: 1px 5px;
   border-radius: 4px;
   margin-left: 6px;
@@ -1275,7 +1275,7 @@
   border: 1px solid rgba(16, 185, 129, 0.2);
   border-radius: 12px;
   margin-bottom: 24px;
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   color: #a7c4bc;
 }
 
@@ -1304,7 +1304,7 @@
   color: #10b981;
   padding: 2px 8px;
   border-radius: 6px;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -1349,14 +1349,14 @@
 .ba-modal-header h3 {
   margin: 0;
   color: #deb884;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 
 .ba-close-btn {
   background: none;
   border: none;
   color: #8a7d6f;
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   cursor: pointer;
   padding: 0 5px;
 }
@@ -1378,14 +1378,14 @@
 }
 
 .ba-stat-val {
-  font-size: 2.2rem;
+  font-size: var(--font-size-3xl);
   font-weight: 700;
   color: #deb884;
   line-height: 1;
 }
 
 .ba-stat-label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   color: #8a7d6f;
   text-transform: uppercase;
   margin-top: 8px;
@@ -1399,7 +1399,7 @@
 }
 
 .ba-editor-section label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: #c8ad8e;
   text-transform: uppercase;
@@ -1434,7 +1434,7 @@
 .ba-search-feedback {
   padding: 10px 14px;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   margin-top: 8px;
 }
@@ -1474,12 +1474,12 @@
 .ba-allowlist-stats {
   margin-bottom: 12px;
   color: #8a7d6f;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .ba-allowlist-stats strong {
   color: #10b981;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 
 .ba-allowlist-actions {
@@ -1494,7 +1494,7 @@
   padding: 6px 12px;
   border-radius: 6px;
   color: #cda169;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;

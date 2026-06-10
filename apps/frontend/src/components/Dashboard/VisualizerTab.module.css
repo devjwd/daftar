@@ -29,7 +29,7 @@
   align-items: center;
   gap: 6px;
   color: rgba(255, 255, 255, 0.6);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .legendColor {
@@ -87,7 +87,7 @@
   justify-content: center;
   background: rgba(4, 4, 4, 0.85);
   color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   z-index: 100;
 }
 
@@ -160,7 +160,7 @@
 
 .nodeText {
   fill: rgba(255, 255, 255, 0.7);
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.03em;
   font-family: monospace;
@@ -197,14 +197,14 @@
 
 .tooltipTitle {
   color: #f3dfbe;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
 .tooltipAddress {
   color: rgba(255, 255, 255, 0.4);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-family: monospace;
   margin-top: 2px;
 }
@@ -229,14 +229,14 @@
 
 .tooltipLabel {
   color: rgba(255, 255, 255, 0.45);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .tooltipValue {
   color: rgba(255, 255, 255, 0.85);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -253,7 +253,7 @@
   padding: 6px 10px;
   border-radius: 8px;
   color: rgba(255, 255, 255, 0.45);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   pointer-events: none;
 }
 
@@ -282,14 +282,14 @@
 
 .linkTooltipCount {
   color: rgba(255, 255, 255, 0.8);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 .linkTooltipTokens {
   color: rgba(255, 255, 255, 0.4);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-family: monospace;
   text-transform: uppercase;
 }
@@ -304,7 +304,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-family: monospace;
 }
 
@@ -315,7 +315,7 @@
 
 .linkTooltipMore {
   color: rgba(255, 255, 255, 0.35);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-style: italic;
   padding-top: 2px;
 }
@@ -324,7 +324,7 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -334,7 +334,7 @@
   place-items: center;
   min-height: 200px;
   color: rgba(255, 255, 255, 0.4);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .fullscreenCard {
@@ -353,7 +353,7 @@
   border: 1px solid rgba(205, 161, 105, 0.25);
   border-radius: 8px;
   padding: 5px 8px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: #fff;
   pointer-events: none;
   z-index: 70;
@@ -385,7 +385,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.4);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -490,7 +490,7 @@
 
 .loadingTitle {
   color: #fff;
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   margin: 0 0 16px 0;
   letter-spacing: 0.08em;
@@ -532,7 +532,7 @@
 
 .loadingSubtitle {
   color: rgba(255, 255, 255, 0.45);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   margin: 0;
   font-family: monospace;
   min-height: 18px;

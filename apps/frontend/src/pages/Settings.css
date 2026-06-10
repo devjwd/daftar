@@ -29,7 +29,7 @@
 }
 
 .settings-header h1 {
-  font-size: 32px;
+  font-size: var(--font-size-3xl);
   font-weight: 600;
   margin-bottom: 8px;
   background: linear-gradient(135deg, #cda169, #deb884);
@@ -39,7 +39,7 @@
 }
 
 .settings-header p {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   color: #8a7d6f;
 }
 
@@ -60,7 +60,7 @@
 }
 
 .section-title {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: #cda169;
   margin-bottom: 20px;
@@ -80,7 +80,7 @@
 
 .setting-info label {
   display: block;
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: #ffffff;
   margin-bottom: 4px;
@@ -88,7 +88,7 @@
 
 .setting-description {
   display: block;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: #8a7d6f;
 }
 
@@ -97,7 +97,7 @@
   border: 1px solid rgba(205, 161, 105, 0.2);
   border-radius: 12px;
   padding: 10px 18px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: #cda169;
   cursor: pointer;
@@ -264,7 +264,7 @@ body[data-theme='light'] .reset-btn {
 .save-btn {
   padding: 12px 28px;
   border-radius: 12px;
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -276,7 +276,7 @@ body[data-theme='light'] .reset-btn {
   color: #e06a6a;
   border: 1px solid rgba(212, 116, 116, 0.25);
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -294,7 +294,7 @@ body[data-theme='light'] .reset-btn {
   background: linear-gradient(135deg, #cda169 0%, #a77b43 100%);
   color: #14110f;
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -319,7 +319,7 @@ body[data-theme='light'] .reset-btn {
   }
 
   .settings-header h1 {
-    font-size: 24px;
+    font-size: var(--font-size-2xl);
   }
 
   .setting-item {
@@ -364,7 +364,7 @@ body[data-theme='light'] .reset-btn {
 }
 
 .lock-icon {
-  font-size: 36px;
+  font-size: var(--font-size-3xl);
   filter: drop-shadow(0 4px 10px rgba(205, 161, 105, 0.3));
   animation: pulseLock 2.5s infinite ease-in-out;
 }
@@ -377,7 +377,7 @@ body[data-theme='light'] .reset-btn {
 
 .pro-lock-card p {
   color: #8a7d6f;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   max-width: 400px;
   line-height: 1.5;
 }
@@ -389,7 +389,7 @@ body[data-theme='light'] .reset-btn {
   border-radius: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   letter-spacing: 1px;
   text-decoration: none;
   transition: all 0.3s ease;
@@ -402,7 +402,7 @@ body[data-theme='light'] .reset-btn {
 }
 
 .section-desc {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #8a7d6f;
   margin-bottom: 20px;
   line-height: 1.5;
@@ -417,7 +417,7 @@ body[data-theme='light'] .reset-btn {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   letter-spacing: 0.5px;
 }
 
@@ -440,7 +440,7 @@ body[data-theme='light'] .reset-btn {
   border: 1px solid rgba(205, 161, 105, 0.2);
   border-radius: 10px;
   padding: 10px 14px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #ffffff;
   width: 100%;
   max-width: 400px;
@@ -455,7 +455,7 @@ body[data-theme='light'] .reset-btn {
 }
 
 .status-info {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: #8a7d6f;
 }
 
@@ -489,7 +489,7 @@ body[data-theme='light'] .reset-btn {
 }
 
 .sub-section-title {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: #cda169;
   margin-bottom: 16px;
@@ -502,7 +502,7 @@ body[data-theme='light'] .reset-btn {
   border: 1px solid rgba(205, 161, 105, 0.2);
   border-radius: 10px;
   padding: 8px 14px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #ffffff;
   max-width: 120px;
   text-align: right;
@@ -526,7 +526,7 @@ body[data-theme='light'] .reset-btn {
   gap: 10px;
   cursor: pointer;
   color: #ffffff;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   user-select: none;
 }
 
@@ -562,7 +562,7 @@ body[data-theme='light'] .reset-btn {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
 }
 
 .test-alerts-btn:hover {
@@ -580,7 +580,7 @@ body[data-theme='light'] .reset-btn {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   border: none;
   box-shadow: 0 4px 15px rgba(205, 161, 105, 0.2);
 }
@@ -602,13 +602,13 @@ body[data-theme='light'] .reset-btn {
 }
 
 .discord-link-banner h3 {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   margin-bottom: 8px;
 }
 
 .discord-link-banner p {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   opacity: 0.9;
   line-height: 1.5;
   margin-bottom: 16px;
@@ -622,7 +622,7 @@ body[data-theme='light'] .reset-btn {
 .banner-actions button {
   padding: 8px 18px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -666,7 +666,7 @@ body[data-theme='light'] .reset-btn {
   padding: 10px 20px;
   border-radius: 10px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
@@ -747,7 +747,7 @@ body[data-theme='light'] .reset-btn {
 }
 
 .alert-modal-header h3 {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   margin: 0;
   color: #cda169;
@@ -758,7 +758,7 @@ body[data-theme='light'] .reset-btn {
   background: transparent;
   border: none;
   color: #8a7d6f;
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
   cursor: pointer;
   line-height: 1;
   padding: 0;
@@ -778,7 +778,7 @@ body[data-theme='light'] .reset-btn {
 }
 
 .alert-modal-content p {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #d1c7bd;
   line-height: 1.5;
   margin-top: 0;
@@ -814,7 +814,7 @@ body[data-theme='light'] .reset-btn {
   color: #ffffff;
   text-decoration: none;
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   padding: 12px 30px;
   border-radius: 10px;
   transition: all 0.3s ease;
@@ -833,7 +833,7 @@ body[data-theme='light'] .reset-btn {
   align-items: center;
   gap: 12px;
   color: #8a7d6f;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
 }
 
 .spinner {
@@ -878,7 +878,7 @@ body[data-theme='light'] .reset-btn {
   color: #cda169;
   text-decoration: underline;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   padding: 0;
   margin-left: 12px;
   transition: color 0.2s ease;

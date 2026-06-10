@@ -42,7 +42,7 @@
 
 .badges-eyebrow {
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -64,7 +64,7 @@
 }
 
 .badges-header p {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   color: var(--text-secondary);
   max-width: 500px;
   line-height: 1.5;
@@ -78,7 +78,7 @@
 }
 
 .summary-text {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 8px;
@@ -124,7 +124,7 @@
   background: transparent;
   border: none;
   padding: 8px 16px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-tertiary);
   cursor: pointer;
@@ -136,7 +136,7 @@
 }
 
 .achievement-tab span {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   background: var(--bg-tertiary);
   padding: 2px 6px;
   border-radius: 4px;
@@ -160,7 +160,7 @@
 }
 
 .badges-scan-btn, .badges-refresh-btn {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   padding: 10px 18px;
   border-radius: var(--radius-md);
@@ -202,7 +202,7 @@
 
 .badges-section-title {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 24px;
@@ -212,7 +212,7 @@
 }
 
 .badges-section-count {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   font-weight: 500;
 }
@@ -261,7 +261,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   transition: var(--transition-base);
 }
 
@@ -282,14 +282,14 @@
 }
 
 .achievement-info h3 {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   margin: 0 0 4px 0;
   color: var(--text-primary);
 }
 
 .achievement-info p {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--text-tertiary);
   line-height: 1.4;
   margin: 0;
@@ -327,7 +327,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .achievement-progress-text {
@@ -338,7 +338,7 @@
 
 .achievement-progress-reason {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .achievement-card-progress-bar {
@@ -371,7 +371,7 @@
 }
 
 .achievement-criteria-label {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   color: var(--text-muted);
   background: rgba(205, 161, 105, 0.05);
@@ -407,7 +407,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   gap: 8px;
 }
 
@@ -433,7 +433,7 @@
 }
 
 .achievement-status-pill {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -455,7 +455,7 @@
   background: var(--gradient-primary);
   border: none;
   color: var(--bg-primary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   padding: 8px 16px;
   border-radius: var(--radius-sm);
@@ -527,7 +527,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
+  font-size: var(--font-size-4xl);
   overflow: hidden;
 }
 
@@ -539,7 +539,7 @@
 }
 
 .badge-modal h3 {
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
   font-weight: 800;
   margin-bottom: 12px;
   color: var(--text-primary);
@@ -622,7 +622,7 @@ body[data-theme='light'] .achievement-tab.is-active {
 }
 
 .summary-text {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: var(--badge-text-2);
   margin-bottom: 8px;
   font-weight: 500;
@@ -647,6 +647,6 @@ body[data-theme='light'] .achievement-tab.is-active {
 
 @media (max-width: 600px) {
   .summary-value {
-    font-size: 28px;
+    font-size: var(--font-size-2xl);
   }
 }

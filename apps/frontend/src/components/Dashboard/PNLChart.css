@@ -81,7 +81,7 @@
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.38);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   cursor: pointer;
   padding: 5px 6px;
@@ -116,14 +116,14 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: #36c690;
   flex-shrink: 0;
 }
 
 .pnl-change-percent {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   opacity: 0.8;
   font-weight: 600;
 }
@@ -133,14 +133,14 @@
 }
 
 .pnl-change-arrow {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   margin-top: 1px;
 }
 
 .pnl-change-period {
   font-weight: 400;
   opacity: 0.65;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .pnl-chart-wrapper-v4 {
@@ -193,7 +193,7 @@
 }
 
 .restricted-title {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: #fff;
   margin: 0 0 6px 0;
@@ -201,7 +201,7 @@
 }
 
 .restricted-text {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: rgba(255, 255, 255, 0.55);
   margin: 0 0 16px 0 !important;
   line-height: 1.5;
@@ -214,7 +214,7 @@
   padding: 8px 18px;
   border-radius: 8px;
   border: none;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   cursor: pointer;
   background: linear-gradient(135deg, #cda169, #b2854f);
@@ -305,7 +305,7 @@
 }
 
 .donut-total-label {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.4);
   text-transform: uppercase;
@@ -375,14 +375,14 @@
 }
 
 .breakdown-legend-name {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.65);
   white-space: nowrap;
 }
 
 .breakdown-legend-pct {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   color: rgba(255, 255, 255, 0.85);
 }
@@ -399,7 +399,7 @@
 
 .tooltip-date {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   margin-bottom: 6px;
 }
@@ -413,13 +413,13 @@
 
 .tooltip-label {
   color: rgba(255, 255, 255, 0.45);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
 }
 
 .tooltip-value {
   color: #fff;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 
@@ -475,7 +475,7 @@
 }
 
 .pnl-error-content span {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   line-height: 1.4;
 }
@@ -486,7 +486,7 @@
   color: #e06a6a;
   padding: 6px 16px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;

@@ -17,7 +17,7 @@
   border-radius: 10px;
   padding: 10px 20px;
   color: #cda169;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;

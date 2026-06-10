@@ -27,6 +27,8 @@ export interface SwapSettings {
   updatedAt?: string;
   mosaicApiKey?: string;
   paused?: boolean;
+  enableMosaicToggle?: boolean;
+  defaultProvider?: 'yuzu' | 'mosaic';
 }
 
 const DEFAULT_SWAP_SETTINGS: SwapSettings = {
@@ -41,6 +43,8 @@ const DEFAULT_SWAP_SETTINGS: SwapSettings = {
   referrer: '',
   mosaicApiKey: '',
   paused: false,
+  enableMosaicToggle: true,
+  defaultProvider: 'yuzu',
 };
 
 /**
@@ -95,6 +99,10 @@ const normalizeSwapSettings = (settings: Partial<SwapSettings> = {}): SwapSettin
     enabledLiquiditySources: normalizeLiquiditySourceIds(
       settings.enabledLiquiditySources ?? DEFAULT_SWAP_SETTINGS.enabledLiquiditySources
     ),
+    enableMosaicToggle: settings.enableMosaicToggle ?? DEFAULT_SWAP_SETTINGS.enableMosaicToggle,
+    defaultProvider: ['yuzu', 'mosaic'].includes(String(settings.defaultProvider || '').toLowerCase())
+      ? (String(settings.defaultProvider || '').toLowerCase() as 'yuzu' | 'mosaic')
+      : DEFAULT_SWAP_SETTINGS.defaultProvider,
   };
 
   normalized.protocolFeeBps = feeInBps;

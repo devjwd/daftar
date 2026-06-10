@@ -36,6 +36,7 @@ module swap_router::storage {
     // -------------------------------------------------------------------------
 
     friend swap_router::router;
+    friend swap_router::yuzu_wrapper;
 
     // -------------------------------------------------------------------------
     // Error codes

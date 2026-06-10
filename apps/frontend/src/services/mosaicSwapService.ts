@@ -127,6 +127,8 @@ export const normalizeMosaicSwapSettings = (rawSettings: any = {}) => {
     enabledLiquiditySources,
     mosaicApiKey,
     paused,
+    enableMosaicToggle: rawSettings.enableMosaicToggle,
+    defaultProvider: rawSettings.defaultProvider,
   };
 };
 

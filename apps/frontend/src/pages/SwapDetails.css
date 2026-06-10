@@ -65,7 +65,7 @@
   display: flex;
   justify-content: space-between;
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
 }
 
 .swap-details-card {
@@ -111,7 +111,7 @@
 
 .swap-details-arrow {
   color: var(--primary);
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 
 .swap-details-provider {
@@ -128,7 +128,7 @@
 
 .swap-details-status {
   color: var(--success);
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
 }
 
 .swap-details-kv {
@@ -136,7 +136,7 @@
   justify-content: space-between;
   gap: 0.7rem;
   color: var(--text-secondary);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
 }
 
 .swap-details-kv + .swap-details-kv {
@@ -159,7 +159,7 @@
 .swap-details-open {
   color: var(--primary-light);
   text-decoration: none;
-  font-size: 0.84rem;
+  font-size: var(--font-size-sm);
 }
 
 .swap-details-open:hover {
@@ -171,7 +171,7 @@
   display: block;
   color: var(--text-primary);
   word-break: break-all;
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   font-family: "IBM Plex Mono", "Courier New", monospace;
 }
 

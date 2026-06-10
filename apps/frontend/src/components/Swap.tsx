@@ -12,6 +12,7 @@ import {
   fetchMosaicQuote,
   buildMosaicSwapPayload,
 } from "../services/mosaicSwapService";
+import { fetchYuzuQuote, buildYuzuSwapPayload } from "../services/yuzuSwapService";
 import { getTokenDecimals } from "../utils/tokenUtils";
 import { getTokenInfo, getSwapAssetTypeBySymbol, MOVEMENT_TOKENS } from "../config/tokens";
 import { TOKEN_VISUALS } from "../config/display";
@@ -75,7 +76,7 @@ const extractAddressFromType = (value) => {
 
 const formatUsd = (amount, price) => {
   const val = (parseFloat(amount) || 0) * (price || 0);
-  return `≈ $${val.toFixed(2)}`;
+  return `$${val.toFixed(2)}`;
 };
 
 const toBaseUnitsString = (amountStr, decimals = DEFAULT_DECIMALS) => {
@@ -286,6 +287,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
   const [swapping, setSwapping] = useState(false);
   const [error, setError] = useState(null);
   const [slippage, setSlippage] = useState(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE);
+  const [selectedProvider, setSelectedProvider] = useState(swapSettings.defaultProvider || 'yuzu');
   const [showSettings, setShowSettings] = useState(false);
   const [txToast, setTxToast] = useState(null);
   const [priceImpact, setPriceImpact] = useState(0);
@@ -502,16 +504,28 @@ const Swap = ({ balances, onSwapSuccess }) => {
         amount: amountInSmallest,
       });
 
-      // Direct Mosaic API quote
-      const result = await fetchMosaicQuote({
-        fromToken,
-        toToken,
-        amount: amountInSmallest,
-        sender: senderAddress,
-        slippageBps: slippageToBps(slippage),
-        settings: routeSettings,
-        signal: controller.signal,
-      });
+      let result;
+      if (selectedProvider === 'yuzu') {
+        result = await fetchYuzuQuote({
+          fromToken,
+          toToken,
+          amount: amountInSmallest,
+          sender: senderAddress,
+          slippageBps: slippageToBps(slippage),
+          settings: routeSettings,
+          signal: controller.signal,
+        });
+      } else {
+        result = await fetchMosaicQuote({
+          fromToken,
+          toToken,
+          amount: amountInSmallest,
+          sender: senderAddress,
+          slippageBps: slippageToBps(slippage),
+          settings: routeSettings,
+          signal: controller.signal,
+        });
+      }
 
       if (controller.signal.aborted) return;
 
@@ -688,10 +702,15 @@ const Swap = ({ balances, onSwapSuccess }) => {
     });
 
     try {
-      const payload = buildMosaicSwapPayload(routingResult.best.quoteData);
-      if (!isValidSwapPayload(payload)) throw new Error("Invalid swap payload. Please refresh quote.");
-      if (!isAllowedMosaicPayload(payload)) {
-        throw new Error("Untrusted swap target detected. Please refresh quote.");
+      const payload = selectedProvider === 'yuzu'
+        ? buildYuzuSwapPayload(routingResult.best.quoteData)
+        : buildMosaicSwapPayload(routingResult.best.quoteData);
+
+      if (selectedProvider === 'mosaic') {
+        if (!isValidSwapPayload(payload)) throw new Error("Invalid swap payload. Please refresh quote.");
+        if (!isAllowedMosaicPayload(payload)) {
+          throw new Error("Untrusted swap target detected. Please refresh quote.");
+        }
       }
       if (!isQuotePayloadConsistent({
         payload,
@@ -871,9 +890,10 @@ const Swap = ({ balances, onSwapSuccess }) => {
     parseFloat(fromAmount) > 0;
 
   const bestProvider = useMemo(() => {
+    if (selectedProvider === 'yuzu') return "Yuzu";
     if (bestSource === "mosaic") return "Mosaic";
     return "-";
-  }, [bestSource]);
+  }, [bestSource, selectedProvider]);
 
   const buttonState = useMemo(() => {
     if (swapping) return { text: "Swapping...", disabled: true };
@@ -966,20 +986,33 @@ const Swap = ({ balances, onSwapSuccess }) => {
             <div className={`${styles['settings-section']} ${styles['aggregator-section']}`}>
               <div className={styles['settings-section-head']}>
                 <label>{t(lang, 'swapAggregator')}</label>
-                <span className={styles['settings-hint']}>{t(lang, 'swapProviderCount')}</span>
+                <span className={styles['settings-hint']}>{swapSettings.enableMosaicToggle ? "Select your preferred routing" : "Fixed Provider"}</span>
               </div>
 
               <div className={styles['aggregator-panel']}>
-                <div className={styles['aggregator-panel-head']}>
-                  <span>{t(lang, 'swapMosaicAggregatorNote')}</span>
-                </div>
-
-                <div className={styles['aggregator-list']} role="list">
-                  <div className={styles['aggregator-row']}>
-                    <span className={styles['aggregator-label']}>Mosaic</span>
-                    <span className={styles['aggregator-badge']}>{t(lang, 'swapActive')}</span>
+                {swapSettings.enableMosaicToggle ? (
+                  <div className={styles['aggregator-list']} role="list">
+                    <label className={styles['aggregator-toggle-row']} style={{ cursor: 'pointer' }}>
+                      <span className={styles['aggregator-label']}>Aggregator</span>
+                      <div className={`${styles['switch']} ${selectedProvider === 'mosaic' ? styles['switch-on'] : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedProvider === 'mosaic'}
+                          onChange={(e) => setSelectedProvider(e.target.checked ? 'mosaic' : 'yuzu')}
+                          className={styles['switch-input']}
+                        />
+                        <span className={styles['switch-slider']}></span>
+                      </div>
+                    </label>
                   </div>
-                </div>
+                ) : (
+                  <div className={styles['aggregator-list']} role="list">
+                    <div className={styles['aggregator-row']}>
+                      <span className={styles['aggregator-label']}>{swapSettings.defaultProvider === 'yuzu' ? 'Yuzu' : 'Mosaic'}</span>
+                      <span className={styles['aggregator-badge']}>{t(lang, 'swapActive')}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1012,63 +1045,82 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
   return (
     <div className={styles['swap-container']}>
-      <div className={styles['swap-card']}>
-        {/* Header */}
-        <div className={styles['swap-header']}>
-          <div className={styles['swap-header-left']}>
-            <h2>{t(lang, 'swapTitle')}</h2>
+      <div className={styles['swap-bg-glow']}></div>
+      <div className={styles['swap-wrapper']}>
+        <div className={styles['swap-card']}>
+          {/* Header */}
+          <div className={styles['swap-header']}>
+            <div className={styles['swap-header-left']}>
+              <h2>{t(lang, 'swapTitle')}</h2>
+            </div>
+            <div className={styles['swap-header-actions']}>
+              <button
+                className={`${styles['quote-btn']} ${isQuoting ? styles['quoting'] : ""}`}
+                onClick={fetchQuote}
+                title="Instant Quote"
+                disabled={!canRequestInstantQuote}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 3a9 9 0 1 0 8.94 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M21 3v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button className={styles['settings-btn']} onClick={() => setShowSettings(true)} title="Settings">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor" />
+                </svg>
+              </button>
+            </div>
           </div>
-          <div className={styles['swap-header-actions']}>
-            <button
-              className={`${styles['quote-btn']} ${isQuoting ? styles['quoting'] : ""}`}
-              onClick={fetchQuote}
-              title="Instant Quote"
-              disabled={!canRequestInstantQuote}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 3a9 9 0 1 0 8.94 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <path d="M21 3v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <button className={styles['settings-btn']} onClick={() => setShowSettings(true)} title="Settings">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.63-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.11-.2-.36-.28-.57-.2l-2.39.96c-.5-.38-1.04-.7-1.64-.94l-.36-2.54c-.03-.22-.22-.38-.44-.38h-3.84c-.22 0-.41.16-.44.38l-.36 2.54c-.6.24-1.14.56-1.64.94l-2.39-.96c-.21-.08-.46 0-.57.2l-1.92 3.32c-.11.2-.06.47.12.61l2.03 1.58c-.05.31-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.11.2.36.28.57.2l2.39-.96c.5.38 1.04.7 1.64.94l.36 2.54c.03.22.22.38.44.38h3.84c.22 0 .41-.16.44-.38l.36-2.54c.6-.24 1.14-.56 1.64-.94l2.39.96c.21.08.46 0 .57-.2l1.92-3.32c.11-.2.06-.47-.12-.61l-2.03-1.58zM12 15.6c-1.99 0-3.6-1.61-3.6-3.6s1.61-3.6 3.6-3.6 3.6 1.61 3.6 3.6-1.61 3.6-3.6 3.6z" fill="currentColor" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        {/* Empty State */}
-        {availableTokens.length === 0 && (
-          <div className={styles['swap-empty-state']}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={styles['empty-icon']}>
-              <path d="M8 6h12M8 10h12M8 14h8M3 4h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
-              <circle cx="6" cy="18" r="3" fill="none" />
-              <circle cx="18" cy="18" r="3" fill="none" />
-            </svg>
-            <p>{t(lang, 'swapEmptyTokens')}</p>
-            <span className={styles['empty-hint']}>{t(lang, 'swapEmptyTokensHint')}</span>
-          </div>
-        )}
 
-        {/* Main Swap Interface */}
-        {availableTokens.length > 0 && (
-          <>
-            {/* From Token Input */}
-            <div className={styles['swap-input-group']}>
-              <div className={styles['swap-input-header-row']}>
-                <span>From</span>
-                {fromToken && <span className={styles['swap-balance']}>Balance: {fromToken.amount}</span>}
-              </div>
-              <div className={styles['swap-input-container']}>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  className={styles['swap-input']}
-                  placeholder="0.0"
-                  value={fromAmount}
-                  onChange={handleAmountChange}
-                />
-                <div className={styles['swap-input-right']}>
+          {/* Empty State */}
+          {availableTokens.length === 0 && (
+            <div className={styles['swap-empty-state']}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={styles['empty-icon']}>
+                <path d="M8 6h12M8 10h12M8 14h8M3 4h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
+                <circle cx="6" cy="18" r="3" fill="none" />
+                <circle cx="18" cy="18" r="3" fill="none" />
+              </svg>
+              <p>{t(lang, 'swapEmptyTokens')}</p>
+              <span className={styles['empty-hint']}>{t(lang, 'swapEmptyTokensHint')}</span>
+            </div>
+          )}
+
+          {/* Main Swap Interface */}
+          {availableTokens.length > 0 && (
+            <>
+              {/* From Token Input */}
+              <div className={styles['swap-input-group']}>
+                <div className={styles['swap-input-header']}>
+                  <span className={styles['swap-input-label']}>From</span>
+                  <div className={styles['swap-balance-row']}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path>
+                      <path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path>
+                      <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path>
+                    </svg>
+                    <span>{fromToken ? fromToken.amount : "0"}</span>
+                  </div>
+                </div>
+                
+                <div className={styles['swap-input-main']}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    className={styles['swap-input']}
+                    placeholder="0.0"
+                    value={fromAmount}
+                    onChange={handleAmountChange}
+                  />
+                  <button className={styles['swap-token-selector-transparent']} onClick={() => setShowFromSelector(true)}>
+                    <TokenBadge token={fromToken} getTokenLogo={getTokenLogo} />
+                  </button>
+                </div>
+
+                <div className={styles['swap-input-footer']}>
+                  <span className={styles['swap-usd-value-left']}>
+                    {fromAmount ? formatUsd(fromAmount, resolveTokenPrice(fromToken)) : "$0.00"}
+                  </span>
                   {fromToken && (
                     <div className={styles['quick-fill-group']} aria-label="Quick amount selector">
                       <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(25)}>25%</button>
@@ -1076,184 +1128,187 @@ const Swap = ({ balances, onSwapSuccess }) => {
                       <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(100)}>Max</button>
                     </div>
                   )}
-                  <button className={styles['swap-token-selector']} onClick={() => setShowFromSelector(true)}>
-                    <TokenBadge token={fromToken} getTokenLogo={getTokenLogo} />
-                  </button>
                 </div>
               </div>
-              <div className={styles['swap-input-footer']}>
-                <span className={styles['swap-usd-value']}>{fromAmount ? formatUsd(fromAmount, resolveTokenPrice(fromToken)) : "≈ $0.00"}</span>
-              </div>
-            </div>
 
-            {/* Swap Direction Button */}
-            <div className={styles['swap-switch-container']}>
-              <button className={styles['swap-switch-btn']} onClick={handleSwapTokens} title="Switch tokens">
-                <span className={styles['swap-switch-icon']}>⇅</span>
-              </button>
-            </div>
-
-            {/* To Token Input */}
-            <div className={styles['swap-input-group']}>
-              <div className={styles['swap-input-header-row']}>
-                <span>{t(lang, 'swapTo')}</span>
-                {toToken && <span className={styles['swap-balance']}>{t(lang, 'swapBalance', { amount: toToken.amount })}</span>}
+              {/* Swap Direction Button */}
+              <div className={styles['swap-switch-container']}>
+                <button className={styles['swap-switch-btn']} onClick={handleSwapTokens} title="Switch tokens">
+                  <span className={styles['swap-switch-icon']}>⇅</span>
+                </button>
               </div>
-              <div className={styles['swap-input-container']}>
-                <input
-                  type="text"
-                  className={styles['swap-input']}
-                  placeholder="0.0"
-                  value={isQuoting ? "..." : toAmount}
-                  readOnly
-                />
-                <div className={styles['swap-input-right']}>
-                  <button className={styles['swap-token-selector']} onClick={() => setShowToSelector(true)}>
+
+              {/* To Token Input */}
+              <div className={styles['swap-input-group']}>
+                <div className={styles['swap-input-header']}>
+                  <span className={styles['swap-input-label']}>To</span>
+                  <div className={styles['swap-balance-row']}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path>
+                      <path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path>
+                      <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path>
+                    </svg>
+                    <span>{toToken ? toToken.amount : "0"}</span>
+                  </div>
+                </div>
+                
+                <div className={styles['swap-input-main']}>
+                  <input
+                    type="text"
+                    className={styles['swap-input']}
+                    placeholder="0.0"
+                    value={isQuoting ? "..." : toAmount}
+                    readOnly
+                  />
+                  <button className={styles['swap-token-selector-transparent']} onClick={() => setShowToSelector(true)}>
                     <TokenBadge token={toToken} getTokenLogo={getTokenLogo} />
                   </button>
                 </div>
-              </div>
-              <div className={styles['swap-input-footer']}>
-                <span className={styles['swap-usd-value']}>{toAmount ? formatUsd(toAmount, resolveTokenPrice(toToken)) : "≈ $0.00"}</span>
-              </div>
-            </div>
 
-            {/* Error */}
-            {error && (
-              <div className={styles['swap-error']}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className={styles['error-icon']}>
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z" />
-                </svg>
-                {error}
-              </div>
-            )}
-
-            {/* Swap Button */}
-            <button
-              className={`${styles['swap-execute-btn']} ${buttonState.disabled ? styles['disabled'] : ""}`}
-              onClick={handleSwap}
-              disabled={buttonState.disabled}
-            >
-              {swapping && <span className={styles['spinner']} />}
-              {buttonState.text}
-            </button>
-
-            {/* Swap Details */}
-            {fromToken && toToken && fromAmount && toAmount && parseFloat(fromAmount) > 0 && !error && (
-              <div className={styles['swap-info']}>
-                <div className={styles['swap-info-row']}>
-                  <span>{t(lang, 'swapRate')}</span>
-                  <span>
-                    1 {fromToken.symbol} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(Math.min(getDecimals(toToken), 8))} {toToken.symbol}
-                  </span>
-                </div>
-                <div className={styles['swap-info-row']}>
-                  <span>{t(lang, 'swapPriceImpact')}</span>
-                  <span className={priceImpact > 3 ? styles['warning'] : ""}>~{priceImpact.toFixed(2)}%</span>
-                </div>
-                <div className={styles['swap-info-row']}>
-                  <span>{t(lang, 'swapMinReceived')}</span>
-                  <span>{minReceived} {toToken.symbol}</span>
-                </div>
-                <div className={styles['swap-info-row']}>
-                  <span>{t(lang, 'swapSlippage')}</span>
-                  <span>{slippage}%</span>
-                </div>
-                <div className={styles['swap-info-row']}>
-                  <span>{t(lang, 'swapNetworkFee')}</span>
-                  <span>~0.001 MOVE</span>
-                </div>
-                <div className={`${styles['swap-info-row']} ${styles['highlight']}`}>
-                  <span>{t(lang, 'swapRoute')}</span>
-                  <span className={styles['mosaic-router']}>
-                    {bestProvider}
+                <div className={styles['swap-input-footer']}>
+                  <span className={styles['swap-usd-value-left']}>
+                    {toAmount ? formatUsd(toAmount, resolveTokenPrice(toToken)) : "$0.00"}
                   </span>
                 </div>
               </div>
-            )}
-          </>
+
+              {/* Error */}
+              {error && (
+                <div className={styles['swap-error']}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className={styles['error-icon']}>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-2h2v2m0-4h-2V7h2v6z" />
+                  </svg>
+                  {error}
+                </div>
+              )}
+
+              {/* Swap Button */}
+              <button
+                className={`${styles['swap-execute-btn']} ${buttonState.disabled ? styles['disabled'] : ""}`}
+                onClick={handleSwap}
+                disabled={buttonState.disabled}
+              >
+                {swapping && <span className={styles['spinner']} />}
+                {buttonState.text}
+              </button>
+
+              {/* Swap Details */}
+              {fromToken && toToken && fromAmount && toAmount && parseFloat(fromAmount) > 0 && !error && (
+                <div className={styles['swap-info']}>
+                  <div className={styles['swap-info-row']}>
+                    <span>{t(lang, 'swapRate')}</span>
+                    <span>
+                      1 {fromToken.symbol} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(Math.min(getDecimals(toToken), 8))} {toToken.symbol}
+                    </span>
+                  </div>
+                  <div className={styles['swap-info-row']}>
+                    <span>{t(lang, 'swapPriceImpact')}</span>
+                    <span className={priceImpact > 3 ? styles['warning'] : ""}>~{priceImpact.toFixed(2)}%</span>
+                  </div>
+                  <div className={styles['swap-info-row']}>
+                    <span>{t(lang, 'swapMinReceived')}</span>
+                    <span>{minReceived} {toToken.symbol}</span>
+                  </div>
+                  <div className={styles['swap-info-row']}>
+                    <span>{t(lang, 'swapSlippage')}</span>
+                    <span>{slippage}%</span>
+                  </div>
+                  <div className={styles['swap-info-row']}>
+                    <span>{t(lang, 'swapNetworkFee')}</span>
+                    <span>~0.001 MOVE</span>
+                  </div>
+                  <div className={`${styles['swap-info-row']} ${styles['highlight']}`}>
+                    <span>{t(lang, 'swapRoute')}</span>
+                    <span className={styles['mosaic-router']}>
+                      {bestProvider}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Token Selectors */}
+        {showFromSelector && (
+          <TokenSelectorPanel
+            selectedToken={fromToken}
+            onSelect={setFromToken}
+            onClose={() => setShowFromSelector(false)}
+            excludeToken={toToken}
+            tokens={availableTokens}
+            getTokenLogo={getTokenLogo}
+            lang={lang}
+          />
         )}
-      </div>
+        {showToSelector && (
+          <TokenSelectorPanel
+            selectedToken={toToken}
+            onSelect={setToToken}
+            onClose={() => setShowToSelector(false)}
+            excludeToken={fromToken}
+            tokens={availableTokens}
+            getTokenLogo={getTokenLogo}
+            lang={lang}
+          />
+        )}
 
-      {/* Token Selectors */}
-      {showFromSelector && (
-        <TokenSelectorPanel
-          selectedToken={fromToken}
-          onSelect={setFromToken}
-          onClose={() => setShowFromSelector(false)}
-          excludeToken={toToken}
-          tokens={availableTokens}
-          getTokenLogo={getTokenLogo}
-          lang={lang}
+        {/* Settings Modal */}
+        {renderSettings()}
+
+        {/* Wallet Selector Modal */}
+        <WalletModal isOpen={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
+
+        <TransactionToast
+          toast={txToast}
+          explorerBase={DEFAULT_NETWORK.explorer}
+          onClose={() => setTxToast(null)}
         />
-      )}
-      {showToSelector && (
-        <TokenSelectorPanel
-          selectedToken={toToken}
-          onSelect={setToToken}
-          onClose={() => setShowToSelector(false)}
-          excludeToken={fromToken}
-          tokens={availableTokens}
-          getTokenLogo={getTokenLogo}
-          lang={lang}
-        />
-      )}
 
-      {/* Settings Modal */}
-      {renderSettings()}
+        {swapComplete ? (
+          <div className={styles['swap-complete-overlay']} role="dialog" aria-modal="true" aria-label="Swap complete">
+            <div className={styles['swap-complete-modal']}>
+              <div className={styles['swap-complete-check']}>✓</div>
+              <h3>{t(lang, 'swapSuccess')}</h3>
 
-      {/* Wallet Selector Modal */}
-      <WalletModal isOpen={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
-
-      <TransactionToast
-        toast={txToast}
-        explorerBase={DEFAULT_NETWORK.explorer}
-        onClose={() => setTxToast(null)}
-      />
-
-      {swapComplete ? (
-        <div className={styles['swap-complete-overlay']} role="dialog" aria-modal="true" aria-label="Swap complete">
-          <div className={styles['swap-complete-modal']}>
-            <div className={styles['swap-complete-check']}>✓</div>
-            <h3>{t(lang, 'swapSuccess')}</h3>
-
-            <div className={styles['swap-complete-received']}>
-              <span className={styles['swap-complete-label']}>{t(lang, 'swapReceived')}</span>
-              <div className={styles['swap-complete-amount-row']}>
-                {swapComplete.toLogo ? (
-                  <img src={swapComplete.toLogo} alt={`${swapComplete.toSymbol} logo`} className={styles['swap-complete-token-logo']} />
-                ) : (
-                  <span className={styles['swap-complete-token-fallback']}>{String(swapComplete.toSymbol || "?").charAt(0)}</span>
-                )}
-                <div>
-                  <div className={styles['swap-complete-amount']}>{swapComplete.toAmount} {swapComplete.toSymbol}</div>
-                  <div className={styles['swap-complete-sub']}>{t(lang, 'swapVia', { provider: swapComplete.provider })}</div>
+              <div className={styles['swap-complete-received']}>
+                <span className={styles['swap-complete-label']}>{t(lang, 'swapReceived')}</span>
+                <div className={styles['swap-complete-amount-row']}>
+                  {swapComplete.toLogo ? (
+                    <img src={swapComplete.toLogo} alt={`${swapComplete.toSymbol} logo`} className={styles['swap-complete-token-logo']} />
+                  ) : (
+                    <span className={styles['swap-complete-token-fallback']}>{String(swapComplete.toSymbol || "?").charAt(0)}</span>
+                  )}
+                  <div>
+                    <div className={styles['swap-complete-amount']}>{swapComplete.toAmount} {swapComplete.toSymbol}</div>
+                    <div className={styles['swap-complete-sub']}>{t(lang, 'swapVia', { provider: swapComplete.provider })}</div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className={styles['swap-complete-actions']}>
-              <button
-                type="button"
-                className={`${styles['swap-complete-btn']} ${styles['swap-complete-btn-ghost']}`}
-                onClick={() => {
-                  navigate("/swap/details", { state: { swapDetails: swapComplete } });
-                  setSwapComplete(null);
-                }}
-              >
-                {t(lang, 'swapSeeDetails')}
-              </button>
-              <button
-                type="button"
-                className={`${styles['swap-complete-btn']} ${styles['swap-complete-btn-primary']}`}
-                onClick={() => setSwapComplete(null)}
-              >
-                {t(lang, 'swapDone')}
-              </button>
+              <div className={styles['swap-complete-actions']}>
+                <button
+                  type="button"
+                  className={`${styles['swap-complete-btn']} ${styles['swap-complete-btn-ghost']}`}
+                  onClick={() => {
+                    navigate("/swap/details", { state: { swapDetails: swapComplete } });
+                    setSwapComplete(null);
+                  }}
+                >
+                  {t(lang, 'swapSeeDetails')}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles['swap-complete-btn']} ${styles['swap-complete-btn-primary']}`}
+                  onClick={() => setSwapComplete(null)}
+                >
+                  {t(lang, 'swapDone')}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 };
@@ -1263,7 +1318,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
 // ===========================================================================
 
 function TokenBadge({ token, getTokenLogo }) {
-  if (!token) return <span className={styles['select-token']}>Select ▼</span>;
+  if (!token) return <span className={styles['select-token']}>SELECT TOKEN <span className={styles['dropdown-arrow-minimal']}>&#x2304;</span></span>;
   const logo = getTokenLogo(token);
   return (
     <>
@@ -1273,7 +1328,7 @@ function TokenBadge({ token, getTokenLogo }) {
         <span className={styles['token-icon-mini']}>{token.symbol?.charAt(0).toUpperCase()}</span>
       )}
       <span className={styles['token-symbol']}>{token.symbol}</span>
-      <span className={styles['dropdown-arrow']}>▼</span>
+      <span className={styles['dropdown-arrow-minimal']}>&#x2304;</span>
     </>
   );
 }

@@ -84,7 +84,7 @@
 
 .wallet-conn-modal-title {
   font-family: var(--font-display), inherit;
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   font-weight: 800;
   letter-spacing: 0.5px;
   color: #f7f3ee;
@@ -96,7 +96,7 @@
 }
 
 .wallet-conn-modal-subtitle {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: #a39482;
   margin: 0;
   line-height: 1.4;
@@ -104,7 +104,7 @@
 
 /* Error Alert */
 .wallet-conn-modal-error {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: #e06a6a;
   background: rgba(224, 106, 106, 0.08);
   border: 1px solid rgba(224, 106, 106, 0.22);
@@ -128,7 +128,7 @@
   text-align: center;
   padding: 24px;
   color: #7a6e60;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .wallet-conn-modal-option-btn {
@@ -197,11 +197,11 @@
   background: linear-gradient(135deg, rgba(205, 161, 105, 0.3) 0%, rgba(167, 123, 67, 0.2) 100%);
   color: #cda169;
   font-weight: 800;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
 }
 
 .wallet-conn-modal-name {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: #f7f3ee;
   letter-spacing: 0.2px;
@@ -218,7 +218,7 @@
 }
 
 .wallet-conn-modal-badge {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   padding: 4px 8px;
   border-radius: 6px;
@@ -288,7 +288,7 @@
 }
 
 .wallet-conn-modal-terms-text {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   line-height: 1.5;
   color: #8c7e6e;
   margin: 0;

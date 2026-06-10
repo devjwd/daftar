@@ -11,7 +11,7 @@
   border-radius: 12px;
   cursor: pointer;
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -192,7 +192,7 @@
 }
 
 .token-table th {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -245,7 +245,7 @@
 }
 
 .token-table-symbol {
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -253,7 +253,7 @@
 }
 
 .token-table-name {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-tertiary);
   opacity: 0.5;
@@ -263,14 +263,14 @@
 
 .token-table-price,
 .token-table-amount {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-secondary);
   font-family: var(--font-display);
 }
 
 .token-table-value {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   font-family: var(--font-display);
 }
@@ -347,7 +347,7 @@
 
 .defi-v2-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -355,7 +355,7 @@
 
 .defi-v2-type,
 .defi-v2-type-link {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -371,7 +371,7 @@
 }
 
 .defi-card-v2.is-compact .defi-v2-title h3 {
-  font-size: 17px;
+  font-size: var(--font-size-md);
 }
 
 /* Action Group & Report Flag for DeFi v2 */
@@ -487,11 +487,11 @@
 }
 
 .defi-card-v2.is-compact .defi-v2-net-label {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 }
 
 .defi-card-v2.is-compact .defi-v2-net-value {
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
   line-height: 1;
 }
 
@@ -558,7 +558,7 @@
 
 
 .defi-v2-column-label {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -567,7 +567,7 @@
 }
 
 .defi-v2-column-total {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: #10b981;
   font-family: var(--font-display);
@@ -622,7 +622,7 @@
 }
 
 .defi-v2-item-token {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-secondary);
   font-family: var(--font-display);
@@ -636,7 +636,7 @@
 }
 
 .defi-v2-item-meta {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-tertiary);
   opacity: 0.8;
@@ -653,7 +653,7 @@
 }
 
 .defi-v2-item-amount {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   font-family: var(--font-display);
   text-align: right;
@@ -668,7 +668,7 @@
 }
 
 .defi-v2-item-usd {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-tertiary);
   opacity: 0.7;
@@ -685,7 +685,7 @@
   align-items: center;
   justify-content: center;
   flex: 1;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   opacity: 0.5;
 }
@@ -707,7 +707,7 @@
 }
 
 .defi-v2-net-label {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -716,7 +716,7 @@
 }
 
 .defi-v2-net-value {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 800;
   font-family: var(--font-display);
 }
@@ -738,7 +738,7 @@
 }
 
 .defi-v2-health-label {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -780,7 +780,7 @@
   }
 
   .defi-card-v2.is-compact .defi-v2-net-value {
-    font-size: 24px;
+    font-size: var(--font-size-2xl);
   }
 }
 
@@ -881,7 +881,7 @@
 
 .defi-consolidated-title h3 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 800;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -889,7 +889,7 @@
 }
 
 .defi-consolidated-subtitle {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   font-weight: 500;
   text-transform: uppercase;
@@ -961,11 +961,11 @@
 }
 
 .defi-section-icon {
-  font-size: 16px;
+  font-size: var(--font-size-md);
 }
 
 .defi-section-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.2px;
@@ -996,7 +996,7 @@
 }
 
 .defi-position-token {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-secondary);
   font-family: var(--font-display);
@@ -1010,7 +1010,7 @@
 }
 
 .defi-position-value {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   font-family: var(--font-display);
 }
@@ -1024,7 +1024,7 @@
 }
 
 .defi-position-usd {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-tertiary);
   opacity: 0.8;
@@ -1051,7 +1051,7 @@
 }
 
 .defi-net-label {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -1066,7 +1066,7 @@
 }
 
 .defi-net-value {
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   font-weight: 800;
   font-family: var(--font-display);
   background: linear-gradient(135deg, #ffffff 0%, var(--primary) 100%);
@@ -1076,7 +1076,7 @@
 }
 
 .defi-net-usd {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   font-family: var(--font-display);
 }
@@ -1183,7 +1183,7 @@
   gap: 6px;
   padding: 8px 14px;
   border-radius: 30px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.3px;
   text-transform: uppercase;
@@ -1197,7 +1197,7 @@
 }
 
 .defi-type-icon {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 /* Card Body */
@@ -1208,7 +1208,7 @@
 }
 
 .defi-protocol-name {
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   font-weight: 800;
   color: var(--text-primary);
   margin: 0;
@@ -1218,7 +1218,7 @@
 }
 
 .defi-position-type {
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   margin: 0;
   font-weight: 500;
@@ -1242,7 +1242,7 @@
 }
 
 .defi-value-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   font-weight: 600;
   text-transform: uppercase;
@@ -1251,7 +1251,7 @@
 }
 
 .defi-value-number {
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
   font-weight: 800;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -1279,7 +1279,7 @@
   border: 1px solid rgba(205, 161, 105, 0.3);
   border-radius: 12px;
   color: var(--primary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-decoration: none;
   transition: all 0.3s ease;
@@ -1342,7 +1342,7 @@
 
   width: fit-content;
 
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 
   font-weight: 600;
 
@@ -1386,7 +1386,7 @@
 
 .defi-position-name {
 
-  font-size: 16px;
+  font-size: var(--font-size-md);
 
   font-weight: 700;
 
@@ -1402,7 +1402,7 @@
 
 .defi-position-protocol {
 
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 
   color: var(--text-tertiary);
 
@@ -1444,7 +1444,7 @@
 
 .defi-value-label {
 
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 
   color: var(--text-tertiary);
 
@@ -1459,7 +1459,7 @@
 
 
 .defi-value-amount {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -1496,7 +1496,7 @@
 /* Source Badge */
 .defi-source-badge {
   display: inline-block;
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   background: rgba(205, 161, 105, 0.15);
   color: var(--primary);
   padding: 2px 6px;
@@ -1508,7 +1508,7 @@
 
 /* Protocol Link */
 .defi-protocol-link {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--primary);
   text-decoration: none;
   font-weight: 600;
@@ -1534,7 +1534,7 @@
   text-align: center;
   padding: var(--spacing-2xl);
   color: var(--text-tertiary);
-  font-size: 15px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
 
 }
@@ -1565,7 +1565,7 @@
 
   color: var(--text-tertiary);
 
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
 
   font-weight: 600;
 
@@ -1591,4 +1591,4 @@
 }
 
 
-
+

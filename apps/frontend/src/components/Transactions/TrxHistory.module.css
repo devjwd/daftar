@@ -51,7 +51,7 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.025);
   color: rgba(255, 255, 255, 0.56);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   font-family: var(--font-display);
@@ -80,7 +80,7 @@
 
 .toolbarMeta {
   color: rgba(255, 255, 255, 0.42);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -103,7 +103,7 @@
   padding: 14px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   color: rgba(255, 255, 255, 0.44);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -115,7 +115,7 @@
   padding: 14px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.86);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   vertical-align: middle;
 }
 
@@ -138,7 +138,7 @@
   min-width: 0;
   padding: 0;
   border-radius: 0;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -251,7 +251,7 @@
 
 .typeDappName {
   color: #d7b15a;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -268,7 +268,7 @@
   height: 28px;
   flex-shrink: 0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -284,7 +284,7 @@
   background: transparent;
   border: none;
   color: #f3fff6;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   overflow: hidden;
   box-shadow: none;
@@ -321,7 +321,7 @@
 .tokenArrow,
 .amountArrow {
   color: rgba(255, 255, 255, 0.3);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .tokenIcon {
@@ -333,7 +333,7 @@
   border-radius: 50%;
   flex: 0 0 24px;
   color: #ffffff;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   overflow: hidden;
   background: transparent;
@@ -405,7 +405,7 @@
 .inlineError {
   color: #ff9a9a;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -416,7 +416,7 @@
   border-radius: 999px;
   background: rgba(205, 161, 105, 0.08);
   color: #f3dfbe;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -440,7 +440,7 @@
   place-items: center;
   min-height: 240px;
   color: rgba(255, 255, 255, 0.4);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .skeletonRow td {
@@ -600,7 +600,7 @@
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(205, 161, 105, 0.15), rgba(205, 161, 105, 0.05));
   border: 1px solid rgba(205, 161, 105, 0.2);
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   box-shadow: inset 0 2px 10px rgba(205, 161, 105, 0.1);
 }
 
@@ -608,14 +608,14 @@
   margin: 0 0 4px 0;
   color: #f3dfbe;
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   letter-spacing: 0.02em;
 }
 
 .modalSubtitle {
   margin: 0;
   color: rgba(255, 255, 255, 0.45);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
 }
 
 .closeButton {
@@ -628,7 +628,7 @@
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.5);
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -674,7 +674,7 @@
 
 .filterGroupLabel {
   color: rgba(255, 255, 255, 0.4);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -710,7 +710,7 @@
 
 .sectionToggleIcon {
   color: rgba(255, 255, 255, 0.4);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   transition: transform 0.2s;
 }
 
@@ -734,14 +734,14 @@
 }
 
 .sectionIcon {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   opacity: 0.8;
 }
 
 .sectionHeader h3 {
   margin: 0;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -767,7 +767,7 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
   color: rgba(255, 255, 255, 0.55);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -804,7 +804,7 @@
 
 .inputDivider {
   color: rgba(255, 255, 255, 0.3);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -817,7 +817,7 @@
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.25);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   transition: all 0.2s;
 }
 
@@ -852,7 +852,7 @@
 
 .activeFiltersCount {
   color: rgba(255, 255, 255, 0.4);
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -868,7 +868,7 @@
   border-radius: 12px;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   transition: all 0.2s;
 }
@@ -886,7 +886,7 @@
   border-radius: 12px;
   color: #111;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   font-weight: 800;
   letter-spacing: 0.02em;
   box-shadow: 0 6px 16px rgba(205, 161, 105, 0.25);
