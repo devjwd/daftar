@@ -205,11 +205,11 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, walletAddres
             <Network size={18} className="bento-icon" />
             Exchange Flow
           </h3>
-          
+
           {/* Floating Timeframe Selector for Exchange Flow */}
-          <div 
-            className="tabs-container-v5" 
-            role="tablist" 
+          <div
+            className="tabs-container-v5"
+            role="tablist"
             aria-label="Exchange Flow Timeframes"
             style={{ opacity: isExchangeLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}
           >
@@ -430,53 +430,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, walletAddres
 
       </div>
 
-      {/* SECTION 2 & 3: PROTOCOLS AND TOKENS SIDE-BY-SIDE */}
-      <div className="bottom-sections-grid-v5">
-
-        {/* PROTOCOLS SECTION REMOVED TO PREVENT DUPLICATION */}
-
-        {/* TOKENS SECTION */}
-        <div className="bento-card compact-card">
-          <h3 className="bento-title" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '14px', marginBottom: '20px' }}>
-            <Coins size={16} className="bento-icon" />
-            Top Tokens Handled
-          </h3>
-          <div style={{ padding: '4px 0 8px 0' }}>
-            {!hasTokens ? (
-              <div className="empty-state-v5" style={{ minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <Ghost size={32} className="empty-state-icon" />
-                <p>No token transfers found.</p>
-              </div>
-            ) : (
-              <div className="entities-list-v5">
-                {data.topTokens.slice(0, 5).map((token, i) => {
-                  const visual = getTokenVisual(token.symbol);
-                  return (
-                    <div key={i} className="entity-row-v5">
-                      <div className="entity-left">
-                        <div className="entity-avatar" style={{ width: '26px', height: '26px', background: 'rgba(205, 161, 105, 0.1)', color: 'var(--primary)', fontSize: '11px' }}>
-                          {visual.logo ? (
-                            <img src={visual.logo} alt={token.symbol} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
-                          ) : (
-                            '$'
-                          )}
-                        </div>
-                        <div className="entity-info">
-                          <span className="entity-name">{token.symbol}</span>
-                          <span className="entity-sub">Asset Transferred</span>
-                        </div>
-                      </div>
-                      <span className="entity-value">{formatVolumeValue(token.value)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
       </div>
-
     </div>
   );
 };

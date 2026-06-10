@@ -276,9 +276,14 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                                   {item.name}
                                 </span>
                               </div>
-                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.4)', marginLeft: '6px', flexShrink: 0 }}>
-                                {pct}%
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
+                                  {item.value} txs
+                                </span>
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>
+                                  ({pct}%)
+                                </span>
+                              </div>
                             </div>
                           );
                         })}
