@@ -265,6 +265,9 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
                             paddingAngle={0} 
                             dataKey="value" 
                             stroke="none"
+                            isAnimationActive={true}
+                            animationDuration={800}
+                            animationEasing="ease-out"
                           >
                             {activeDepositsBreakdown.map((ex, i) => <Cell key={i} fill={getExchangeColor(ex.name, i, 'deposit')} />)}
                           </Pie>
@@ -358,6 +361,9 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
                             paddingAngle={0} 
                             dataKey="value" 
                             stroke="none"
+                            isAnimationActive={true}
+                            animationDuration={800}
+                            animationEasing="ease-out"
                           >
                             {activeWithdrawalsBreakdown.map((ex, i) => <Cell key={i} fill={getExchangeColor(ex.name, i, 'withdrawal')} />)}
                           </Pie>

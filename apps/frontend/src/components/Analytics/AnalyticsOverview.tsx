@@ -244,6 +244,9 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                               dataKey="value" 
                               stroke="none" 
                               nameKey="name"
+                              isAnimationActive={true}
+                              animationDuration={800}
+                              animationEasing="ease-out"
                             >
                               {sortedProtocols.map((entry, index) => {
                                 const fillCol = DATA_VIZ_COLORS[index % DATA_VIZ_COLORS.length];
