@@ -439,6 +439,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
         <AnalyticsOverview
           data={analyticsData}
           timeframe={timeframe}
+          walletAddress={walletAddress}
           setTimeframe={(tf) => {
             setTimeframe(tf);
             void fetchAnalyticsData(tf);

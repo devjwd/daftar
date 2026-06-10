@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
-import { Coins, Ghost, ArrowDownRight, ArrowUpRight, Network } from 'lucide-react';
+import { Coins, Ghost, ArrowDownRight, ArrowUpRight, Network, Clock } from 'lucide-react';
 import { DEFI_PROTOCOL_VISUALS, TOKEN_VISUALS, DEFAULT_PROTOCOL_VISUAL, DATA_VIZ_COLORS } from '../../config/display';
 
 const getExchangeColor = (name: string, index: number, type: 'deposit' | 'withdrawal'): string => {
@@ -11,7 +11,10 @@ const getExchangeColor = (name: string, index: number, type: 'deposit' | 'withdr
 interface TopEntitiesProps {
   data: AnalyticsData;
   timeframe: string;
+  walletAddress?: string;
 }
+
+const TIME_FRAMES = ['1D', '1W', '1M', '3M', '1Y', 'All'];
 
 const CustomExchangeTooltip = ({ active, payload, type }: any) => {
   if (!active || !payload || !payload.length) return null;
@@ -124,11 +127,48 @@ const CustomExchangeTooltip = ({ active, payload, type }: any) => {
   );
 };
 
-const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
+const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe, walletAddress }) => {
+  const [exchangeTimeframe, setExchangeTimeframe] = useState(timeframe);
+  const [localExchangeData, setLocalExchangeData] = useState(data.exchangeUsage);
+  const [isExchangeLoading, setIsExchangeLoading] = useState(false);
+
+  const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+
+  // Synchronize initial prop if it hasn't been overridden by user
+  useEffect(() => {
+    if (exchangeTimeframe === timeframe) {
+      setLocalExchangeData(data.exchangeUsage);
+    }
+  }, [data, timeframe, exchangeTimeframe]);
+
+  // Fetch local data when exchange timeframe changes
+  useEffect(() => {
+    if (exchangeTimeframe === timeframe || !walletAddress) return;
+
+    let isMounted = true;
+    const fetchLocalData = async () => {
+      setIsExchangeLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/api/analytics/data?wallet=${walletAddress}&timeframe=${encodeURIComponent(exchangeTimeframe)}`);
+        if (!res.ok) throw new Error('Failed to fetch');
+        const newData = await res.json();
+        if (isMounted) {
+          setLocalExchangeData(newData.exchangeUsage);
+        }
+      } catch (err) {
+        console.error("Failed to fetch specific timeframe for exchange flow", err);
+      } finally {
+        if (isMounted) setIsExchangeLoading(false);
+      }
+    };
+    fetchLocalData();
+    return () => { isMounted = false; };
+  }, [exchangeTimeframe, walletAddress, timeframe, API_URL]);
+
   const hasEntities = data.topEntities && data.topEntities.length > 0;
   const hasTokens = data.topTokens && data.topTokens.length > 0;
 
-  const { deposits, withdrawals } = data.exchangeUsage;
+  const { deposits, withdrawals } = localExchangeData || data.exchangeUsage;
   const hasDeposits = deposits.total > 0;
   const hasWithdrawals = withdrawals.total > 0;
 
@@ -156,19 +196,43 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
-      
+
       {/* SECTION 1: EXCHANGE FLOW CARD */}
       <div className="bento-card" style={{ width: '100%' }}>
-        
-        <h3 className="bento-title" style={{ margin: '0 0 24px 0', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px' }}>
-          <Network size={18} className="bento-icon" />
-          Exchange Flow
-        </h3>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h3 className="bento-title" style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '1px', fontSize: '13px' }}>
+            <Network size={18} className="bento-icon" />
+            Exchange Flow
+          </h3>
+          
+          {/* Floating Timeframe Selector for Exchange Flow */}
+          <div 
+            className="tabs-container-v5" 
+            role="tablist" 
+            aria-label="Exchange Flow Timeframes"
+            style={{ opacity: isExchangeLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}
+          >
+            <Clock size={12} className="timeframe-icon" />
+            {TIME_FRAMES.map(tf => (
+              <button
+                key={tf}
+                role="tab"
+                aria-selected={exchangeTimeframe === tf}
+                className={`tab-v5 ${exchangeTimeframe === tf ? 'active' : ''}`}
+                onClick={() => setExchangeTimeframe(tf)}
+                disabled={isExchangeLoading}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Exchange Usage Content */}
-        <div>
+        <div style={{ opacity: isExchangeLoading ? 0.4 : 1, transition: 'opacity 0.3s', filter: isExchangeLoading ? 'blur(1px)' : 'none' }}>
           <div className="exchange-grid-v5-arkham" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-            
+
             {/* DEPOSITS COLUMN */}
             <div>
               <h4 className="exchange-section-title">DEPOSITS</h4>
@@ -190,9 +254,9 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
                           </linearGradient>
                         </defs>
                         <XAxis dataKey="date" hide />
-                        <YAxis 
-                          axisLine={false} 
-                          tickLine={false} 
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
                           orientation="left"
                           tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
                           tickFormatter={(val) => {
@@ -212,12 +276,12 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
                     <div className="exchange-pie-wrap">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie 
-                            data={activeDepositsBreakdown} 
-                            innerRadius={0} 
-                            outerRadius={48} 
-                            paddingAngle={0} 
-                            dataKey="value" 
+                          <Pie
+                            data={activeDepositsBreakdown}
+                            innerRadius={0}
+                            outerRadius={48}
+                            paddingAngle={0}
+                            dataKey="value"
                             stroke="none"
                             isAnimationActive={true}
                             animationDuration={800}
@@ -286,9 +350,9 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
                           </linearGradient>
                         </defs>
                         <XAxis dataKey="date" hide />
-                        <YAxis 
-                          axisLine={false} 
-                          tickLine={false} 
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
                           orientation="left"
                           tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }}
                           tickFormatter={(val) => {
@@ -308,12 +372,12 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
                     <div className="exchange-pie-wrap">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie 
-                            data={activeWithdrawalsBreakdown} 
-                            innerRadius={0} 
-                            outerRadius={48} 
-                            paddingAngle={0} 
-                            dataKey="value" 
+                          <Pie
+                            data={activeWithdrawalsBreakdown}
+                            innerRadius={0}
+                            outerRadius={48}
+                            paddingAngle={0}
+                            dataKey="value"
                             stroke="none"
                             isAnimationActive={true}
                             animationDuration={800}
@@ -368,7 +432,7 @@ const TopEntities: React.FC<TopEntitiesProps> = ({ data, timeframe }) => {
 
       {/* SECTION 2 & 3: PROTOCOLS AND TOKENS SIDE-BY-SIDE */}
       <div className="bottom-sections-grid-v5">
-        
+
         {/* PROTOCOLS SECTION REMOVED TO PREVENT DUPLICATION */}
 
         {/* TOKENS SECTION */}

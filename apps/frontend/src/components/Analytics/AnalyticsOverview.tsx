@@ -10,6 +10,7 @@ interface AnalyticsOverviewProps {
   data: AnalyticsData;
   timeframe: string;
   setTimeframe: (tf: string) => void;
+  walletAddress?: string;
 }
 
 const TIME_FRAMES = ['1D', '1W', '1M', '3M', '1Y', 'All'];
@@ -17,7 +18,8 @@ const TIME_FRAMES = ['1D', '1W', '1M', '3M', '1Y', 'All'];
 const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
   data,
   timeframe,
-  setTimeframe
+  setTimeframe,
+  walletAddress
 }) => {
   const [activeChartTab, setActiveChartTab] = useState<'balance' | 'flow' | 'txs'>('balance');
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -292,7 +294,7 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
         </div>
       </div>
 
-      <TopEntities data={data} timeframe={timeframe} />
+      <TopEntities data={data} timeframe={timeframe} walletAddress={walletAddress} />
     </div>
   );
 };
