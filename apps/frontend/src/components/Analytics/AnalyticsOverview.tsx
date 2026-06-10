@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import { AnalyticsData } from '../../types/analytics.types';
-import { Activity, LayoutTemplate, Ghost } from 'lucide-react';
+import { Activity, LayoutTemplate, Ghost, Clock } from 'lucide-react';
 import TopEntities from './TopEntities';
 import AnalyticsTooltip from './AnalyticsTooltip';
 import { DATA_VIZ_COLORS } from '../../config/display';
@@ -101,10 +101,11 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
             {/* Floating Timeframe Selector in Chart Area */}
             <div 
               className="tabs-container-v5" 
-              style={{ position: 'absolute', top: '-10px', right: '0', zIndex: 10, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }} 
+              style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }} 
               role="tablist" 
               aria-label="Timeframes"
             >
+              <Clock size={12} className="timeframe-icon" />
               {TIME_FRAMES.map(tf => (
                 <button
                   key={tf}
