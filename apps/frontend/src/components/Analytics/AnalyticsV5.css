@@ -258,47 +258,45 @@
   gap: 16px;
 }
 
-/* === Stats Row inside main chart card === */
-.analytics-stats-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 32px;
-}
-
-.analytics-stats-left {
+/* === Floating Stats in Chart Area === */
+.analytics-stats-floating {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  background: transparent;
 }
 
-.analytics-stats-left .exchange-label {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.analytics-stats-left .hero-value {
-  margin-bottom: 4px;
-}
-
-.analytics-months-badge {
-  margin-top: 4px;
+.floating-label {
+  font-size: 11px;
   color: var(--text-tertiary);
-  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.floating-value {
+  font-size: 24px;
+  font-weight: 900;
+  color: #fff;
+  font-family: var(--font-display);
+}
+
+.floating-badge {
+  color: var(--text-tertiary);
+  font-size: 11px;
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-top: 2px;
 }
 
-.analytics-months-badge span {
+.floating-badge span {
   background: rgba(205, 161, 105, 0.1);
   color: var(--primary);
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 6px;
   font-weight: 800;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* === Chart Container === */

@@ -75,13 +75,15 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
             </div>
           </div>
 
-          {/* Stats section below the header row */}
-          <div className="analytics-stats-header">
-            <div className="analytics-stats-left">
-              <span className="exchange-label">
+
+
+          <div className={`analytics-chart-wrap${isTransitioning ? ' transitioning' : ''}`} style={{ position: 'relative' }}>
+            {/* Floating Stats Area */}
+            <div className="analytics-stats-floating" style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 10 }}>
+              <span className="floating-label">
                 {activeChartTab === 'balance' ? 'Token Balance' : activeChartTab === 'flow' ? 'Total Capital Flow' : 'Transaction Count'}
               </span>
-              <div className="hero-value">
+              <div className="floating-value">
                 {activeChartTab === 'balance' 
                   ? formatVolumeValue(data.totalBalance ?? 0) 
                   : activeChartTab === 'flow' 
@@ -90,14 +92,12 @@ const AnalyticsOverview: React.FC<AnalyticsOverviewProps> = ({
                         ? chartData.reduce((sum: number, point: any) => sum + (point.txCount || 0), 0)
                         : data.interactionCount).toLocaleString()}
               </div>
-              <div className="analytics-months-badge">
+              <div className="floating-badge">
                 <span>{data.activeMonths} Months</span>
                 of tracked activity
               </div>
             </div>
-          </div>
 
-          <div className={`analytics-chart-wrap${isTransitioning ? ' transitioning' : ''}`} style={{ position: 'relative' }}>
             {/* Floating Timeframe Selector in Chart Area */}
             <div 
               className="tabs-container-v5" 
