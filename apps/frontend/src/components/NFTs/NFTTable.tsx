@@ -6,29 +6,13 @@ interface NFTTableProps {
   groupedCollections: any[];
   nftsLoading: boolean;
   viewingAddress: string | null;
-  hideValues: boolean;
-  convertUSD: (val: number) => number;
-  formatCurrencyValue: (val: number) => string;
-  movePrice: number;
-  valuationMethod: 'topBid' | 'floor';
-  setValuationMethod: (method: 'topBid' | 'floor') => void;
-  totalWorthMove: number;
-  totalWorthUSD: number;
 }
 
 const NFTTable: React.FC<NFTTableProps> = ({
   userNFTs,
   groupedCollections,
   nftsLoading,
-  viewingAddress,
-  hideValues,
-  convertUSD,
-  formatCurrencyValue,
-  movePrice,
-  valuationMethod,
-  setValuationMethod,
-  totalWorthMove,
-  totalWorthUSD
+  viewingAddress
 }) => {
   return (
     <section className="nft-portfolio-section">
@@ -37,35 +21,6 @@ const NFTTable: React.FC<NFTTableProps> = ({
           <h3>NFT Portfolio</h3>
           <span className="nft-count-badge">{userNFTs.length} Assets</span>
         </div>
-
-        {userNFTs.length > 0 && (
-          <div className="nft-header-controls">
-            <div className="nft-total-value">
-              <span className="value-label">Total Value</span>
-              <span className="value-move">{totalWorthMove.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE</span>
-              <span className="value-usd">
-                {hideValues ? '***' : formatCurrencyValue(convertUSD(totalWorthUSD))}
-              </span>
-            </div>
-
-            <div className="nft-valuation-toggle">
-              <button
-                className={`toggle-btn ${valuationMethod === 'topBid' ? 'active' : ''}`}
-                onClick={() => setValuationMethod('topBid')}
-                title="Valuation based on top active bids"
-              >
-                Top Bid
-              </button>
-              <button
-                className={`toggle-btn ${valuationMethod === 'floor' ? 'active' : ''}`}
-                onClick={() => setValuationMethod('floor')}
-                title="Valuation based on floor price"
-              >
-                Floor Price
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {nftsLoading ? (
@@ -81,8 +36,6 @@ const NFTTable: React.FC<NFTTableProps> = ({
               <tr>
                 <th>Collection</th>
                 <th className="text-right">Items</th>
-                <th className="text-right">Floor Price</th>
-                <th className="text-right">Top Bid</th>
                 <th className="text-right">Action</th>
               </tr>
             </thead>
@@ -112,31 +65,6 @@ const NFTTable: React.FC<NFTTableProps> = ({
                       <span className="col-name">{col.collectionName}</span>
                     </td>
                     <td className="text-right col-count">{col.count}</td>
-                    <td className="text-right">
-                      <div className="col-price">
-                        <span className="price-primary">
-                          {col.floorPrice > 0 ? (
-                            `${col.floorPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE`
-                          ) : (
-                            <span className="price-empty">--</span>
-                          )}
-                        </span>
-                        {col.floorPrice > 0 && movePrice > 0 && (
-                          <span className="price-secondary">
-                            {hideValues ? '***' : formatCurrencyValue(convertUSD(col.floorPrice * movePrice))}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="text-right">
-                      <span className="price-primary">
-                        {col.topBid > 0 ? (
-                          `${col.topBid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE`
-                        ) : (
-                          <span className="price-empty">--</span>
-                        )}
-                      </span>
-                    </td>
                     <td className="text-right">
                       <a
                         href={tradeportUrl}

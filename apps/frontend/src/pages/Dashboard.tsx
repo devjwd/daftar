@@ -883,14 +883,6 @@ const Dashboard = () => {
               groupedCollections={groupedCollections}
               nftsLoading={nftsLoading}
               viewingAddress={viewingAddress}
-              hideValues={hideValues}
-              convertUSD={convertUSD}
-              formatCurrencyValue={formatCurrencyValue}
-              movePrice={movePrice}
-              valuationMethod={valuationMethod}
-              setValuationMethod={setValuationMethod}
-              totalWorthMove={nftsTotalWorthMove || 0}
-              totalWorthUSD={nftsTotalWorth || 0}
             />
           )}
 

@@ -9,29 +9,13 @@ interface NFTTabProps {
   groupedCollections: any;
   nftsLoading: boolean;
   viewingAddress: string | null;
-  hideValues: boolean;
-  convertUSD: (val: number) => number;
-  formatCurrencyValue: (val: number) => string;
-  movePrice: number;
-  valuationMethod: 'topBid' | 'floor';
-  setValuationMethod: (method: 'topBid' | 'floor') => void;
-  totalWorthMove: number;
-  totalWorthUSD: number;
 }
 
 const NFTTab: React.FC<NFTTabProps> = ({
   userNFTs,
   groupedCollections,
   nftsLoading,
-  viewingAddress,
-  hideValues,
-  convertUSD,
-  formatCurrencyValue,
-  movePrice,
-  valuationMethod,
-  setValuationMethod,
-  totalWorthMove,
-  totalWorthUSD,
+  viewingAddress
 }) => {
   return (
     <Suspense fallback={<RouteFallback />}>
@@ -40,14 +24,6 @@ const NFTTab: React.FC<NFTTabProps> = ({
         groupedCollections={groupedCollections}
         nftsLoading={nftsLoading}
         viewingAddress={viewingAddress}
-        hideValues={hideValues}
-        convertUSD={convertUSD}
-        formatCurrencyValue={formatCurrencyValue}
-        movePrice={movePrice}
-        valuationMethod={valuationMethod}
-        setValuationMethod={setValuationMethod}
-        totalWorthMove={totalWorthMove}
-        totalWorthUSD={totalWorthUSD}
       />
     </Suspense>
   );

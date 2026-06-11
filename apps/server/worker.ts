@@ -25,7 +25,7 @@ startPricePitcher(supabaseAdmin);
 startAnalyticsWorker(supabaseAdmin);
 
 // Start hourly NFT floor price pitcher
-startNFTPriceWorker(supabaseAdmin);
+// startNFTPriceWorker(supabaseAdmin); // Temporarily disabled by user request
 
 // Start background analytics price backfiller (fallback interval: every 5 minutes)
 let isPriceBackfillRunning = false;
