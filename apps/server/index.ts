@@ -17,6 +17,7 @@ import plansRoutes from './src/routes/plansRoutes.ts';
 import feedbackRoutes from './src/routes/feedbackRoutes.ts';
 import reportRoutes from './src/routes/reportRoutes.ts';
 import alertRoutes from './src/routes/alertRoutes.ts';
+import apyRoutes from './src/routes/apyRoutes.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { handleError } from './src/utils/errors.ts';
@@ -66,6 +67,7 @@ app.use('/api/plans', plansRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
+app.use('/api/apys', apyRoutes);
 
 // --- Global Error Handler ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -95,6 +97,35 @@ if (process.env.NODE_ENV !== 'test') {
         }
       }
     }, 8000); // Poll sync queue every 8 seconds
+
+    // Schedule APY Sync
+    const { ApyService } = await import('./src/services/apyService.ts');
+    let isApySyncRunning = false;
+    setInterval(async () => {
+      if (!isApySyncRunning) {
+        isApySyncRunning = true;
+        try {
+          console.log('[Server] Starting scheduled APY Sync...');
+          const apys = await ApyService.fetchAllApys();
+          for (const apyData of apys) {
+            await supabaseAdmin.from('protocol_apys').upsert({
+              protocol: apyData.protocol,
+              pool_name: apyData.pool_name,
+              pool_address: apyData.pool_address,
+              apy: apyData.apy,
+              base_apr: apyData.base_apr,
+              reward_apr: apyData.reward_apr,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'protocol, pool_address' });
+          }
+          console.log(`[Server] APY Sync completed. Fetched ${apys.length} pools.`);
+        } catch (err) {
+          console.error('[Server] APY Sync Error:', err);
+        } finally {
+          isApySyncRunning = false;
+        }
+      }
+    }, 60 * 60 * 1000); // Run every 1 hour
   });
 }
 
