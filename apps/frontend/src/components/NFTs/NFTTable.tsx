@@ -31,37 +31,33 @@ const NFTTable: React.FC<NFTTableProps> = ({
   totalWorthUSD
 }) => {
   return (
-    <section className="grid-section">
-      <div className="section-header-row">
-        <div className="section-title-group">
-          <h3 className="section-title">NFT Portfolio</h3>
-          <div className="section-header-value">
-            {userNFTs.length} Assets
-          </div>
+    <section className="nft-portfolio-section">
+      <div className="nft-header">
+        <div className="nft-header-title">
+          <h3>NFT Portfolio</h3>
+          <span className="nft-count-badge">{userNFTs.length} Assets</span>
         </div>
 
-        <div className="valuation-controls-wrapper">
-          <div className="valuation-controls-row">
-            {userNFTs.length > 0 && (
-              <div className="valuation-summary">
-                <span className="summary-label">Total Value:</span>
-                <span className="summary-value-move">{totalWorthMove.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE</span>
-                <span className="summary-value-usd">
-                  ({hideValues ? '***' : formatCurrencyValue(convertUSD(totalWorthUSD))})
-                </span>
-              </div>
-            )}
+        {userNFTs.length > 0 && (
+          <div className="nft-header-controls">
+            <div className="nft-total-value">
+              <span className="value-label">Total Value</span>
+              <span className="value-move">{totalWorthMove.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE</span>
+              <span className="value-usd">
+                {hideValues ? '***' : formatCurrencyValue(convertUSD(totalWorthUSD))}
+              </span>
+            </div>
 
-            <div className="valuation-toggle-container">
+            <div className="nft-valuation-toggle">
               <button
-                className={`valuation-toggle-btn ${valuationMethod === 'topBid' ? 'active' : ''}`}
+                className={`toggle-btn ${valuationMethod === 'topBid' ? 'active' : ''}`}
                 onClick={() => setValuationMethod('topBid')}
-                title="Valuation based on top active bids (instant sell / exit value)"
+                title="Valuation based on top active bids"
               >
                 Top Bid
               </button>
               <button
-                className={`valuation-toggle-btn ${valuationMethod === 'floor' ? 'active' : ''}`}
+                className={`toggle-btn ${valuationMethod === 'floor' ? 'active' : ''}`}
                 onClick={() => setValuationMethod('floor')}
                 title="Valuation based on floor price"
               >
@@ -69,30 +65,25 @@ const NFTTable: React.FC<NFTTableProps> = ({
               </button>
             </div>
           </div>
-          <div className="valuation-note">
-            {valuationMethod === 'topBid'
-              ? "* Valued by instant exit bids (backed by real capital)"
-              : "* Valued by floor listings (minimum ask price)"}
-          </div>
-        </div>
+        )}
       </div>
 
       {nftsLoading ? (
-        <div className="nft-skeleton-table">
+        <div className="nft-skeleton-container">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="nft-skeleton-row" />
           ))}
         </div>
       ) : groupedCollections.length > 0 ? (
-        <div className="nft-table-container">
-          <table className="nft-table">
+        <div className="nft-table-wrapper">
+          <table className="nft-minimal-table">
             <thead>
               <tr>
-                <th>Collection Name</th>
-                <th className="text-right">Amount</th>
+                <th>Collection</th>
+                <th className="text-right">Items</th>
                 <th className="text-right">Floor Price</th>
                 <th className="text-right">Top Bid</th>
-                <th className="text-center">Action</th>
+                <th className="text-right">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -101,66 +92,60 @@ const NFTTable: React.FC<NFTTableProps> = ({
 
                 return (
                   <tr key={col.collectionId}>
-                    <td className="collection-cell">
-                      <div className="collection-info">
-                        <span className="collection-name-text">
-                          {col.collectionName}
-                        </span>
-                        <div className="collection-images-stack">
-                          {col.sampleImages.slice(0, 3).map((img, i) => (
-                            <div key={i} className="collection-img-wrapper" style={{ marginLeft: i > 0 ? '-24px' : '0', zIndex: 3 - i }}>
-                              <img
-                                src={img.startsWith('ipfs://') ? img.replace('ipfs://', 'https://ipfs.io/ipfs/') : img}
-                                alt=""
-                                onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }}
-                              />
-                            </div>
-                          ))}
-                          {col.count > 3 && (
-                            <div className="collection-img-more">
-                              +{col.count - 3}
-                            </div>
-                          )}
-                        </div>
+                    <td className="col-info">
+                      <div className="col-images">
+                        {col.sampleImages.slice(0, 3).map((img, i) => (
+                          <div key={i} className="col-img-wrap" style={{ zIndex: 3 - i }}>
+                            <img
+                              src={img.startsWith('ipfs://') ? img.replace('ipfs://', 'https://ipfs.io/ipfs/') : img}
+                              alt=""
+                              onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }}
+                            />
+                          </div>
+                        ))}
+                        {col.count > 3 && (
+                          <div className="col-img-more">
+                            +{col.count - 3}
+                          </div>
+                        )}
                       </div>
+                      <span className="col-name">{col.collectionName}</span>
                     </td>
-                    <td className="text-right">{col.count}</td>
+                    <td className="text-right col-count">{col.count}</td>
                     <td className="text-right">
-                      <div className="price-stack">
-                        <span className="native-price">
+                      <div className="col-price">
+                        <span className="price-primary">
                           {col.floorPrice > 0 ? (
                             `${col.floorPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE`
                           ) : (
-                            <span className="empty-placeholder">--</span>
+                            <span className="price-empty">--</span>
                           )}
                         </span>
                         {col.floorPrice > 0 && movePrice > 0 && (
-                          <span className="usd-price">
+                          <span className="price-secondary">
                             {hideValues ? '***' : formatCurrencyValue(convertUSD(col.floorPrice * movePrice))}
                           </span>
                         )}
                       </div>
                     </td>
                     <td className="text-right">
-                      <span className="native-price">
+                      <span className="price-primary">
                         {col.topBid > 0 ? (
                           `${col.topBid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MOVE`
                         ) : (
-                          <span className="empty-placeholder">--</span>
+                          <span className="price-empty">--</span>
                         )}
                       </span>
                     </td>
-                    <td className="text-center">
+                    <td className="text-right">
                       <a
                         href={tradeportUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="tradeport-link-icon"
-                        title="View Collection on Tradeport"
+                        className="action-link"
+                        title="View on Tradeport"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
+                        Tradeport ↗
                       </a>
                     </td>
                   </tr>
@@ -170,9 +155,8 @@ const NFTTable: React.FC<NFTTableProps> = ({
           </table>
         </div>
       ) : (
-        <div className="nft-empty-state">
-          <div className="empty-icon">🖼️</div>
-          <p>{viewingAddress ? "No NFTs found in this wallet" : "Connect your wallet to see your NFTs"}</p>
+        <div className="nft-empty">
+          <p>{viewingAddress ? "No NFTs found in this wallet." : "Connect your wallet to see your NFTs."}</p>
         </div>
       )}
     </section>

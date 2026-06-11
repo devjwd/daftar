@@ -11,6 +11,7 @@ import {
   SkeletonCard,
   LiquiditySkeleton,
   DeFiSkeleton,
+  StakingSkeleton,
 } from './Skeletons';
 
 const getRemainingTimeStr = (lockedUntilSecs: number) => {
@@ -384,7 +385,16 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         </div>
         
-        <div className="staking-grid">
+        <div className="grid-container staking-grid">
+          {(lpLoading || indexerLoading) && visibleStakingPositions.length === 0 && (
+            <>
+              <StakingSkeleton delay={0} />
+              <StakingSkeleton delay={50} />
+              <StakingSkeleton delay={100} />
+              <StakingSkeleton delay={150} />
+            </>
+          )}
+
           {(!lpLoading && !indexerLoading) && visibleStakingPositions.length === 0 && viewingAddress && (
             <div className="empty-state">{t(language, 'dashNoStaking')}</div>
           )}
@@ -393,7 +403,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             <div className="empty-state">{t(language, 'dashConnectStaking')}</div>
           )}
 
-          {visibleStakingPositions.length > 0 && visibleStakingPositions.map((pos, index) => {
+          {!indexerLoading && visibleStakingPositions.length > 0 && visibleStakingPositions.map((pos, index) => {
             const movePrice = resolveTokenPrice(priceMap, '0xa', 'MOVE');
             const posValue = pos.amount * movePrice;
             const website = pos.protocolWebsite || "https://staking.movementnetwork.xyz/";

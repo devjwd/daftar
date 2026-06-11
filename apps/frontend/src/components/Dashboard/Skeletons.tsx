@@ -79,6 +79,45 @@ export const DeFiSkeleton: React.FC<{ delay?: number }> = ({ delay = 0 }) => (
   </div>
 );
 
+export const StakingSkeleton: React.FC<{ delay?: number }> = ({ delay = 0 }) => (
+  <div
+    className="staking-card-v2 skeleton-card"
+    style={{ animationDelay: `${delay}ms`, cursor: 'default' }}
+  >
+    <div className="staking-v2-header">
+      <div className="staking-v2-logo skeleton" style={{ width: '40px', height: '40px', borderRadius: '50%' }}></div>
+      <div className="staking-v2-info">
+        <div className="staking-v2-title-row">
+          <div className="skeleton skeleton-line" style={{ width: '120px', height: '18px', marginBottom: '6px' }}></div>
+        </div>
+        <div className="skeleton skeleton-line" style={{ width: '80px', height: '12px' }}></div>
+      </div>
+    </div>
+    <div className="staking-v2-body">
+      <div className="staking-v2-stats-row">
+        <div className="staking-v2-stat" style={{ border: 'none', background: 'rgba(255,255,255,0.015)' }}>
+          <div className="skeleton skeleton-line" style={{ width: '50px', height: '10px', marginBottom: '8px' }}></div>
+          <div className="skeleton skeleton-line" style={{ width: '80px', height: '16px' }}></div>
+        </div>
+        <div className="staking-v2-stat" style={{ border: 'none', background: 'rgba(255,255,255,0.015)' }}>
+          <div className="skeleton skeleton-line" style={{ width: '40px', height: '10px', marginBottom: '8px' }}></div>
+          <div className="skeleton skeleton-line" style={{ width: '60px', height: '16px' }}></div>
+        </div>
+      </div>
+      <div className="staking-v2-details">
+        <div className="staking-v2-detail-row" style={{ border: 'none', background: 'rgba(255,255,255,0.012)' }}>
+          <div className="skeleton skeleton-line" style={{ width: '60px', height: '10px' }}></div>
+          <div className="skeleton skeleton-line" style={{ width: '90px', height: '10px' }}></div>
+        </div>
+        <div className="staking-v2-detail-row" style={{ border: 'none', background: 'rgba(255,255,255,0.012)' }}>
+          <div className="skeleton skeleton-line" style={{ width: '70px', height: '10px' }}></div>
+          <div className="skeleton skeleton-line" style={{ width: '80px', height: '10px' }}></div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 export const NetWorthValueSkeleton: React.FC = () => (
   <>
     <div className="hero-networth-skeleton-value skeleton" aria-hidden="true"></div>

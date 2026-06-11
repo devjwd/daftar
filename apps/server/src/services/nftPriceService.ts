@@ -1,81 +1,107 @@
-import fetch from 'node-fetch';
+import puppeteer from 'puppeteer';
 import { SupabaseClient } from '@supabase/supabase-js';
-import CONFIG from '../config/index.ts';
-
-const TRADEPORT_ENDPOINT = CONFIG.TRADEPORT.ENDPOINT || 'https://api.indexer.xyz/graphql';
-const TRADEPORT_API_KEY = CONFIG.TRADEPORT.API_KEY;
-const TRADEPORT_API_USER = CONFIG.TRADEPORT.API_USER;
-
-const GET_ALL_COLLECTIONS_STATS = `
-  query GetAllCollectionsStats {
-    movement {
-      collections(where: { floor: { _gt: 0 } }, limit: 500) {
-        id
-        slug
-        title
-        floor
-        bids(order_by: { price: desc }, limit: 1) {
-          price
-        }
-      }
-    }
-  }
-`;
 
 export async function updateNFTFloorPrices(supabase: SupabaseClient) {
-  console.log('[NFTPriceService] 🔍 Fetching NFT floor prices from Tradeport...');
-
-  if (!TRADEPORT_API_KEY) {
-    console.error('[NFTPriceService] ❌ Missing TRADEPORT_API_KEY');
-    return;
-  }
+  console.log('[NFTPriceService] 🔍 Starting Puppeteer scraper to fetch NFT floor prices...');
 
   try {
-    const response = await fetch(TRADEPORT_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': TRADEPORT_API_KEY,
-        'x-api-user': TRADEPORT_API_USER || 'daftar'
-      },
-      body: JSON.stringify({
-        query: GET_ALL_COLLECTIONS_STATS
-      })
-    });
-
-    const json: any = await response.json();
-    if (json.errors) {
-      throw new Error(`Tradeport API error: ${JSON.stringify(json.errors)}`);
-    }
-
-    const collections = json.data?.movement?.collections || [];
-    console.log(`[NFTPriceService] Found ${collections.length} collections on Movement.`);
-
-    if (collections.length === 0) return;
-
-    // Map to database format
-    const stats = collections.map((c: any) => {
-      const topBidOctas = c.bids?.[0]?.price || 0;
-      return {
-        collection_id: c.id, // Using c.id (which is the on-chain hex address) to match holdings correctly
-        name: c.title,
-        floor_price: Number(c.floor || 0) / 100_000_000, // Convert from Octas to MOVE
-        top_bid: Number(topBidOctas) / 100_000_000, // Convert from Octas to MOVE
-        updated_at: new Date().toISOString()
-      };
-    });
-
-    // Upsert into database
-    const { error } = await supabase
+    // 1. Fetch the list of known collections from the database
+    const { data: collections, error } = await supabase
       .from('nft_collection_stats')
-      .upsert(stats, { onConflict: 'collection_id' });
+      .select('collection_id, name, slug');
 
-    if (error) {
-      throw error;
+    if (error || !collections || collections.length === 0) {
+      console.log('[NFTPriceService] ⚠️ No collections found in database to scrape. Exiting.');
+      return;
     }
 
-    console.log(`[NFTPriceService] ✅ Successfully updated ${stats.length} NFT collection stats.`);
+    console.log(`[NFTPriceService] 🚀 Found ${collections.length} collections. Launching browser...`);
+
+    // 2. Launch headless browser
+    const browser = await puppeteer.launch({ 
+      headless: true, 
+      args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+    });
+    
+    const page = await browser.newPage();
+    // Use a generic user-agent to avoid basic bot blocks
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    const statsToUpsert: any[] = [];
+
+    // 3. Loop through collections and scrape data
+    for (const col of collections) {
+      try {
+        // Use slug if available, fallback to collection_id
+        const identifier = col.slug || col.collection_id;
+        const url = `https://www.tradeport.xyz/movement/collection/${identifier}`;
+        
+        console.log(`[NFTPriceService] 🌐 Scraping ${col.name}: ${url}`);
+        
+        // Navigate and wait for network to settle (meaning page is fully loaded)
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+
+        // Extract Floor Price and Top Bid using DOM traversal
+        const extractedData = await page.evaluate(() => {
+          let floor = 0;
+          let topBid = 0;
+
+          // Find text elements on the page
+          const elements = Array.from(document.querySelectorAll('div, span, p, h1, h2, h3'));
+          
+          for (let i = 0; i < elements.length; i++) {
+             const text = elements[i].textContent || '';
+             const lowerText = text.toLowerCase().trim();
+             
+             // Simple heuristic parsing (works for most common NFT marketplace structures)
+             if (lowerText === 'floor' || lowerText === 'floor price') {
+                // Check next sibling or next element in DOM for the value
+                const nextText = elements[i + 1]?.textContent || '';
+                const match = nextText.match(/([\d.]+)/);
+                if (match && match[1]) floor = parseFloat(match[1]);
+             }
+             if (lowerText === 'top bid' || lowerText === 'highest bid') {
+                const nextText = elements[i + 1]?.textContent || '';
+                const match = nextText.match(/([\d.]+)/);
+                if (match && match[1]) topBid = parseFloat(match[1]);
+             }
+          }
+          return { floor, topBid };
+        });
+
+        console.log(`[NFTPriceService] 📊 Scraped Data for ${col.name} -> Floor: ${extractedData.floor}, Top Bid: ${extractedData.topBid}`);
+
+        // Only update if we successfully scraped at least one valid number
+        if (extractedData.floor > 0 || extractedData.topBid > 0) {
+          statsToUpsert.push({
+            collection_id: col.collection_id,
+            name: col.name,
+            floor_price: extractedData.floor,
+            top_bid: extractedData.topBid,
+            updated_at: new Date().toISOString()
+          });
+        }
+      } catch (scrapeErr: any) {
+        console.log(`[NFTPriceService] ❌ Failed to scrape ${col.name}: ${scrapeErr.message}`);
+      }
+    }
+
+    await browser.close();
+
+    // 4. Save results to the database
+    if (statsToUpsert.length > 0) {
+      const { error: upsertError } = await supabase
+        .from('nft_collection_stats')
+        .upsert(statsToUpsert, { onConflict: 'collection_id' });
+
+      if (upsertError) throw upsertError;
+
+      console.log(`[NFTPriceService] ✅ Successfully updated ${statsToUpsert.length} NFT collection stats via Scraper.`);
+    } else {
+      console.log(`[NFTPriceService] ⚠️ No new valid data scraped.`);
+    }
+
   } catch (err: any) {
-    console.error('[NFTPriceService] ❌ Error updating NFT prices:', err.message);
+    console.error('[NFTPriceService] ❌ Fatal error in Puppeteer scraper:', err.message);
   }
 }

@@ -213,7 +213,7 @@ const LiquidityCard: React.FC<LiquidityCardProps> = ({
           <div className="lp-card-subline">
             <span className="lp-card-type">{protocol.type}</span>
             <span className="lp-card-dot">*</span>
-            <span className="lp-card-symbol" title={position.symbol}>{position.symbol}</span>
+            <span className="lp-card-symbol" title={position.symbol?.replace(/\s*\(.*\)/, '')}>{position.symbol?.replace(/\s*\(.*\)/, '')}</span>
           </div>
           {(position.isNFT || (isCanopyDeposit && position.protocol !== 'canopy')) && (
             <div className="lp-card-flags">
