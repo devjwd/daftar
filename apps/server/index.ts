@@ -101,31 +101,37 @@ if (process.env.NODE_ENV !== 'test') {
     // Schedule APY Sync
     const { ApyService } = await import('./src/services/apyService.ts');
     let isApySyncRunning = false;
-    setInterval(async () => {
-      if (!isApySyncRunning) {
-        isApySyncRunning = true;
-        try {
-          console.log('[Server] Starting scheduled APY Sync...');
-          const apys = await ApyService.fetchAllApys();
-          for (const apyData of apys) {
-            await supabaseAdmin.from('protocol_apys').upsert({
-              protocol: apyData.protocol,
-              pool_name: apyData.pool_name,
-              pool_address: apyData.pool_address,
-              apy: apyData.apy,
-              base_apr: apyData.base_apr,
-              reward_apr: apyData.reward_apr,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'protocol, pool_address' });
-          }
-          console.log(`[Server] APY Sync completed. Fetched ${apys.length} pools.`);
-        } catch (err) {
-          console.error('[Server] APY Sync Error:', err);
-        } finally {
-          isApySyncRunning = false;
+    
+    const runApySync = async () => {
+      if (isApySyncRunning) return;
+      isApySyncRunning = true;
+      try {
+        console.log('[Server] Starting scheduled APY Sync...');
+        const apys = await ApyService.fetchAllApys();
+        for (const apyData of apys) {
+          await supabaseAdmin.from('protocol_apys').upsert({
+            protocol: apyData.protocol,
+            pool_name: apyData.pool_name,
+            pool_address: apyData.pool_address,
+            apy: apyData.apy,
+            base_apr: apyData.base_apr,
+            reward_apr: apyData.reward_apr,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'protocol, pool_address' });
         }
+        console.log(`[Server] APY Sync completed. Fetched ${apys.length} pools.`);
+      } catch (err) {
+        console.error('[Server] APY Sync Error:', err);
+      } finally {
+        isApySyncRunning = false;
       }
-    }, 60 * 60 * 1000); // Run every 1 hour
+    };
+
+    // Run immediately on server start
+    runApySync();
+    
+    // Then run every 1 hour
+    setInterval(runApySync, 60 * 60 * 1000);
   });
 }
 

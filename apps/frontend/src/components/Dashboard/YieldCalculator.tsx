@@ -38,7 +38,7 @@ export const YieldCalculator: React.FC<YieldCalculatorProps> = ({
         const response = await fetch(`${API_BASE}/apys`);
         if (!response.ok) throw new Error('Failed to fetch APY data');
         const result = await response.json();
-        
+
         if (result.success && result.data) {
           setApys(result.data);
           if (result.data.length > 0) {
@@ -66,23 +66,23 @@ export const YieldCalculator: React.FC<YieldCalculatorProps> = ({
     let userUsdBalance = 0;
 
     // Check DeFi positions (e.g. Echelon)
-    const matchingDeFi = visibleDeFiPositions.filter(p => 
+    const matchingDeFi = visibleDeFiPositions.filter(p =>
       p.protocolName?.toLowerCase() === selectedPool.protocol.toLowerCase() &&
       p.name?.toLowerCase() === selectedPool.pool_name.toLowerCase() &&
       p.type !== 'Debt'
     );
-    
+
     matchingDeFi.forEach(pos => {
       const usdValue = getDeFiPositionUsdValue(pos, priceMap) ?? 0;
       userUsdBalance += convertUSD(usdValue);
     });
 
     // Check Staking positions (e.g. Canopy / Native)
-    const matchingStaking = visibleStakingPositions.filter(p => 
+    const matchingStaking = visibleStakingPositions.filter(p =>
       p.protocolName?.toLowerCase() === selectedPool.protocol.toLowerCase() ||
       p.name?.toLowerCase() === selectedPool.pool_name.toLowerCase()
     );
-    
+
     matchingStaking.forEach(pos => {
       const movePrice = resolveTokenPrice(priceMap, '0xa', 'MOVE');
       const usdValue = pos.amount * movePrice;
@@ -113,7 +113,7 @@ export const YieldCalculator: React.FC<YieldCalculatorProps> = ({
   }
 
   if (error || apys.length === 0) {
-    return null; 
+    return null;
   }
 
   return (
@@ -126,7 +126,7 @@ export const YieldCalculator: React.FC<YieldCalculatorProps> = ({
       <div className={styles.controls}>
         <div className={styles.inputGroup}>
           <label className={styles.label}>Select Protocol/Pool</label>
-          <select 
+          <select
             className={styles.select}
             value={selectedPoolId}
             onChange={(e) => setSelectedPoolId(e.target.value)}
@@ -141,7 +141,7 @@ export const YieldCalculator: React.FC<YieldCalculatorProps> = ({
 
         <div className={styles.inputGroup}>
           <label className={styles.label}>Deposit Amount (USD)</label>
-          <input 
+          <input
             type="number"
             className={styles.input}
             value={depositAmount}
