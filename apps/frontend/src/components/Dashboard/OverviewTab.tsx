@@ -13,7 +13,6 @@ import {
   DeFiSkeleton,
   StakingSkeleton,
 } from './Skeletons';
-import { YieldCalculator } from './YieldCalculator';
 
 const getRemainingTimeStr = (lockedUntilSecs: number) => {
   if (!lockedUntilSecs) return "";
@@ -519,16 +518,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             );
           })}
         </div>
-      </section>
-
-      {/* Yield Calculator Section */}
-      <section className="grid-section">
-        <YieldCalculator 
-          visibleDeFiPositions={visibleDeFiPositions}
-          visibleStakingPositions={visibleStakingPositions}
-          priceMap={priceMap}
-          convertUSD={convertUSD}
-        />
       </section>
     </>
   );

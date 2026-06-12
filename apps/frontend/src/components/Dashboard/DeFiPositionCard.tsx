@@ -26,18 +26,6 @@ const DeFiPositionCard: React.FC<DeFiPositionCardProps> = ({
   hideValues,
   isExpanded
 }) => {
-  const [apys, setApys] = React.useState<any[]>([]);
-
-  React.useEffect(() => {
-    const apiBase = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
-    fetch(`${apiBase}/apys`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setApys(data);
-      })
-      .catch(console.error);
-  }, []);
-
   if (!protocolPositions || protocolPositions.length === 0) return null;
 
   const firstPos = protocolPositions[0];
@@ -130,19 +118,6 @@ const DeFiPositionCard: React.FC<DeFiPositionCardProps> = ({
     ? `${t(language, 'dashSupplied')} & ${t(language, 'dashBorrowed')}`
     : supplyPositions.length > 0 ? t(language, 'dashSupplied') : t(language, 'dashBorrowed');
 
-  const maxApy = apys
-    .filter(a => a.protocol.toLowerCase().includes((protocol.name || '').toLowerCase()))
-    .reduce((max, a) => Math.max(max, a.apy), 0);
-
-  const getApyForPosition = (pos: any) => {
-    const apyMatch = apys.find(a => 
-      a.protocol.toLowerCase().includes((protocol.name || '').toLowerCase()) &&
-      (a.pool_name.toLowerCase().includes((pos.tokenSymbol || '').toLowerCase()) || 
-       a.pool_address.toLowerCase() === (pos.poolAddress || '').toLowerCase())
-    );
-    return apyMatch ? apyMatch.apy : null;
-  };
-
   return (
     <div
       className={`defi-card-v2 ${isExpanded ? 'is-expanded' : 'is-compact'}`}
@@ -208,14 +183,6 @@ const DeFiPositionCard: React.FC<DeFiPositionCardProps> = ({
               {netUsd >= 0 ? '+' : ''}{formatUsdValue(netUsd)}
             </span>
           </div>
-          {maxApy > 0 && (
-            <div className="defi-v2-net" style={{ marginLeft: '16px' }}>
-              <span className="defi-v2-net-label">Est. Yield</span>
-              <span className="defi-v2-net-value positive" style={{ color: '#00C950' }}>
-                {maxApy.toFixed(2)}% APY
-              </span>
-            </div>
-          )}
         </div>
       ) : (
         <>
@@ -233,11 +200,6 @@ const DeFiPositionCard: React.FC<DeFiPositionCardProps> = ({
                       <span className="defi-v2-item-token">
                         {renderColoredTokenText(pos.tokenSymbol || 'Token')}
                       </span>
-                      {getApyForPosition(pos) !== null && (
-                        <span className="defi-v2-item-meta" style={{ color: '#00C950', background: 'rgba(0,201,80,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px' }}>
-                          {getApyForPosition(pos)?.toFixed(2)}% APY
-                        </span>
-                      )}
                       {formatNativeStakingMeta(pos) && (
                         <span className="defi-v2-item-meta">{formatNativeStakingMeta(pos)}</span>
                       )}

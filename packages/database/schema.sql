@@ -523,25 +523,3 @@ BEGIN
 
     RAISE NOTICE 'Retroactive XP Migration Complete.';
 END $$;
-
--- =============================================================================
--- 11. ON-CHAIN APY SNAPSHOTS
--- Stores live yields and APY data from on-chain RPC snapshots
--- =============================================================================
-
--- TABLE: protocol_apys
-CREATE TABLE IF NOT EXISTS public.protocol_apys (
-  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  protocol         text NOT NULL,       -- e.g., 'Echelon', 'Canopy'
-  pool_name        text NOT NULL,       -- e.g., 'MOVE Lending', 'stMOVE Staking'
-  pool_address     text NOT NULL,       -- The smart contract address or token type
-  apy              numeric NOT NULL,    -- The calculated Annual Percentage Yield (e.g., 0.05 for 5%)
-  base_apr         numeric,             -- Optional: Base rate without auto-compounding
-  reward_apr       numeric,             -- Optional: Extra token incentives
-  updated_at       timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT uq_protocol_pool UNIQUE (protocol, pool_address)
-);
-
--- RLS Policies
-ALTER TABLE public.protocol_apys ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Read for anon apys" ON public.protocol_apys FOR SELECT USING (true);
