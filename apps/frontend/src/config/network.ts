@@ -19,14 +19,7 @@ export const NETWORKS = {
   },
 };
 
-// Default network (can be overridden by env variable)
-// Vite uses import.meta.env; plain Node scripts should fall back to process.env.
-// `import.meta` is only defined in module environments, so guard accordingly.
-const _env =
-  (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env :
-  (typeof globalThis !== 'undefined' && globalThis.process?.env ? globalThis.process.env : {});
-
-export const DEFAULT_NETWORK = _env.VITE_NETWORK === "testnet" 
+export const DEFAULT_NETWORK = getEnv("VITE_NETWORK") === "testnet" 
   ? NETWORKS.TESTNET 
   : NETWORKS.MAINNET;
 
@@ -43,22 +36,22 @@ export const TOKEN_DECIMALS = {
  * Swap Router Configuration
  * Note: Deploy the contract in contracts/swap_router/ and update this address
  */
-export const SWAP_ROUTER_ADDRESS = _env.VITE_SWAP_ROUTER_ADDRESS || null;
+export const SWAP_ROUTER_ADDRESS = getEnv("VITE_SWAP_ROUTER_ADDRESS", null);
 
 /**
  * Badge System Configuration
  * Set VITE_BADGE_SBT_MODULE_ADDRESS (preferred) or VITE_BADGE_MODULE_ADDRESS in .env
  */
 export const BADGE_MODULE_ADDRESS =
-  _env.VITE_BADGE_SBT_MODULE_ADDRESS || _env.VITE_BADGE_MODULE_ADDRESS || null;
+  getEnv("VITE_BADGE_SBT_MODULE_ADDRESS") || getEnv("VITE_BADGE_MODULE_ADDRESS") || null;
 
 /**
  * Admin Address - only this wallet can access the admin panel.
  * Set VITE_ADMIN_ADDRESS in .env, or falls back to the deployed contract address.
  */
 export const ADMIN_ADDRESS = (
-  _env.VITE_ADMIN_ADDRESS ||
-  _env.VITE_SWAP_ROUTER_ADDRESS ||
+  getEnv("VITE_ADMIN_ADDRESS") ||
+  getEnv("VITE_SWAP_ROUTER_ADDRESS") ||
   "0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69"
 ).toLowerCase();
 

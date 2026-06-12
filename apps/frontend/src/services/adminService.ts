@@ -191,33 +191,4 @@ export const updateSwapSettings = (updates) => {
   return next;
 };
 
-// Export admin data (for backup)
-export const exportAdminData = () => {
-  const data = loadAdminData();
-  return JSON.stringify(toPersistedAdminData(data), null, 2);
-};
 
-// Import admin data (for restore)
-export const importAdminData = (jsonData) => {
-  try {
-    const data = JSON.parse(jsonData);
-
-    const normalized = {
-      badges: Array.isArray(data.badges) ? data.badges : [],
-      swapSettings: normalizeSwapSettings(data.swapSettings || {}),
-    };
-
-
-
-    saveAdminData(normalized);
-    return true;
-  } catch (error) {
-    console.error('Failed to import admin data:', error);
-    throw error;
-  }
-};
-
-// Clear all custom data
-export const clearAllAdminData = () => {
-  localStorage.removeItem(ADMIN_STORAGE_KEY);
-};

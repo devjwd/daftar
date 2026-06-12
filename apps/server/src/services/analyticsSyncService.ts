@@ -831,13 +831,13 @@ export async function syncFullUserHistory(
   // Fetch all tracked entities for dynamic protocol classification
   const { data: entitiesData } = await supabase
     .from('tracked_entities')
-    .select('*');
+    .select('address, name, category, keywords, custom_type');
   const entitiesList = entitiesData || [];
 
   // 1. Fetch current sync status
   const { data: statusData } = await supabase
     .from('user_sync_status')
-    .select('*')
+    .select('total_transactions, full_history_synced, synced_transactions')
     .eq('user_address', address)
     .maybeSingle();
 
@@ -1110,7 +1110,7 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
   // Fetch all tracked entities for dynamic protocol classification
   const { data: entitiesData } = await supabase
     .from('tracked_entities')
-    .select('*');
+    .select('address, name, category, keywords, custom_type');
   const entitiesList = entitiesData || [];
 
   // 2. Fetch and reprocess unknown/OTHER transactions in paginated batches
@@ -1122,7 +1122,7 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
   for (let batch = 0; batch < MAX_BATCHES; batch++) {
     const { data: unknowns, error } = await supabase
       .from('user_transaction_history')
-      .select('*')
+      .select('version, hash, timestamp, metadata, user_address, protocol, action')
       .or('protocol.eq.Unknown,action.eq.OTHER')
       .limit(BATCH_SIZE);
 

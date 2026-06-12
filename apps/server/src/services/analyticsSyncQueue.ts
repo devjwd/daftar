@@ -19,7 +19,7 @@ export async function queueSync(
   // Check if there is an active job (pending or processing)
   const { data: existingJob, error: checkError } = await supabase
     .from('sync_queue')
-    .select('*')
+    .select('id, status, priority')
     .eq('user_address', address)
     .in('status', ['pending', 'processing'])
     .maybeSingle();
@@ -69,7 +69,7 @@ export async function processSyncQueue(supabase: SupabaseClient) {
   // 1. Fetch next pending job
   const { data: nextJob, error: fetchError } = await supabase
     .from('sync_queue')
-    .select('*')
+    .select('id, user_address, priority')
     .eq('status', 'pending')
     .order('priority', { ascending: false })
     .order('created_at', { ascending: true })

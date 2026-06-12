@@ -50,47 +50,4 @@ export const queryTradeport = async (query: string, variables: Record<string, an
   }
 };
 
-/**
- * Get stats (floor, top bid) for a list of collection IDs
- */
-export const getCollectionStats = async (collectionIds: string[]): Promise<Record<string, { floor: number; topBid: number }>> => {
-  if (!collectionIds.length) return {};
 
-  const query = `
-    query getCollectionStats($ids: [String!]) {
-      movement {
-        collections(where: { slug: { _in: $ids } }) {
-          id
-          slug
-          floor
-        }
-      }
-    }
-  `;
-
-  try {
-    const data = await queryTradeport(query, { ids: collectionIds });
-    
-    let collections = data?.movement?.collections;
-    if (!collections && data?.aptos) {
-      collections = data.aptos.collections;
-    }
-
-    if (!collections) return {};
-
-    const statsMap: Record<string, { floor: number; topBid: number }> = {};
-    collections.forEach((col: any) => {
-      if (col.slug) {
-        statsMap[col.slug] = {
-          floor: (col.floor || 0) / 100_000_000,
-          topBid: 0
-        };
-      }
-    });
-
-    return statsMap;
-  } catch (error) {
-    console.error("getCollectionStats error:", error);
-    return {};
-  }
-};

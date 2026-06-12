@@ -40,7 +40,7 @@ router.get('/:address', profileLimiter, async (req: Request, res: Response) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('*')
+      .select('wallet_address, username, bio, avatar_url, twitter, telegram, is_verified, created_at, updated_at')
       .eq('wallet_address', address)
       .maybeSingle();
 
@@ -119,7 +119,7 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
   if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
 
   try {
-    let supabaseQuery = supabaseAdmin.from('profiles').select('*').limit(limit);
+    let supabaseQuery = supabaseAdmin.from('profiles').select('wallet_address, username, avatar_url, is_verified').limit(limit);
 
     if (query) {
       const sanitized = String(query).replace(/[^a-zA-Z0-9\s\-_x]/g, '').slice(0, 100);

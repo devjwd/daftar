@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { DEFI_PROTOCOL_VISUALS, DEFAULT_PROTOCOL_VISUAL } from '../../config/display';
 import { t } from '../../utils/language';
 import { TokenIcon, renderColoredTokenText, getDeFiPositionUsdValue, getPrecisionDecimals } from '../../utils/dashboardUtils';
@@ -43,32 +43,32 @@ const DeFiPositionCard: React.FC<DeFiPositionCardProps> = ({
     window.dispatchEvent(event);
   };
 
-  const getProtocolKey = () => {
+  const getProtocolKey = useCallback(() => {
     const searchText = `${firstPos.name} ${firstPos.protocolName || ''} ${firstPos.resourceType || ''}`.toLowerCase();
     for (const key of Object.keys(DEFI_PROTOCOL_VISUALS)) {
       if (searchText.includes(key)) return key;
     }
     return null;
-  };
+  }, [firstPos]);
 
   const protocolKey = getProtocolKey();
   const protocol = protocolKey
     ? DEFI_PROTOCOL_VISUALS[protocolKey]
     : { ...DEFAULT_PROTOCOL_VISUAL, name: firstPos.protocolName || DEFAULT_PROTOCOL_VISUAL.name };
 
-  const supplyPositions = protocolPositions.filter(p => p.type === 'Lending' || p.type === 'Staking' || p.type === 'Liquidity');
-  const debtPositions = protocolPositions.filter(p => p.type === 'Debt');
+  const supplyPositions = useMemo(() => protocolPositions.filter(p => p.type === 'Lending' || p.type === 'Staking' || p.type === 'Liquidity'), [protocolPositions]);
+  const debtPositions = useMemo(() => protocolPositions.filter(p => p.type === 'Debt'), [protocolPositions]);
 
-  const formatValue = (val: any) => {
+  const formatValue = useCallback((val: any) => {
     if (hideValues) return '*****';
     const num = parseFloat(val);
     if (isNaN(num)) return '0.00';
     if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(2)}K`;
     return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-  };
+  }, [hideValues]);
 
-  const formatUsdValue = (val: any) => {
+  const formatUsdValue = useCallback((val: any) => {
     if (hideValues) return '*****';
     const num = parseFloat(val);
     if (isNaN(num) || num === 0) return formatCurrencyValue(0);
@@ -76,11 +76,11 @@ const DeFiPositionCard: React.FC<DeFiPositionCardProps> = ({
     if (converted >= 1000000) return `${currencySymbol}${(converted / 1000000).toFixed(2)}M`;
     if (converted >= 1000) return `${currencySymbol}${(converted / 1000).toFixed(2)}K`;
     return formatCurrencyValue(converted, undefined, getPrecisionDecimals(converted));
-  };
+  }, [hideValues, convertUSD, currencySymbol, formatCurrencyValue]);
 
-  const getPositionUsdValue = (pos: any) => {
+  const getPositionUsdValue = useCallback((pos: any) => {
     return getDeFiPositionUsdValue(pos, priceMap) ?? 0;
-  };
+  }, [priceMap]);
 
   const isMovementNativeStaking = (pos: any) => {
     const protocolName = String(pos?.protocolName || "").toLowerCase();
@@ -111,8 +111,8 @@ const DeFiPositionCard: React.FC<DeFiPositionCardProps> = ({
     return poolPart || pendingPart;
   };
 
-  const totalSupplyUsd = supplyPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0);
-  const totalDebtUsd = debtPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0);
+  const totalSupplyUsd = useMemo(() => supplyPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0), [supplyPositions, getPositionUsdValue]);
+  const totalDebtUsd = useMemo(() => debtPositions.reduce((sum, p) => sum + getPositionUsdValue(p), 0), [debtPositions, getPositionUsdValue]);
   const netUsd = totalSupplyUsd - totalDebtUsd;
   const positionTypeLabel = supplyPositions.length > 0 && debtPositions.length > 0
     ? `${t(language, 'dashSupplied')} & ${t(language, 'dashBorrowed')}`

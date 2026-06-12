@@ -76,25 +76,6 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 if (process.env.NODE_ENV !== 'test') {
   app.listen(CONFIG.PORT, async () => {
     console.log(`[Server] running on port ${CONFIG.PORT}`);
-    
-    // Start background sync queue worker inline (fallback in case separate worker process is not running)
-    const { getSupabase } = await import('./src/config/supabase.ts');
-    const { processSyncQueue } = await import('./src/services/analyticsSyncQueue.ts');
-    const supabaseAdmin = getSupabase();
-    
-    let isSyncQueueRunning = false;
-    setInterval(async () => {
-      if (!isSyncQueueRunning) {
-        isSyncQueueRunning = true;
-        try {
-          await processSyncQueue(supabaseAdmin);
-        } catch (err) {
-          console.error('[Server] Inline Sync Queue Worker Error:', err);
-        } finally {
-          isSyncQueueRunning = false;
-        }
-      }
-    }, 8000); // Poll sync queue every 8 seconds
   });
 }
 

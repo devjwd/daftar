@@ -14,13 +14,28 @@ export default defineConfig(({ command, mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
-      minify: false,
+      minify: 'esbuild',
       chunkSizeWarningLimit: 6000,
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router')) {
               return 'react-vendor';
+            }
+            if (id.includes('node_modules/recharts')) {
+              return 'recharts';
+            }
+            if (id.includes('node_modules/framer-motion')) {
+              return 'framer-motion';
+            }
+            if (id.includes('node_modules/@aptos-labs') || id.includes('wallet-adapter')) {
+              return 'aptos-wallet';
+            }
+            if (id.includes('node_modules/@supabase')) {
+              return 'supabase';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'lucide-react';
             }
           },
         },

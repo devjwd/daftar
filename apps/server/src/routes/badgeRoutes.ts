@@ -97,7 +97,7 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
     // 2. Fetch existing eligibility/attestation
     const { data: attestation } = await supabaseAdmin
       .from('badge_attestations')
-      .select('*')
+      .select('badge_id, wallet_address, eligible, verified_at, proof_hash, metadata')
       .eq('badge_id', badgeDef.badge_id)
       .eq('wallet_address', normalizedAddr)
       .maybeSingle();
@@ -183,7 +183,7 @@ router.get('/eligibility', badgeLimiter, forceRefreshLimiter, async (req: Reques
     // 2. Fetch existing attestation
     const { data: attestation } = await supabaseAdmin
       .from('badge_attestations')
-      .select('*')
+      .select('badge_id, wallet_address, eligible, verified_at, proof_hash, metadata')
       .eq('badge_id', badge.badge_id)
       .eq('wallet_address', normalizedAddr)
       .maybeSingle();
@@ -227,7 +227,7 @@ router.get('/eligibility/bulk', badgeLimiter, forceRefreshLimiter, async (req: R
     // 2. Fetch all existing attestations for this user
     const { data: attestations } = await supabaseAdmin
       .from('badge_attestations')
-      .select('*')
+      .select('badge_id, wallet_address, eligible, verified_at, proof_hash, metadata')
       .eq('wallet_address', normalizedAddr);
 
     const attestationMap = new Map((attestations || []).map(a => [a.badge_id, a]));
