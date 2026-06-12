@@ -243,7 +243,17 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
               resources,
               balances: providedBalances || balancesRef.current
             };
-            const found = await adapter.discover(context);
+            
+            // Add a 5-second timeout to prevent any single slow adapter from hanging the dashboard
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`timeout after 5000ms`)), 5000)
+            );
+            
+            const found = await Promise.race([
+              adapter.discover(context),
+              timeoutPromise
+            ]) as any[];
+            
             return Array.isArray(found) ? found : [];
           } catch (err) {
             devLog(`  ⚠️ Adapter ${adapter.id} discovery error:`, err.message);

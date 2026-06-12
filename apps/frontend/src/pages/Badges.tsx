@@ -333,7 +333,14 @@ export default function Badges() {
       >
         <div className="achievement-card-header">
           <div className="achievement-icon-wrap">
-            {badge.imageUrl ? <img src={badge.imageUrl} alt="" className="achievement-icon-image" /> : (badge.emoji || '🏅')}
+            {badge.imageUrl ? (
+              <img 
+                src={badge.imageUrl} 
+                alt="" 
+                className="achievement-icon-image" 
+                onError={(e) => { (e.target as HTMLImageElement).src = '/movement-logo.svg'; }} 
+              />
+            ) : (badge.emoji || '🏅')}
           </div>
           <div className="achievement-info">
             <h3>{badge.name}</h3>
@@ -359,43 +366,7 @@ export default function Badges() {
               )}
             </div>
           </div>
-
-          {!badge.earned && !badge.eligible && badge.progress !== undefined && (
-            <div className="achievement-card-progress">
-              <div className="achievement-card-progress-bar">
-                <div
-                  className="achievement-card-progress-fill"
-                  style={{
-                    width: `${Math.min(100, typeof badge.progress === 'object'
-                      ? (badge.progress.current / badge.progress.target) * 100
-                      : badge.progress)}%`
-                  }}
-                />
-              </div>
-              <div className="achievement-progress-labels">
-                <span className="achievement-progress-text">
-                  {typeof badge.progress === 'object'
-                    ? `${Math.floor(badge.progress.current)}/${Math.floor(badge.progress.target)}`
-                    : `${Math.floor(badge.progress)}%`
-                  }
-                </span>
-                <span className="achievement-progress-reason">
-                  {getProgressMessage(badge.progress, badge.reason, language)}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
-
-        {badge.eligible && !badge.earned && (
-          <button
-            className="achievement-claim-btn"
-            onClick={(e) => { e.stopPropagation(); handleMint(badge); }}
-            disabled={isMinting}
-          >
-            {isMinting ? t(language, 'badgesClaiming') : t(language, 'badgesClaim')}
-          </button>
-        )}
       </article>
     );
   };

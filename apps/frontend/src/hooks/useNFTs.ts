@@ -50,7 +50,12 @@ export const useNFTs = (address: string | null, movePrice: number = 0, valuation
     setLoading(true);
     setError(null);
     try {
-      const data = await getUserNFTHoldings(address);
+      const fetchPromise = getUserNFTHoldings(address);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('timeout')), 5000)
+      );
+      
+      const data = await Promise.race([fetchPromise, timeoutPromise]) as any[];
       const holdings = data || [];
 
       // Extract unique collection IDs
@@ -61,7 +66,12 @@ export const useNFTs = (address: string | null, movePrice: number = 0, valuation
       )) as string[];
 
       // Fetch pitched floor prices and top bids from our server
-      const stats = await getNFTCollectionStats();
+      const statsPromise = getNFTCollectionStats();
+      const statsTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('timeout')), 5000)
+      );
+      
+      const stats = await Promise.race([statsPromise, statsTimeoutPromise]) as Record<string, { floor: number; topBid: number }>;
       setCollectionStats(stats);
 
       setNfts(holdings);

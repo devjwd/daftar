@@ -102,8 +102,12 @@ export const useIndexerBalances = (address: string | null): UseIndexerBalancesRe
     setError(null);
 
     try {
-      // Fetch from indexer (more efficient than RPC)
-      const indexerBalances = await getUserTokenBalances(address);
+      // Fetch from indexer with timeout (more efficient than RPC)
+      const fetchPromise = getUserTokenBalances(address);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('timeout')), 5000)
+      );
+      const indexerBalances = await Promise.race([fetchPromise, timeoutPromise]) as any[];
 
       // Transform indexer data to match our balance format
       const processed = indexerBalances

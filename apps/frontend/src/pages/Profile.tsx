@@ -162,6 +162,9 @@ export default function Profile() {
                 alt="Profile"
                 className="avatar-image"
               />
+              <div className="avatar-hover-overlay">
+                <span className="avatar-hover-text">Change PFP</span>
+              </div>
             </button>
 
             {showPfpPicker && (
