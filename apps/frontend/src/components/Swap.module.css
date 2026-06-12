@@ -532,7 +532,7 @@
   background: linear-gradient(145deg, rgba(31, 24, 21, 0.96), rgba(19, 15, 13, 0.94));
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(14px);
-  z-index: 1200;
+  z-index: 10002;
   animation: toast-slide-up 0.24s ease;
 }
 

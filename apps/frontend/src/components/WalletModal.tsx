@@ -111,10 +111,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose }) => 
       default:
         return (
           <>
-            By connecting a wallet, you agree to our
+            By continuing, you agree to the
             <a href="/terms" target="_blank" rel="noopener noreferrer" className="terms-link">Terms of Service</a>
-            and
-            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="terms-link">Privacy Policy</a>.
           </>
         );
     }
