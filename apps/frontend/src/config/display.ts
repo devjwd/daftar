@@ -75,6 +75,7 @@ export const LOCAL_LOGOS: Record<string, string> = {
   'movematch': '/movematch.jpg',
   'capygo': '/Capygo.png',
   'capy': '/capy.png',
+  'movechi': '/movechi.png',
   'nightly': '/nightly.png',
   'leap': '/leap.png',
   'razor': '/razor.png',

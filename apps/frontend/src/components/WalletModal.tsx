@@ -126,8 +126,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose }) => 
   return (
     <div className="wallet-conn-modal-overlay" onClick={onClose}>
       <div className="wallet-conn-modal-container" onClick={(e) => e.stopPropagation()}>
-        <button 
-          className="wallet-conn-modal-close-btn" 
+        <button
+          className="wallet-conn-modal-close-btn"
           onClick={onClose}
           aria-label="Close modal"
         >
@@ -141,8 +141,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose }) => 
           <p className="wallet-conn-modal-subtitle">
             {language === 'zh' ? '选择一个钱包以连接至 Movement 网络'
               : language === 'ko' ? 'Movement 네트워크에 연결할 지갑을 선택하세요'
-              : language === 'tr' ? 'Movement ağına bağlanmak için bir cüzdan seçin'
-              : 'Select a wallet to connect to the Movement network'}
+                : language === 'tr' ? 'Movement ağına bağlanmak için bir cüzdan seçin'
+                  : 'Select a wallet to connect to the Movement network'}
           </p>
         </div>
 
@@ -153,8 +153,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose }) => 
             <div className="wallet-conn-modal-empty">
               {language === 'zh' ? '未检测到支持的钱包。'
                 : language === 'ko' ? '지원되는 지갑을 찾을 수 없습니다.'
-                : language === 'tr' ? 'Desteklenen cüzdan bulunamadı.'
-                : 'No supported wallets found.'}
+                  : language === 'tr' ? 'Desteklenen cüzdan bulunamadı.'
+                    : 'No supported wallets found.'}
             </div>
           ) : (
             filteredWallets.map((walletOption) => {
@@ -181,7 +181,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose }) => 
                     </div>
                     <span className="wallet-conn-modal-name">{walletOption.name}</span>
                   </div>
-                  
+
                   <div className="wallet-conn-modal-option-right">
                     {isConnecting ? (
                       <span className="wallet-conn-modal-connecting-spinner" />

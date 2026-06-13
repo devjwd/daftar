@@ -1,8 +1,11 @@
 .swap-page {
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   width: 100%;
-  min-height: calc(100vh - 200px);
+  /* Viewport minus navbar (~60px), footer (42px), and main-content padding (40px) */
+  height: calc(100vh - 145px);
+  overflow: hidden;
 }
 
 .page-nav {

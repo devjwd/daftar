@@ -434,6 +434,19 @@ export const TRACKED_DAPPS = [
     ],
     keywords: ["movematch", "move match", "fantasy_epl", "register_team", "buy_title", "reroll_title", "buy_guild", "reroll_guild"],
   }),
+  createDapp({
+    key: "movechi",
+    protocol: {
+      name: "Movechi",
+      type: "GameFi",
+      website: null,
+      addresses: ["0xfb232241c37c2006ccfd2d36a0ac18f8baff7fa06a3336ba88cfebcfc7a54ac3"],
+    },
+    logo: "/movechi.png",
+    contracts: ["0xfb232241c37c2006ccfd2d36a0ac18f8baff7fa06a3336ba88cfebcfc7a54ac3"],
+    modulePrefixes: ["0xfb232241c37c2006ccfd2d36a0ac18f8baff7fa06a3336ba88cfebcfc7a54ac3::"],
+    keywords: ["movechi"],
+  }),
 ];
 
 

@@ -33,7 +33,7 @@ const PROTOCOL_GROUPS = [
   },
   {
     title: 'Gaming & NFT',
-    options: ['BRKT', 'Moversmap', 'CapyGo', 'Tradeport']
+    options: ['BRKT', 'Moversmap', 'CapyGo', 'Tradeport', 'Movechi']
   },
   {
     title: 'Ecosystem',

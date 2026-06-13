@@ -14,9 +14,10 @@
   --swap-success: #32c48d;
   display: flex;
   justify-content: center;
-  align-items: center;
-  padding: 2.25rem 1rem 2.75rem;
-  min-height: calc(100vh - 120px);
+  align-items: flex-start;
+  padding: 10vh 1rem 1rem;
+  height: 100%;
+  overflow: hidden;
 }
 
 .swap-wrapper {
@@ -149,7 +150,7 @@
 .swap-input-group {
   padding: 1.4rem 1.2rem;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
+  border-radius: 16px;
   background: rgba(13, 10, 8, 0.6);
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
   min-height: 120px;
@@ -249,6 +250,13 @@
   font: 500 0.75rem/1 "IBM Plex Mono", "Courier New", monospace;
 }
 
+.swap-token-price-right {
+  color: #726a64;
+  font: 500 0.75rem/1 "IBM Plex Mono", "Courier New", monospace;
+  margin-left: auto;
+  opacity: 0.8;
+}
+
 .dropdown-arrow-minimal {
   font-size: var(--font-size-sm);
   margin-left: 0.1rem;
@@ -258,34 +266,33 @@
 .quick-fill-group {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.8rem;
 }
 
 .quick-fill-btn {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: none;
+  background: transparent;
   color: #deb884;
-  font: 600 0.68rem/1 "Space Grotesk", "Avenir Next", sans-serif;
-  border-radius: 6px;
-  padding: 0.25rem 0.48rem;
+  opacity: 0.75;
+  font: 500 0.7rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+  padding: 0;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition: color 0.2s ease, opacity 0.2s ease;
 }
 
 .quick-fill-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(222, 184, 132, 0.3);
   color: #f4dcb8;
+  opacity: 1;
 }
 
 .quick-fill-btn:focus-visible {
-  outline: 2px solid #deb884;
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: none;
+  text-decoration: underline;
+  text-decoration-color: #deb884;
 }
 
 .swap-token-selector {
-  border-radius: 11px;
+  border-radius: 12px;
   border: 1px solid var(--swap-border);
   padding: 0.44rem 0.64rem;
   background: rgba(28, 22, 19, 0.95);
@@ -331,8 +338,8 @@
 
 .token-icon-mini,
 .token-logo-mini {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -445,11 +452,11 @@
   width: 100%;
   margin-top: 0.9rem;
   border: none;
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 0.9rem;
-  background: linear-gradient(100deg, #c79665 0%, #cda169 52%, #f0c899 100%);
-  color: #221a16;
-  font: 700 0.9rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+  background: linear-gradient(100deg, #deb884 0%, #cda169 50%, #deb884 100%);
+  color: #161210;
+  font: 700 1rem/1 "Space Grotesk", "Avenir Next", sans-serif;
   letter-spacing: 0.01em;
   cursor: pointer;
   display: inline-flex;
@@ -797,11 +804,14 @@
 
 .token-selector-panel {
   width: min(440px, 92vw);
-  border-radius: 18px;
-  border: 1px solid var(--swap-border);
-  background: linear-gradient(165deg, rgba(33, 26, 23, 0.96), rgba(21, 16, 14, 0.93));
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 10% -10%, rgba(222, 184, 132, 0.12), transparent 44%),
+    radial-gradient(circle at 90% 110%, rgba(222, 184, 132, 0.06), transparent 40%),
+    linear-gradient(160deg, #181310, #0f0b09);
   box-shadow: 0 28px 65px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
+  position: relative;
 }
 
 .settings-panel {
@@ -813,15 +823,15 @@
     radial-gradient(circle at 90% 110%, rgba(222, 184, 132, 0.06), transparent 40%),
     linear-gradient(160deg, #181310, #0f0b09);
   box-shadow: 0 28px 75px rgba(0, 0, 0, 0.75), 0 0 40px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
+  position: relative;
 }
 
 .token-selector-header {
-  padding: 0.95rem 1rem;
+  padding: 1.2rem 1.4rem 0.95rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--swap-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .settings-header {
@@ -836,6 +846,8 @@
   margin: 0;
   color: var(--swap-text);
   font-size: var(--font-size-md);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .settings-header h3 {
@@ -847,15 +859,19 @@
 }
 
 .close-btn {
+  position: absolute;
+  top: 12px;
+  right: -46px;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: 50%;
   border: 1px solid var(--swap-border);
   background: rgba(30, 23, 20, 0.82);
   color: var(--text-secondary);
   cursor: pointer;
   display: grid;
   place-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .close-btn:hover {
@@ -1045,9 +1061,36 @@
   flex-wrap: wrap;
 }
 
+.quote-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--swap-muted);
+  width: auto;
+  height: 36px;
+  padding: 0 0.5rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quote-countdown {
+  font: 600 0.7rem/1 "Space Grotesk", "Avenir Next", sans-serif;
+  color: var(--swap-accent);
+  margin-right: 0.1rem;
+}
+
+.quote-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--swap-text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
 .slippage-btn {
-  border-radius: 999px;
-  /* Tactile pill */
+  border-radius: 8px;
+  /* Structured rectangle */
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.02);
   color: rgba(255, 255, 255, 0.6);
@@ -1198,9 +1241,9 @@
 
 .settings-reset-btn,
 .settings-save-btn {
-  border-radius: 999px;
-  /* Pill buttons */
-  padding: 0.55rem 1.1rem;
+  border-radius: 12px;
+  /* Structured buttons */
+  padding: 0.65rem 1.2rem;
   font-weight: 700;
   font-size: var(--font-size-sm);
   cursor: pointer;

@@ -438,7 +438,8 @@ function enrichTransaction(
     { name: 'Move Match', addresses: ['0xf598f0'], keywords: ['movematch', 'fantasy_epl'] },
     { name: 'Route-X', addresses: ['0x201136'], keywords: ['routex'] },
     { name: 'Movement Bridge', addresses: [], keywords: ['bridge'] },
-    { name: 'Capygo', addresses: ['0x8b02d210a22482ba7c36c55629716f36aaff65536971fceae73ec4227ab3022a', '0xfb232241c37c2006ccfd2d36a0ac18f8baff7fa06a3336ba88cfebcfc7a54ac3'], keywords: ['capygo', 'charge_miner'] },
+    { name: 'Capygo', addresses: ['0x8b02d210a22482ba7c36c55629716f36aaff65536971fceae73ec4227ab3022a'], keywords: ['capygo', 'charge_miner'] },
+    { name: 'Movechi', addresses: ['0xfb232241c37c2006ccfd2d36a0ac18f8baff7fa06a3336ba88cfebcfc7a54ac3'], keywords: ['movechi'] },
     { name: 'Razor DEX', addresses: ['0x4c5058bc4cd77fe207b8b9990e8af91e1055b814073f0596068e3b95a7ccd31a', '0xc4e68f29fa608d2630d11513c8de731b09a975f2f75ea945160491b9bfd36992', '0xc36ceb6d7b137cea4897d4bc82d8e4d8be5f964c4217dbc96b0ba03cc64070f4'], keywords: ['razordex', 'razor', 'amm_router', 'fungible_asset_router'] },
     { name: 'Asspad', addresses: ['0x880a0e567964e7a9fdc5370da9f2f82139c27927534a4a73ea2e19ffc509a8a'], keywords: ['asspad', 'mint_edition_nfts'] },
     { name: 'Daftar', addresses: ['0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69'], keywords: ['daftar', 'create_badge'] }

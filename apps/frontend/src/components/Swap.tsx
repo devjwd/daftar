@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useMovementClient } from "../hooks/useMovementClient";
 import { getSwapSettings, updateSwapSettings } from "../services/adminService";
@@ -256,6 +256,7 @@ const formatDisplayAmount = (symbol, quantity) => {
 
 const Swap = ({ balances, onSwapSuccess }) => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [swapComplete, setSwapComplete] = useState(null);
   const [lang, setLang] = useState(getStoredLanguagePreference());
 
@@ -294,6 +295,8 @@ const Swap = ({ balances, onSwapSuccess }) => {
   const [isQuoting, setIsQuoting] = useState(false);
   const [routingResult, setRoutingResult] = useState(null);
   const [optimisticBalanceDeltas, setOptimisticBalanceDeltas] = useState({});
+  const [quoteCountdown, setQuoteCountdown] = useState(0);
+  const [manualRefreshKey, setManualRefreshKey] = useState(0);
 
   const abortRef = useRef(null);
   const chainSettingsLoadedRef = useRef(false);
@@ -576,7 +579,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
     return () => clearTimeout(timer);
   }, [fetchQuote]);
 
-  // Auto re-quote every 10s while a valid pair/amount is selected.
+  // Auto re-quote countdown
   useEffect(() => {
     const hasValidQuoteInput =
       Boolean(fromToken) &&
@@ -585,41 +588,95 @@ const Swap = ({ balances, onSwapSuccess }) => {
       Boolean(fromAmount) &&
       parseFloat(fromAmount) > 0;
 
-    if (!hasValidQuoteInput) return undefined;
+    if (!hasValidQuoteInput) {
+      setQuoteCountdown(0);
+      return undefined;
+    }
+
+    setQuoteCountdown(AUTO_QUOTE_INTERVAL_MS / 1000);
 
     const interval = setInterval(() => {
-      fetchQuote();
-    }, AUTO_QUOTE_INTERVAL_MS);
+      setQuoteCountdown((prev) => {
+        if (prev <= 1) {
+          fetchQuote();
+          return AUTO_QUOTE_INTERVAL_MS / 1000;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
     return () => clearInterval(interval);
-  }, [fromToken, toToken, fromAmount, fetchQuote]);
+  }, [fromToken, toToken, fromAmount, fetchQuote, manualRefreshKey]);
 
   // Cleanup
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Keep selected tokens valid if balances/token list changes.
+  // Keep selected tokens valid if balances/token list changes, and sync initial state from URL.
   useEffect(() => {
+    if (!availableTokens.length) return;
+
     const tokenById = new Map(availableTokens.map((token) => [token.id, token]));
+    const tokenBySymbol = new Map(availableTokens.map((token) => [token.symbol?.toUpperCase(), token]));
     const availableIds = new Set(tokenById.keys());
 
-    if (fromToken && !availableIds.has(fromToken.id)) {
+    let currentFrom = fromToken;
+    let currentTo = toToken;
+
+    // 1. Initialize from URL if missing
+    if (!currentFrom) {
+      const fromParam = searchParams.get('from')?.toUpperCase();
+      if (fromParam && tokenBySymbol.has(fromParam)) {
+        currentFrom = tokenBySymbol.get(fromParam);
+        setFromToken(currentFrom);
+      }
+    }
+
+    if (!currentTo) {
+      const toParam = searchParams.get('to')?.toUpperCase();
+      if (toParam && tokenBySymbol.has(toParam)) {
+        currentTo = tokenBySymbol.get(toParam);
+        setToToken(currentTo);
+      }
+    }
+
+    // 2. Validate current tokens against available list
+    if (currentFrom && !availableIds.has(currentFrom.id)) {
       setFromToken(null);
-    } else if (fromToken) {
-      const latestFromToken = tokenById.get(fromToken.id);
-      if (latestFromToken && latestFromToken !== fromToken) {
+    } else if (currentFrom) {
+      const latestFromToken = tokenById.get(currentFrom.id);
+      if (latestFromToken && latestFromToken !== currentFrom) {
         setFromToken(latestFromToken);
       }
     }
 
-    if (toToken && !availableIds.has(toToken.id)) {
+    if (currentTo && !availableIds.has(currentTo.id)) {
       setToToken(null);
-    } else if (toToken) {
-      const latestToToken = tokenById.get(toToken.id);
-      if (latestToToken && latestToToken !== toToken) {
+    } else if (currentTo) {
+      const latestToToken = tokenById.get(currentTo.id);
+      if (latestToToken && latestToToken !== currentTo) {
         setToToken(latestToToken);
       }
     }
-  }, [availableTokens, fromToken, toToken]);
+  }, [availableTokens, fromToken, toToken, searchParams]);
+
+  // Sync state changes back to URL
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    let changed = false;
+
+    if (fromToken?.symbol && nextParams.get('from') !== fromToken.symbol) {
+      nextParams.set('from', fromToken.symbol);
+      changed = true;
+    }
+    if (toToken?.symbol && nextParams.get('to') !== toToken.symbol) {
+      nextParams.set('to', toToken.symbol);
+      changed = true;
+    }
+
+    if (changed) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [fromToken?.symbol, toToken?.symbol, searchParams, setSearchParams]);
 
   // Auto-dismiss terminal toasts (except critical errors or pending states).
   useEffect(() => {
@@ -984,40 +1041,34 @@ const Swap = ({ balances, onSwapSuccess }) => {
             </div>
 
             <div className={`${styles['settings-section']} ${styles['aggregator-section']}`}>
-              <div className={styles['settings-section-head']}>
-                <label>{t(lang, 'swapAggregator')}</label>
-                <span className={styles['settings-hint']}>{swapSettings.enableMosaicToggle ? "Select your preferred routing" : "Fixed Provider"}</span>
-              </div>
-
               <div className={styles['aggregator-panel']}>
                 {swapSettings.enableMosaicToggle ? (
-                  <div className={styles['aggregator-list']} role="list">
-                    <label className={styles['aggregator-toggle-row']} style={{ cursor: 'pointer' }}>
-                      <span className={styles['aggregator-label']}>Aggregator</span>
-                      <div className={`${styles['switch']} ${selectedProvider === 'mosaic' ? styles['switch-on'] : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={selectedProvider === 'mosaic'}
-                          onChange={(e) => setSelectedProvider(e.target.checked ? 'mosaic' : 'yuzu')}
-                          className={styles['switch-input']}
-                        />
-                        <span className={styles['switch-slider']}></span>
-                      </div>
+                  <div className={styles['aggregator-toggle-row']}>
+                    <span className={styles['aggregator-label']}>Aggregator</span>
+                    <label className={`${styles['switch']} ${selectedProvider === 'mosaic' ? styles['switch-on'] : ''}`}>
+                      <input
+                        type="checkbox"
+                        className={styles['switch-input']}
+                        checked={selectedProvider === 'mosaic'}
+                        onChange={(e) => setSelectedProvider(e.target.checked ? 'mosaic' : 'yuzu')}
+                      />
+                      <span className={styles['switch-slider']}></span>
                     </label>
                   </div>
                 ) : (
-                  <div className={styles['aggregator-list']} role="list">
-                    <div className={styles['aggregator-row']}>
-                      <span className={styles['aggregator-label']}>{swapSettings.defaultProvider === 'yuzu' ? 'Yuzu' : 'Mosaic'}</span>
-                      <span className={styles['aggregator-badge']}>{t(lang, 'swapActive')}</span>
-                    </div>
+                  <div className={styles['aggregator-row']}>
+                    <span className={styles['aggregator-label']}>{swapSettings.defaultProvider === 'yuzu' ? 'Yuzu DEX' : 'Mosaic Aggregator'}</span>
+                    <span className={styles['aggregator-badge']}>{t(lang, 'swapActive')}</span>
                   </div>
                 )}
               </div>
             </div>
 
             <div className={styles['settings-footer']}>
-              <button className={styles['settings-reset-btn']} onClick={() => setSlippage(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE)}>
+              <button className={styles['settings-reset-btn']} onClick={() => {
+                setSlippage(swapSettings.defaultSlippagePercent || DEFAULT_SLIPPAGE);
+                setSelectedProvider(swapSettings.defaultProvider || 'yuzu');
+              }}>
                 {t(lang, 'swapReset')}
               </button>
               <button
@@ -1025,6 +1076,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 onClick={() => {
                   const next = updateSwapSettings({
                     defaultSlippagePercent: slippage,
+                    defaultProvider: selectedProvider,
                   });
                   setSwapSettings(normalizeMosaicSwapSettings(next));
                   setShowSettings(false);
@@ -1056,10 +1108,17 @@ const Swap = ({ balances, onSwapSuccess }) => {
             <div className={styles['swap-header-actions']}>
               <button
                 className={`${styles['quote-btn']} ${isQuoting ? styles['quoting'] : ""}`}
-                onClick={fetchQuote}
-                title="Instant Quote"
+                onClick={() => {
+                  fetchQuote();
+                  setManualRefreshKey(k => k + 1);
+                }}
+                title="Refresh Quote"
                 disabled={!canRequestInstantQuote}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
               >
+                {canRequestInstantQuote && quoteCountdown > 0 && !isQuoting && (
+                  <span className={styles['quote-countdown']}>{quoteCountdown}s</span>
+                )}
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                   <path d="M12 3a9 9 0 1 0 8.94 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                   <path d="M21 3v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -1094,6 +1153,13 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 <div className={styles['swap-input-header']}>
                   <span className={styles['swap-input-label']}>From</span>
                   <div className={styles['swap-balance-row']}>
+                    {fromToken && (
+                      <div className={styles['quick-fill-group']} aria-label="Quick amount selector" style={{ marginRight: '0.6rem' }}>
+                        <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(25)}>25%</button>
+                        <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(50)}>50%</button>
+                        <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(100)}>Max</button>
+                      </div>
+                    )}
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path>
                       <path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path>
@@ -1121,13 +1187,9 @@ const Swap = ({ balances, onSwapSuccess }) => {
                   <span className={styles['swap-usd-value-left']}>
                     {fromAmount ? formatUsd(fromAmount, resolveTokenPrice(fromToken)) : "$0.00"}
                   </span>
-                  {fromToken && (
-                    <div className={styles['quick-fill-group']} aria-label="Quick amount selector">
-                      <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(25)}>25%</button>
-                      <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(50)}>50%</button>
-                      <button type="button" className={styles['quick-fill-btn']} onClick={() => handlePercentClick(100)}>Max</button>
-                    </div>
-                  )}
+                  <span className={styles['swap-token-price-right']}>
+                    {fromToken && resolveTokenPrice(fromToken) > 0 ? formatUsd("1", resolveTokenPrice(fromToken)) : ""}
+                  </span>
                 </div>
               </div>
 
@@ -1168,6 +1230,9 @@ const Swap = ({ balances, onSwapSuccess }) => {
                 <div className={styles['swap-input-footer']}>
                   <span className={styles['swap-usd-value-left']}>
                     {toAmount ? formatUsd(toAmount, resolveTokenPrice(toToken)) : "$0.00"}
+                  </span>
+                  <span className={styles['swap-token-price-right']}>
+                    {toToken && resolveTokenPrice(toToken) > 0 ? formatUsd("1", resolveTokenPrice(toToken)) : ""}
                   </span>
                 </div>
               </div>
@@ -1318,7 +1383,16 @@ const Swap = ({ balances, onSwapSuccess }) => {
 // ===========================================================================
 
 function TokenBadge({ token, getTokenLogo }) {
-  if (!token) return <span className={styles['select-token']}>SELECT TOKEN <span className={styles['dropdown-arrow-minimal']}>&#x2304;</span></span>;
+  if (!token) {
+    return (
+      <span className={styles['select-token']}>
+        SELECT TOKEN
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={styles['dropdown-arrow-minimal']}>
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </span>
+    );
+  }
   const logo = getTokenLogo(token);
   return (
     <>
@@ -1328,7 +1402,9 @@ function TokenBadge({ token, getTokenLogo }) {
         <span className={styles['token-icon-mini']}>{token.symbol?.charAt(0).toUpperCase()}</span>
       )}
       <span className={styles['token-symbol']}>{token.symbol}</span>
-      <span className={styles['dropdown-arrow-minimal']}>&#x2304;</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={styles['dropdown-arrow-minimal']}>
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
     </>
   );
 }
@@ -1353,7 +1429,12 @@ function TokenSelectorPanel({ selectedToken, onSelect, onClose, excludeToken, to
       <div className={styles['token-selector-panel']} onClick={(e) => e.stopPropagation()}>
         <div className={styles['token-selector-header']}>
           <h3>{t(lang, 'swapSelectToken')}</h3>
-          <button className={styles['close-btn']} onClick={onClose}>×</button>
+          <button className={styles['close-btn']} onClick={onClose}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
 
         <div className={styles['token-search']}>

@@ -7,6 +7,7 @@ import { DEFI_PROTOCOL_VISUALS, getLogoForLabel } from '../../config/display';
 import { findEntityByAddress } from '../../services/entityStore';
 import { getProfile, getProfileAsync } from '../../services/profileService';
 import { areAddressesEqual } from '../../utils/address';
+import { getTransactionByHash } from '../../services/transactionService';
 
 interface TransactionVisualizerProps {
   tx: any;
@@ -58,6 +59,21 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
   const cleanHash = useMemo(() => {
     return String(tx?.tx_hash || '').replace(/^v/i, '');
   }, [tx]);
+
+  const [counterpartyAddress, setCounterpartyAddress] = useState<string | null>(tx?.counterparty_address || null);
+
+  useEffect(() => {
+    setCounterpartyAddress(tx?.counterparty_address || null);
+    if (!tx?.counterparty_address && cleanHash) {
+      let active = true;
+      getTransactionByHash(cleanHash).then(fullTx => {
+        if (active && fullTx?.counterparty_address) {
+          setCounterpartyAddress(fullTx.counterparty_address);
+        }
+      }).catch(err => console.log('Visualizer fetch error', err));
+      return () => { active = false; };
+    }
+  }, [tx?.counterparty_address, cleanHash]);
 
   // Transaction details
   const txType = String(tx?.tx_type || 'other').toLowerCase();
@@ -150,6 +166,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
     return {
       label: centerNodeBranding.label,
       subLabel: formatAddress(tx.wallet_address || '0xUserAddress'),
+      address: tx.wallet_address,
       isWallet: true,
       logo: centerNodeBranding.logo,
       color: centerNodeBranding.badgeColor,
@@ -161,10 +178,11 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
 
   const counterpartyNode = useMemo(() => {
     if (isSimpleTransfer) {
-      const entity = tx.counterparty_address ? findEntityByAddress(tx.counterparty_address) : null;
+      const entity = counterpartyAddress ? findEntityByAddress(counterpartyAddress) : null;
       return {
         label: entity ? entity.name : (isReceived ? 'Sender' : 'Recipient'),
-        subLabel: tx.counterparty_address ? formatAddress(tx.counterparty_address) : (isReceived ? 'Source Wallet' : 'Destination Wallet'),
+        subLabel: counterpartyAddress ? formatAddress(counterpartyAddress) : (isReceived ? 'Source Wallet' : 'Destination Wallet'),
+        address: counterpartyAddress,
         isWallet: true,
         logo: entity ? (entity.logo_url || getLogoForLabel(entity.name)) : null,
         color: isReceived ? '#16c784' : '#ff6b6b',
@@ -173,16 +191,17 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
     } else {
       return {
         label: dappName,
-        subLabel: tx.counterparty_address
-          ? formatAddress(tx.counterparty_address)
+        subLabel: counterpartyAddress
+          ? formatAddress(counterpartyAddress)
           : (tx.dapp_contract ? formatAddress(tx.dapp_contract) : 'DeFi Protocol'),
+        address: counterpartyAddress || tx.dapp_contract,
         isWallet: false,
         logo: protocolLogo,
         color: '#cda169',
         shadow: '0 0 15px rgba(205, 161, 105, 0.1)'
       };
     }
-  }, [isSimpleTransfer, isReceived, tx, dappName, protocolLogo]);
+  }, [isSimpleTransfer, isReceived, tx, dappName, protocolLogo, counterpartyAddress]);
 
   const leftNodeDetails = showWalletOnRight ? counterpartyNode : walletNode;
   const rightNodeDetails = showWalletOnRight ? walletNode : counterpartyNode;
@@ -269,6 +288,13 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
 
   const handleNodeMouseUp = () => {
     draggedNodeRef.current = null;
+  };
+
+  const handleNodeDoubleClick = (e: React.MouseEvent, address?: string) => {
+    e.stopPropagation();
+    if (address) {
+      window.open(`/profile/${address}`, '_blank');
+    }
   };
 
   // Zooming
@@ -424,6 +450,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
                 <div
                   className={styles.node}
                   onMouseDown={(e) => handleNodeMouseDown('left', e)}
+                  onDoubleClick={(e) => handleNodeDoubleClick(e, leftNodeDetails.address)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <div
                     className={styles.nodeContent}
@@ -457,6 +485,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
                 <div
                   className={styles.node}
                   onMouseDown={(e) => handleNodeMouseDown('right', e)}
+                  onDoubleClick={(e) => handleNodeDoubleClick(e, rightNodeDetails.address)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <div
                     className={styles.nodeContent}
@@ -541,8 +571,8 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Recipient/dApp</span>
-                <span className={styles.infoValueAddress} title={tx.counterparty_address || tx.dapp_contract}>
-                  {tx.counterparty_address || tx.dapp_contract ? formatAddressLong(tx.counterparty_address || tx.dapp_contract) : 'N/A'}
+                <span className={styles.infoValueAddress} title={counterpartyAddress || tx.dapp_contract}>
+                  {counterpartyAddress || tx.dapp_contract ? formatAddressLong(counterpartyAddress || tx.dapp_contract) : 'N/A'}
                 </span>
               </div>
               {tx.gas_fee != null && (
