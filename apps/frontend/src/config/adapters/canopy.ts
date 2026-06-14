@@ -115,7 +115,7 @@ export const canopyAdapter = [
           try {
             const vaultsResult = await client.view({
               payload: {
-                function: `${CANOPY_CONFIG.coreVaultsAddress}::satay::vaults_view`,
+                function: `${CANOPY_CONFIG.coreVaultsAddress}::vault::vaults`,
                 typeArguments: [],
                 functionArguments: []
               }
