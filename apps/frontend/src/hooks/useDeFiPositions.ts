@@ -131,19 +131,21 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
       return;
     }
 
-    if (!apiClient) {
-      if (clientError) setError(clientError.message || "Movement client error");
-      return;
-    }
-
-    if (fetchInProgress.current && !forceRefresh) return;
-
     // Address changed — clear stale positions from previous address immediately
     const addressChanged = lastFetchedAddress.current !== currentTargetAddress;
     if (addressChanged) {
       setPositions([]);
       fetchGeneration.current += 1;
+      lastFetchedAddress.current = currentTargetAddress;
     }
+
+    if (!apiClient) {
+      if (clientError) setError(clientError.message || "Movement client error");
+      // Don't mark fetchInProgress as true, so it will retry when client loads
+      return;
+    }
+
+    if (fetchInProgress.current && !forceRefresh) return;
 
     const cachedSnapshot = loadPersistedDeFiPositions(currentTargetAddress);
     // Only serve cache if: address hasn't changed AND there's valid cached data AND not forced
@@ -154,7 +156,6 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
     }
 
     fetchInProgress.current = true;
-    lastFetchedAddress.current = currentTargetAddress;
     fetchGeneration.current += 1;
     const currentGeneration = fetchGeneration.current;
 
@@ -314,10 +315,11 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
     const balancesGrew = currentLength > lastBalancesLengthRef.current;
     lastBalancesLengthRef.current = currentLength;
 
-    // Force a fresh scan when the address changes or when new balance data arrives
-    const force = addressChanged || balancesGrew;
+    // Force a fresh scan when the address changes, or when new balance data arrives,
+    // or when the Movement client finally initializes
+    const force = addressChanged || balancesGrew || (!!client && !clientRef.current);
     void fetchPositions({ force });
-  }, [fetchPositions, targetAddress, priceMap, (balances || []).length]);
+  }, [fetchPositions, targetAddress, priceMap, (balances || []).length, client]);
 
   return { positions, loading, error, refresh: fetchPositions };
 };
