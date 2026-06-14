@@ -29,6 +29,7 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
         sender
         timestamp
         entry_function_id_str
+        payload
       }
       fungible_asset_activities {
         transaction_version
@@ -74,6 +75,7 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
         sender
         timestamp
         entry_function_id_str
+        payload
       }
       fungible_asset_activities {
         transaction_version
@@ -810,7 +812,8 @@ function enrichTransaction(
       gas_used: ut.gas_used != null ? Number(ut.gas_used) : null,
       gas_unit_price: ut.gas_unit_price != null ? Number(ut.gas_unit_price) : null,
       fungible_asset_activities: tx.fungible_asset_activities || [],
-      coin_activities: tx.coin_activities || []
+      coin_activities: tx.coin_activities || [],
+      payload: tx.user_transaction?.payload || null
     },
     is_processed: false
   };

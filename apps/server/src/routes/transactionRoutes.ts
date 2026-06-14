@@ -160,7 +160,6 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
       const txType = ACTION_TO_TX_TYPE[tx.action] || 'other';
       const visuals = TX_VISUALS[txType] || TX_VISUALS['other'];
 
-      // Resolve counterparty address from metadata activities
       let counterpartyAddress = null;
       const userAddress = wallet.toLowerCase();
       const rawActivities = [
@@ -172,6 +171,31 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
         if (owner && owner !== userAddress && owner !== '0x1' && owner !== '0x3' && owner !== '0xa' && owner !== '0x0000000000000000000000000000000000000000000000000000000000000001') {
           counterpartyAddress = act.owner_address || act.owner;
           break;
+        }
+      }
+
+      if (!counterpartyAddress) {
+        const sender = (tx.metadata?.sender || '').toLowerCase();
+        if (sender && sender !== userAddress) {
+          counterpartyAddress = tx.metadata.sender;
+        }
+      }
+
+      if (!counterpartyAddress) {
+        const functionArguments = Array.isArray(tx.metadata?.payload?.functionArguments)
+          ? tx.metadata.payload.functionArguments
+          : Array.isArray(tx.metadata?.payload?.arguments)
+            ? tx.metadata.payload.arguments
+            : [];
+        
+        for (const arg of functionArguments) {
+          if (typeof arg === 'string' && arg.startsWith('0x')) {
+            const normalizedArg = arg.toLowerCase();
+            if (normalizedArg && normalizedArg !== userAddress && normalizedArg !== '0x1' && normalizedArg !== '0x3' && normalizedArg !== '0xa' && normalizedArg !== '0x0000000000000000000000000000000000000000000000000000000000000001') {
+              counterpartyAddress = arg;
+              break;
+            }
+          }
         }
       }
 
