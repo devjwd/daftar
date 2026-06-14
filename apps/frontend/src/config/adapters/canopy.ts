@@ -39,7 +39,7 @@ export const canopyAdapter = [
         devLog(`Canopy: Found ${canopyPositions.length} positions in balances`);
 
         const processedVaults = new Set<string>();
-        const positions = await Promise.all((canopyPositions || []).map(async (b) => {
+        const positions = (await Promise.all((canopyPositions || []).map(async (b) => {
           const symbol = (b.metadata?.symbol || b.symbol || 'stMOVE').trim();
           const decimals = b.metadata?.decimals || 8;
           let amount = Number(b.amount || 0) / Math.pow(10, decimals);
@@ -92,6 +92,8 @@ export const canopyAdapter = [
             ? `${symbol} (${stakedError.slice(0, 15)})`
             : symbol;
 
+          if (amount <= 0) return null;
+
           return {
             id: `canopy_${b.asset_type || b.id || symbol}`,
             protocol: "canopy",
@@ -104,9 +106,9 @@ export const canopyAdapter = [
             value: amount.toFixed(4),
             usdValue: usdValue,
             underlying: symbol.toLowerCase().startsWith('st') ? symbol.slice(2) : (symbol.toLowerCase().startsWith('cv') ? symbol.slice(2) : "LP Tokens"),
-            type: "Liquidity"
+            type: "Staking"
           };
-        }));
+        }))).filter(Boolean);
 
         // 1b. Staked Balance Detection via View Calls (Fallback for vaults not in wallet balances)
         if (client) {
@@ -206,7 +208,7 @@ export const canopyAdapter = [
                       value: amount.toFixed(4),
                       usdValue: usdValue,
                       underlying: underlying,
-                      type: "Liquidity",
+                      type: "Staking",
                       source: "view_staked"
                     });
                   }
@@ -245,7 +247,7 @@ export const canopyAdapter = [
                   value: shares.toFixed(4),
                   usdValue: shares * movePrice,
                   underlying: "MOVE",
-                  type: "Liquidity",
+                  type: "Staking",
                   source: "resource"
                 });
               }

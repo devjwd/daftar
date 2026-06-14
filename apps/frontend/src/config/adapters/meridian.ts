@@ -85,9 +85,9 @@ export const meridianAdapter = [
     type: "Liquidity",
     searchString: "::pool::LPCoin", // Pattern to match in resources or indexer
 
-    discover: async ({ client, targetAddress, resources, priceMap }: any) => {
-      const balances = await getUserTokenBalances(targetAddress);
-      const lpBalances = balances.filter(b => {
+    discover: async ({ client, targetAddress, resources, balances, priceMap }: any) => {
+      const allBalances = (balances && balances.length > 0) ? balances : await getUserTokenBalances(targetAddress);
+      const lpBalances = allBalances.filter((b: any) => {
         const symbol = b.metadata?.symbol || b.symbol || '';
         const name = b.metadata?.name || b.name || '';
         return /MER-LP|Meridian LP/i.test(symbol) || /MER-LP|Meridian LP/i.test(name);

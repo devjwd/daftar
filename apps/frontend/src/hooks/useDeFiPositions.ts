@@ -244,9 +244,9 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
               balances: providedBalances || balancesRef.current
             };
             
-            // Add a 5-second timeout to prevent any single slow adapter from hanging the dashboard
+            // Add a 15-second timeout to prevent any single slow adapter from hanging the dashboard
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error(`timeout after 5000ms`)), 5000)
+              setTimeout(() => reject(new Error(`timeout after 15000ms`)), 15000)
             );
             
             const found = await Promise.race([
