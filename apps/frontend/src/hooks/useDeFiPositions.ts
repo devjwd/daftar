@@ -232,46 +232,50 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
         }
       }
 
-      // 3. Functional Discovery (Async)
-      // Calls specialized discovery methods (Indexer, NFT scans, View functions)
-      const discoveryResults = await Promise.all(
-        (ALL_ADAPTERS as any[]).filter(a => typeof a.discover === 'function').map(async (adapter) => {
-          try {
-            const context = {
-              client: apiClient,
-              targetAddress: currentTargetAddress,
-              priceMap: providedPriceMap || priceMapRef.current,
-              resources,
-              balances: providedBalances || balancesRef.current
-            };
-            
-            // Add a 8-second timeout to prevent any single slow adapter from hanging the dashboard
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error(`timeout after 8000ms`)), 8000)
-            );
-            
-            const found = await Promise.race([
-              adapter.discover(context),
-              timeoutPromise
-            ]) as any[];
-            
-            return Array.isArray(found) ? found : [];
-          } catch (err) {
-            devLog(`  ⚠️ Adapter ${adapter.id} discovery error:`, err.message);
-            return [];
-          }
-        })
-      );
+      // 3. Functional Discovery (Async - Streaming per adapter)
+      // Each adapter runs independently. As soon as one resolves, we merge results
+      // and update the UI immediately — no waiting for the slowest adapter.
+      const adaptorsWithDiscover = (ALL_ADAPTERS as any[]).filter(a => typeof a.discover === 'function');
 
-      // Merge functional discovery results
-      discoveryResults.flat().forEach(pos => {
-        if (pos && pos.id && !discoveredMap.has(pos.id)) {
-          discoveredMap.set(pos.id, {
-            ...pos,
-            source: pos.source || "discovery"
-          });
+      await Promise.all(adaptorsWithDiscover.map(async (adapter) => {
+        try {
+          const context = {
+            client: apiClient,
+            targetAddress: currentTargetAddress,
+            priceMap: providedPriceMap || priceMapRef.current,
+            resources,
+            balances: providedBalances || balancesRef.current
+          };
+
+          const ADAPTER_TIMEOUT_MS = 12000;
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`${adapter.id} timed out`)), ADAPTER_TIMEOUT_MS)
+          );
+
+          const found = await Promise.race([
+            adapter.discover(context),
+            timeoutPromise
+          ]) as any[];
+
+          const results = Array.isArray(found) ? found : [];
+
+          if (results.length > 0) {
+            results.forEach((pos: any) => {
+              if (pos && pos.id && !discoveredMap.has(pos.id)) {
+                discoveredMap.set(pos.id, { ...pos, source: pos.source || "discovery" });
+              }
+            });
+
+            // Emit a partial UI update so positions appear as each adapter resolves
+            if (currentGeneration === fetchGeneration.current) {
+              const partial = Array.from(discoveredMap.values()).sort((a, b) => (b.numericValue || 0) - (a.numericValue || 0));
+              setPositions(partial);
+            }
+          }
+        } catch (err) {
+          devLog(`  ⚠️ Adapter ${adapter.id} discovery error:`, err.message);
         }
-      });
+      }));
 
       const finalPositions = Array.from(discoveredMap.values()).sort((a, b) => (b.numericValue || 0) - (a.numericValue || 0));
 

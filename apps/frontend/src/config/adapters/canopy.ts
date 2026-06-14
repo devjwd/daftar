@@ -132,91 +132,75 @@ export const canopyAdapter = [
 
             vaultAddresses = vaultAddresses.filter(addr => addr && addr.startsWith("0x"));
 
-            for (const vaultAddr of vaultAddresses) {
-              if (processedVaults.has(vaultAddr.toLowerCase())) continue;
+            // Run all vault staked-balance checks in parallel instead of sequentially
+            const vaultResults = await Promise.all(
+              vaultAddresses
+                .filter(addr => !processedVaults.has(addr.toLowerCase()))
+                .map(async (vaultAddr) => {
+                  try {
+                    const stakedBalanceRes = await client.view({
+                      payload: {
+                        function: `${CANOPY_CONFIG.rewardsAddress}::multi_rewards::get_user_staked_balance`,
+                        typeArguments: [],
+                        functionArguments: [targetAddress, vaultAddr]
+                      }
+                    });
 
-              try {
-                const stakedBalanceRes = await client.view({
-                  payload: {
-                    function: `${CANOPY_CONFIG.rewardsAddress}::multi_rewards::get_user_staked_balance`,
-                    typeArguments: [],
-                    functionArguments: [targetAddress, vaultAddr]
-                  }
-                });
+                    const rawBalance = Number(stakedBalanceRes[0] || 0);
+                    if (rawBalance <= 0) return null;
 
-                const rawBalance = Number(stakedBalanceRes[0] || 0);
-                if (rawBalance > 0) {
-                  // Check if we have this vault in allBalances to get metadata
-                  const matchingBalance = allBalances.find(b => 
-                    b.asset_type && b.asset_type.toLowerCase() === vaultAddr.toLowerCase()
-                  );
+                    const matchingBalance = allBalances.find((b: any) =>
+                      b.asset_type && b.asset_type.toLowerCase() === vaultAddr.toLowerCase()
+                    );
 
-                  let symbol = matchingBalance?.metadata?.symbol || matchingBalance?.symbol || "";
-                  let name = matchingBalance?.metadata?.name || matchingBalance?.name || "";
-                  let decimals = matchingBalance?.metadata?.decimals || 8;
+                    let symbol = matchingBalance?.metadata?.symbol || matchingBalance?.symbol || "";
+                    let name = matchingBalance?.metadata?.name || matchingBalance?.name || "";
+                    let decimals = matchingBalance?.metadata?.decimals || 8;
 
-                  if (!symbol) {
-                    const [symbolRes, nameRes, decimalsRes] = await Promise.all([
-                      client.view({
-                        payload: {
-                          function: "0x1::fungible_asset::symbol",
-                          typeArguments: [],
-                          functionArguments: [vaultAddr]
-                        }
-                      }).catch(() => null),
-                      client.view({
-                        payload: {
-                          function: "0x1::fungible_asset::name",
-                          typeArguments: [],
-                          functionArguments: [vaultAddr]
-                        }
-                      }).catch(() => null),
-                      client.view({
-                        payload: {
-                          function: "0x1::fungible_asset::decimals",
-                          typeArguments: [],
-                          functionArguments: [vaultAddr]
-                        }
-                      }).catch(() => null)
-                    ]);
+                    if (!symbol) {
+                      const [symbolRes, nameRes, decimalsRes] = await Promise.all([
+                        client.view({ payload: { function: "0x1::fungible_asset::symbol", typeArguments: [], functionArguments: [vaultAddr] } }).catch(() => null),
+                        client.view({ payload: { function: "0x1::fungible_asset::name", typeArguments: [], functionArguments: [vaultAddr] } }).catch(() => null),
+                        client.view({ payload: { function: "0x1::fungible_asset::decimals", typeArguments: [], functionArguments: [vaultAddr] } }).catch(() => null)
+                      ]);
+                      symbol = String(symbolRes?.[0] || "cvMOVE");
+                      name = String(nameRes?.[0] || `Canopy Staked ${symbol}`);
+                      decimals = Number(decimalsRes?.[0] || 8);
+                    }
 
-                    symbol = String(symbolRes?.[0] || "cvMOVE");
-                    name = String(nameRes?.[0] || `Canopy Staked ${symbol}`);
-                    decimals = Number(decimalsRes?.[0] || 8);
-                  }
+                    const amount = rawBalance / Math.pow(10, decimals);
+                    const price = resolveTokenPrice(priceMap, vaultAddr, symbol);
+                    const usdValue = amount * price;
+                    const isSt = symbol.toLowerCase().startsWith('st');
+                    const isCv = symbol.toLowerCase().startsWith('cv');
 
-                  const amount = rawBalance / Math.pow(10, decimals);
-                  const price = resolveTokenPrice(priceMap, vaultAddr, symbol);
-                  const usdValue = amount * price;
-
-                  const isSt = symbol.toLowerCase().startsWith('st');
-                  const isCv = symbol.toLowerCase().startsWith('cv');
-                  const cleanName = isSt ? `Canopy Liquid ${symbol.slice(2)}` : (isCv ? `Canopy Vault ${symbol.slice(2)}` : name);
-                  const underlying = isSt ? symbol.slice(2) : (isCv ? symbol.slice(2) : symbol);
-
-                  // De-duplicate if somehow already processed
-                  if (!positions.some(p => p.id === `canopy_staked_${vaultAddr}`)) {
-                    positions.push({
+                    return {
                       id: `canopy_staked_${vaultAddr}`,
                       protocol: "canopy",
                       protocolName: "Canopy Finance",
                       protocolWebsite: "https://app.canopyhub.xyz/",
-                      symbol: symbol,
-                      name: cleanName,
-                      amount: amount,
+                      symbol,
+                      name: isSt ? `Canopy Liquid ${symbol.slice(2)}` : (isCv ? `Canopy Vault ${symbol.slice(2)}` : name),
+                      amount,
                       numericValue: usdValue,
                       value: amount.toFixed(4),
-                      usdValue: usdValue,
-                      underlying: underlying,
+                      usdValue,
+                      underlying: isSt ? symbol.slice(2) : (isCv ? symbol.slice(2) : symbol),
                       type: "Liquidity",
                       source: "view_staked"
-                    });
+                    };
+                  } catch (vaultErr) {
+                    devLog(`Canopy: Error fetching staked balance for vault ${vaultAddr}:`, vaultErr);
+                    return null;
                   }
-                }
-              } catch (vaultErr) {
-                devLog(`Canopy: Error fetching staked balance for vault ${vaultAddr}:`, vaultErr);
+                })
+            );
+
+            vaultResults.forEach((pos) => {
+              if (pos && !positions.some((p: any) => p.id === pos.id)) {
+                positions.push(pos);
               }
-            }
+            });
           } catch (vaultsErr) {
             devLog("Canopy: Error fetching vaults list:", vaultsErr);
           }
