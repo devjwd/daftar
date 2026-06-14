@@ -163,6 +163,7 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
     setError(null);
 
     devLog(`🔍 [DeFi Discovery] Scanning ${currentTargetAddress}... (force=${forceRefresh})`);
+    console.error(`[DEBUG_GHOST_POSITION] STARTING fetchPositions for ${currentTargetAddress}. forceRefresh=${forceRefresh}, addressChanged=${addressChanged}`);
 
     try {
       // 1. Fetch account resources (cached unless forced)
@@ -267,6 +268,11 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
           ]) as any[];
 
           const results = Array.isArray(found) ? found : [];
+
+          // DEBUG LOGGING
+          if (results.length > 0) {
+            console.error(`[DEBUG_GHOST_POSITION] Adapter ${adapter.id} returned ${results.length} positions for address ${currentTargetAddress}. Resources length: ${resources.length}. Balances length: ${(providedBalances || balancesRef.current || []).length}. Data:`, JSON.stringify(results));
+          }
 
           if (results.length > 0) {
             results.forEach((pos: any) => {
