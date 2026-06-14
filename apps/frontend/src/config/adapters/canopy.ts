@@ -19,13 +19,34 @@ export const canopyAdapter = [
         const allBalances = (balances && balances.length > 0) ? balances : await getUserTokenBalances(targetAddress);
         devLog(`Canopy: Processing ${allBalances?.length || 0} balances`);
 
+        // Fetch vaults data upfront for exchange rate calculations
+        let vaultAddresses: string[] = [];
+        let vaultDataMap = new Map();
+        if (client && CANOPY_CONFIG.coreVaultsAddress) {
+          try {
+            const vaultsResult = await client.view({
+              payload: { function: `${CANOPY_CONFIG.coreVaultsAddress}::vault::vaults_view`, typeArguments: [], functionArguments: [0, 100] }
+            });
+            if (Array.isArray(vaultsResult) && vaultsResult[0]?.vaults) {
+              vaultsResult[0].vaults.forEach((v: any) => {
+                if (v.shares_address) {
+                  vaultAddresses.push(v.shares_address);
+                  vaultDataMap.set(v.shares_address.toLowerCase(), v);
+                }
+              });
+            }
+          } catch (e) {
+            devLog("Canopy: Failed to fetch vaults_view upfront", e);
+          }
+        }
+
         // 1. FA-Based Detection
         const canopyPositions = (allBalances || []).filter(b => {
           const symbol = (b.metadata?.symbol || b.symbol || '').trim().toUpperCase();
           const type = String(b.asset_type || '').toLowerCase();
 
           // stMOVE, stETH, CNP, CNP-LP, cvMOVE, etc.
-          const isCanopy = 
+          const isCanopy =
             symbol === 'STMOVE' ||
             symbol === 'STETH' ||
             symbol === 'CNP' ||
@@ -33,7 +54,7 @@ export const canopyAdapter = [
             symbol.startsWith('CV') ||
             type.includes('canopy') ||
             (CANOPY_CONFIG.coreVaultsAddress && type.includes(CANOPY_CONFIG.coreVaultsAddress.toLowerCase()));
-          
+
           return isCanopy;
         });
         devLog(`Canopy: Found ${canopyPositions.length} positions in balances`);
@@ -42,7 +63,15 @@ export const canopyAdapter = [
         const positions = (await Promise.all((canopyPositions || []).map(async (b) => {
           const symbol = (b.metadata?.symbol || b.symbol || 'stMOVE').trim();
           const decimals = b.metadata?.decimals || 8;
-          let amount = Number(b.amount || 0) / Math.pow(10, decimals);
+          let amount = b.numericAmount !== undefined ? b.numericAmount : (Number(String(b.rawAmount || b.amount || 0).replace(/,/g, '')) / Math.pow(10, decimals));
+          const cvAmount = amount;
+
+          let exchangeRate = 1;
+          const vaultData = vaultDataMap.get(b.asset_type?.toLowerCase());
+          if (vaultData && Number(vaultData.total_shares) > 0) {
+            exchangeRate = Number(vaultData.total_asset) / Number(vaultData.total_shares);
+            amount = amount * exchangeRate;
+          }
 
           if (b.asset_type) {
             processedVaults.add(b.asset_type.toLowerCase());
@@ -84,7 +113,7 @@ export const canopyAdapter = [
           else if (symbol.toUpperCase().includes('ETH')) usdValue = amount * ethPrice;
           else usdValue = amount * resolveTokenPrice(priceMap, b.asset_type, symbol);
 
-          const debugName = stakedError 
+          const debugName = stakedError
             ? `ERR: ${stakedError.slice(0, 30)} (type: ${b.asset_type?.slice(0, 8)})`
             : (symbol.toLowerCase().startsWith('st') ? `Canopy Liquid ${symbol.slice(2)}` : (symbol.toLowerCase().startsWith('cv') ? `Canopy Vault ${symbol.slice(2)}` : "Canopy Liquidity"));
 
@@ -106,39 +135,22 @@ export const canopyAdapter = [
             value: amount.toFixed(4),
             usdValue: usdValue,
             underlying: symbol.toLowerCase().startsWith('st') ? symbol.slice(2) : (symbol.toLowerCase().startsWith('cv') ? symbol.slice(2) : "LP Tokens"),
-            type: "Liquidity"
+            type: "Liquidity",
+            tokensInfo: [
+              { symbol: debugSymbol, amount: cvAmount, price: 0 }
+            ]
           };
         }))).filter(Boolean);
 
         // 1b. Staked Balance Detection via View Calls (Fallback for vaults not in wallet balances)
         if (client) {
           try {
-            const vaultsResult = await client.view({
-              payload: {
-                function: `${CANOPY_CONFIG.coreVaultsAddress}::vault::vaults_view`,
-                typeArguments: [],
-                functionArguments: [0, 100]
-              }
-            });
-
-            let vaultAddresses: string[] = [];
-            let vaultDataMap = new Map();
-
-            if (Array.isArray(vaultsResult) && vaultsResult[0]?.vaults) {
-              vaultsResult[0].vaults.forEach((v: any) => {
-                if (v.shares_address) {
-                  vaultAddresses.push(v.shares_address);
-                  vaultDataMap.set(v.shares_address.toLowerCase(), v);
-                }
-              });
-            }
-
             vaultAddresses = vaultAddresses.filter(addr => addr && addr.startsWith("0x"));
 
             // Run vault staked-balance checks sequentially in small chunks to avoid RPC rate-limits
             const filteredVaults = vaultAddresses.filter(addr => !processedVaults.has(addr.toLowerCase()));
             const vaultResults = [];
-            
+
             // Process in chunks of 3
             for (let i = 0; i < filteredVaults.length; i += 3) {
               const chunk = filteredVaults.slice(i, i + 3);
@@ -176,11 +188,22 @@ export const canopyAdapter = [
                       decimals = Number(decimalsRes?.[0] || 8);
                     }
 
-                    const amount = rawBalance / Math.pow(10, decimals);
-                    const price = resolveTokenPrice(priceMap, vaultAddr, symbol);
-                    const usdValue = amount * price;
+                    let amount = rawBalance / Math.pow(10, decimals);
+                    const cvAmount = amount;
+                    let exchangeRate = 1;
+                    if (vaultData && Number(vaultData.total_shares) > 0) {
+                      exchangeRate = Number(vaultData.total_asset) / Number(vaultData.total_shares);
+                      amount = amount * exchangeRate;
+                    }
+
                     const isSt = symbol.toLowerCase().startsWith('st');
                     const isCv = symbol.toLowerCase().startsWith('cv');
+                    const underlyingSymbol = isSt ? symbol.slice(2) : (isCv ? symbol.slice(2) : symbol);
+
+                    let usdValue = 0;
+                    if (underlyingSymbol.toUpperCase().includes('MOVE')) usdValue = amount * resolveTokenPrice(priceMap, '0xa', 'MOVE');
+                    else if (underlyingSymbol.toUpperCase().includes('ETH')) usdValue = amount * resolveTokenPrice(priceMap, '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376', 'ETH');
+                    else usdValue = amount * resolveTokenPrice(priceMap, vaultAddr, underlyingSymbol);
 
                     return {
                       id: `canopy_staked_${vaultAddr}`,
@@ -193,9 +216,12 @@ export const canopyAdapter = [
                       numericValue: usdValue,
                       value: amount.toFixed(4),
                       usdValue,
-                      underlying: isSt ? symbol.slice(2) : (isCv ? symbol.slice(2) : symbol),
+                      underlying: underlyingSymbol,
                       type: "Liquidity",
-                      source: "view_staked"
+                      source: "view_staked",
+                      tokensInfo: [
+                        { symbol: symbol, amount: cvAmount, price: 0 }
+                      ]
                     };
                   } catch (vaultErr) {
                     devLog(`Canopy: Error fetching staked balance for vault ${vaultAddr}:`, vaultErr);
@@ -218,7 +244,7 @@ export const canopyAdapter = [
 
         // 2. Resource-Based Detection Fallback
         if (resources && resources.length > 0) {
-          const vaultResources = resources.filter(r => 
+          const vaultResources = resources.filter(r =>
             (r.type.includes("::vault::Vault") || r.type.includes("::vault::UserInfo")) &&
             r.type.includes(String(CANOPY_CONFIG.coreVaultsAddress || '').toLowerCase())
           );
@@ -227,14 +253,25 @@ export const canopyAdapter = [
             const resId = `canopy_vault_${idx}`;
             if (!positions.some(p => p.id === resId)) {
               // Basic detection for vault resources if not already found in balances
-              const shares = Number(res.data?.shares || 0) / 1e8;
+              let shares = Number(res.data?.shares || 0) / 1e8;
+              const cvAmount = shares;
               if (shares > 0) {
+                const typeMatch = res.type.match(/<([^>]+)>/);
+                if (typeMatch && typeMatch[1]) {
+                  const typeArg = typeMatch[1].split(',')[0].trim().toLowerCase();
+                  const vaultData = Array.from(vaultDataMap.values()).find(v => v.asset_address?.toLowerCase() === typeArg || v.shares_address?.toLowerCase() === typeArg);
+                  if (vaultData && Number(vaultData.total_shares) > 0) {
+                    const exchangeRate = Number(vaultData.total_asset) / Number(vaultData.total_shares);
+                    shares = shares * exchangeRate;
+                  }
+                }
+
                 const movePrice = resolveTokenPrice(priceMap, '0xa', 'MOVE');
                 positions.push({
                   id: resId,
                   protocol: "canopy",
                   protocolName: "Canopy Finance",
-                  symbol: "stMOVE",
+                  symbol: "cvMOVE",
                   name: "Canopy Vault Position",
                   amount: shares,
                   numericValue: shares * movePrice,
@@ -242,7 +279,10 @@ export const canopyAdapter = [
                   usdValue: shares * movePrice,
                   underlying: "MOVE",
                   type: "Liquidity",
-                  source: "resource"
+                  source: "resource",
+                  tokensInfo: [
+                    { symbol: "cvMOVE", amount: cvAmount, price: 0 }
+                  ]
                 });
               }
             }

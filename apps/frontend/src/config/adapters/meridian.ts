@@ -45,7 +45,7 @@ const fetchMeridianPoolInfo = async (client: any, poolAddress: string) => {
         .filter((item: any) => !/MER-LP|LP TOKEN|LPCOIN|MOVE Drops/i.test(String(item?.metadata?.symbol || item?.symbol || '')))
         .map((item: any) => {
           const decimals = Number(item?.metadata?.decimals ?? 8);
-          const amount = Number(item?.amount || 0) / Math.pow(10, decimals);
+          const amount = item?.numericAmount !== undefined ? item.numericAmount : (Number(String(item?.rawAmount || item?.amount || 0).replace(/,/g, '')) / Math.pow(10, decimals));
           return {
             symbol: item?.metadata?.symbol || 'Token',
             decimals,
@@ -124,7 +124,7 @@ export const meridianAdapter = [
               protocolName: "Meridian",
               symbol: balance.symbol || "MER-LP",
               name: "Meridian Liquidity Pool",
-              amount: Number(balance.amount) / Math.pow(10, balance.decimals || 8),
+              amount: balance.numericAmount !== undefined ? balance.numericAmount : (Number(String(balance.rawAmount || balance.amount || 0).replace(/,/g, '')) / Math.pow(10, balance.decimals || 8)),
               underlying: poolTokens.map((t: any) => t.symbol).join('/'),
               usdValue,
               numericValue: usdValue,

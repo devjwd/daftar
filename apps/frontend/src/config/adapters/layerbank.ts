@@ -30,7 +30,7 @@ export const layerbankAdapter = [
 
       const positions = lbBalances.map(b => {
         const decimals = b.metadata?.decimals || 8;
-        const amount = Number(b.amount || 0) / Math.pow(10, decimals);
+        const amount = b.numericAmount !== undefined ? b.numericAmount : (Number(String(b.rawAmount || b.amount || 0).replace(/,/g, '')) / Math.pow(10, decimals));
         let symbol = (b.metadata?.symbol || "LB").replace(/^u/, '');
         
         // Clean up receipt prefixes (e.g. lMOVE -> MOVE, lUSDC.e -> USDC.e)
