@@ -115,19 +115,22 @@ export const canopyAdapter = [
           try {
             const vaultsResult = await client.view({
               payload: {
-                function: `${CANOPY_CONFIG.coreVaultsAddress}::vault::vaults`,
+                function: `${CANOPY_CONFIG.coreVaultsAddress}::vault::vaults_view`,
                 typeArguments: [],
-                functionArguments: []
+                functionArguments: [0, 100]
               }
             });
 
             let vaultAddresses: string[] = [];
-            if (Array.isArray(vaultsResult)) {
-              if (Array.isArray(vaultsResult[0])) {
-                vaultAddresses = vaultsResult[0].map((v: any) => typeof v === 'object' && v?.inner ? v.inner : String(v));
-              } else {
-                vaultAddresses = vaultsResult.map((v: any) => typeof v === 'object' && v?.inner ? v.inner : String(v));
-              }
+            let vaultDataMap = new Map();
+
+            if (Array.isArray(vaultsResult) && vaultsResult[0]?.vaults) {
+              vaultsResult[0].vaults.forEach((v: any) => {
+                if (v.shares_address) {
+                  vaultAddresses.push(v.shares_address);
+                  vaultDataMap.set(v.shares_address.toLowerCase(), v);
+                }
+              });
             }
 
             vaultAddresses = vaultAddresses.filter(addr => addr && addr.startsWith("0x"));
@@ -156,10 +159,11 @@ export const canopyAdapter = [
                     const matchingBalance = allBalances.find((b: any) =>
                       b.asset_type && b.asset_type.toLowerCase() === vaultAddr.toLowerCase()
                     );
+                    const vaultData = vaultDataMap.get(vaultAddr.toLowerCase());
 
-                    let symbol = matchingBalance?.metadata?.symbol || matchingBalance?.symbol || "";
-                    let name = matchingBalance?.metadata?.name || matchingBalance?.name || "";
-                    let decimals = matchingBalance?.metadata?.decimals || 8;
+                    let symbol = vaultData?.shares_name || matchingBalance?.metadata?.symbol || matchingBalance?.symbol || "Canopy Vault";
+                    let name = vaultData?.asset_name || matchingBalance?.metadata?.name || matchingBalance?.name || "";
+                    let decimals = vaultData?.decimals ?? matchingBalance?.metadata?.decimals ?? matchingBalance?.decimals ?? 8;
 
                     if (!symbol) {
                       const [symbolRes, nameRes, decimalsRes] = await Promise.all([
