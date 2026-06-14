@@ -106,7 +106,7 @@ export const canopyAdapter = [
             value: amount.toFixed(4),
             usdValue: usdValue,
             underlying: symbol.toLowerCase().startsWith('st') ? symbol.slice(2) : (symbol.toLowerCase().startsWith('cv') ? symbol.slice(2) : "LP Tokens"),
-            type: "Staking"
+            type: "Liquidity"
           };
         }))).filter(Boolean);
 
@@ -208,7 +208,7 @@ export const canopyAdapter = [
                       value: amount.toFixed(4),
                       usdValue: usdValue,
                       underlying: underlying,
-                      type: "Staking",
+                      type: "Liquidity",
                       source: "view_staked"
                     });
                   }
@@ -247,7 +247,7 @@ export const canopyAdapter = [
                   value: shares.toFixed(4),
                   usdValue: shares * movePrice,
                   underlying: "MOVE",
-                  type: "Staking",
+                  type: "Liquidity",
                   source: "resource"
                 });
               }
