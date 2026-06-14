@@ -211,23 +211,23 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.65);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
   opacity: 0;
-  transform: scale(0.9);
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+  transform: scale(0.95);
+  transition: all 0.2s ease;
   padding: 0;
-  margin-left: 2px;
+  margin-left: 6px;
   flex-shrink: 0;
 }
 
 .playbackButton svg {
-  margin-left: 1px;
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 .row:hover .playbackButton {
@@ -236,10 +236,14 @@
 }
 
 .playbackButton:hover {
-  background: linear-gradient(135deg, #f2d8b0, #cda169);
-  border-color: rgba(242, 216, 176, 0.6);
-  color: #111;
-  box-shadow: 0 4px 12px rgba(205, 161, 105, 0.4);
+  background: transparent;
+  border-color: transparent;
+  color: #f2d8b0;
+  transform: scale(1.15);
+}
+
+.playbackButton:hover svg {
+  transform: scale(1.05);
 }
 
 .typeMeta {

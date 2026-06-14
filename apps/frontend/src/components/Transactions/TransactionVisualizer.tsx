@@ -452,6 +452,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
                   onMouseDown={(e) => handleNodeMouseDown('left', e)}
                   onDoubleClick={(e) => handleNodeDoubleClick(e, leftNodeDetails.address)}
                   style={{ cursor: 'pointer' }}
+                  title={leftNodeDetails.address ? "Double click to view portfolio" : undefined}
                 >
                   <div
                     className={styles.nodeContent}
@@ -487,6 +488,7 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
                   onMouseDown={(e) => handleNodeMouseDown('right', e)}
                   onDoubleClick={(e) => handleNodeDoubleClick(e, rightNodeDetails.address)}
                   style={{ cursor: 'pointer' }}
+                  title={rightNodeDetails.address ? "Double click to view portfolio" : undefined}
                 >
                   <div
                     className={styles.nodeContent}
@@ -564,15 +566,15 @@ export default function TransactionVisualizer({ tx, onClose, language = 'en' }: 
             <div className={styles.infoColumn}>
               <h3 className={styles.columnTitle}>Addresses & Network</h3>
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Sender</span>
-                <span className={styles.infoValueAddress} title={tx.wallet_address || tx.sender}>
-                  {tx.wallet_address || tx.sender ? formatAddressLong(tx.wallet_address || tx.sender) : 'N/A'}
+                <span className={styles.infoLabel}>From</span>
+                <span className={styles.infoValueAddress} title={leftNodeDetails.address || leftNodeDetails.label}>
+                  {leftNodeDetails.address ? formatAddressLong(leftNodeDetails.address) : leftNodeDetails.label || 'N/A'}
                 </span>
               </div>
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Recipient/dApp</span>
-                <span className={styles.infoValueAddress} title={counterpartyAddress || tx.dapp_contract}>
-                  {counterpartyAddress || tx.dapp_contract ? formatAddressLong(counterpartyAddress || tx.dapp_contract) : 'N/A'}
+                <span className={styles.infoLabel}>To</span>
+                <span className={styles.infoValueAddress} title={rightNodeDetails.address || rightNodeDetails.label}>
+                  {rightNodeDetails.address ? formatAddressLong(rightNodeDetails.address) : rightNodeDetails.label || 'N/A'}
                 </span>
               </div>
               {tx.gas_fee != null && (

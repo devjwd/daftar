@@ -82,8 +82,8 @@ const DappIcon = ({ tx }: { tx: any }) => {
   const dappLogo = tx?.dapp_logo || visual?.logo;
   const rawType = String(tx?.tx_type || 'other').toLowerCase();
 
-  const txIcon = tx?.tx_icon || (rawType === 'swap' ? '🔄' : '⚙️');
-  const txBg = tx?.tx_bg || 'rgba(148,163,184,0.1)';
+  const txBg = tx?.tx_bg || (rawType === 'send' || rawType === 'transfer' ? 'rgba(239,68,68,0.1)' : rawType === 'received' ? 'rgba(16,185,129,0.1)' : 'rgba(148,163,184,0.1)');
+  const txColor = tx?.tx_color || (rawType === 'send' || rawType === 'transfer' ? '#EF4444' : rawType === 'received' ? '#10B981' : 'inherit');
 
   if (dappLogo) {
     return (
@@ -93,8 +93,32 @@ const DappIcon = ({ tx }: { tx: any }) => {
     );
   }
 
+  if (rawType === 'send' || rawType === 'transfer') {
+    return (
+      <span className={styles.typeIcon} style={{ background: txBg, color: txColor }} aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="7" y1="17" x2="17" y2="7"></line>
+          <polyline points="7 7 17 7 17 17"></polyline>
+        </svg>
+      </span>
+    );
+  }
+
+  if (rawType === 'received') {
+    return (
+      <span className={styles.typeIcon} style={{ background: txBg, color: txColor }} aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="17" y1="7" x2="7" y2="17"></line>
+          <polyline points="17 17 7 17 7 7"></polyline>
+        </svg>
+      </span>
+    );
+  }
+
+  const txIcon = tx?.tx_icon || (rawType === 'swap' ? '🔄' : '⚙️');
+
   return (
-    <span className={styles.typeIcon} style={{ background: txBg }} aria-hidden="true">
+    <span className={styles.typeIcon} style={{ background: txBg, color: txColor }} aria-hidden="true">
       {txIcon}
     </span>
   );
@@ -189,10 +213,16 @@ export default function TransactionTableRow({ tx, hideValues, onPlay, onReport }
               e.stopPropagation();
               onPlay(tx);
             }}
-            title="Play Transaction Simulation"
+            title="Visualize Transaction"
           >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <circle cx="6" cy="6" r="2"></circle>
+              <circle cx="6" cy="18" r="2"></circle>
+              <circle cx="20" cy="12" r="2"></circle>
+              <path d="M15 12h3"></path>
+              <path d="M9.9 9.9L7.4 7.4"></path>
+              <path d="M9.9 14.1l-2.5 2.5"></path>
             </svg>
           </button>
           <button

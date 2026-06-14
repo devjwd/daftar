@@ -949,21 +949,20 @@ export const getOrFetchTransactions = async (walletAddress, options: any = {}) =
 };
 
 export const getTransactionByHash = async (txHash: string) => {
-  let cleanHash = String(txHash || "").trim();
-  if (cleanHash && !cleanHash.startsWith("0x")) {
-    cleanHash = "0x" + cleanHash;
+  let cleanInput = String(txHash || "").trim();
+  const isVersion = /^\d+$/.test(cleanInput);
+
+  if (!isVersion && cleanInput && !cleanInput.startsWith("0x")) {
+    cleanInput = "0x" + cleanInput;
   }
 
-  const query = `
-    query GetTransactionByHash($hash: String!) {
-      user_transactions(where: {hash: {_eq: $hash}}, limit: 1) {
+  const queryFields = `
         version
         hash
         sender
         timestamp
         gas_used
         gas_unit_price
-        success
         entry_function_id_str
         payload
         fungible_asset_activities {
@@ -986,13 +985,26 @@ export const getTransactionByHash = async (txHash: string) => {
           account_address
           sequence_number
         }
+  `;
+
+  const query = isVersion ? `
+    query GetTransactionByVersion($version: bigint!) {
+      user_transactions(where: {version: {_eq: $version}}, limit: 1) {
+        ${queryFields}
+      }
+    }
+  ` : `
+    query GetTransactionByHash($hash: String!) {
+      user_transactions(where: {hash: {_eq: $hash}}, limit: 1) {
+        ${queryFields}
       }
     }
   `;
 
   let rawTx = null;
   try {
-    const { data, error } = await postGraphQL(query, { hash: cleanHash });
+    const variables = isVersion ? { version: cleanInput } : { hash: cleanInput };
+    const { data, error } = await postGraphQL(query, variables);
     if (!error && data?.user_transactions?.length > 0) {
       rawTx = data.user_transactions[0];
     }
@@ -1004,7 +1016,8 @@ export const getTransactionByHash = async (txHash: string) => {
     const { rpcUrl } = resolveEnv();
     if (rpcUrl) {
       try {
-        const response = await fetchWithTimeout(`${rpcUrl}/transactions/by_hash/${cleanHash}`);
+        const endpoint = isVersion ? `/transactions/by_version/${cleanInput}` : `/transactions/by_hash/${cleanInput}`;
+        const response = await fetchWithTimeout(`${rpcUrl}${endpoint}`);
         if (response.ok) {
           const nodeTx = await response.json();
           if (nodeTx) {

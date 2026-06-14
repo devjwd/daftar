@@ -345,6 +345,15 @@ export const buildStructuredTransaction = async (rawTx, activities, walletAddres
 
 export const normalizePrimaryTransactionRow = (row) => {
   const userTransaction = row?.user_transaction || row?.userTransaction || row;
+  const fungibleActivities = Array.isArray(row?.fungible_asset_activities) ? row.fungible_asset_activities : [];
+  
+  let success = userTransaction?.success ?? row?.is_transaction_success;
+  if (success === undefined && fungibleActivities.length > 0) {
+    success = fungibleActivities.every(act => act.is_transaction_success !== false);
+  }
+  if (success === undefined) {
+    success = true;
+  }
 
   return {
     tx_hash: userTransaction?.hash || String(row?.transaction_version || userTransaction?.version || ""),
@@ -353,7 +362,7 @@ export const normalizePrimaryTransactionRow = (row) => {
     tx_timestamp: userTransaction?.timestamp || row?.timestamp || row?.transaction_timestamp || null,
     gas_used: userTransaction?.gas_used ?? null,
     gas_unit_price: userTransaction?.gas_unit_price ?? null,
-    success: userTransaction?.success ?? row?.is_transaction_success ?? true,
+    success,
     functionName:
       userTransaction?.entry_function_id_str ||
       userTransaction?.entry_function_function_name ||
@@ -361,7 +370,7 @@ export const normalizePrimaryTransactionRow = (row) => {
       null,
     payload: userTransaction?.payload || null,
     transaction_version: row?.transaction_version || userTransaction?.version || null,
-    fungibleActivities: Array.isArray(row?.fungible_asset_activities) ? row.fungible_asset_activities : [],
+    fungibleActivities,
     events: Array.isArray(row?.events)
       ? row.events
       : Array.isArray(userTransaction?.events)

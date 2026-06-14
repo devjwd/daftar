@@ -76,7 +76,13 @@ const extractAddressFromType = (value) => {
 
 const formatUsd = (amount, price) => {
   const val = (parseFloat(amount) || 0) * (price || 0);
-  return `$${val.toFixed(2)}`;
+  if (val === 0) return "$0.00";
+  
+  if (val >= 1) {
+    return `$${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+  }
+  
+  return `$${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 8 })}`;
 };
 
 const toBaseUnitsString = (amountStr, decimals = DEFAULT_DECIMALS) => {

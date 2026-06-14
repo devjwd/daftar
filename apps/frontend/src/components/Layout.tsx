@@ -99,14 +99,14 @@ export default function Layout({ children }) {
     const lastConnectedAddress = lastConnectedRef.current;
 
     if (connected && currentAddress) {
-      const isViewingProfile = location.pathname.startsWith('/profile/');
+      const isExactProfileRoot = location.pathname === '/profile' || location.pathname === '/profile/';
       const justConnected = !wasConnected;
       const addressChanged = lastConnectedAddress !== null && lastConnectedAddress !== currentAddress;
 
-      if (justConnected || addressChanged) {
-        if (isViewingProfile || addressChanged) {
-          navigate(`/profile/${currentAddress}`);
-        }
+      if (addressChanged) {
+        navigate(`/profile/${currentAddress}`);
+      } else if (justConnected && isExactProfileRoot) {
+        navigate(`/profile/${currentAddress}`);
       }
 
       lastConnectedRef.current = currentAddress;
