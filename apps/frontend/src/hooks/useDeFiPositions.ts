@@ -104,6 +104,7 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
   const fetchInProgress = useRef(false);
   const lastFetchedAddress = useRef(null);
   const fetchGeneration = useRef(0);
+  const lastBalancesLengthRef = useRef((balances || []).length);
 
   // Use refs for everything to make fetchPositions stable and avoid stale closures
   const priceMapRef = useRef(priceMap);
@@ -244,9 +245,9 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
               balances: providedBalances || balancesRef.current
             };
             
-            // Add a 15-second timeout to prevent any single slow adapter from hanging the dashboard
+            // Add a 8-second timeout to prevent any single slow adapter from hanging the dashboard
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error(`timeout after 15000ms`)), 15000)
+              setTimeout(() => reject(new Error(`timeout after 8000ms`)), 8000)
             );
             
             const found = await Promise.race([
@@ -291,7 +292,10 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
 
   useEffect(() => {
     if (targetAddressRef.current) {
-      void fetchPositions();
+      const currentLength = (balances || []).length;
+      const force = currentLength !== lastBalancesLengthRef.current;
+      lastBalancesLengthRef.current = currentLength;
+      void fetchPositions({ force });
     }
   }, [fetchPositions, targetAddress, priceMap, (balances || []).length]);
 
