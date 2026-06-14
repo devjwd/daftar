@@ -138,8 +138,16 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
 
     if (fetchInProgress.current && !forceRefresh) return;
 
+    // Address changed — clear stale positions from previous address immediately
+    const addressChanged = lastFetchedAddress.current !== currentTargetAddress;
+    if (addressChanged) {
+      setPositions([]);
+      fetchGeneration.current += 1;
+    }
+
     const cachedSnapshot = loadPersistedDeFiPositions(currentTargetAddress);
-    if (cachedSnapshot?.positions?.length && !forceRefresh && lastFetchedAddress.current === currentTargetAddress) {
+    // Only serve cache if: address hasn't changed AND there's valid cached data AND not forced
+    if (cachedSnapshot?.positions?.length && !forceRefresh && !addressChanged) {
       setPositions(cachedSnapshot.positions);
       setLoading(false);
       return;
@@ -294,13 +302,21 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
     }
   }, [clientError]); // Stable dependency array
 
+  const lastTargetAddressRef = useRef(targetAddress);
+
   useEffect(() => {
-    if (targetAddressRef.current) {
-      const currentLength = (balances || []).length;
-      const force = currentLength !== lastBalancesLengthRef.current;
-      lastBalancesLengthRef.current = currentLength;
-      void fetchPositions({ force });
-    }
+    if (!targetAddressRef.current) return;
+
+    const addressChanged = lastTargetAddressRef.current !== targetAddress;
+    lastTargetAddressRef.current = targetAddress;
+
+    const currentLength = (balances || []).length;
+    const balancesGrew = currentLength > lastBalancesLengthRef.current;
+    lastBalancesLengthRef.current = currentLength;
+
+    // Force a fresh scan when the address changes or when new balance data arrives
+    const force = addressChanged || balancesGrew;
+    void fetchPositions({ force });
   }, [fetchPositions, targetAddress, priceMap, (balances || []).length]);
 
   return { positions, loading, error, refresh: fetchPositions };
