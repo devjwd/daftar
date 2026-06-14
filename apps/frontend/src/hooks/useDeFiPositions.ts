@@ -257,16 +257,7 @@ export const useDeFiPositions = (searchAddress = null, priceMap = {}, balances =
             balances: providedBalances || balancesRef.current
           };
 
-          const ADAPTER_TIMEOUT_MS = 12000;
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`${adapter.id} timed out`)), ADAPTER_TIMEOUT_MS)
-          );
-
-          const found = await Promise.race([
-            adapter.discover(context),
-            timeoutPromise
-          ]) as any[];
-
+          const found = await adapter.discover(context) as any[];
           const results = Array.isArray(found) ? found : [];
 
           // DEBUG LOGGING

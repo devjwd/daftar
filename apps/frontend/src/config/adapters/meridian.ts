@@ -93,46 +93,53 @@ export const meridianAdapter = [
         return /MER-LP|Meridian LP/i.test(symbol) || /MER-LP|Meridian LP/i.test(name);
       });
       
-      const positions = (await Promise.all(lpBalances.map(async (balance) => {
-        const poolAddress = balance.address || balance.asset_type;
-        if (!poolAddress) return null;
+      const positions = [];
+      for (let i = 0; i < lpBalances.length; i += 3) {
+        const chunk = lpBalances.slice(i, i + 3);
+        const chunkResults = await Promise.all(chunk.map(async (balance) => {
+          const poolAddress = balance.address || balance.asset_type;
+          if (!poolAddress) return null;
 
-        const poolInfo = await fetchMeridianPoolInfo(client, poolAddress);
-        if (poolInfo) {
-          const userLpRaw = Number(balance.rawAmount || balance.amount || 0);
-          const userShare = userLpRaw / poolInfo.totalSupplyRaw;
-          const poolTokens = poolInfo.tokens.map(t => ({
-            symbol: t.symbol,
-            amount: t.amount * userShare,
-            decimals: t.decimals
-          }));
+          const poolInfo = await fetchMeridianPoolInfo(client, poolAddress);
+          if (poolInfo) {
+            const userLpRaw = Number(balance.rawAmount || balance.amount || 0);
+            const userShare = userLpRaw / poolInfo.totalSupplyRaw;
+            const poolTokens = poolInfo.tokens.map((t: any) => ({
+              symbol: t.symbol,
+              amount: t.amount * userShare,
+              decimals: t.decimals
+            }));
 
-          let usdValue = 0;
-          if (priceMap) {
-            usdValue = poolTokens.reduce((sum, t) => {
-              const price = resolveTokenPrice(priceMap, t.assetType, t.symbol);
-              return sum + (t.amount * price);
-            }, 0);
+            let usdValue = 0;
+            if (priceMap) {
+              usdValue = poolTokens.reduce((sum: number, t: any) => {
+                const price = resolveTokenPrice(priceMap, t.assetType, t.symbol);
+                return sum + (t.amount * price);
+              }, 0);
+            }
+
+            return {
+              id: `meridian_lp_${poolAddress}`,
+              protocol: "meridian",
+              protocolName: "Meridian",
+              symbol: balance.symbol || "MER-LP",
+              name: "Meridian Liquidity Pool",
+              amount: Number(balance.amount) / Math.pow(10, balance.decimals || 8),
+              underlying: poolTokens.map((t: any) => t.symbol).join('/'),
+              usdValue,
+              numericValue: usdValue,
+              poolTokens,
+              isMeridianLP: true,
+              type: "Liquidity"
+            };
           }
-
-          return {
-            id: `meridian_lp_${poolAddress}`,
-            protocol: "meridian",
-            protocolName: "Meridian",
-            symbol: balance.symbol || "MER-LP",
-            name: "Meridian Liquidity Pool",
-            amount: Number(balance.amount) / Math.pow(10, balance.decimals || 8),
-            underlying: poolTokens.map(t => t.symbol).join('/'),
-            usdValue,
-            numericValue: usdValue,
-            poolTokens,
-            isMeridianLP: true,
-            type: "Liquidity"
-          };
-        }
-        return null;
-      }))).filter(Boolean);
-      return positions;
+          return null;
+        }));
+        positions.push(...chunkResults);
+      }
+      
+      const validPositions = positions.filter(Boolean);
+      return validPositions;
     }
   }
 ];

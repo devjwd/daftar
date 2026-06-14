@@ -132,11 +132,15 @@ export const canopyAdapter = [
 
             vaultAddresses = vaultAddresses.filter(addr => addr && addr.startsWith("0x"));
 
-            // Run all vault staked-balance checks in parallel instead of sequentially
-            const vaultResults = await Promise.all(
-              vaultAddresses
-                .filter(addr => !processedVaults.has(addr.toLowerCase()))
-                .map(async (vaultAddr) => {
+            // Run vault staked-balance checks sequentially in small chunks to avoid RPC rate-limits
+            const filteredVaults = vaultAddresses.filter(addr => !processedVaults.has(addr.toLowerCase()));
+            const vaultResults = [];
+            
+            // Process in chunks of 3
+            for (let i = 0; i < filteredVaults.length; i += 3) {
+              const chunk = filteredVaults.slice(i, i + 3);
+              const chunkResults = await Promise.all(
+                chunk.map(async (vaultAddr) => {
                   try {
                     const stakedBalanceRes = await client.view({
                       payload: {
@@ -194,7 +198,9 @@ export const canopyAdapter = [
                     return null;
                   }
                 })
-            );
+              );
+              vaultResults.push(...chunkResults);
+            }
 
             vaultResults.forEach((pos) => {
               if (pos && !positions.some((p: any) => p.id === pos.id)) {
