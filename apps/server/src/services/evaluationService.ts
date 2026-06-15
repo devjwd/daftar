@@ -17,7 +17,13 @@ const getCachedRpc = (key: string) => {
   return null;
 };
 
+const MAX_CACHE_SIZE = 1000;
 const setCachedRpc = (key: string, value: any) => {
+  if (RPC_BURST_CACHE.size >= MAX_CACHE_SIZE) {
+    // Evict oldest entry to prevent memory leak
+    const firstKey = RPC_BURST_CACHE.keys().next().value;
+    if (firstKey) RPC_BURST_CACHE.delete(firstKey);
+  }
   RPC_BURST_CACHE.set(key, { value, timestamp: Date.now() });
 };
 
@@ -31,27 +37,34 @@ export const getFullnodeUrl = (): string => {
   return CONFIG.MOVEMENT.RPC_URL.replace(/\/$/, '');
 };
 
-const fetchJson = async (url: string, init?: any): Promise<{ response: any; parsed: any }> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+const fetchJson = async (url: string, init?: any, retries = 3): Promise<{ response: any; parsed: any }> => {
+  for (let i = 0; i < retries; i++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-  try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
-    }
-    const text = await response.text();
-    let parsed = null;
     try {
-      parsed = text ? JSON.parse(text) : null;
-    } catch (err) {
-      console.error(`Failed to parse JSON from ${url}:`, err);
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+      }
+      const text = await response.text();
+      let parsed = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch (err) {
+        console.error(`Failed to parse JSON from ${url}:`, err);
+      }
+      return { response, parsed };
+    } catch (error: any) {
+      if (i === retries - 1) throw error;
+      console.warn(`[RPC] fetchJson failed, retrying (${i + 1}/${retries - 1}):`, error.message);
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i))); // exponential backoff
+    } finally {
+      clearTimeout(timeout);
     }
-    return { response, parsed };
-  } finally {
-    clearTimeout(timeout);
   }
+  throw new Error("fetchJson failed");
 };
 
 /**
@@ -241,41 +254,30 @@ export const verifyOnChainMint = async (
   const shortModuleAddr = normalizedModuleAddr.replace(/^0x0+/, '0x');
   const normalizedWallet = normalizeAddress(walletAddress);
 
-  let attempts = 0;
-  const maxAttempts = 3;
+  try {
+    const { response, parsed } = await fetchJson(`${fullnodeUrl}/transactions/by_hash/${txHash}`, undefined, 4);
 
-  while (attempts < maxAttempts) {
-    try {
-      const { response, parsed } = await fetchJson(`${fullnodeUrl}/transactions/by_hash/${txHash}`);
+    if (response.ok && parsed) {
+      // Check if transaction was successful
+      if (parsed.success !== true) return false;
 
-      if (response.ok && parsed) {
-        // Check if transaction was successful
-        if (parsed.success !== true) return false;
+      // Search through events for BadgeMinted
+      const events = Array.isArray(parsed.events) ? parsed.events : [];
+      const mintEvent = events.find((e: any) => {
+        const type = String(e.type || '');
+        // Support both padded and unpadded module addresses in event type
+        const isCorrectType = type.includes('::badges::BadgeMinted') && 
+                             (type.startsWith(normalizedModuleAddr) || type.startsWith(shortModuleAddr));
+        
+        return isCorrectType &&
+               normalizeAddress(e.data?.recipient) === normalizedWallet &&
+               Number(e.data?.badge_id) === Number(onChainBadgeId);
+      });
 
-        // Search through events for BadgeMinted
-        const events = Array.isArray(parsed.events) ? parsed.events : [];
-        const mintEvent = events.find((e: any) => {
-          const type = String(e.type || '');
-          // Support both padded and unpadded module addresses in event type
-          const isCorrectType = type.includes('::badges::BadgeMinted') && 
-                               (type.startsWith(normalizedModuleAddr) || type.startsWith(shortModuleAddr));
-          
-          return isCorrectType &&
-                 normalizeAddress(e.data?.recipient) === normalizedWallet &&
-                 Number(e.data?.badge_id) === Number(onChainBadgeId);
-        });
-
-        if (mintEvent) return true;
-      }
-    } catch (err) {
-      console.warn(`[Evaluation] verifyOnChainMint attempt ${attempts + 1} failed:`, err);
+      if (mintEvent) return true;
     }
-
-    attempts++;
-    if (attempts < maxAttempts) {
-      // Exponential backoff or simple delay to wait for node consistency
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
+  } catch (err) {
+    console.warn(`[Evaluation] verifyOnChainMint failed after retries:`, err);
   }
 
   return false;

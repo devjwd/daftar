@@ -1,5 +1,6 @@
 import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
+import crypto from 'crypto';
 import { 
   badgeLimiter, 
   awardLimiter, 
@@ -116,7 +117,7 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
     // 4. Generate Signature
     const validUntil = Math.floor(Date.now() / 1000) + (3 * 60); // 3 minutes
     const signerEpoch = await getSignerEpoch();
-    const nonce = Date.now(); 
+    const nonce = crypto.randomBytes(6).readUIntLE(0, 6); 
 
     const sigResult = await signMintAuthorization(
       CONFIG.SIGNER.PRIVATE_KEY,
@@ -311,19 +312,29 @@ router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
 
     if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
   
-    // 0. Verify on-chain (Mandatory for XP)
-    if (onChainBadgeId && txHash && txHash.startsWith('0x')) {
-      const isValid = await verifyOnChainMint(txHash, normalizedAddr, onChainBadgeId);
-      if (!isValid) {
-        return res.status(400).json({ error: 'Invalid transaction hash. On-chain verification failed.' });
-      }
-    } else if (xpValue && xpValue > 0) {
-      // If XP is being awarded, we MUST have a verifiable TX
-      return res.status(400).json({ error: 'Transaction hash and on-chain ID are required to award XP.' });
+    // 0. Verify on-chain (Strictly mandatory to prevent bypassing)
+    if (!txHash || !txHash.startsWith('0x') || !onChainBadgeId) {
+      return res.status(400).json({ error: 'Transaction hash and on-chain ID are strictly required to sync a badge.' });
+    }
+
+    const isValid = await verifyOnChainMint(txHash, normalizedAddr, onChainBadgeId);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid transaction hash. On-chain verification failed.' });
+    }
+
+    // 1. Prevent Replay Attacks: Ensure txHash hasn't been used
+    const { data: existingTx } = await supabaseAdmin
+      .from('badge_attestations')
+      .select('badge_id')
+      .eq('proof_hash', txHash)
+      .maybeSingle();
+      
+    if (existingTx) {
+      return res.status(400).json({ error: 'Transaction hash has already been consumed.' });
     }
   
     try {
-      // 1. Ensure profile exists to hold XP
+      // 2. Ensure profile exists to hold XP
       await supabaseAdmin.from('profiles').upsert({
         wallet_address: normalizedAddr,
         updated_at: new Date().toISOString()
