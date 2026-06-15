@@ -6,6 +6,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '../../utils/language';
 import { isPremiumTier, resolveEffectiveTier } from '../../utils/subscription';
+import './PortfolioTabs.css';
 
 const PORTFOLIO_TABS = {
   OVERVIEW: 'overview',
@@ -21,7 +22,6 @@ interface PortfolioTabsProps {
   language: string;
   subscriptionTier?: 'free' | 'lite' | 'pro';
   isVerified?: boolean;
-  onProFeatureClick?: () => void;
 }
 
 const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
@@ -30,7 +30,6 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
   language,
   subscriptionTier = 'free',
   isVerified = false,
-  onProFeatureClick,
 }) => {
   const navigate = useNavigate();
 
@@ -64,33 +63,50 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
         {t(language, 'portfolioTabNfts')}
       </button>
 
-      <button
-        type="button"
-        className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
-        onClick={() => {
-          if (!isPremium && onProFeatureClick) {
-            onProFeatureClick();
-          } else {
-            navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`);
-          }
-        }}
-        style={{ marginLeft: 'auto' }}
-        title={!isPremium ? 'Pro subscription required' : undefined}
-      >
-        <div className="analytics-btn-content">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-            <line x1="18" y1="20" x2="18" y2="10"></line>
-            <line x1="12" y1="20" x2="12" y2="4"></line>
-            <line x1="6" y1="20" x2="6" y2="14"></line>
-          </svg>
-          {t(language, 'portfolioTabAnalytics')}
-          {!isPremium && (
-            <span className="portfolio-tab-lock" aria-hidden="true" style={{ marginLeft: '6px', opacity: 0.7 }}>
-              🔒
-            </span>
-          )}
-        </div>
-      </button>
+      <div className="analytics-tab-wrapper" style={{ marginLeft: 'auto', position: 'relative' }}>
+        <button
+          type="button"
+          className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
+          onClick={() => {
+            if (!isPremium) {
+              // Hover popup handles the upgrade message now
+              return;
+            } else {
+              navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`);
+            }
+          }}
+          title={!isPremium ? 'Pro subscription required' : undefined}
+        >
+          <div className="analytics-btn-content">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            {t(language, 'portfolioTabAnalytics')}
+            {!isPremium && (
+              <span className="portfolio-tab-lock" aria-hidden="true" style={{ marginLeft: '6px', opacity: 0.7 }}>
+                🔒
+              </span>
+            )}
+          </div>
+        </button>
+
+        {!isPremium && (
+          <div className="upgrade-hover-popover fade-in-up">
+            <div className="upgrade-popover-content">
+              <h4 className="upgrade-popover-title">Upgrade for Analytics</h4>
+              <p className="upgrade-popover-desc">
+                Understand who is doing what onchain. Identify Smart Money wallets, key entities, and their behavior in a flash.
+              </p>
+              <div className="upgrade-popover-actions">
+                <button className="upgrade-popover-learn" onClick={() => navigate('/plans')}>Learn more</button>
+                <button className="upgrade-popover-cta" onClick={() => navigate('/plans')}>Upgrade Now</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 };

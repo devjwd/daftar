@@ -1,0 +1,102 @@
+.analytics-tab-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-left: auto;
+}
+
+/* 
+  Hover popover styling. Hidden by default.
+  It transitions into view when its parent is hovered.
+*/
+.upgrade-hover-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 12px;
+  background: #111;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  width: 300px;
+  padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  text-align: left;
+}
+
+/* The invisible bridge to prevent hover loss */
+.upgrade-hover-popover::before {
+  content: '';
+  position: absolute;
+  top: -15px;
+  left: 0;
+  width: 100%;
+  height: 15px;
+}
+
+.analytics-tab-wrapper:hover .upgrade-hover-popover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.upgrade-popover-title {
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 8px 0;
+}
+
+.upgrade-popover-desc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.5;
+  margin: 0 0 16px 0;
+}
+
+.upgrade-popover-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.upgrade-popover-learn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.upgrade-popover-learn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.upgrade-popover-cta {
+  background: #36c690;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.upgrade-popover-cta:hover {
+  background: #41db9f;
+  transform: translateY(-1px);
+}
