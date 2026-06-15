@@ -101,10 +101,11 @@ export function useTransactions(
         );
 
         // If the DB has exactly 0 total transactions (for this query)
-        // and we aren't applying any filters, it means the DB hasn't synced this user yet.
-        // Fall back to indexer so the user isn't stuck with an empty screen.
-        if (json.total === 0 && !hasAdvancedFilters && activeFilter === 'all') {
-          throw new Error('Database is empty for this user, falling back to indexer');
+        // or if the user is a PRO user, bypass the database to ensure real-time data.
+        // Fall back to indexer so the user isn't stuck with an empty or outdated screen.
+        const shouldBypassDb = (json.total === 0 || isPremium) && !hasAdvancedFilters;
+        if (shouldBypassDb) {
+          throw new Error('Bypassing database for real-time indexer data');
         }
 
         return {
