@@ -444,14 +444,21 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
         if (!targetAddress) return res.status(400).json({ error: 'address required' });
         const normalized = normalizeAddress(targetAddress);
         
-        // Reset sync status so it picks up everything
+        // Reset sync status so it picks up everything and clear old errors
         await supabaseAdmin.from('user_sync_status').upsert({
           user_address: normalized,
           full_history_synced: false,
           last_sync_at: new Date().toISOString(),
+          sync_error: null
         }, { onConflict: 'user_address' });
 
         await queueSync(supabaseAdmin, normalized, 10);
+        
+        // Immediately process the queue asynchronously since Railway worker might not be polling
+        import('../services/analyticsSyncQueue.ts').then(({ processSyncQueue }) => {
+          processSyncQueue(supabaseAdmin).catch(console.error);
+        });
+
         return res.json({ success: true, message: `Force sync queued for ${normalized}` });
       }
 
