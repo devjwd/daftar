@@ -867,7 +867,7 @@ export async function syncFullUserHistory(
   walletAddress: string
 ) {
   const address = normalizeAddress(walletAddress);
-  const BATCH_SIZE = 500;
+  const BATCH_SIZE = 100;
   let totalSynced = 0;
 
   console.log(`[DeepSync] 🚀 Starting deep history pull for ${address}...`);
@@ -1031,7 +1031,7 @@ export async function syncFullUserHistory(
       let ltVersion = minVersionStr;
       let hasMoreBackward = true;
       let backwardBatchCount = 0;
-      const MAX_BACKWARD_BATCHES = 100;
+      const MAX_BACKWARD_BATCHES = 500; // Allows syncing up to 50,000 history
 
       while (hasMoreBackward && backwardBatchCount < MAX_BACKWARD_BATCHES) {
         backwardBatchCount++;
