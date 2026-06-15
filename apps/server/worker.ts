@@ -27,22 +27,22 @@ startAnalyticsWorker(supabaseAdmin);
 // Start hourly NFT floor price pitcher
 // startNFTPriceWorker(supabaseAdmin); // Temporarily disabled by user request
 
-// Start background analytics price backfiller (fallback interval: every 5 minutes)
+// Start background analytics price backfiller (fallback interval: every 10 seconds)
 let isPriceBackfillRunning = false;
 setInterval(async () => {
   if (!isPriceBackfillRunning) {
     isPriceBackfillRunning = true;
     try {
-      await backfillTransactionPrices(supabaseAdmin, 50);
+      await backfillTransactionPrices(supabaseAdmin, 500);
     } catch (err) {
       console.error('[Worker] Analytics Backfill Loop Error:', err);
     } finally {
       isPriceBackfillRunning = false;
     }
   }
-}, 300000); // 5 minutes
+}, 10000); // 10 seconds
 
-// Start background sync queue worker (fallback interval: every 60 seconds)
+// Start background sync queue worker (fallback interval: every 5 seconds)
 let isSyncQueueRunning = false;
 setInterval(async () => {
   if (!isSyncQueueRunning) {
@@ -55,6 +55,6 @@ setInterval(async () => {
       isSyncQueueRunning = false;
     }
   }
-}, 60000); // 60 seconds
+}, 5000); // 5 seconds
 
 console.log('[Worker] Background workers started successfully.');

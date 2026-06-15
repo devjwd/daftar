@@ -848,7 +848,7 @@ const getExchangeDepositInfo = (labelObj) => {
   const entityName = labelObj.entity?.name;
   const isExchangeEntity = labelObj.entity?.category === 'Exchange' || (entityName && KNOWN_EXCHANGES.some(ex => entityName.toLowerCase() === ex.toLowerCase()));
   const isDepositLabel = labelObj.label_name && (
-    labelObj.label_name.toLowerCase().includes('deposit') || 
+    labelObj.label_name.toLowerCase().includes('deposit') ||
     labelObj.label_name.toLowerCase().includes('exchange')
   );
 
@@ -1048,7 +1048,7 @@ export const getTransactionByHash = async (txHash: string) => {
 
   const normalized = normalizeUserTransactionRow(rawTx);
   const parsed = await parseTransaction(normalized, normalized.sender || "");
-  
+
   // Apply project branding to show logo and dApp name
   const branded = applyProjectBranding([parsed])[0] || parsed;
   branded.wallet_address = normalized.sender;

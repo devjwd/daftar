@@ -4,6 +4,7 @@ import { useProfile } from '../hooks/useProfile';
 import { getPlanList, getPlansConfig, verifySubscriptionPayment } from '../services/api';
 import { normalizeAddress } from '../utils/address';
 import { useMovementClient } from '../hooks/useMovementClient';
+import { supabase } from '../services/supabase';
 import './Plans.css';
 
 interface PlanDefinition {
@@ -43,7 +44,8 @@ interface PaymentModalProps {
 
 function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmitTransaction, client }: PaymentModalProps) {
   const [selectedMonths, setSelectedMonths] = useState<number>(1);
-  const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'success' | 'error'>('confirm');
+  const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'syncing' | 'success' | 'error'>('confirm');
+  const [syncProgress, setSyncProgress] = useState({ synced: 0, total: 0 });
   const [txHash, setTxHash] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
@@ -104,8 +106,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       await new Promise(r => setTimeout(r, 3000));
       const res = await verifySubscriptionPayment(walletAddress, hash, monthsCount);
       if (res.ok) {
-        setStep('success');
-        setTimeout(() => { onSuccess(); onClose(); }, 3000);
+        setStep('syncing');
       } else {
         setErrorMsg(res.error || 'Verification failed. Contact the admin with your tx hash.');
         setStep('error');
@@ -115,6 +116,51 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       setStep('error');
     }
   }, [walletAddress, onSuccess, onClose]);
+
+  // Poll for sync status when in syncing step
+  useEffect(() => {
+    if (step !== 'syncing') return;
+    let active = true;
+
+    const poll = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_sync_status')
+          .select('*')
+          .eq('user_address', walletAddress)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Sync polling error:", error);
+        }
+
+        if (data && active) {
+          setSyncProgress({
+            synced: data.synced_transactions || 0,
+            total: data.total_transactions || 0
+          });
+
+          if (data.full_history_synced) {
+            setStep('success');
+            setTimeout(() => { if (active) { onSuccess(); onClose(); } }, 2000);
+            return; // stop polling
+          }
+        }
+      } catch (err) {
+        console.error("Sync polling failed:", err);
+      }
+
+      if (active) {
+        setTimeout(poll, 3000);
+      }
+    };
+
+    poll();
+
+    return () => {
+      active = false;
+    };
+  }, [step, walletAddress, onSuccess, onClose]);
 
   const handleSendMove = useCallback(async () => {
     if (!config.treasuryWallet) {
@@ -269,6 +315,32 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
             {txHash && (
               <code className="payment-tx-hash">{txHash.slice(0, 14)}...{txHash.slice(-10)}</code>
             )}
+          </div>
+        )}
+
+        {step === 'syncing' && (
+          <div className="payment-status-state">
+            <div className="payment-spinner" />
+            <h3>Syncing Your Data...</h3>
+            <p>Setting up your Pro account and loading historical transactions.</p>
+            {syncProgress.total > 0 && (
+              <div style={{ marginTop: '16px', width: '100%', textAlign: 'left', padding: '0 20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>
+                  <span>Progress</span>
+                  <span>{syncProgress.synced} / {syncProgress.total}</span>
+                </div>
+                <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: '#cda169', width: `${Math.min(100, Math.max(0, (syncProgress.synced / syncProgress.total) * 100))}%`, transition: 'width 0.3s ease' }} />
+                </div>
+              </div>
+            )}
+            <button 
+              className="payment-retry-btn" 
+              style={{ marginTop: '24px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)' }}
+              onClick={() => { onSuccess(); onClose(); }}
+            >
+              Skip to Dashboard
+            </button>
           </div>
         )}
 
