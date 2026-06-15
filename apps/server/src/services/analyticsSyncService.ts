@@ -825,7 +825,7 @@ export async function syncFullUserHistory(
   walletAddress: string
 ) {
   const address = normalizeAddress(walletAddress);
-  const BATCH_SIZE = 50;
+  const BATCH_SIZE = 500;
   let totalSynced = 0;
 
   console.log(`[DeepSync] 🚀 Starting deep history pull for ${address}...`);
@@ -971,7 +971,7 @@ export async function syncFullUserHistory(
       }).eq('user_address', address);
 
       if (txs.length < BATCH_SIZE) hasMoreForward = false;
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 50));
     }
 
     // Update status to let frontend know we've pulled new items
@@ -1043,7 +1043,7 @@ export async function syncFullUserHistory(
           hasMoreBackward = false;
           fullyFinishedHistory = true;
         }
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 50));
       }
 
       if (backwardBatchCount >= MAX_BACKWARD_BATCHES) {
