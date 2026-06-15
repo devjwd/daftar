@@ -2,6 +2,7 @@
   position: relative;
   display: inline-block;
   margin-left: auto;
+  z-index: 9999;
 }
 
 /* 
@@ -13,18 +14,18 @@
   top: 100%;
   right: 0;
   margin-top: 12px;
-  background: #111;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+  border: 1px solid rgba(205, 161, 105, 0.2);
   border-radius: 12px;
-  width: 300px;
-  padding: 20px;
+  width: 320px;
+  padding: 24px;
   opacity: 0;
   visibility: hidden;
   transform: translateY(-8px);
   transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
-  z-index: 1000;
+  z-index: 9999;
   pointer-events: none;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   text-align: left;
 }
 
@@ -85,18 +86,21 @@
 }
 
 .upgrade-popover-cta {
-  background: #36c690;
+  background: linear-gradient(135deg, #cda169 0%, #a87e48 100%);
   color: #000;
   border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 700;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(205, 161, 105, 0.2);
 }
 
 .upgrade-popover-cta:hover {
-  background: #41db9f;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(205, 161, 105, 0.3);
+  filter: brightness(1.1);
 }
