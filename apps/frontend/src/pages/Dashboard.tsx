@@ -32,6 +32,7 @@ import { resolveEntityBranding } from "../services/entityStore";
 
 import PNLChart from "../components/Dashboard/PNLChart";
 import ProfileModal from "../components/Dashboard/ProfileModal";
+import UpgradeModal from "../components/Dashboard/UpgradeModal";
 import PortfolioTabs, { PORTFOLIO_TABS } from "../components/Dashboard/PortfolioTabs";
 import {
   NetWorthValueSkeleton,
@@ -95,6 +96,7 @@ const Dashboard = () => {
 
   const [walletAge, setWalletAge] = useState<{ firstTxTimestamp?: string } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [hidePositionThreshold, setHidePositionThreshold] = useState(0);
   const meridianPoolInfoCacheRef = useRef(new Map());
   const yuzuDiscoveryCacheRef = useRef(new Map());
@@ -824,7 +826,12 @@ const Dashboard = () => {
         language={language}
         subscriptionTier={userProfile?.subscription_tier || 'free'}
         isVerified={Boolean(userProfile?.is_verified)}
+        onProFeatureClick={() => setShowUpgradeModal(true)}
       />
+
+      {showUpgradeModal && (
+        <UpgradeModal onClose={() => setShowUpgradeModal(false)} />
+      )}
 
       <AnimatePresence mode="wait">
         <motion.div

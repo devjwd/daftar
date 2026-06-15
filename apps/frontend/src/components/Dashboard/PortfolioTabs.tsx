@@ -21,6 +21,7 @@ interface PortfolioTabsProps {
   language: string;
   subscriptionTier?: 'free' | 'lite' | 'pro';
   isVerified?: boolean;
+  onProFeatureClick?: () => void;
 }
 
 const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
@@ -29,6 +30,7 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
   language,
   subscriptionTier = 'free',
   isVerified = false,
+  onProFeatureClick,
 }) => {
   const navigate = useNavigate();
 
@@ -65,7 +67,13 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
       <button
         type="button"
         className={`portfolio-tab-btn analytics-tab-v4 ${activeTab === PORTFOLIO_TABS.ANALYTICS ? 'active' : ''}`}
-        onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`)}
+        onClick={() => {
+          if (!isPremium && onProFeatureClick) {
+            onProFeatureClick();
+          } else {
+            navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.ANALYTICS}`);
+          }
+        }}
         style={{ marginLeft: 'auto' }}
         title={!isPremium ? 'Pro subscription required' : undefined}
       >

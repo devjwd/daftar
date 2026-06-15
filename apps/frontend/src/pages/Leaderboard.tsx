@@ -51,7 +51,7 @@ function LeaderboardSkeleton() {
           <span className="leaderboard-skeleton leaderboard-skeleton--user" />
           <span className="leaderboard-skeleton leaderboard-skeleton--address" />
           <div className="col-stats" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-             <span className="leaderboard-skeleton leaderboard-skeleton--stats" />
+            <span className="leaderboard-skeleton leaderboard-skeleton--stats" />
           </div>
         </div>
       ))}
@@ -211,8 +211,8 @@ export default function Leaderboard() {
 
             {hasMore && (
               <div className="leaderboard-load-more">
-                <button 
-                  className="load-more-btn" 
+                <button
+                  className="load-more-btn"
                   onClick={handleLoadMore}
                   disabled={loading}
                 >
