@@ -14,7 +14,7 @@ import {
 export async function clearUserAnalyticsData(supabase: SupabaseClient, walletAddress: string) {
   const normalized = normalizeAddress(walletAddress);
   console.log(`[AnalyticsSync] 🧹 Clearing analytics data for downgraded user: ${normalized}`);
-  
+
   // Run these in parallel to clean up everything quickly
   await Promise.all([
     supabase.from('user_transaction_history').delete().eq('user_address', normalized),
@@ -24,7 +24,7 @@ export async function clearUserAnalyticsData(supabase: SupabaseClient, walletAdd
     supabase.from('sync_queue').delete().eq('user_address', normalized),
     supabase.from('user_sync_status').delete().eq('user_address', normalized),
   ]);
-  
+
   console.log(`[AnalyticsSync] ✅ Data cleared for ${normalized}`);
 }
 
@@ -210,7 +210,7 @@ function extractCounterparties(txs: { tx: any; userAddress: string }[]): string[
       ...(tx.fungible_asset_activities || []),
       ...(tx.coin_activities || [])
     ];
-    
+
     let counterpartyAddress = null;
     for (const act of rawActivities) {
       const owner = normalizeAddress(act.owner_address || act.owner);
@@ -219,14 +219,14 @@ function extractCounterparties(txs: { tx: any; userAddress: string }[]): string[
         break;
       }
     }
-    
+
     if (!counterpartyAddress) {
       const sender = normalizeAddress(ut.sender);
       if (sender && sender !== userAddr) {
         counterpartyAddress = sender;
       }
     }
-    
+
     if (counterpartyAddress) {
       addresses.add(counterpartyAddress);
     }
@@ -239,15 +239,15 @@ function extractCounterparties(txs: { tx: any; userAddress: string }[]): string[
  * Mirrors the "fineist" frontend historyEngine.ts for server-side consistency
  */
 function enrichTransaction(
-  tx: any, 
-  walletAddress: string, 
+  tx: any,
+  walletAddress: string,
   labelsMap: Map<string, any> = new Map(),
   entitiesList: any[] = []
 ) {
   const userAddr = normalizeAddress(walletAddress);
   const ut = tx.user_transaction || {};
   const functionId = ut.entry_function_id_str || '';
-  
+
   // 1. Internal Constants & Mapping (Mirrored from frontend historyEngine.ts)
   const TX_TYPES = {
     SWAP: "SWAP", SEND: "SEND", RECEIVED: "RECEIVED",
@@ -518,7 +518,7 @@ function enrichTransaction(
     const type = String(act.type || act.activity_type || '').toLowerCase();
     const owner = String(act.owner_address || act.owner || '').toLowerCase();
     const isUser = owner === userAddr;
-    
+
     let direction: 'in' | 'out' | null = null;
     if (type.includes('deposit') || type.includes('received') || type.includes('credit') || type.includes('mint')) {
       direction = isUser ? 'in' : null;
@@ -534,8 +534,8 @@ function enrichTransaction(
     const assetType = act.asset_type || act.coin_type || '';
 
     // Filter out native gas fee deductions from activity flows to prevent false swaps
-    const isGasFee = (assetType.includes('aptos_coin') || assetType === '0x1' || assetType === '0xa') && 
-                      Math.abs(amount - nativeGasAmount) < 0.00005;
+    const isGasFee = (assetType.includes('aptos_coin') || assetType === '0x1' || assetType === '0xa') &&
+      Math.abs(amount - nativeGasAmount) < 0.00005;
     if (isGasFee) return null;
 
     const symbol = act.metadata?.symbol || resolveSymbol(assetType);
@@ -548,7 +548,7 @@ function enrichTransaction(
     ...(tx.fungible_asset_activities || []),
     ...(tx.coin_activities || [])
   ];
-  
+
   const activities = rawActivities.map(normalizeActivity).filter(a => a && a.direction);
   const inFlows = activities.filter(a => a?.direction === 'in');
   const outFlows = activities.filter(a => a?.direction === 'out');
@@ -595,7 +595,7 @@ function enrichTransaction(
     // 2. Try to find the counterparty in address_labels (deposit/withdrawal address mappings)
     if (labelsMap.has(counterpartyAddress)) {
       const labelObj = labelsMap.get(counterpartyAddress);
-      
+
       if (!counterpartyLabel) {
         counterpartyLabel = labelObj.tracked_entities?.name || labelObj.label_name || null;
       }
@@ -628,7 +628,7 @@ function enrichTransaction(
     ...(tx.coin_activities || []),
     ...(tx.events || [])
   ];
-  
+
   let eventTypeOverride = null;
   for (const evt of events) {
     const evtType = String(evt.type || '').toLowerCase();
@@ -662,10 +662,10 @@ function enrichTransaction(
   // Fallback: Search by keywords in database
   if (protocol === 'Unknown' && entitiesList.length > 0) {
     for (const entity of entitiesList) {
-      const keywords: string[] = Array.isArray(entity.keywords) 
-        ? entity.keywords 
+      const keywords: string[] = Array.isArray(entity.keywords)
+        ? entity.keywords
         : (entity.custom_type ? String(entity.custom_type).split(',').map(k => k.trim()) : []);
-        
+
       const allKeywords = [...keywords, entity.name.toLowerCase().replace(/\s/g, '')];
 
       if (allKeywords.some(kw => kw && lowerFn.includes(kw.toLowerCase()))) {
@@ -720,7 +720,7 @@ function enrichTransaction(
   if (action === TX_TYPES.SEND && !isInitiator) {
     action = TX_TYPES.RECEIVED;
   }
-  
+
   // Fallback to direction-based classification if OTHER
   if (action === TX_TYPES.OTHER) {
     if (inFlows.length > 0 && outFlows.length > 0) {
@@ -766,7 +766,7 @@ function enrichTransaction(
     const amount = Math.abs(Number(fallbackAct.amount || 0)) / Math.pow(10, decimals);
     const assetType = fallbackAct.asset_type || fallbackAct.coin_type || '';
     const symbol = fallbackAct.metadata?.symbol || resolveSymbol(assetType);
-    
+
     // Default to primaryOut so it shows up on the right side for LEND transactions
     primaryOut = { direction: 'out', amount, symbol, assetType } as any;
   }
@@ -902,7 +902,7 @@ export async function syncFullUserHistory(
     }, 20_000);
     const countJson: any = await countRes.json();
     const indexerCount = countJson.data?.account_transactions_aggregate?.aggregate?.count || 0;
-    
+
     // Only update if indexerCount is greater to prevent progress resetting
     if (indexerCount > totalTransactions) {
       totalTransactions = indexerCount;
@@ -933,8 +933,8 @@ export async function syncFullUserHistory(
   if (maxVersionStr === "0" && isFullySynced) {
     console.log(`[DeepSync] ⚠️ History was cleared but status was 'synced'. Resetting for ${address}...`);
     isFullySynced = false;
-    await supabase.from('user_sync_status').update({ 
-      full_history_synced: false, 
+    await supabase.from('user_sync_status').update({
+      full_history_synced: false,
       synced_transactions: 0,
       total_transactions: totalTransactions // Update with latest discovery
     }).eq('user_address', address);
@@ -1143,7 +1143,7 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
     'uMOVE', 'uUSDT', 'uUSDC', 'uETH', 'uBTC',
     'pmMOVE', 'pmUSDT', 'pmUSDC', 'pmETH', 'pmBTC'
   ];
-  
+
   await supabase
     .from('user_balance_snapshots')
     .delete()
@@ -1261,7 +1261,7 @@ export async function reProcessUnknownTransactions(supabase: SupabaseClient) {
     const { data: users } = await supabase
       .from('user_sync_status')
       .select('user_address');
-      
+
     if (users && users.length > 0) {
       console.log(`[DeepSync] 🔄 Reconstructing portfolios for ${users.length} users to clean up LP/lending snapshot history...`);
       for (const { user_address } of users) {
