@@ -40,7 +40,7 @@ router.get('/:address', profileLimiter, async (req: Request, res: Response) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('wallet_address, username, bio, avatar_url, twitter, telegram, is_verified, created_at, updated_at')
+      .select('wallet_address, username, bio, avatar_url, twitter, telegram, is_verified, subscription_tier, subscription_started_at, subscription_expires_at, created_at, updated_at')
       .eq('wallet_address', address)
       .maybeSingle();
 

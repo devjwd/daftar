@@ -536,7 +536,7 @@ export default function Plans() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const { client: movementClient } = useMovementClient();
   const walletAddress = connected && account?.address ? normalizeAddress(String(account.address)) : null;
-  const { profile, loading: profileLoading } = useProfile(walletAddress);
+  const { profile, loading: profileLoading, refresh: refreshProfile } = useProfile(walletAddress);
   const [plans, setPlans] = useState<PlanDefinition[]>([]);
   const [plansConfig, setPlansConfig] = useState<PlansConfig | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
@@ -569,9 +569,9 @@ export default function Plans() {
   }, []);
 
   const handlePaymentSuccess = useCallback(() => {
-    // Refresh profile to reflect new tier
-    window.location.reload();
-  }, []);
+    // Refresh profile to reflect new tier without hard reloading
+    refreshProfile();
+  }, [refreshProfile]);
 
   const effectivePriceUsd = plansConfig
     ? (plansConfig.discountPriceUsd !== null ? plansConfig.discountPriceUsd : plansConfig.basePriceUsd)
