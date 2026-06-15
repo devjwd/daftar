@@ -8,6 +8,7 @@ import { verifyWalletSignature, sigVerificationLogs } from '../utils/crypto.ts';
 import { getEffectiveTier } from '../services/subscriptionService.ts';
 import { isPremiumTier } from '@daftar/shared-types';
 import { sendEmailAlert, sendTelegramAlert, sendDiscordAlert } from '../services/notificationService.ts';
+import { verifyUserRoles } from '../bots/discord/discordBot.ts';
 import fetch from 'node-fetch';
 
 const router = express.Router();
@@ -231,6 +232,9 @@ router.post('/link-discord', generalLimiter, async (req: Request, res: Response)
       .single();
 
     if (error) throw error;
+
+    // Trigger role verification asynchronously
+    verifyUserRoles(discord_user_id, normalizedAddr).catch(console.error);
 
     return res.status(200).json({ message: 'Discord account linked successfully!', config: data });
   } catch (err: any) {
@@ -503,6 +507,9 @@ router.post('/discord-oauth', generalLimiter, async (req: Request, res: Response
       .single();
 
     if (error) throw error;
+
+    // Trigger role verification asynchronously
+    verifyUserRoles(discordUserId, normalizedAddr).catch(console.error);
 
     return res.status(200).json({ message: 'Discord linked successfully via OAuth2!', username: userData.username, config: data });
   } catch (err: any) {

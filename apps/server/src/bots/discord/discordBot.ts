@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Partials, REST, Routes, EmbedBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from 'discord.js';
 import { getSupabase } from '../../config/supabase.ts';
 import { getEffectiveTier } from '../../services/subscriptionService.ts';
 import { isPremiumTier } from '@daftar/shared-types';
@@ -7,6 +7,45 @@ let discordClient: Client | null = null;
 
 export function getDiscordClient(): Client | null {
   return discordClient;
+}
+
+export async function verifyUserRoles(discordUserId: string, walletAddress: string) {
+  if (!discordClient) return;
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const verifiedRoleId = process.env.DISCORD_VERIFIED_ROLE_ID;
+  const proRoleId = process.env.DISCORD_PRO_ROLE_ID;
+
+  if (!guildId) return;
+
+  try {
+    const guild = await discordClient.guilds.fetch(guildId);
+    if (!guild) return;
+
+    const member = await guild.members.fetch(discordUserId).catch(() => null);
+    if (!member) return;
+
+    const supabase = getSupabase();
+    let isPro = false;
+    if (supabase) {
+      const tier = await getEffectiveTier(supabase, walletAddress);
+      isPro = isPremiumTier(tier);
+    }
+
+    if (verifiedRoleId) {
+      await member.roles.add(verifiedRoleId).catch(console.error);
+    }
+
+    if (proRoleId) {
+      if (isPro) {
+        await member.roles.add(proRoleId).catch(console.error);
+      } else {
+        await member.roles.remove(proRoleId).catch(console.error);
+      }
+    }
+    console.log(`[DiscordBot] Verified roles for user ${discordUserId}`);
+  } catch (error) {
+    console.error('[DiscordBot] Error assigning roles:', error);
+  }
 }
 
 export async function initDiscordBot(): Promise<Client | null> {
@@ -39,6 +78,11 @@ export async function initDiscordBot(): Promise<Client | null> {
     {
       name: 'help',
       description: 'List all commands and status information.',
+    },
+    {
+      name: 'setup_verify',
+      description: 'Admin: Post the server verification message.',
+      default_member_permissions: String(PermissionFlagsBits.ManageGuild)
     }
   ];
 
@@ -162,9 +206,51 @@ export async function initDiscordBot(): Promise<Client | null> {
           `**Commands:**\n` +
           `• \`/link\` - Connect your Movement wallet to your Discord account.\n` +
           `• \`/portfolio\` - Show net worth distribution for your linked wallet.\n` +
+          `• \`/setup_verify\` - Admin: Set up the server verification message.\n` +
           `• \`/help\` - Show this information.`
         )
         .setColor(0xD4AF37);
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+    
+    else if (commandName === 'setup_verify') {
+      const embed = new EmbedBuilder()
+        .setTitle('Verify your wallet')
+        .setDescription('Click on the link below to verify your Movement wallet and receive your roles.\n\nYou will receive a role update when verification is complete.')
+        .setColor(0x00FF00); // Green
+
+      const verifyButton = new ButtonBuilder()
+        .setCustomId('verify_movement_wallet')
+        .setLabel('Verify Movement')
+        .setStyle(ButtonStyle.Primary);
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(verifyButton);
+
+      await interaction.reply({ content: 'Verification message setup successfully.', ephemeral: true });
+      if (interaction.channel && 'send' in interaction.channel) {
+        await (interaction.channel as any).send({ embeds: [embed], components: [row] });
+      }
+    }
+  });
+
+  // Handle Button Interactions
+  discordClient.on('interactionCreate', async (interaction) => {
+    if (!interaction.isButton()) return;
+    
+    if (interaction.customId === 'verify_movement_wallet') {
+      const webappUrl = process.env.NODE_ENV === 'production' ? 'https://daftar.fi' : 'http://localhost:3000';
+      const redirectUri = encodeURIComponent(`${webappUrl}/settings`);
+      const clientId = process.env.DISCORD_CLIENT_ID;
+      const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify`;
+
+      const embed = new EmbedBuilder()
+        .setTitle('🔗 Verify Your Wallet')
+        .setDescription(
+          `Click on the link below to verify. Follow the instructions on the page to gain new roles in the Discord Server.\n\n` +
+          `[Verify now](${oauthUrl})`
+        )
+        .setColor(0xD4AF37);
+
       await interaction.reply({ embeds: [embed], ephemeral: true });
     }
   });

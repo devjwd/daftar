@@ -146,12 +146,12 @@ async function getSubscriptionConfig(supabase: any) {
   const hasDiscount = rawDiscount !== null && rawDiscount !== undefined && rawDiscount !== '' && rawDiscount !== 0;
 
   return {
-    basePriceUsd:     toNum(cfg.subscription_price_usd, 5),
+    basePriceUsd: toNum(cfg.subscription_price_usd, 5),
     discountPriceUsd: hasDiscount ? toNum(rawDiscount, 0) : null,
-    discountLabel:    toStr(cfg.subscription_discount_label),
-    treasuryWallet:   toStr(cfg.subscription_treasury_wallet),
-    durationDays:     toNum(cfg.subscription_duration_days, 30),
-    discountScope:    toStr(cfg.subscription_discount_scope) || 'all_months',
+    discountLabel: toStr(cfg.subscription_discount_label),
+    treasuryWallet: toStr(cfg.subscription_treasury_wallet),
+    durationDays: toNum(cfg.subscription_duration_days, 30),
+    discountScope: toStr(cfg.subscription_discount_scope) || 'all_months',
   };
 }
 
