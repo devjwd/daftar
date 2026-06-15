@@ -29,7 +29,6 @@ const GET_USER_TRANSACTIONS_PAGINATED = `
         sender
         timestamp
         entry_function_id_str
-        payload
       }
       fungible_asset_activities {
         transaction_version
@@ -75,7 +74,6 @@ const GET_USER_TRANSACTIONS_FORWARD_PAGINATED = `
         sender
         timestamp
         entry_function_id_str
-        payload
       }
       fungible_asset_activities {
         transaction_version
