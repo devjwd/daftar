@@ -85,9 +85,13 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
             </svg>
             {t(language, 'portfolioTabAnalytics')}
             {!isPremium && (
-              <span className="portfolio-tab-lock" aria-hidden="true" style={{ marginLeft: '6px', opacity: 0.7 }}>
-                🔒
-              </span>
+              <span className="pro-diamond-icon" aria-hidden="true" style={{ marginLeft: '6px', display: 'flex', alignItems: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 3h12l4 6-10 13L2 9Z" />
+                <path d="M11 3 8 9l4 13" />
+                <path d="M13 3l3 6-4 13" />
+              </svg>
+            </span>
             )}
           </div>
         </button>

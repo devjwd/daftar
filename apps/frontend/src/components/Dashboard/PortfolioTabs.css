@@ -104,3 +104,19 @@
   box-shadow: 0 8px 25px rgba(205, 161, 105, 0.3);
   filter: brightness(1.1);
 }
+
+.pro-diamond-icon {
+  color: #36c690;
+  filter: drop-shadow(0 0 4px rgba(54, 198, 144, 0.6));
+  animation: diamond-pulse 2s infinite alternate;
+}
+
+@keyframes diamond-pulse {
+  0% {
+    filter: drop-shadow(0 0 2px rgba(54, 198, 144, 0.4));
+  }
+  100% {
+    filter: drop-shadow(0 0 8px rgba(54, 198, 144, 0.9));
+  }
+}
+
