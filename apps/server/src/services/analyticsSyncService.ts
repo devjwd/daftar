@@ -898,13 +898,14 @@ export async function syncFullUserHistory(
     }).eq('user_address', address);
   }
 
-  // Mark status as currently syncing with total count
+  // Mark status as currently syncing with total count and clear any previous errors
   await supabase.from('user_sync_status').upsert({
     user_address: address,
     last_sync_at: new Date().toISOString(),
     full_history_synced: false,
     total_transactions: totalTransactions,
-    synced_transactions: statusData?.synced_transactions || 0
+    synced_transactions: statusData?.synced_transactions || 0,
+    sync_error: null
   });
 
   try {
@@ -1055,11 +1056,18 @@ export async function syncFullUserHistory(
     // Finalize sync status
     await supabase.from('user_sync_status').update({
       full_history_synced: fullyFinishedHistory,
-      last_sync_at: new Date().toISOString()
+      last_sync_at: new Date().toISOString(),
+      sync_error: null
     }).eq('user_address', address);
 
+    const { count: snapCount } = await supabase
+      .from('user_balance_snapshots')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_address', address);
+
     // Trigger portfolio reconstruction to update snapshots only if new transactions were synced
-    if (totalSynced > 0) {
+    // OR if balance snapshots are entirely missing (e.g. if a previous sync crashed before reconstruction)
+    if (totalSynced > 0 || !snapCount) {
       try {
         await reconstructHistoricalBalances(supabase, address);
       } catch (reconstructErr) {
