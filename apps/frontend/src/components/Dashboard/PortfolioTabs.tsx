@@ -40,7 +40,7 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
   const isPremium = isPremiumTier(effectiveTier);
 
   return (
-    <section className="portfolio-tabs-row fade-in">
+    <section className="portfolio-tabs-row fade-in" style={{ position: 'relative', zIndex: 100 }}>
       <button
         type="button"
         className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.OVERVIEW ? 'active' : ''}`}
