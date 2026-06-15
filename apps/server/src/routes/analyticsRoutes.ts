@@ -428,6 +428,33 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
     if (snapError) throw snapError;
 
     if (!snapshots || snapshots.length === 0) {
+      // Before returning empty, check if a sync is in progress for this wallet
+      const { data: activeJob } = await supabase
+        .from('sync_queue')
+        .select('status')
+        .eq('user_address', wallet)
+        .in('status', ['pending', 'processing'])
+        .maybeSingle();
+
+      if (activeJob) {
+        const { data: syncStatus } = await supabase
+          .from('user_sync_status')
+          .select('synced_transactions, total_transactions')
+          .eq('user_address', wallet)
+          .maybeSingle();
+
+        return res.json({
+          history: [],
+          performance: { changeUsd: 0, changePercent: 0 },
+          syncing: true,
+          syncStatus: activeJob.status,
+          syncProgress: {
+            synced: syncStatus?.synced_transactions || 0,
+            total: syncStatus?.total_transactions || 0,
+          },
+        });
+      }
+
       return res.json({ history: [], performance: { changeUsd: 0, changePercent: 0 } });
     }
 
@@ -492,6 +519,43 @@ router.get('/data', async (req: Request, res: Response) => {
     }
 
     const result = await aggregateAnalyticsData(supabase, wallet, timeframe, customStartDate, customEndDate);
+
+    // If no transactions found, check whether a sync is currently in progress
+    // and surface that state to the frontend instead of silently returning empty data.
+    if (!result.interactionCount && !result.totalVolume) {
+      const { data: syncStatus } = await supabase
+        .from('user_sync_status')
+        .select('full_history_synced, synced_transactions, total_transactions, sync_error')
+        .eq('user_address', wallet)
+        .maybeSingle();
+
+      const { data: activeJob } = await supabase
+        .from('sync_queue')
+        .select('status')
+        .eq('user_address', wallet)
+        .in('status', ['pending', 'processing'])
+        .maybeSingle();
+
+      if (activeJob) {
+        return res.status(200).json({
+          ...result,
+          syncing: true,
+          syncStatus: activeJob.status,
+          syncProgress: {
+            synced: syncStatus?.synced_transactions || 0,
+            total: syncStatus?.total_transactions || 0,
+          },
+        });
+      }
+
+      if (syncStatus?.sync_error) {
+        return res.status(200).json({
+          ...result,
+          syncing: false,
+          syncError: syncStatus.sync_error,
+        });
+      }
+    }
 
     if (!isCustomDate) {
       analyticsCache.set(wallet, timeframe, result);

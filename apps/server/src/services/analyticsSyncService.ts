@@ -11,7 +11,49 @@ import {
   generateTradeportDescription
 } from './nft/tradeportDetector.ts';
 
+export async function clearUserAnalyticsData(supabase: SupabaseClient, walletAddress: string) {
+  const normalized = normalizeAddress(walletAddress);
+  console.log(`[AnalyticsSync] 🧹 Clearing analytics data for downgraded user: ${normalized}`);
+  
+  // Run these in parallel to clean up everything quickly
+  await Promise.all([
+    supabase.from('user_transaction_history').delete().eq('user_address', normalized),
+    supabase.from('user_networth_snapshots').delete().eq('user_address', normalized),
+    supabase.from('user_balance_snapshots').delete().eq('user_address', normalized),
+    supabase.from('defi_discovery_cache').delete().eq('user_address', normalized),
+    supabase.from('sync_queue').delete().eq('user_address', normalized),
+    supabase.from('user_sync_status').delete().eq('user_address', normalized),
+  ]);
+  
+  console.log(`[AnalyticsSync] ✅ Data cleared for ${normalized}`);
+}
+
 const MOVEMENT_INDEXER_URL = CONFIG.MOVEMENT.INDEXER_URL;
+
+/**
+ * Fetch wrapper with a hard timeout.
+ * Prevents the sync worker from hanging indefinitely on slow/unresponsive indexer responses.
+ * Throws an error with a clear message on timeout so the job is marked 'failed' and retried.
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: Parameters<typeof fetch>[1],
+  timeoutMs: number = 15_000
+): Promise<any> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal as any });
+    return response;
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`IndexerTimeout: request to ${url} exceeded ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // GraphQL query for deep transaction history
 const GET_USER_TRANSACTIONS_PAGINATED = `
@@ -846,7 +888,7 @@ export async function syncFullUserHistory(
   // 2. Fetch total transaction count from indexer
   let totalTransactions = statusData?.total_transactions || 0;
   try {
-    const countRes = await fetch(MOVEMENT_INDEXER_URL, {
+    const countRes = await fetchWithTimeout(MOVEMENT_INDEXER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -857,7 +899,7 @@ export async function syncFullUserHistory(
         }`,
         variables: { address }
       })
-    });
+    }, 20_000);
     const countJson: any = await countRes.json();
     const indexerCount = countJson.data?.account_transactions_aggregate?.aggregate?.count || 0;
     
@@ -919,14 +961,14 @@ export async function syncFullUserHistory(
     while (hasMoreForward && forwardBatchCount < MAX_FORWARD_BATCHES) {
       forwardBatchCount++;
 
-      const response = await fetch(MOVEMENT_INDEXER_URL, {
+      const response = await fetchWithTimeout(MOVEMENT_INDEXER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: GET_USER_TRANSACTIONS_FORWARD_PAGINATED,
           variables: { address, limit: BATCH_SIZE, gt_version: gtVersion }
         })
-      });
+      }, 30_000);
 
       const json: any = await response.json();
       if (json.errors) throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
@@ -942,7 +984,7 @@ export async function syncFullUserHistory(
       const labelsMap = await getLabelsForAddresses(supabase, counterparties);
 
       const enriched = txs.map((tx: any) => enrichTransaction(tx, address, labelsMap, entitiesList));
-       const { error: upsertError } = await supabase
+      const { error: upsertError } = await supabase
         .from('user_transaction_history')
         .upsert(enriched, { onConflict: 'user_address,version' });
 
@@ -954,7 +996,6 @@ export async function syncFullUserHistory(
       } catch (alertErr) {
         console.error(`[DeepSync] Alert dispatch failed for ${address}:`, alertErr);
       }
-
 
       totalSynced += txs.length;
       gtVersion = txs[txs.length - 1].transaction_version;
@@ -972,7 +1013,8 @@ export async function syncFullUserHistory(
       }).eq('user_address', address);
 
       if (txs.length < BATCH_SIZE) hasMoreForward = false;
-      await new Promise(r => setTimeout(r, 50));
+      // Small delay to avoid hammering the indexer — scales with batch number
+      await new Promise(r => setTimeout(r, Math.min(forwardBatchCount, 5) * 50));
     }
 
     // Update status to let frontend know we've pulled new items
@@ -994,14 +1036,14 @@ export async function syncFullUserHistory(
       while (hasMoreBackward && backwardBatchCount < MAX_BACKWARD_BATCHES) {
         backwardBatchCount++;
 
-        const response = await fetch(MOVEMENT_INDEXER_URL, {
+        const response = await fetchWithTimeout(MOVEMENT_INDEXER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: GET_USER_TRANSACTIONS_PAGINATED,
             variables: { address, limit: BATCH_SIZE, lt_version: ltVersion }
           })
-        });
+        }, 30_000);
 
         const json: any = await response.json();
         if (json.errors) throw new Error(`Indexer query failed: ${JSON.stringify(json.errors)}`);
@@ -1024,7 +1066,6 @@ export async function syncFullUserHistory(
 
         if (upsertError) throw upsertError;
 
-
         totalSynced += txs.length;
         ltVersion = txs[txs.length - 1].transaction_version;
 
@@ -1044,7 +1085,8 @@ export async function syncFullUserHistory(
           hasMoreBackward = false;
           fullyFinishedHistory = true;
         }
-        await new Promise(r => setTimeout(r, 50));
+        // Exponential back-off: gentler on indexer under concurrent load
+        await new Promise(r => setTimeout(r, Math.min(backwardBatchCount, 5) * 50));
       }
 
       if (backwardBatchCount >= MAX_BACKWARD_BATCHES) {

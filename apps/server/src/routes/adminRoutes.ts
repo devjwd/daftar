@@ -6,6 +6,7 @@ import { validateBadgeDefinitionPayload } from '../services/validationService.ts
 import { normalizeAddress } from '../utils/address.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { queueSync } from '../services/analyticsSyncQueue.ts';
+import { clearUserAnalyticsData } from '../services/analyticsSyncService.ts';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -343,6 +344,13 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
             console.log(`[Admin] Automatically queued initial sync for newly upgraded user: ${normalized}`);
           } catch (queueErr) {
             console.error(`[Admin] Failed to auto-queue sync for upgraded user ${normalized}:`, queueErr);
+          }
+        } else if (tier === 'free') {
+          // If downgraded to free, clear their analytics data
+          try {
+            await clearUserAnalyticsData(supabaseAdmin, normalized);
+          } catch (clearErr) {
+            console.error(`[Admin] Failed to clear analytics data for downgraded user ${normalized}:`, clearErr);
           }
         }
 

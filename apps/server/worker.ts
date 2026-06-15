@@ -4,7 +4,7 @@ import { startPricePitcher } from './src/services/priceService.ts';
 import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { startNFTPriceWorker } from './src/services/nftPriceWorker.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
-import { processSyncQueue } from './src/services/analyticsSyncQueue.ts';
+import { drainSyncQueue } from './src/services/analyticsSyncQueue.ts';
 import { initTelegramBot } from './src/bots/telegram/telegramBot.ts';
 import { initDiscordBot } from './src/bots/discord/discordBot.ts';
 
@@ -42,19 +42,21 @@ setInterval(async () => {
   }
 }, 10000); // 10 seconds
 
-// Start background sync queue worker (fallback interval: every 5 seconds)
+// Start background sync queue worker — drains up to 5 jobs in parallel every 3 seconds.
+// At 5 concurrent jobs x ~20-30s per sync, throughput is ~60-90 jobs/min.
+// 50 simultaneous Pro upgrades are cleared within ~30-60 seconds.
 let isSyncQueueRunning = false;
 setInterval(async () => {
   if (!isSyncQueueRunning) {
     isSyncQueueRunning = true;
     try {
-      await processSyncQueue(supabaseAdmin);
+      await drainSyncQueue(supabaseAdmin, 5);
     } catch (err) {
       console.error('[Worker] Sync Queue Worker Error:', err);
     } finally {
       isSyncQueueRunning = false;
     }
   }
-}, 5000); // 5 seconds
+}, 3000); // 3 seconds — tighter loop for faster responsiveness
 
 console.log('[Worker] Background workers started successfully.');

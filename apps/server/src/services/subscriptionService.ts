@@ -5,6 +5,7 @@ import {
   type ProfileTierInput,
   type SubscriptionTier,
 } from '@daftar/shared-types';
+import { clearUserAnalyticsData } from './analyticsSyncService.ts';
 
 export type { SubscriptionTier };
 
@@ -40,4 +41,58 @@ export async function getEffectiveTier(
 ): Promise<SubscriptionTier> {
   const profile = await getProfileForWallet(supabase, walletAddress);
   return resolveEffectiveTier(profile);
+}
+
+export async function cleanupExpiredSubscriptions(supabase: SupabaseClient) {
+  console.log('[SubscriptionService] 🧹 Checking for expired subscriptions...');
+  
+  // Find profiles where subscription_expires_at is in the past, and tier is not free
+  const { data: expiredProfiles, error } = await supabase
+    .from('profiles')
+    .select('wallet_address, subscription_tier')
+    .neq('subscription_tier', 'free')
+    .not('subscription_expires_at', 'is', null)
+    .lt('subscription_expires_at', new Date().toISOString());
+
+  if (error) {
+    console.error('[SubscriptionService] Error fetching expired subscriptions:', error);
+    return;
+  }
+
+  if (!expiredProfiles || expiredProfiles.length === 0) {
+    return;
+  }
+
+  console.log(`[SubscriptionService] Found ${expiredProfiles.length} expired subscriptions. Processing...`);
+
+  for (const profile of expiredProfiles) {
+    if (!profile.wallet_address) continue;
+    const normalized = normalizeAddress(profile.wallet_address);
+    
+    // 1. Downgrade tier to free
+    const { error: updateErr } = await supabase
+      .from('profiles')
+      .update({
+        subscription_tier: 'free',
+        is_verified: false,
+        subscription_started_at: null,
+        subscription_expires_at: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('wallet_address', normalized);
+
+    if (updateErr) {
+      console.error(`[SubscriptionService] Error downgrading ${normalized}:`, updateErr);
+      continue;
+    }
+
+    // 2. Clear their data
+    try {
+      await clearUserAnalyticsData(supabase, normalized);
+    } catch (clearErr) {
+      console.error(`[SubscriptionService] Error clearing data for expired user ${normalized}:`, clearErr);
+    }
+  }
+
+  console.log(`[SubscriptionService] ✅ Finished processing expired subscriptions.`);
 }

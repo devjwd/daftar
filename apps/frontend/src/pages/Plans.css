@@ -756,3 +756,383 @@
   background: rgba(255, 255, 255, 0.09);
   color: #fff;
 }
+
+/* ─── Wide Modal Variant (for purchased / processing) ──────────────────── */
+
+.payment-modal--wide {
+  max-width: 580px;
+  padding: 36px 32px;
+}
+
+/* ─── Post-Purchase: Benefits Showcase ─────────────────────────────────── */
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+@keyframes postPurchaseSpin {
+  to { transform: rotate(360deg); }
+}
+
+.post-purchase-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 0;
+}
+
+/* Hero section */
+.post-purchase-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.post-purchase-badge-ring {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, rgba(229,190,138,0.2), rgba(205,161,105,0.06));
+  border: 2px solid rgba(205,161,105,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 40px rgba(205,161,105,0.15);
+  animation: postPurchasePop 0.5s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+@keyframes postPurchasePop {
+  from { transform: scale(0) rotate(-20deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0);      opacity: 1; }
+}
+
+.post-purchase-crown {
+  font-size: 32px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 8px rgba(205,161,105,0.5));
+}
+
+.post-purchase-title {
+  font-size: 22px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff 30%, #e5be8a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+.post-purchase-subtitle {
+  font-size: 13px;
+  color: rgba(255,255,255,0.45);
+  line-height: 1.5;
+}
+
+/* Benefits grid */
+.pro-benefits-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pro-benefit-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  animation: benefitSlideIn 0.4s ease both;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.pro-benefit-card:hover {
+  border-color: rgba(205,161,105,0.2);
+  background: rgba(205,161,105,0.04);
+}
+
+@keyframes benefitSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pro-benefit-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pro-benefit-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pro-benefit-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  letter-spacing: -0.01em;
+}
+
+.pro-benefit-desc {
+  font-size: 11px;
+  color: rgba(255,255,255,0.38);
+  line-height: 1.4;
+}
+
+/* Footer */
+.post-purchase-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.post-purchase-indexing-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(205,161,105,0.07);
+  border: 1px solid rgba(205,161,105,0.15);
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ─── Processing: Sync Progress Page ───────────────────────────────────── */
+
+.processing-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 4px 0;
+}
+
+/* Orbit animation header */
+.processing-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.processing-orbit {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.processing-orbit-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: #cda169;
+  border-right-color: rgba(205,161,105,0.3);
+  animation: orbitSpin 2.2s linear infinite;
+}
+
+.processing-orbit-ring--2 {
+  inset: 12px;
+  border-top-color: #e5be8a;
+  border-right-color: rgba(229,190,138,0.2);
+  animation: orbitSpin 1.6s linear infinite reverse;
+}
+
+@keyframes orbitSpin {
+  to { transform: rotate(360deg); }
+}
+
+.processing-orbit-core {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, rgba(229,190,138,0.15), rgba(205,161,105,0.04));
+  border: 1px solid rgba(205,161,105,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.processing-title {
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff 30%, #e5be8a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+.processing-subtitle {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+/* Progress bar */
+.processing-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.processing-progress-bar-wrap {
+  width: 100%;
+  height: 8px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.processing-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #cda169, #e5be8a, #cda169);
+  background-size: 200% 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+  animation: progressShimmer 2.5s linear infinite;
+}
+
+@keyframes progressShimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+.processing-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+
+/* Steps checklist */
+.processing-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.processing-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  transition: color 0.3s;
+}
+
+.processing-step--done {
+  color: rgba(255,255,255,0.75);
+}
+
+.processing-step--active {
+  color: rgba(255,255,255,0.85);
+}
+
+.processing-step-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.processing-step--done .processing-step-icon {
+  background: rgba(54,198,144,0.12);
+  border-color: rgba(54,198,144,0.25);
+  color: #36c690;
+}
+
+.processing-step--active .processing-step-icon {
+  background: rgba(205,161,105,0.1);
+  border-color: rgba(205,161,105,0.3);
+  animation: activeStepGlow 1.8s ease-in-out infinite;
+}
+
+@keyframes activeStepGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(205,161,105,0); }
+  50%       { box-shadow: 0 0 0 4px rgba(205,161,105,0.12); }
+}
+
+.processing-step-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cda169;
+  animation: pulseDot 1.2s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.6; }
+}
+
+/* Info row */
+.processing-info-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.processing-info-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  text-align: center;
+}
+
+.processing-info-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.processing-info-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+}
+
+/* CTA row */
+.processing-cta-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+}

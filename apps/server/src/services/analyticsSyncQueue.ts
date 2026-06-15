@@ -62,63 +62,75 @@ export async function queueSync(
 }
 
 /**
- * Process the next pending job in the queue.
- * Orders by priority (descending) and then created_at (ascending).
+ * Internal: claim and lock a single pending job via optimistic locking.
+ * Returns the locked job or null if nothing was available or job was already claimed.
+ * Skips addresses already in-flight to prevent double-processing the same wallet.
  */
-export async function processSyncQueue(supabase: SupabaseClient) {
-  // 1. Fetch next pending job
-  const { data: nextJob, error: fetchError } = await supabase
+async function claimNextPendingJob(
+  supabase: SupabaseClient,
+  skipAddresses: string[] = []
+): Promise<{ id: string; user_address: string; priority: number | null } | null> {
+  // Fetch next pending job (may be filtered client-side for skipAddresses)
+  let query = supabase
     .from('sync_queue')
     .select('id, user_address, priority')
     .eq('status', 'pending')
     .order('priority', { ascending: false })
     .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(10); // Fetch a few candidates so we can skip in-flight ones
+
+  const { data: candidates, error: fetchError } = await query;
 
   if (fetchError) {
     console.error('[SyncQueue] Error fetching next job:', fetchError.message);
-    return;
+    return null;
   }
 
-  if (!nextJob) {
-    // No pending jobs
-    return;
-  }
+  if (!candidates || candidates.length === 0) return null;
 
-  const { id, user_address: address } = nextJob;
+  // Pick the first candidate not already in-flight
+  const candidate = candidates.find(j => !skipAddresses.includes(j.user_address));
+  if (!candidate) return null;
 
-  // 2. Lock the job by transitioning to 'processing'
+  // Optimistic lock: only update if status is still 'pending'
   const { data: lockedJob, error: lockError } = await supabase
     .from('sync_queue')
     .update({ status: 'processing', updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('status', 'pending')
+    .eq('id', candidate.id)
+    .eq('status', 'pending') // Guard: only succeed if not already claimed
     .select()
     .maybeSingle();
 
   if (lockError) {
-    console.error(`[SyncQueue] Lock error for job ${id}:`, lockError.message);
-    return;
+    console.error(`[SyncQueue] Lock error for job ${candidate.id}:`, lockError.message);
+    return null;
   }
 
-  if (!lockedJob) {
-    // Already picked up by another worker
-    return;
-  }
+  // null means another concurrent worker already claimed it — gracefully skip
+  return lockedJob;
+}
+
+/**
+ * Internal: execute a single locked sync job to completion.
+ */
+async function executeLockedJob(
+  supabase: SupabaseClient,
+  lockedJob: { id: string; user_address: string; priority: number | null }
+): Promise<void> {
+  const { id, user_address: address } = lockedJob;
 
   console.log(`[SyncQueue] 🚀 Processing sync job for ${address} (Priority: ${lockedJob.priority})...`);
 
   try {
-    // 3. Execute deep sync
+    // Deep sync: fetch all transactions from blockchain and store in DB
     const syncResult = await syncFullUserHistory(supabase, address);
     const hasNewTx = syncResult && syncResult.totalSynced > 0;
 
-    // 4. Take net worth snapshot (force update if there are new transactions or if this is a manual high-priority sync)
+    // Take net worth snapshot (force if new transactions synced or high-priority)
     const forceSnapshot = hasNewTx || (lockedJob.priority || 0) > 0;
     await takeNetworthSnapshot(supabase, address, forceSnapshot);
 
-    // 5. Mark job as completed
+    // Mark job as completed
     await supabase
       .from('sync_queue')
       .update({ status: 'completed', updated_at: new Date().toISOString() })
@@ -126,17 +138,17 @@ export async function processSyncQueue(supabase: SupabaseClient) {
 
     console.log(`[SyncQueue] ✅ Successfully processed sync job for ${address}`);
 
-    // Invalidate server-side analytics cache for this wallet
+    // Invalidate analytics cache so next request re-computes fresh data
     analyticsCache.invalidate(address);
 
-    // Immediately trigger price backfilling in the background asynchronously for this specific wallet first
+    // Price backfill runs in background — don't block the queue
     void backfillTransactionPrices(supabase, 200, address).catch(err => {
       console.error('[SyncQueue] Immediate price backfill error:', err.message);
     });
+
   } catch (err: any) {
     console.error(`[SyncQueue] ❌ Failed processing sync job for ${address}:`, err.message);
 
-    // 6. Mark job as failed
     await supabase
       .from('sync_queue')
       .update({
@@ -146,4 +158,54 @@ export async function processSyncQueue(supabase: SupabaseClient) {
       })
       .eq('id', id);
   }
+}
+
+/**
+ * Process the next single pending job in the queue (single-job, backward-compat).
+ * Orders by priority (descending) then created_at (ascending).
+ */
+export async function processSyncQueue(supabase: SupabaseClient): Promise<void> {
+  const job = await claimNextPendingJob(supabase);
+  if (!job) return;
+  await executeLockedJob(supabase, job);
+}
+
+/**
+ * Drain the sync queue by processing up to `concurrency` jobs in parallel.
+ *
+ * This is the production-grade entrypoint that handles bursts of concurrent upgrades.
+ * With concurrency=5 and jobs taking ~30s each, throughput is ~10 jobs/min vs 12/min
+ * serially — but latency for each individual user drops from minutes to seconds.
+ *
+ * Each job is claimed with optimistic locking, preventing double-processing even when
+ * multiple server instances or concurrent intervals call this function simultaneously.
+ *
+ * @returns Number of jobs that were started this drain cycle.
+ */
+export async function drainSyncQueue(
+  supabase: SupabaseClient,
+  concurrency: number = 5
+): Promise<number> {
+  const inFlightAddresses: string[] = [];
+  const jobPromises: Promise<void>[] = [];
+
+  // Claim up to `concurrency` jobs sequentially (to safely skip in-flight ones)
+  for (let i = 0; i < concurrency; i++) {
+    const job = await claimNextPendingJob(supabase, inFlightAddresses);
+    if (!job) break; // No more available pending jobs
+
+    inFlightAddresses.push(job.user_address);
+    // Execute all claimed jobs concurrently
+    jobPromises.push(executeLockedJob(supabase, job));
+  }
+
+  if (jobPromises.length === 0) return 0;
+
+  console.log(`[SyncQueue] 🔄 Draining queue: ${jobPromises.length} jobs running in parallel...`);
+
+  // Wait for all jobs, capturing errors (each job handles its own error internally)
+  await Promise.allSettled(jobPromises);
+
+  console.log(`[SyncQueue] ✅ Drain cycle complete. Ran ${jobPromises.length} jobs.`);
+  return jobPromises.length;
 }

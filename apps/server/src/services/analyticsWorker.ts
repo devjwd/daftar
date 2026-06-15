@@ -1,8 +1,9 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { reProcessUnknownTransactions } from './analyticsSyncService.ts';
 import { reProcessSuspiciousPrices } from './analyticsPriceService.ts';
-import { queueSync, processSyncQueue } from './analyticsSyncQueue.ts';
+import { queueSync, drainSyncQueue } from './analyticsSyncQueue.ts';
 import { resolveEffectiveTier, isPremiumTier } from '@daftar/shared-types';
+import { cleanupExpiredSubscriptions } from './subscriptionService.ts';
 
 const USERS_PER_PAGE = 100;
 const CONCURRENCY_LIMIT = 5;
@@ -98,8 +99,8 @@ async function collectSyncWalletAddresses(supabase: SupabaseClient): Promise<Map
 export async function startAnalyticsWorker(supabase: SupabaseClient) {
   console.log('[AnalyticsWorker] 🤖 Starting 24/7 background worker for verified users...');
 
-  const BASE_SLEEP_MS = 15 * 60 * 1000;
-  const MAX_SLEEP_MS = 45 * 60 * 1000;
+  const BASE_SLEEP_MS = 5 * 60 * 1000;  // 5 minutes — faster pickup for new upgrades
+  const MAX_SLEEP_MS = 20 * 60 * 1000;  // 20 minutes max on repeated errors
   let consecutiveErrors = 0;
   let lastCleanupTime = 0;
   const CLEANUP_INTERVAL_MS = 12 * 60 * 60 * 1000;
@@ -113,6 +114,9 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
         await reProcessSuspiciousPrices(supabase);
         lastCleanupTime = now;
       }
+
+      // Check for expired subscriptions and clear their data first
+      await cleanupExpiredSubscriptions(supabase);
 
       const userMap = await collectSyncWalletAddresses(supabase);
       const batchUsers = Array.from(userMap.entries()).map(([wallet_address, priority]) => ({
@@ -140,9 +144,9 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
 
-        // Immediately trigger queue processing in the background
-        void processSyncQueue(supabase).catch(err => {
-          console.error('[AnalyticsWorker] Immediate queue processing error:', err.message);
+        // Drain up to 5 sync jobs in parallel for faster throughput
+        void drainSyncQueue(supabase, 5).catch(err => {
+          console.error('[AnalyticsWorker] Queue drain error:', err.message);
         });
       } else {
         console.log('[AnalyticsWorker] No wallets to sync this cycle.');

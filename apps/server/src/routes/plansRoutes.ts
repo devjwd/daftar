@@ -2,7 +2,7 @@ import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
 import { resolveEffectiveTier } from '@daftar/shared-types';
 import { normalizeAddress } from '../utils/address.ts';
-import { queueSync, processSyncQueue } from '../services/analyticsSyncQueue.ts';
+import { queueSync, drainSyncQueue } from '../services/analyticsSyncQueue.ts';
 import CONFIG from '../config/index.ts';
 
 const router = express.Router();
@@ -341,7 +341,8 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
       console.warn('[Plans] Failed to record payment receipt:', recordErr.message);
     }
 
-    // 9. Queue analytics sync
+    // 9. Queue analytics sync with high priority — triggers immediate parallel drain
+    let syncQueued = false;
     try {
       await supabase.from('user_sync_status').upsert({
         user_address: walletAddress,
@@ -349,14 +350,16 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
         synced_transactions: 0,
         total_transactions: 0,
         last_sync_at: now.toISOString(),
+        sync_error: null,
       }, { onConflict: 'user_address' });
 
       await queueSync(supabase, walletAddress, 10);
+      syncQueued = true;
 
-      // Immediately kick off the background worker process 
-      // This makes the transition seamless and robust, even if the cron worker is delayed or down.
-      processSyncQueue(supabase).catch(err => {
-        console.error('[Plans] Immediate queue process failed:', err.message);
+      // Drain up to 5 jobs in parallel in the background.
+      // This ensures the new Pro user isn't stuck behind a long serial queue.
+      drainSyncQueue(supabase, 5).catch(err => {
+        console.error('[Plans] Background queue drain failed:', err.message);
       });
     } catch (syncErr: any) {
       console.warn('[Plans] Failed to queue sync after payment:', syncErr.message);
@@ -369,6 +372,7 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
       tier: 'pro',
       expiresAt: expiresAt.toISOString(),
       durationDays: totalDurationDays,
+      syncQueued,
     });
   } catch (err: any) {
     console.error('[Plans] Verify payment error:', err);

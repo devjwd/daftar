@@ -450,6 +450,12 @@
   }
 }
 
+@keyframes pnl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---- Error Overlay ---- */
 .pnl-error-overlay {
   position: absolute;

@@ -19,6 +19,41 @@ const DUMMY_PREMIUM_CHART_DATA = [
   { time: 'Day 8', displayValue: 420 },
 ];
 
+const SyncingBanner = ({ synced, total }: { synced: number; total: number }) => {
+  const pct = total > 0 ? Math.min(100, Math.max(2, (synced / total) * 100)) : 15;
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      gap: '10px', padding: '16px', zIndex: 10,
+      background: 'rgba(13,13,13,0.8)',
+      backdropFilter: 'blur(6px)',
+      borderRadius: '8px',
+    }}>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#cda169" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'pnl-spin 1.5s linear infinite' }}>
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
+      </svg>
+      <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.7)', textAlign: 'center' }}>
+        Indexing your blockchain history...
+      </p>
+      {total > 0 && (
+        <>
+          <div style={{ width: '100%', maxWidth: '160px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #cda169, #e5be8a)', borderRadius: '2px', transition: 'width 0.5s ease' }} />
+          </div>
+          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>
+            {synced.toLocaleString()} / {total.toLocaleString()} transactions
+          </span>
+        </>
+      )}
+      <p style={{ margin: 0, fontSize: '10px', color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>
+        Chart loads automatically when ready
+      </p>
+    </div>
+  );
+};
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const formattedDate = label === 'Start' || label === 'Now'
@@ -89,6 +124,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartFading, setChartFading] = useState(false);
+  // Sync state: set when the API tells us data is actively being indexed
+  const [syncingState, setSyncingState] = useState<{ syncing: boolean; synced: number; total: number }>({ syncing: false, synced: 0, total: 0 });
 
   React.useEffect(() => {
     if (!isPremium) {
@@ -143,28 +180,39 @@ const PNLChart: React.FC<PNLChartProps> = ({
           signal: controller.signal
         });
         if (!res.ok) {
-          throw new Error("Failed to load history");
+          throw new Error('Failed to load history');
         }
         const data = await res.json();
 
         // Only update if this is still the latest fetch
         if (currentFetchId === fetchIdRef.current && !controller.signal.aborted) {
-          if (data && data.history) {
-            const flow = data.history;
-            const formattedData = flow.map((pt: any) => ({
-              time: pt.date,
-              value: pt.value,
-              netDeposits: pt.netDeposits || 0
-            }));
-            setHistoricalData(formattedData);
-          } else {
+          // Check if the API indicates a sync is in progress (no data yet)
+          if (data?.syncing) {
+            setSyncingState({
+              syncing: true,
+              synced: data.syncProgress?.synced || 0,
+              total: data.syncProgress?.total || 0,
+            });
             setHistoricalData([]);
+          } else {
+            setSyncingState({ syncing: false, synced: 0, total: 0 });
+            if (data && data.history) {
+              const flow = data.history;
+              const formattedData = flow.map((pt: any) => ({
+                time: pt.date,
+                value: pt.value,
+                netDeposits: pt.netDeposits || 0
+              }));
+              setHistoricalData(formattedData);
+            } else {
+              setHistoricalData([]);
+            }
           }
         }
       } catch (err: any) {
         if (err.name !== 'AbortError' && currentFetchId === fetchIdRef.current) {
-          console.error("Failed to fetch PNL history:", err);
-          setError(err.message || "Failed to load history");
+          console.error('Failed to fetch PNL history:', err);
+          setError(err.message || 'Failed to load history');
         }
       } finally {
         if (currentFetchId === fetchIdRef.current && !controller.signal.aborted) {
@@ -378,6 +426,10 @@ const PNLChart: React.FC<PNLChartProps> = ({
               <div className="pnl-loading-overlay pnl-loading-subtle">
                 <div className="chart-loading-shimmer" />
               </div>
+            )}
+            {/* Syncing state: show when data is being indexed for the first time */}
+            {syncingState.syncing && isPremium && !isLoading && (
+              <SyncingBanner synced={syncingState.synced} total={syncingState.total} />
             )}
             {error && isPremium && (
               <div className="pnl-error-overlay">
