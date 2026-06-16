@@ -30,10 +30,12 @@ export const WHITELIST_TOKENS = new Set([
  */
 export const BLACKLIST_TOKEN_SYMBOLS = new Set([
   // Scam / airdrop tokens
-  'TEST', 'CAPY', 'MOVECAT',
+  'TEST', 'CAPY', 'MOVECAT', 'DELAY', 'DASD',
   // Move-branded airdrops/reward tokens (not the real MOVE)
   'MOVE Drops', 'MOVE Drop', 'MOVE Gift', 'MOVE Rwd', 'MOVEReward',
   'MOVEDrop', 'MOVEGift', 'MOVERwd', 'MOVEREWARD',
+  // LP tokens without standard LP suffix
+  'MOVE-USDTU',
   // Illiquid governance / wrapped variants that should not count
   'lMOVE', 'dMOVE',
 ]);
