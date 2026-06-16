@@ -91,6 +91,20 @@ router.post('/trigger-sync', generalLimiter, async (req: Request, res: Response)
   if (!supabase) return res.status(503).json({ error: 'Service unavailable' });
 
   try {
+    // Check if the user has a profile created
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('wallet_address')
+      .eq('wallet_address', wallet)
+      .maybeSingle();
+
+    if (!profile) {
+      return res.status(403).json({ 
+        error: 'Profile required', 
+        message: 'You must create a profile to sync your portfolio.' 
+      });
+    }
+
     const { data: queueData } = await supabase
       .from('sync_queue')
       .select('status, updated_at')
