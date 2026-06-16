@@ -1,0 +1,165 @@
+.pro-setup-progress-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 460px;
+  background: #111;
+  border: 1px solid rgba(205, 161, 105, 0.2);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  z-index: 100;
+  text-align: center;
+}
+
+.pro-setup-progress-blur-container {
+  position: relative;
+  width: 100%;
+  min-height: 500px;
+}
+
+.pro-setup-progress-blur-container.is-syncing-blur .analytics-view-inner-content {
+  filter: blur(8px);
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+/* Specific styles for the progress screen copied from Plans.css */
+.pro-setup-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.pro-setup-title {
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+.pro-setup-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.pro-setup-bar-wrap {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 100px;
+  height: 6px;
+  width: 100%;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.pro-setup-bar-fill {
+  background: linear-gradient(90deg, #cda169, #e5be8a);
+  height: 100%;
+  border-radius: 100px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(205, 161, 105, 0.5);
+}
+
+.pro-setup-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.pro-setup-steps {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.pro-setup-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pro-setup-step-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.pro-setup-step-icon.done {
+  background: rgba(54, 198, 144, 0.15);
+  color: #36c690;
+}
+
+.pro-setup-step-icon.active {
+  background: rgba(205, 161, 105, 0.15);
+  border: 1px solid rgba(205, 161, 105, 0.3);
+}
+
+.pro-setup-step-icon.active::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: #cda169;
+  border-radius: 50%;
+  animation: pulse-dot 1.5s infinite alternate;
+}
+
+.pro-setup-step-icon.pending {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pro-setup-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.pro-setup-info-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.pro-setup-info-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.pro-setup-info-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0.5; }
+}

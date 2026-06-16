@@ -44,8 +44,7 @@ interface PaymentModalProps {
 
 function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmitTransaction, client }: PaymentModalProps) {
   const [selectedMonths, setSelectedMonths] = useState<number>(1);
-  const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'purchased' | 'processing' | 'success' | 'error'>('confirm');
-  const [syncProgress, setSyncProgress] = useState({ synced: 0, total: 0 });
+  const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'purchased' | 'error'>('confirm');
   const [txHash, setTxHash] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
@@ -106,7 +105,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       await new Promise(r => setTimeout(r, 3000));
       const res = await verifySubscriptionPayment(walletAddress, hash, monthsCount);
       if (res.ok) {
-        setStep('purchased'); // Show benefits page first, then transition to processing
+        setStep('purchased'); // Show benefits page
       } else {
         setErrorMsg(res.error || 'Verification failed. Contact the admin with your tx hash.');
         setStep('error');
@@ -116,69 +115,6 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       setStep('error');
     }
   }, [walletAddress]);
-
-  // Auto-advance from 'purchased' (benefits page) to 'processing' after 7s
-  useEffect(() => {
-    if (step !== 'purchased') return;
-    const timer = setTimeout(() => setStep('processing'), 7000);
-    return () => clearTimeout(timer);
-  }, [step]);
-
-  // Poll for sync status when in processing step
-  useEffect(() => {
-    if (step !== 'processing') return;
-    let active = true;
-    // 3-minute auto-escape: Pro is activated regardless of sync completion.
-    const AUTO_ESCAPE_MS = 3 * 60 * 1000;
-    const autoEscapeTimer = setTimeout(() => {
-      if (active && step === 'processing') {
-        setStep('success');
-        setTimeout(() => { if (active) { onSuccess(); onClose(); } }, 2000);
-      }
-    }, AUTO_ESCAPE_MS);
-
-    const poll = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('user_sync_status')
-          .select('full_history_synced, synced_transactions, total_transactions, sync_error')
-          .eq('user_address', walletAddress)
-          .maybeSingle();
-
-        if (error) console.error('Sync polling error:', error);
-
-        if (data && active) {
-          setSyncProgress({
-            synced: data.synced_transactions || 0,
-            total: data.total_transactions || 0
-          });
-
-          if (data.full_history_synced) {
-            clearTimeout(autoEscapeTimer);
-            setStep('success');
-            setTimeout(() => { if (active) { onSuccess(); onClose(); } }, 2000);
-            return;
-          }
-
-          if (data.sync_error) {
-            clearTimeout(autoEscapeTimer);
-            setStep('success');
-            setTimeout(() => { if (active) { onSuccess(); onClose(); } }, 2000);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error('Sync polling failed:', err);
-      }
-      if (active) setTimeout(poll, 2000);
-    };
-
-    poll();
-    return () => {
-      active = false;
-      clearTimeout(autoEscapeTimer);
-    };
-  }, [step, walletAddress, onSuccess, onClose]);
 
   const handleSendMove = useCallback(async () => {
     if (!config.treasuryWallet) {
@@ -217,7 +153,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
 
   return (
     <div className="payment-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className={`payment-modal ${step === 'purchased' || step === 'processing' ? 'payment-modal--wide' : ''}`}>
+      <div className={`payment-modal ${step === 'purchased' ? 'payment-modal--wide' : ''}`}>
         <button className="payment-modal-close" onClick={onClose} aria-label="Close">✕</button>
 
         {step === 'confirm' && (
@@ -374,141 +310,19 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
             </div>
 
             <div className="post-purchase-footer">
-              <div className="post-purchase-indexing-hint">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cda169" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, animation: 'postPurchaseSpin 2s linear infinite' }}>
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
-                </svg>
-                <span>Blockchain indexing in progress — charts load automatically</span>
-              </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '16px' }}>
                 <button
                   className="payment-retry-btn"
-                  style={{ background: 'rgba(205,161,105,0.12)', border: '1px solid rgba(205,161,105,0.35)', color: '#cda169', fontWeight: 700, padding: '10px 24px' }}
+                  style={{ background: 'linear-gradient(135deg, #e5be8a, #cda169)', border: 'none', color: '#000', fontWeight: 800, padding: '12px 32px' }}
                   onClick={() => { onSuccess(); onClose(); }}
                 >
                   Go to Dashboard →
                 </button>
-                <button
-                  className="payment-retry-btn"
-                  style={{ color: 'rgba(255,255,255,0.5)' }}
-                  onClick={() => setStep('processing')}
-                >
-                  View Progress
-                </button>
               </div>
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', margin: '12px 0 0' }}>Auto-advancing to sync view in a few seconds...</p>
             </div>
           </div>
         )}
 
-        {/* ── PROCESSING: Data sync progress ── */}
-        {step === 'processing' && (
-          <div className="processing-screen">
-            <div className="processing-header">
-              <div className="processing-orbit">
-                <div className="processing-orbit-ring" />
-                <div className="processing-orbit-ring processing-orbit-ring--2" />
-                <div className="processing-orbit-core">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#cda169" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                  </svg>
-                </div>
-              </div>
-              <div className="processing-title">Setting Up Your Pro Account</div>
-              <div className="processing-subtitle">Indexing your full on-chain history from the Movement Network</div>
-            </div>
-
-            {/* Sync progress bar */}
-            <div className="processing-progress-section">
-              <div className="processing-progress-bar-wrap">
-                <div
-                  className="processing-progress-bar-fill"
-                  style={{
-                    width: syncProgress.total > 0
-                      ? `${Math.min(100, Math.max(3, (syncProgress.synced / syncProgress.total) * 100))}%`
-                      : '15%',
-                  }}
-                />
-              </div>
-              <div className="processing-progress-labels">
-                <span>
-                  {syncProgress.total > 0
-                    ? `${syncProgress.synced.toLocaleString()} / ${syncProgress.total.toLocaleString()} transactions`
-                    : 'Fetching transaction count...'}
-                </span>
-                {syncProgress.total > 0 && (
-                  <span style={{ color: '#cda169' }}>
-                    {Math.round((syncProgress.synced / syncProgress.total) * 100)}%
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Steps checklist */}
-            <div className="processing-steps">
-              {[
-                { label: 'Payment verified on-chain', done: true },
-                { label: 'Pro subscription activated', done: true },
-                { label: 'Blockchain history being indexed', done: false, active: true },
-                { label: 'Analytics charts ready', done: false },
-              ].map((s) => (
-                <div key={s.label} className={`processing-step ${
-                  s.done ? 'processing-step--done' : s.active ? 'processing-step--active' : ''
-                }`}>
-                  <div className="processing-step-icon">
-                    {s.done ? (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    ) : s.active ? (
-                      <div className="processing-step-pulse" />
-                    ) : (
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
-                    )}
-                  </div>
-                  <span>{s.label}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Info boxes */}
-            <div className="processing-info-row">
-              <div className="processing-info-box">
-                <div className="processing-info-label">Status</div>
-                <div className="processing-info-value" style={{ color: '#36c690' }}>● Active</div>
-              </div>
-              <div className="processing-info-box">
-                <div className="processing-info-label">Duration</div>
-                <div className="processing-info-value">{config.durationDays * selectedMonths}d</div>
-              </div>
-              <div className="processing-info-box">
-                <div className="processing-info-label">Auto-finish</div>
-                <div className="processing-info-value">3 min</div>
-              </div>
-            </div>
-
-            <div className="processing-cta-row">
-              <button
-                className="payment-cta-btn"
-                style={{ margin: 0, padding: '12px 32px', width: 'auto', fontSize: '13px' }}
-                onClick={() => { onSuccess(); onClose(); }}
-              >
-                Open Dashboard Now →
-              </button>
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '8px 0 0', textAlign: 'center' }}>
-                Indexing continues in the background after you leave
-              </p>
-            </div>
-          </div>
-        )}
-
-        {step === 'success' && (
-          <div className="payment-status-state payment-success">
-            <div className="payment-success-icon">✓</div>
-            <h3>Pro Activated!</h3>
-            <p>Your Pro subscription is active for {config.durationDays * selectedMonths} days. Enjoy all premium features!</p>
-          </div>
-        )}
 
         {step === 'error' && (
           <div className="payment-status-state payment-error">

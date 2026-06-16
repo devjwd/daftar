@@ -9,9 +9,11 @@ import { useAnalyticsSync } from '../../hooks/useAnalyticsSync';
 
 import SyncStateOverlay from './SyncStateOverlay';
 import AnalyticsOverview from './AnalyticsOverview';
+import ProSetupProgress from './ProSetupProgress';
 import PlanGate from '../PlanGate';
 import { Download, ChevronDown, FileText, Table, Activity, RefreshCw } from 'lucide-react';
 import AnalyticsSkeleton from './AnalyticsSkeleton';
+import { useSyncStatus } from '../../hooks/useSyncStatus';
 
 import './AnalyticsV5.css';
 
@@ -54,6 +56,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
   useEffect(() => {
     timeframeRef.current = timeframe;
   }, [timeframe]);
+
+  const { syncProgress: backgroundSyncProgress, isFullySynced, hasStartedChecking } = useSyncStatus(walletAddress, isPremium);
 
 
   const getConnectedAddress = useCallback(() => {
@@ -309,14 +313,18 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
     );
   }
 
+  const showSetupOverlay = isPremium && hasStartedChecking && !isFullySynced;
+
   return (
-    <div className="analytics-v5-container">
-      <motion.div
-        key="dashboard-content"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="analytics-page-header">
+    <div className="analytics-v5-container" style={{ position: 'relative' }}>
+      <div className={`pro-setup-progress-blur-container ${showSetupOverlay ? 'is-syncing-blur' : ''}`}>
+        <div className="analytics-view-inner-content">
+          <motion.div
+            key="dashboard-content"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="analytics-page-header">
           <div className="analytics-page-header-left">
             <h2>Portfolio Intelligence</h2>
             <div className="analytics-page-header-sub">
@@ -445,7 +453,18 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ walletAddress }) => {
             void fetchAnalyticsData(tf);
           }}
         />
-      </motion.div>
+          </motion.div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showSetupOverlay && (
+          <ProSetupProgress 
+            synced={backgroundSyncProgress.synced} 
+            total={backgroundSyncProgress.total} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
