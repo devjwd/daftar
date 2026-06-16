@@ -793,6 +793,7 @@ const Dashboard = () => {
             subscriptionTier={userProfile?.subscription_tier || (userProfile?.is_verified ? 'pro' : 'free')}
             balances={balances}
             priceChanges={priceChanges}
+            hasProfile={!!userProfile}
           />
         </div>
         {error && <ErrorMessage message={error} onRetry={handleRefresh} />}

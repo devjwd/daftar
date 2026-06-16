@@ -98,6 +98,7 @@ interface PNLChartProps {
   subscriptionTier?: 'free' | 'lite' | 'pro';
   balances?: any[];
   priceChanges?: Record<string, number>;
+  hasProfile?: boolean;
 }
 
 const PNLChart: React.FC<PNLChartProps> = ({
@@ -112,7 +113,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
   walletAddress = null,
   subscriptionTier = 'free',
   balances = [],
-  priceChanges = {}
+  priceChanges = {},
+  hasProfile = false
 }) => {
   const navigate = useNavigate();
   const isPremium = subscriptionTier !== 'free';
@@ -153,7 +155,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
       setError(null);
     }
 
-    if (!walletAddress || activeTab !== 'History' || !isPremium) {
+    if (!walletAddress || activeTab !== 'History' || (!isPremium && !hasProfile)) {
       setHistoricalData([]);
       setIsLoading(false);
       setError(null);
@@ -263,7 +265,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
   // Calculate PnL changes for non-verified users using their current balances and 24h price changes
   const computedChange = useMemo(() => {
-    if (isPremium && historicalData.length >= 2) {
+    if ((isPremium || hasProfile) && historicalData.length >= 2) {
       const firstVal = dataToRender[0]?.value ?? totalValue;
       const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
       const rawChangeUsd = lastVal - firstVal;
@@ -412,7 +414,16 @@ const PNLChart: React.FC<PNLChartProps> = ({
             <span className="pnl-change-percent">({isPositive ? '+' : ''}{changePercent}%)</span>
           </div>
           <div className="pnl-chart-wrapper-v4">
-            {!isPremium && (
+            {!isPremium && !hasProfile && (
+              <div className="pnl-restricted-overlay">
+                <div className="restricted-content">
+                  <p className="restricted-text">
+                    Create a profile to unlock your 24h PNL chart. Upgrade to Pro for full history.
+                  </p>
+                </div>
+              </div>
+            )}
+            {!isPremium && hasProfile && timeframe !== '1D' && (
               <div className="pnl-restricted-overlay">
                 <div className="restricted-content">
                   <p className="restricted-text">
@@ -422,16 +433,16 @@ const PNLChart: React.FC<PNLChartProps> = ({
               </div>
             )}
 
-            {isLoading && isPremium && (
+            {isLoading && (isPremium || hasProfile) && (
               <div className="pnl-loading-overlay pnl-loading-subtle">
                 <div className="chart-loading-shimmer" />
               </div>
             )}
             {/* Syncing state: show when data is being indexed for the first time */}
-            {syncingState.syncing && isPremium && !isLoading && (
+            {syncingState.syncing && (isPremium || hasProfile) && !isLoading && (
               <SyncingBanner synced={syncingState.synced} total={syncingState.total} />
             )}
-            {error && isPremium && (
+            {error && (isPremium || hasProfile) && (
               <div className="pnl-error-overlay">
                 <div className="pnl-error-content">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -444,9 +455,9 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 </div>
               </div>
             )}
-            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${(!isPremium || error) ? 'blurred-chart' : ''}`}>
+            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${((!isPremium && !hasProfile) || error) ? 'blurred-chart' : ''}`}>
               <ResponsiveContainer width="99%" height="100%">
-                <AreaChart data={!isPremium ? DUMMY_PREMIUM_CHART_DATA : dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                <AreaChart data={(!isPremium && !hasProfile) ? DUMMY_PREMIUM_CHART_DATA : dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
@@ -469,7 +480,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                     dy={8}
                     minTickGap={40}
                     tickFormatter={(val) => {
-                      if (!isPremium) return '';
+                      if (!isPremium && !hasProfile) return '';
                       if (val === 'Start' || val === 'Now') return val;
                       const d = new Date(val);
                       if (isNaN(d.getTime())) return '';
@@ -478,7 +489,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                     }}
                   />
                   <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
-                  {isPremium ? (
+                  {(isPremium || hasProfile) ? (
                     <Tooltip
                       content={<CustomTooltip />}
                       cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
@@ -487,13 +498,13 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   <Area
                     type="monotone"
                     dataKey="displayValue"
-                    stroke={!isPremium ? '#cda169' : strokeColor}
+                    stroke={(!isPremium && !hasProfile) ? '#cda169' : strokeColor}
                     strokeWidth={2}
                     fillOpacity={1}
-                    fill={!isPremium ? 'url(#colorGold)' : `url(#${gradientId})`}
-                    activeDot={isPremium ? { r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 } : false}
+                    fill={(!isPremium && !hasProfile) ? 'url(#colorGold)' : `url(#${gradientId})`}
+                    activeDot={(isPremium || hasProfile) ? { r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 } : false}
                     dot={false}
-                    isAnimationActive={isPremium}
+                    isAnimationActive={isPremium || hasProfile}
                     animationDuration={600}
                     animationEasing="ease-in-out"
                   />
