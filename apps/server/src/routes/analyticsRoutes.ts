@@ -346,6 +346,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
     if (timeframe === '1D') {
       try {
         let balances: any[] = req.body?.balances || [];
+        let staticExtraUsd = Number(req.body?.staticExtraUsd || 0);
         console.log(`[PNL-Precise] 1D projection for ${wallet}. Balances from req.body:`, balances?.length);
 
         if (!balances || balances.length === 0) {
@@ -365,6 +366,20 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
               .eq('snapshot_date', latestDateRow.snapshot_date);
             balances = bData || [];
             console.log(`[PNL-Precise] Fetched ${balances.length} balances from DB snapshot.`);
+          }
+          
+          if (!req.body?.staticExtraUsd) {
+            const { data: latestNetworthRow } = await supabase
+              .from('user_networth_snapshots')
+              .select('defi_usd, nft_usd')
+              .eq('user_address', wallet)
+              .order('timestamp', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+              
+            if (latestNetworthRow) {
+              staticExtraUsd = Number(latestNetworthRow.defi_usd || 0) + Number(latestNetworthRow.nft_usd || 0);
+            }
           }
         }
 
@@ -442,7 +457,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
               txIndex++;
             }
 
-            let totalValuation = 0;
+            let totalValuation = staticExtraUsd;
             balances.forEach((b: any) => {
               let tokenKey = b.asset_type.toLowerCase().replace(/^0x0*/, '0x');
               if (NATIVE_MOVE_ADDRESSES.has(tokenKey)) {

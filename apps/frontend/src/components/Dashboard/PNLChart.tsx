@@ -155,7 +155,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
     })) : [];
   }, [balances]);
 
-  const balancesDep = (!isPremium && hasProfile && timeframe === '1D') ? JSON.stringify(formattedBalances) : 'ignore';
+  const balancesDep = (!isPremium && hasProfile && timeframe === '1D') ? JSON.stringify(formattedBalances) + '_' + totalValue : 'ignore';
 
   React.useEffect(() => {
     // Clear stale data immediately when wallet changes
@@ -191,9 +191,12 @@ const PNLChart: React.FC<PNLChartProps> = ({
         
         // Pass live balances for instant 1D projection for free users with a profile
         if (timeframe === '1D' && !isPremium && hasProfile && formattedBalances.length > 0) {
+          const walletUsd = balances.reduce((sum: number, b: any) => sum + (b.usdValue || 0), 0);
+          const staticExtraUsd = totalValue - walletUsd;
+
           fetchOptions.method = 'POST';
           fetchOptions.headers = { 'Content-Type': 'application/json' };
-          fetchOptions.body = JSON.stringify({ balances: formattedBalances });
+          fetchOptions.body = JSON.stringify({ balances: formattedBalances, staticExtraUsd });
         }
 
         const API_URL = (import.meta as any).env?.VITE_API_URL || '';
