@@ -147,6 +147,16 @@ const PNLChart: React.FC<PNLChartProps> = ({
     setTimeframe(tf);
   }, []);
 
+  const formattedBalances = useMemo(() => {
+    return balances && balances.length > 0 ? balances.map((b: any) => ({
+      asset_type: b.address,
+      symbol: b.symbol,
+      amount: b.amount || 0
+    })) : [];
+  }, [balances]);
+
+  const balancesDep = (!isPremium && hasProfile && timeframe === '1D') ? JSON.stringify(formattedBalances) : 'ignore';
+
   React.useEffect(() => {
     // Clear stale data immediately when wallet changes
     if (prevWalletRef.current !== walletAddress) {
@@ -177,13 +187,6 @@ const PNLChart: React.FC<PNLChartProps> = ({
       setIsLoading(true);
       setError(null);
       try {
-        // Format balances for the backend if available
-        const formattedBalances = balances && balances.length > 0 ? balances.map((b: any) => ({
-          asset_type: b.address,
-          symbol: b.symbol,
-          amount: b.amount || 0
-        })) : [];
-
         const fetchOptions: RequestInit = { signal: controller.signal };
         
         // Pass live balances for instant 1D projection for free users with a profile
@@ -244,7 +247,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [walletAddress, timeframe, activeTab, lastRefresh, isPremium]);
+  }, [walletAddress, timeframe, activeTab, lastRefresh, isPremium, hasProfile, balancesDep]);
 
   const formatDonutValue = (val: number): string => {
     if (val === 0) return '$0.00';

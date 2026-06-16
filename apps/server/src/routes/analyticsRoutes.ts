@@ -326,6 +326,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
     if (timeframe === '1D') {
       try {
         let balances: any[] = req.body?.balances || [];
+        console.log(`[PNL-Precise] 1D projection for ${wallet}. Balances from req.body:`, balances?.length);
 
         if (!balances || balances.length === 0) {
           const { data: latestDateRow } = await supabase
@@ -343,6 +344,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
               .eq('user_address', wallet)
               .eq('snapshot_date', latestDateRow.snapshot_date);
             balances = bData || [];
+            console.log(`[PNL-Precise] Fetched ${balances.length} balances from DB snapshot.`);
           }
         }
 
