@@ -54,7 +54,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
   // Calculate pricing based on selectedMonths and discountScope
   const discountScope = config.discountScope || 'all_months';
   const hasDiscount = config.discountPriceUsd !== null;
-  
+
   let totalPriceUsd = 0;
   if (hasDiscount && config.discountPriceUsd !== null) {
     if (discountScope === 'first_month') {

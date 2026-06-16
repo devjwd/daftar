@@ -27,10 +27,12 @@ startAnalyticsWorker(supabaseAdmin);
 // Start hourly NFT floor price pitcher
 // startNFTPriceWorker(supabaseAdmin); // Temporarily disabled by user request
 
+let isShuttingDown = false;
+
 // Start background analytics price backfiller (fallback interval: every 10 seconds)
 let isPriceBackfillRunning = false;
 setInterval(async () => {
-  if (!isPriceBackfillRunning) {
+  if (!isPriceBackfillRunning && !isShuttingDown) {
     isPriceBackfillRunning = true;
     try {
       await backfillTransactionPrices(supabaseAdmin, 500);
@@ -47,7 +49,7 @@ setInterval(async () => {
 // 50 simultaneous Pro upgrades are cleared within ~30-60 seconds.
 let isSyncQueueRunning = false;
 setInterval(async () => {
-  if (!isSyncQueueRunning) {
+  if (!isSyncQueueRunning && !isShuttingDown) {
     isSyncQueueRunning = true;
     try {
       await drainSyncQueue(supabaseAdmin, 5);
@@ -60,3 +62,19 @@ setInterval(async () => {
 }, 3000); // 3 seconds — tighter loop for faster responsiveness
 
 console.log('[Worker] Background workers started successfully.');
+
+// Handle graceful shutdown for Railway deployments
+const gracefulShutdown = () => {
+  console.log('[Worker] 🛑 Received kill signal, initiating graceful shutdown...');
+  isShuttingDown = true;
+  
+  // Give processing jobs up to 15 seconds to finish before exiting
+  setTimeout(() => {
+    console.log('[Worker] 💀 Forcefully shutting down after timeout.');
+    process.exit(0);
+  }, 15000);
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+

@@ -62,53 +62,8 @@ export async function queueSync(
 }
 
 /**
- * Internal: claim and lock a single pending job via optimistic locking.
- * Returns the locked job or null if nothing was available or job was already claimed.
- * Skips addresses already in-flight to prevent double-processing the same wallet.
+ * (claimNextPendingJob was removed in favor of Supabase RPC `claim_sync_jobs` using SKIP LOCKED)
  */
-async function claimNextPendingJob(
-  supabase: SupabaseClient,
-  skipAddresses: string[] = []
-): Promise<{ id: string; user_address: string; priority: number | null } | null> {
-  // Fetch next pending job (may be filtered client-side for skipAddresses)
-  let query = supabase
-    .from('sync_queue')
-    .select('id, user_address, priority')
-    .eq('status', 'pending')
-    .order('priority', { ascending: false })
-    .order('created_at', { ascending: true })
-    .limit(10); // Fetch a few candidates so we can skip in-flight ones
-
-  const { data: candidates, error: fetchError } = await query;
-
-  if (fetchError) {
-    console.error('[SyncQueue] Error fetching next job:', fetchError.message);
-    return null;
-  }
-
-  if (!candidates || candidates.length === 0) return null;
-
-  // Pick the first candidate not already in-flight
-  const candidate = candidates.find(j => !skipAddresses.includes(j.user_address));
-  if (!candidate) return null;
-
-  // Optimistic lock: only update if status is still 'pending'
-  const { data: lockedJob, error: lockError } = await supabase
-    .from('sync_queue')
-    .update({ status: 'processing', updated_at: new Date().toISOString() })
-    .eq('id', candidate.id)
-    .eq('status', 'pending') // Guard: only succeed if not already claimed
-    .select()
-    .maybeSingle();
-
-  if (lockError) {
-    console.error(`[SyncQueue] Lock error for job ${candidate.id}:`, lockError.message);
-    return null;
-  }
-
-  // null means another concurrent worker already claimed it — gracefully skip
-  return lockedJob;
-}
 
 /**
  * Internal: execute a single locked sync job to completion.
@@ -165,9 +120,13 @@ async function executeLockedJob(
  * Orders by priority (descending) then created_at (ascending).
  */
 export async function processSyncQueue(supabase: SupabaseClient): Promise<void> {
-  const job = await claimNextPendingJob(supabase);
-  if (!job) return;
-  await executeLockedJob(supabase, job);
+  const { data: jobs, error } = await supabase.rpc('claim_sync_jobs', { limit_count: 1 });
+  if (error) {
+    console.error('[SyncQueue] Error claiming job:', error.message);
+    return;
+  }
+  if (!jobs || jobs.length === 0) return;
+  await executeLockedJob(supabase, jobs[0]);
 }
 
 /**
@@ -177,8 +136,8 @@ export async function processSyncQueue(supabase: SupabaseClient): Promise<void> 
  * With concurrency=5 and jobs taking ~30s each, throughput is ~10 jobs/min vs 12/min
  * serially — but latency for each individual user drops from minutes to seconds.
  *
- * Each job is claimed with optimistic locking, preventing double-processing even when
- * multiple server instances or concurrent intervals call this function simultaneously.
+ * Each job is claimed natively in the database using SKIP LOCKED, preventing double-processing 
+ * even when multiple server instances or concurrent intervals call this function simultaneously.
  *
  * @returns Number of jobs that were started this drain cycle.
  */
@@ -186,26 +145,24 @@ export async function drainSyncQueue(
   supabase: SupabaseClient,
   concurrency: number = 5
 ): Promise<number> {
-  const inFlightAddresses: string[] = [];
-  const jobPromises: Promise<void>[] = [];
-
-  // Claim up to `concurrency` jobs sequentially (to safely skip in-flight ones)
-  for (let i = 0; i < concurrency; i++) {
-    const job = await claimNextPendingJob(supabase, inFlightAddresses);
-    if (!job) break; // No more available pending jobs
-
-    inFlightAddresses.push(job.user_address);
-    // Execute all claimed jobs concurrently
-    jobPromises.push(executeLockedJob(supabase, job));
+  // Claim jobs directly from the database using Postgres SKIP LOCKED
+  const { data: jobs, error } = await supabase.rpc('claim_sync_jobs', { limit_count: concurrency });
+  
+  if (error) {
+    console.error('[SyncQueue] Error draining queue via RPC:', error.message);
+    return 0;
   }
 
-  if (jobPromises.length === 0) return 0;
+  if (!jobs || jobs.length === 0) return 0;
 
-  console.log(`[SyncQueue] 🔄 Draining queue: ${jobPromises.length} jobs running in parallel...`);
+  console.log(`[SyncQueue] 🔄 Draining queue: ${jobs.length} jobs running in parallel...`);
+
+  // Execute all claimed jobs concurrently
+  const jobPromises = jobs.map((job: any) => executeLockedJob(supabase, job));
 
   // Wait for all jobs, capturing errors (each job handles its own error internally)
   await Promise.allSettled(jobPromises);
 
-  console.log(`[SyncQueue] ✅ Drain cycle complete. Ran ${jobPromises.length} jobs.`);
-  return jobPromises.length;
+  console.log(`[SyncQueue] ✅ Drain cycle complete. Ran ${jobs.length} jobs.`);
+  return jobs.length;
 }

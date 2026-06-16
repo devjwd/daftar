@@ -82,6 +82,53 @@ router.get('/sync', generalLimiter, async (req: Request, res: Response) => {
   }
 });
 
+/** On-Demand Trigger Sync (For Free Users) */
+router.post('/trigger-sync', generalLimiter, async (req: Request, res: Response) => {
+  const wallet = normalizeAddress(req.body.walletAddress || req.body.wallet);
+  if (!wallet) return res.status(400).json({ error: 'wallet is required' });
+
+  const supabase = getSupabaseClient(req);
+  if (!supabase) return res.status(503).json({ error: 'Service unavailable' });
+
+  try {
+    const { data: queueData } = await supabase
+      .from('sync_queue')
+      .select('status, updated_at')
+      .eq('user_address', wallet)
+      .maybeSingle();
+
+    if (queueData) {
+      if (queueData.status === 'processing') {
+        return res.status(200).json({ status: 'processing', message: 'Sync already in progress' });
+      }
+
+      if (queueData.updated_at) {
+        const lastUpdate = new Date(queueData.updated_at).getTime();
+        const oneHour = 60 * 60 * 1000;
+        if (Date.now() - lastUpdate < oneHour) {
+          return res.status(200).json({ 
+            status: 'cooldown', 
+            message: 'Sync requested too recently. Please wait 1 hour between on-demand syncs.' 
+          });
+        }
+      }
+    }
+
+    // Queue sync in the database-backed queue at priority 0
+    await queueSync(supabase, wallet, 0);
+
+    return res.status(202).json({
+      ok: true,
+      message: 'On-demand sync queued successfully',
+      status: 'queued',
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to trigger sync';
+    console.error('[Analytics/TriggerSync] Error:', err);
+    return res.status(500).json({ error: message });
+  }
+});
+
 /** Status Polling — check sync progress */
 router.get('/status', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
