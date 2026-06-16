@@ -313,7 +313,27 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
   if (!wallet || !supabase) return res.status(400).json({ error: 'wallet required' });
 
   try {
-    await assertEnrichedWalletAccess(supabase, req, wallet);
+    try {
+      await assertEnrichedWalletAccess(supabase, req, wallet);
+    } catch (err: any) {
+      if (err.name === 'WalletAccessError') {
+        if (timeframe !== '1D') {
+          throw err;
+        }
+        // For 1D, allow access if the user has a profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('wallet_address')
+          .eq('wallet_address', wallet)
+          .maybeSingle();
+        if (!profile) {
+          return res.status(403).json({ error: 'You must create a profile to view this chart', code: 'WALLET_ACCESS_DENIED' });
+        }
+      } else {
+        throw err;
+      }
+    }
+
     const startDate = new Date();
     if (timeframe === '1D') startDate.setHours(startDate.getHours() - 24);
     else if (timeframe === '1W') startDate.setDate(startDate.getDate() - 7);
