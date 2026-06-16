@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useProfile } from '../hooks/useProfile';
 import { getPlanList, getPlansConfig, verifySubscriptionPayment } from '../services/api';
@@ -347,6 +348,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
 
 // ─── Plans Page ─────────────────────────────────────────────────────────────
 export default function Plans() {
+  const navigate = useNavigate();
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const { client: movementClient } = useMovementClient();
   const walletAddress = connected && account?.address ? normalizeAddress(String(account.address)) : null;
@@ -385,7 +387,11 @@ export default function Plans() {
   const handlePaymentSuccess = useCallback(() => {
     // Refresh profile to reflect new tier without hard reloading
     refreshProfile();
-  }, [refreshProfile]);
+    // Navigate back to the dashboard/analytics
+    if (walletAddress) {
+      navigate(`/profile/${walletAddress}`);
+    }
+  }, [refreshProfile, navigate, walletAddress]);
 
   const effectivePriceUsd = plansConfig
     ? (plansConfig.discountPriceUsd !== null ? plansConfig.discountPriceUsd : plansConfig.basePriceUsd)
