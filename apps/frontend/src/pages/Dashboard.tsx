@@ -536,8 +536,16 @@ const Dashboard = () => {
     return diffDays.toString();
   };
 
-
-
+  useEffect(() => {
+    if (!assetsLoading && viewingAddress && userProfile) {
+      const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+      fetch(`${API_URL}/api/analytics/trigger-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: viewingAddress })
+      }).catch(err => console.error("Failed to trigger sync:", err));
+    }
+  }, [assetsLoading, viewingAddress, userProfile]);
 
   // eslint-disable-next-line no-unused-vars
   const handleViewExplorer = (token: { address?: string }) => {

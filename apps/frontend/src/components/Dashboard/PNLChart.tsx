@@ -177,10 +177,24 @@ const PNLChart: React.FC<PNLChartProps> = ({
       setIsLoading(true);
       setError(null);
       try {
+        // Format balances for the backend if available
+        const formattedBalances = balances && balances.length > 0 ? balances.map((b: any) => ({
+          asset_type: b.address,
+          symbol: b.symbol,
+          amount: b.amount || 0
+        })) : [];
+
+        const fetchOptions: RequestInit = { signal: controller.signal };
+        
+        // Pass live balances for instant 1D projection for free users with a profile
+        if (timeframe === '1D' && !isPremium && hasProfile && formattedBalances.length > 0) {
+          fetchOptions.method = 'POST';
+          fetchOptions.headers = { 'Content-Type': 'application/json' };
+          fetchOptions.body = JSON.stringify({ balances: formattedBalances });
+        }
+
         const API_URL = (import.meta as any).env?.VITE_API_URL || '';
-        const res = await fetch(`${API_URL}/api/analytics/pnl-precise?wallet=${walletAddress}&timeframe=${timeframe}`, {
-          signal: controller.signal
-        });
+        const res = await fetch(`${API_URL}/api/analytics/pnl-precise?wallet=${walletAddress}&timeframe=${timeframe}`, fetchOptions);
         if (!res.ok) {
           throw new Error('Failed to load history');
         }

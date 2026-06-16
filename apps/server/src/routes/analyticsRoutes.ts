@@ -305,7 +305,7 @@ async function resolveHistoryBaselineDate(
 }
 
 /** Precise PNL History */
-router.get('/pnl-precise', async (req: Request, res: Response) => {
+router.all('/pnl-precise', async (req: Request, res: Response) => {
   const wallet = parseWallet(req);
   const timeframe = (req.query.timeframe as string) || '1M';
   const supabase = getSupabaseClient(req);
@@ -325,22 +325,25 @@ router.get('/pnl-precise', async (req: Request, res: Response) => {
     // For 1D timeframe, dynamically project using 5-minute price history if available
     if (timeframe === '1D') {
       try {
-        const { data: latestDateRow } = await supabase
-          .from('user_balance_snapshots')
-          .select('snapshot_date')
-          .eq('user_address', wallet)
-          .order('snapshot_date', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        let balances: any[] = req.body?.balances || [];
 
-        let balances: any[] = [];
-        if (latestDateRow) {
-          const { data: bData } = await supabase
+        if (!balances || balances.length === 0) {
+          const { data: latestDateRow } = await supabase
             .from('user_balance_snapshots')
-            .select('asset_type, symbol, amount')
+            .select('snapshot_date')
             .eq('user_address', wallet)
-            .eq('snapshot_date', latestDateRow.snapshot_date);
-          balances = bData || [];
+            .order('snapshot_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestDateRow) {
+            const { data: bData } = await supabase
+              .from('user_balance_snapshots')
+              .select('asset_type, symbol, amount')
+              .eq('user_address', wallet)
+              .eq('snapshot_date', latestDateRow.snapshot_date);
+            balances = bData || [];
+          }
         }
 
         const { data: priceHist } = await supabase
