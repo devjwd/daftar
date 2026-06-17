@@ -155,52 +155,16 @@ const PNLChart: React.FC<PNLChartProps> = ({
     setTimeframe(tf);
   }, []);
 
-  const { combinedBalances, defiStaticUsd } = React.useMemo(() => {
-    const combined = balances && balances.length > 0 ? balances.map((b: any) => ({
+  const combinedBalances = React.useMemo(() => {
+    // Only include wallet token balances for per-token repricing.
+    // DeFi/LP/staking positions are already included via staticExtraUsd (passed from Dashboard).
+    return balances && balances.length > 0 ? balances.map((b: any) => ({
       asset_type: b.address,
       symbol: b.symbol,
       amount: b.amount || 0
     })) : [];
+  }, [balances]);
 
-    let staticUsd = 0;
-
-    // Process all DeFi positions
-    [...allPositions, ...liquidityPositions, ...stakingPositions].forEach(pos => {
-      const sym = pos.symbol || pos.tokenSymbol;
-      const posType = pos.type || '';
-
-      // LP positions (e.g. Yuzu): have token0/token1, not a single priceable token.
-      // They must be treated as a static USD value because we cannot reprice "YUZ-LP" tokens.
-      if (posType === 'Liquidity' || pos.isNFT) {
-        staticUsd += Number(pos.numericValue || pos.usdValue || 0);
-        return;
-      }
-
-      // Debt positions: reduce static USD (they're already negative in the net worth)
-      if (posType === 'Debt') {
-        staticUsd -= Number(pos.numericValue || pos.usdValue || 0);
-        return;
-      }
-
-      // Single-token positions (lending supply, staking, MovePosition):
-      // Try to add them as repriced balance entries if they have a real token address + amount.
-      const tokenAddress = pos.address || (sym === 'MOVE' ? '0x1' : null);
-      const tokenAmount = Number(pos.amount || 0);
-
-      if (tokenAddress && tokenAmount > 0 && sym && sym !== 'YUZ-LP' && !pos.isNFT) {
-        combined.push({
-          asset_type: tokenAddress,
-          symbol: sym,
-          amount: tokenAmount
-        });
-      } else {
-        // No priceable token address/amount — fall back to static USD
-        staticUsd += Number(pos.numericValue || pos.usdValue || 0);
-      }
-    });
-
-    return { combinedBalances: combined, defiStaticUsd: staticUsd };
-  }, [balances, allPositions, liquidityPositions, stakingPositions]);
 
   const balancesDep = (hasProfile && timeframe === '1D') ? JSON.stringify(combinedBalances) + '_' + totalValue : 'ignore';
 
@@ -236,14 +200,11 @@ const PNLChart: React.FC<PNLChartProps> = ({
       try {
         const fetchOptions: RequestInit = { signal: controller.signal };
         
-        // Pass live balances for instant 1D projection for all users with a profile
+        // Pass live balances + the full non-wallet USD (DeFi + LP + staking + NFTs from Dashboard)
         if (timeframe === '1D' && hasProfile && combinedBalances.length > 0) {
-          // staticExtraUsd (NFTs) + defiStaticUsd (LP positions, complex DeFi positions that
-          // can't be repriced by a single token) = total non-repriced USD to add to every time point
-          const totalStaticUsd = (staticExtraUsd || 0) + (defiStaticUsd || 0);
           fetchOptions.method = 'POST';
           fetchOptions.headers = { 'Content-Type': 'application/json' };
-          fetchOptions.body = JSON.stringify({ balances: combinedBalances, staticExtraUsd: totalStaticUsd });
+          fetchOptions.body = JSON.stringify({ balances: combinedBalances, staticExtraUsd: staticExtraUsd || 0 });
         }
 
         const API_URL = (import.meta as any).env?.VITE_API_URL || '';

@@ -802,7 +802,7 @@ const Dashboard = () => {
             balances={balances}
             priceChanges={priceChanges}
             hasProfile={!!userProfile}
-            staticExtraUsd={nftsTotalWorth || 0}
+            staticExtraUsd={(nftsTotalWorth || 0) + defiNetValue + liquidityTotalValue + stakingTotalValue}
             allPositions={visibleDeFiPositions}
             liquidityPositions={visibleLiquidityPositions}
             stakingPositions={visibleStakingPositions}
