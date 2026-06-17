@@ -19,6 +19,7 @@ export interface DeFiPosition {
 const PROTOCOLS = {
   ECHELON: "0x6a01d5761d43a5b5a0ccbfc42edf2d02c0611464aae99a2ea0e0d4819f0550b5",
   JOULE: "0x6a1641074e644917a10a6889b43d2c884631338870ed227575dfa312384f507b",
+  MOVEPOSITION: "0xccd2621d2897d407e06d18e6ebe3be0e6d9b61f1e809dd49360522b9105812cf",
   MERIDIAN: "0x8f396e838e12d6a5f97334460f1b40280b271d507119e7116790d96d740c493c"
 };
 
@@ -104,6 +105,65 @@ export async function fetchUserDeFiPositions(
             });
           }
         } catch (e) {}
+      }
+    }
+
+    // MovePosition Discovery
+    const movePositionPortfolio = resources.find(r => r.type.includes("::portfolio::Portfolio") && r.type.includes(PROTOCOLS.MOVEPOSITION));
+    if (movePositionPortfolio) {
+      const data = movePositionPortfolio.data as any;
+      
+      const decodeMPHex = (hexString: string) => {
+        if (!hexString || !hexString.startsWith("0x")) return null;
+        const hex = hexString.slice(2);
+        let decoded = "";
+        for (let i = 0; i < hex.length; i += 2) decoded += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+        const match = decoded.match(/::coins::(\w+)>/);
+        return match ? match[1] : null;
+      };
+
+      const collateralsItems = data.collaterals?.items || [];
+      const collateralsKeys = data.collaterals?.keys?.items || [];
+      for (let idx = 0; idx < collateralsKeys.length; idx++) {
+        const key = collateralsKeys[idx];
+        const notes = collateralsItems[idx];
+        if (!notes || Number(notes) <= 0) continue;
+
+        const rawSymbol = decodeMPHex(key?.struct_name || "");
+        if (rawSymbol) {
+          const symbol = rawSymbol === "USDC" ? "USDC.e" : rawSymbol === "USDT" ? "USDT.e" : rawSymbol === "WETH" ? "WETH.e" : rawSymbol === "WBTC" ? "WBTC.e" : rawSymbol;
+          const coinType = `${PROTOCOLS.MOVEPOSITION}::coins::${rawSymbol}`;
+          try {
+            const result = await client.view({ payload: { function: `${PROTOCOLS.MOVEPOSITION}::broker::calc_coins_from_dnotes`, functionArguments: [notes], typeArguments: [coinType] } });
+            const amountRaw = Number(result[0]);
+            const decimals = (symbol === "USDC.e" || symbol === "USDT.e") ? 6 : 8;
+            const amount = amountRaw / Math.pow(10, decimals);
+            const price = priceMap[coinType] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
+            if (amount > 0.0001) positions.push({ protocol: "MovePosition", type: "Lending", amount, usdValue: amount * price, symbol });
+          } catch(e) {}
+        }
+      }
+
+      const liabilityItems = data.liabilities?.items || [];
+      const liabilityKeys = data.liabilities?.keys?.items || [];
+      for (let idx = 0; idx < liabilityKeys.length; idx++) {
+        const key = liabilityKeys[idx];
+        const notes = liabilityItems[idx];
+        if (!notes || Number(notes) <= 0) continue;
+
+        const rawSymbol = decodeMPHex(key?.struct_name || "");
+        if (rawSymbol) {
+          const symbol = rawSymbol === "USDC" ? "USDC.e" : rawSymbol === "USDT" ? "USDT.e" : rawSymbol === "WETH" ? "WETH.e" : rawSymbol === "WBTC" ? "WBTC.e" : rawSymbol;
+          const coinType = `${PROTOCOLS.MOVEPOSITION}::coins::${rawSymbol}`;
+          try {
+            const result = await client.view({ payload: { function: `${PROTOCOLS.MOVEPOSITION}::broker::calc_coins_from_lnotes`, functionArguments: [notes], typeArguments: [coinType] } });
+            const amountRaw = Number(result[0]);
+            const decimals = (symbol === "USDC.e" || symbol === "USDT.e") ? 6 : 8;
+            const amount = amountRaw / Math.pow(10, decimals);
+            const price = priceMap[coinType] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
+            if (amount > 0.0001) positions.push({ protocol: "MovePosition", type: "Debt", amount, usdValue: -amount * price, symbol });
+          } catch(e) {}
+        }
       }
     }
 

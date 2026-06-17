@@ -177,7 +177,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
     return combined;
   }, [balances, allPositions, liquidityPositions, stakingPositions]);
 
-  const balancesDep = (!isPremium && hasProfile && timeframe === '1D') ? JSON.stringify(combinedBalances) + '_' + totalValue : 'ignore';
+  const balancesDep = (hasProfile && timeframe === '1D') ? JSON.stringify(combinedBalances) + '_' + totalValue : 'ignore';
 
   React.useEffect(() => {
     // Clear stale data immediately when wallet changes
@@ -211,8 +211,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
       try {
         const fetchOptions: RequestInit = { signal: controller.signal };
         
-        // Pass live balances for instant 1D projection for free users with a profile
-        if (timeframe === '1D' && !isPremium && hasProfile && combinedBalances.length > 0) {
+        // Pass live balances for instant 1D projection for all users with a profile
+        if (timeframe === '1D' && hasProfile && combinedBalances.length > 0) {
           // Since we are passing DeFi positions as balances, staticExtraUsd should only contain NFTs
           // But to be precise, we can just pass the difference between totalValue and the current valuation of combinedBalances
           fetchOptions.method = 'POST';
