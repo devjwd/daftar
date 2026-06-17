@@ -803,9 +803,9 @@ const Dashboard = () => {
             priceChanges={priceChanges}
             hasProfile={!!userProfile}
             staticExtraUsd={nftsTotalWorth || 0}
-            allPositions={allPositions}
-            liquidityPositions={liquidityPositions}
-            stakingPositions={stakingPositions}
+            allPositions={visibleDeFiPositions}
+            liquidityPositions={visibleLiquidityPositions}
+            stakingPositions={visibleStakingPositions}
           />
         </div>
         {error && <ErrorMessage message={error} onRetry={handleRefresh} />}
