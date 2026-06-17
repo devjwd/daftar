@@ -99,6 +99,7 @@ interface PNLChartProps {
   balances?: any[];
   priceChanges?: Record<string, number>;
   hasProfile?: boolean;
+  staticExtraUsd?: number;
 }
 
 const PNLChart: React.FC<PNLChartProps> = ({
@@ -114,7 +115,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
   subscriptionTier = 'free',
   balances = [],
   priceChanges = {},
-  hasProfile = false
+  hasProfile = false,
+  staticExtraUsd = 0
 }) => {
   const navigate = useNavigate();
   const isPremium = subscriptionTier !== 'free';
@@ -191,9 +193,6 @@ const PNLChart: React.FC<PNLChartProps> = ({
         
         // Pass live balances for instant 1D projection for free users with a profile
         if (timeframe === '1D' && !isPremium && hasProfile && formattedBalances.length > 0) {
-          const walletUsd = balances.reduce((sum: number, b: any) => sum + (b.usdValue || 0), 0);
-          const staticExtraUsd = totalValue - walletUsd;
-
           fetchOptions.method = 'POST';
           fetchOptions.headers = { 'Content-Type': 'application/json' };
           fetchOptions.body = JSON.stringify({ balances: formattedBalances, staticExtraUsd });
