@@ -100,6 +100,9 @@ interface PNLChartProps {
   priceChanges?: Record<string, number>;
   hasProfile?: boolean;
   staticExtraUsd?: number;
+  allPositions?: any[];
+  liquidityPositions?: any[];
+  stakingPositions?: any[];
 }
 
 const PNLChart: React.FC<PNLChartProps> = ({
@@ -116,7 +119,10 @@ const PNLChart: React.FC<PNLChartProps> = ({
   balances = [],
   priceChanges = {},
   hasProfile = false,
-  staticExtraUsd = 0
+  staticExtraUsd = 0,
+  allPositions = [],
+  liquidityPositions = [],
+  stakingPositions = []
 }) => {
   const navigate = useNavigate();
   const isPremium = subscriptionTier !== 'free';
@@ -149,15 +155,28 @@ const PNLChart: React.FC<PNLChartProps> = ({
     setTimeframe(tf);
   }, []);
 
-  const formattedBalances = useMemo(() => {
-    return balances && balances.length > 0 ? balances.map((b: any) => ({
+  const combinedBalances = React.useMemo(() => {
+    const combined = balances && balances.length > 0 ? balances.map((b: any) => ({
       asset_type: b.address,
       symbol: b.symbol,
       amount: b.amount || 0
     })) : [];
-  }, [balances]);
 
-  const balancesDep = (!isPremium && hasProfile && timeframe === '1D') ? JSON.stringify(formattedBalances) + '_' + totalValue : 'ignore';
+    // Add DeFi positions so they get historical price volatility
+    [...allPositions, ...liquidityPositions, ...stakingPositions].forEach(pos => {
+      if (pos && pos.amount > 0 && pos.symbol) {
+        combined.push({
+          asset_type: pos.address || (pos.symbol === 'MOVE' ? '0x1' : pos.symbol),
+          symbol: pos.symbol,
+          amount: pos.amount
+        });
+      }
+    });
+
+    return combined;
+  }, [balances, allPositions, liquidityPositions, stakingPositions]);
+
+  const balancesDep = (!isPremium && hasProfile && timeframe === '1D') ? JSON.stringify(combinedBalances) + '_' + totalValue : 'ignore';
 
   React.useEffect(() => {
     // Clear stale data immediately when wallet changes
@@ -192,10 +211,12 @@ const PNLChart: React.FC<PNLChartProps> = ({
         const fetchOptions: RequestInit = { signal: controller.signal };
         
         // Pass live balances for instant 1D projection for free users with a profile
-        if (timeframe === '1D' && !isPremium && hasProfile && formattedBalances.length > 0) {
+        if (timeframe === '1D' && !isPremium && hasProfile && combinedBalances.length > 0) {
+          // Since we are passing DeFi positions as balances, staticExtraUsd should only contain NFTs
+          // But to be precise, we can just pass the difference between totalValue and the current valuation of combinedBalances
           fetchOptions.method = 'POST';
           fetchOptions.headers = { 'Content-Type': 'application/json' };
-          fetchOptions.body = JSON.stringify({ balances: formattedBalances, staticExtraUsd });
+          fetchOptions.body = JSON.stringify({ balances: combinedBalances, staticExtraUsd });
         }
 
         const API_URL = (import.meta as any).env?.VITE_API_URL || '';
