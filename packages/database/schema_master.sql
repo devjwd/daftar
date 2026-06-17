@@ -798,3 +798,33 @@ BEGIN
   RETURNING sync_queue.id, sync_queue.user_address, sync_queue.priority;
 END;
 $$;
+
+-- ----------------------------------------------------------------------------
+-- REMEDIATION: Fix snapshot pruning retention (3 days -> 90 days)
+-- Run this in Supabase SQL Editor to fix Pro user 1W/1M/3M chart history.
+-- ----------------------------------------------------------------------------
+
+-- 1. Update prune_old_snapshots function default to 90 days
+CREATE OR REPLACE FUNCTION public.prune_old_snapshots(user_addr text, days_to_keep integer DEFAULT 90)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.user_networth_snapshots
+  WHERE user_address = lower(user_addr)
+    AND timestamp < NOW() - (days_to_keep || ' days')::interval
+    AND EXTRACT(HOUR FROM timestamp AT TIME ZONE 'UTC') != 23;
+END; $$;
+
+-- 2. Update bulk prune function default to 90 days
+CREATE OR REPLACE FUNCTION public.prune_old_snapshots_bulk(days_to_keep integer DEFAULT 90)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.user_networth_snapshots
+  WHERE timestamp < NOW() - (days_to_keep || ' days')::interval
+    AND EXTRACT(HOUR FROM timestamp AT TIME ZONE 'UTC') != 23;
+END; $$;
+
+-- 3. Reschedule the cron job to use 90 days instead of 3
+SELECT cron.unschedule('prune-hourly-networth-snapshots');
+SELECT cron.schedule('prune-hourly-networth-snapshots', '0 3 * * *', $cron$
+    SELECT public.prune_old_snapshots_bulk(90);
+$cron$);
