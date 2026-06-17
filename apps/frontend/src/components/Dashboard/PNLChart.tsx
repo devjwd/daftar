@@ -164,10 +164,11 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
     // Add DeFi positions so they get historical price volatility
     [...allPositions, ...liquidityPositions, ...stakingPositions].forEach(pos => {
-      if (pos && pos.amount > 0 && pos.symbol) {
+      const sym = pos.symbol || pos.tokenSymbol;
+      if (pos && pos.amount > 0 && sym) {
         combined.push({
-          asset_type: pos.address || (pos.symbol === 'MOVE' ? '0x1' : pos.symbol),
-          symbol: pos.symbol,
+          asset_type: pos.address || (sym === 'MOVE' ? '0x1' : sym),
+          symbol: sym,
           amount: pos.amount
         });
       }
