@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Partials, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ApplicationCommandOptionType, ChannelType, TextChannel, AttachmentBuilder } from 'discord.js';
 import { getSupabase } from '../../config/supabase.ts';
 import { getEffectiveTier } from '../../services/subscriptionService.ts';
 import { isPremiumTier } from '@daftar/shared-types';
@@ -48,6 +48,25 @@ export async function verifyUserRoles(discordUserId: string, walletAddress: stri
   }
 }
 
+async function logModAction(guild: any, action: string, moderator: any, target: any, reason: string) {
+  if (!guild) return;
+
+  const modlogChannel = guild.channels.cache.find((c: any) => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+  if (!modlogChannel || !('send' in modlogChannel)) return;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🛡️ Moderation: ${action}`)
+    .setColor(0xFFA500)
+    .addFields(
+      { name: 'Target', value: `${target} (${target.id})`, inline: true },
+      { name: 'Moderator', value: `${moderator} (${moderator.id})`, inline: true },
+      { name: 'Reason', value: reason, inline: false }
+    )
+    .setTimestamp();
+
+  await modlogChannel.send({ embeds: [embed] }).catch(console.error);
+}
+
 export async function initDiscordBot(): Promise<Client | null> {
   const token = process.env.DISCORD_BOT_TOKEN;
   const clientId = process.env.DISCORD_CLIENT_ID;
@@ -60,9 +79,12 @@ export async function initDiscordBot(): Promise<Client | null> {
   discordClient = new Client({
     intents: [
       GatewayIntentBits.Guilds,
-      GatewayIntentBits.DirectMessages
+      GatewayIntentBits.DirectMessages,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent,
+      GatewayIntentBits.GuildMembers
     ],
-    partials: [Partials.Channel]
+    partials: [Partials.Channel, Partials.Message]
   });
 
   // Register Slash Commands
@@ -83,6 +105,47 @@ export async function initDiscordBot(): Promise<Client | null> {
       name: 'setup_verify',
       description: 'Admin: Post the server verification message.',
       default_member_permissions: String(PermissionFlagsBits.ManageGuild)
+    },
+    {
+      name: 'kick',
+      description: 'Admin: Kick a user from the server.',
+      default_member_permissions: String(PermissionFlagsBits.KickMembers),
+      options: [
+        { name: 'user', description: 'User to kick', type: ApplicationCommandOptionType.User, required: true },
+        { name: 'reason', description: 'Reason for kicking', type: ApplicationCommandOptionType.String, required: false }
+      ]
+    },
+    {
+      name: 'ban',
+      description: 'Admin: Ban a user from the server.',
+      default_member_permissions: String(PermissionFlagsBits.BanMembers),
+      options: [
+        { name: 'user', description: 'User to ban', type: ApplicationCommandOptionType.User, required: true },
+        { name: 'reason', description: 'Reason for banning', type: ApplicationCommandOptionType.String, required: false }
+      ]
+    },
+    {
+      name: 'timeout',
+      description: 'Admin: Timeout a user.',
+      default_member_permissions: String(PermissionFlagsBits.ModerateMembers),
+      options: [
+        { name: 'user', description: 'User to timeout', type: ApplicationCommandOptionType.User, required: true },
+        { name: 'duration', description: 'Duration in minutes', type: ApplicationCommandOptionType.Integer, required: true },
+        { name: 'reason', description: 'Reason for timeout', type: ApplicationCommandOptionType.String, required: false }
+      ]
+    },
+    {
+      name: 'clear',
+      description: 'Admin: Bulk delete messages.',
+      default_member_permissions: String(PermissionFlagsBits.ManageMessages),
+      options: [
+        { name: 'amount', description: 'Number of messages to delete (1-100)', type: ApplicationCommandOptionType.Integer, required: true }
+      ]
+    },
+    {
+      name: 'setup_tickets',
+      description: 'Admin: Post the support ticket creation message.',
+      default_member_permissions: String(PermissionFlagsBits.ManageGuild)
     }
   ];
 
@@ -102,6 +165,28 @@ export async function initDiscordBot(): Promise<Client | null> {
   discordClient.on('ready', () => {
     console.log(`[DiscordBot] 🤖 Logged in as ${discordClient?.user?.tag}!`);
   });
+
+  discordClient.on('messageDelete', async (message) => {
+    if (message.partial) await message.fetch().catch(() => null);
+    if (!message.author || message.author.bot || !message.guild) return;
+
+    const modlogChannel = message.guild.channels.cache.find(c => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+    if (!modlogChannel || !('send' in modlogChannel)) return;
+
+    const embed = new EmbedBuilder()
+      .setTitle('🗑️ Message Deleted')
+      .setColor(0xFF0000)
+      .addFields(
+        { name: 'Author', value: `${message.author} (${message.author.id})`, inline: true },
+        { name: 'Channel', value: `${message.channel}`, inline: true },
+        { name: 'Content', value: message.content || '*No text content*', inline: false }
+      )
+      .setTimestamp();
+
+    await modlogChannel.send({ embeds: [embed] }).catch(console.error);
+  });
+
+
 
   // Handle Slash Command Interactions
   discordClient.on('interactionCreate', async (interaction) => {
@@ -215,20 +300,117 @@ export async function initDiscordBot(): Promise<Client | null> {
     
     else if (commandName === 'setup_verify') {
       const embed = new EmbedBuilder()
-        .setTitle('Verify your wallet')
-        .setDescription('Click on the link below to verify your Movement wallet and receive your roles.\n\nYou will receive a role update when verification is complete.')
-        .setColor(0x00FF00); // Green
+        .setTitle('🛡️ Server Verification')
+        .setDescription(
+          'Welcome to the **Daftar Official Discord**!\n\n' +
+          'To gain full access to the server channels and receive your exclusive roles, please verify your Movement wallet.\n\n' +
+          '**Benefits of Verification:**\n' +
+          '• Unlock all community channels\n' +
+          '• Display your `Verified` badge\n' +
+          '• Gain `Pro` roles automatically if you hold an active subscription\n\n' +
+          '*Click the button below to start the secure verification process.*'
+        )
+        .setColor(0xD4AF37)
+        .setFooter({ text: 'Powered by Daftar', iconURL: discordClient?.user?.displayAvatarURL() });
 
       const verifyButton = new ButtonBuilder()
         .setCustomId('verify_movement_wallet')
-        .setLabel('Verify Movement')
-        .setStyle(ButtonStyle.Primary);
+        .setLabel('Verify Wallet')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅');
 
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(verifyButton);
 
       await interaction.reply({ content: 'Verification message setup successfully.', ephemeral: true });
       if (interaction.channel && 'send' in interaction.channel) {
-        await (interaction.channel as any).send({ embeds: [embed], components: [row] });
+        await (interaction.channel as any).send({ embeds: [embed], components: [row] }).catch((err: any) => {
+          console.error('Failed to send verify msg:', err);
+          interaction.followUp({ content: '❌ Failed to post message. Make sure the bot has "Send Messages" permission in this channel!', ephemeral: true });
+        });
+      }
+    }
+    
+    else if (commandName === 'kick') {
+      const user = interaction.options.getUser('user');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+      if (!user) return interaction.reply({ content: 'User not found.', ephemeral: true });
+
+      const member = await interaction.guild?.members.fetch(user.id).catch(() => null);
+      if (!member) return interaction.reply({ content: 'User is not in the server.', ephemeral: true });
+
+      await member.kick(reason).then(() => {
+        interaction.reply({ content: `✅ Kicked ${user.tag} for: ${reason}`, ephemeral: true });
+        logModAction(interaction.guild, 'Kick', interaction.user, user, reason);
+      }).catch(err => {
+        interaction.reply({ content: 'Failed to kick user. Check my permissions and role hierarchy.', ephemeral: true });
+      });
+    }
+
+    else if (commandName === 'ban') {
+      const user = interaction.options.getUser('user');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+      if (!user) return interaction.reply({ content: 'User not found.', ephemeral: true });
+
+      await interaction.guild?.members.ban(user.id, { reason }).then(() => {
+        interaction.reply({ content: `✅ Banned ${user.tag} for: ${reason}`, ephemeral: true });
+        logModAction(interaction.guild, 'Ban', interaction.user, user, reason);
+      }).catch(err => {
+        interaction.reply({ content: 'Failed to ban user. Check my permissions.', ephemeral: true });
+      });
+    }
+
+    else if (commandName === 'timeout') {
+      const user = interaction.options.getUser('user');
+      const duration = interaction.options.getInteger('duration') || 10;
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+      if (!user) return interaction.reply({ content: 'User not found.', ephemeral: true });
+
+      const member = await interaction.guild?.members.fetch(user.id).catch(() => null);
+      if (!member) return interaction.reply({ content: 'User is not in the server.', ephemeral: true });
+
+      await member.timeout(duration * 60 * 1000, reason).then(() => {
+        interaction.reply({ content: `✅ Timed out ${user.tag} for ${duration} minutes. Reason: ${reason}`, ephemeral: true });
+        logModAction(interaction.guild, 'Timeout', interaction.user, user, `${duration} mins: ${reason}`);
+      }).catch(err => {
+        interaction.reply({ content: 'Failed to timeout user.', ephemeral: true });
+      });
+    }
+
+    else if (commandName === 'clear') {
+      const amount = interaction.options.getInteger('amount') || 10;
+      if (amount < 1 || amount > 100) return interaction.reply({ content: 'Amount must be between 1 and 100.', ephemeral: true });
+
+      if (interaction.channel && interaction.channel.type === ChannelType.GuildText) {
+        await interaction.channel.bulkDelete(amount, true).then(deleted => {
+          interaction.reply({ content: `✅ Successfully deleted ${deleted.size} messages.`, ephemeral: true });
+        }).catch(err => {
+          interaction.reply({ content: 'Failed to delete messages. Messages older than 14 days cannot be bulk deleted.', ephemeral: true });
+        });
+      } else {
+        interaction.reply({ content: 'This command can only be used in text channels.', ephemeral: true });
+      }
+    }
+
+    else if (commandName === 'setup_tickets') {
+      const embed = new EmbedBuilder()
+        .setTitle('🎟️ Support Tickets')
+        .setDescription('Need help? Click the button below to open a private ticket with our staff.')
+        .setColor(0x5865F2);
+
+      const ticketBtn = new ButtonBuilder()
+        .setCustomId('create_ticket')
+        .setLabel('Open Ticket')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🎫');
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(ticketBtn);
+
+      await interaction.reply({ content: 'Ticket panel setup successfully.', ephemeral: true });
+      if (interaction.channel && 'send' in interaction.channel) {
+        await (interaction.channel as any).send({ embeds: [embed], components: [row] }).catch((err: any) => {
+          console.error('Failed to send ticket panel:', err);
+          interaction.followUp({ content: '❌ Failed to post panel. Make sure the bot has "Send Messages" permission in this channel!', ephemeral: true });
+        });
       }
     }
   });
@@ -244,14 +426,98 @@ export async function initDiscordBot(): Promise<Client | null> {
       const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify`;
 
       const embed = new EmbedBuilder()
-        .setTitle('🔗 Verify Your Wallet')
+        .setTitle('🔐 Secure Wallet Authentication')
         .setDescription(
-          `Click on the link below to verify. Follow the instructions on the page to gain new roles in the Discord Server.\n\n` +
-          `[Verify now](${oauthUrl})`
+          `You're just one step away from gaining your roles!\n\n` +
+          `**1.** Click the link below to open the Daftar Settings dashboard.\n` +
+          `**2.** Connect your Movement wallet (e.g. Razor, Nightly).\n` +
+          `**3.** Click the **"Connect Discord"** button on the site.\n\n` +
+          `[👉 Authenticate & Verify Here](${oauthUrl})\n\n` +
+          `*Your roles will be assigned automatically upon completion.*`
         )
         .setColor(0xD4AF37);
 
       await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    else if (interaction.customId === 'create_ticket') {
+      if (!interaction.guild) return;
+      
+      const category = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'ticket' && c.type === ChannelType.GuildCategory);
+      const categoryId = category ? category.id : null;
+      
+      try {
+        const ticketChannel = await interaction.guild.channels.create({
+          name: `ticket-${interaction.user.username}`,
+          type: ChannelType.GuildText,
+          parent: categoryId || null,
+          permissionOverwrites: [
+            {
+              id: interaction.guild.id,
+              deny: [PermissionFlagsBits.ViewChannel],
+            },
+            {
+              id: interaction.user.id,
+              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+            },
+            {
+              id: discordClient!.user!.id,
+              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+            }
+          ],
+        });
+
+        const embed = new EmbedBuilder()
+          .setTitle('Support Ticket')
+          .setDescription(`Welcome ${interaction.user}! Please describe your issue and our staff will be with you shortly.`)
+          .setColor(0x5865F2);
+
+        const closeBtn = new ButtonBuilder()
+          .setCustomId('close_ticket')
+          .setLabel('Close Ticket')
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji('🔒');
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(closeBtn);
+
+        await ticketChannel.send({ content: `${interaction.user}`, embeds: [embed], components: [row] });
+        await interaction.reply({ content: `✅ Ticket created: ${ticketChannel}`, ephemeral: true });
+      } catch (err) {
+        console.error('Error creating ticket:', err);
+        await interaction.reply({ content: '❌ Failed to create ticket. Please check my permissions.', ephemeral: true });
+      }
+    }
+
+    else if (interaction.customId === 'close_ticket') {
+      await interaction.reply({ content: 'Saving transcript and closing ticket in 5 seconds...' });
+      
+      try {
+        if (interaction.channel && 'messages' in interaction.channel) {
+          const messages = await (interaction.channel as any).messages.fetch({ limit: 100 });
+          const transcript = messages.reverse().map((m: any) => `${m.createdAt.toISOString()} - ${m.author.tag}: ${m.content}`).join('\n');
+          
+          if (interaction.guild) {
+            const modlogChannel = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+            if (modlogChannel && 'send' in modlogChannel) {
+              const buffer = Buffer.from(transcript, 'utf-8');
+              const channelName = (interaction.channel as any)?.name || 'ticket';
+              const attachment = new AttachmentBuilder(buffer, { name: `${channelName}-transcript.txt` });
+              await modlogChannel.send({
+                content: `🎫 Transcript for closed ticket: \`${channelName}\``,
+                files: [attachment]
+              }).catch(console.error);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to save transcript:', err);
+      }
+
+      setTimeout(async () => {
+        if (interaction.channel && 'delete' in interaction.channel) {
+          await interaction.channel.delete().catch(console.error);
+        }
+      }, 5000);
     }
   });
 
