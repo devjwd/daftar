@@ -841,11 +841,19 @@ $cron$);
 ALTER TABLE public.token_price_history
   ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'coingecko';
 
--- 2. Drop the old unique constraint (token_address, timestamp)
+-- 2. Deduplicate existing rows — keep only the latest row per (token_address, timestamp, granularity)
+DELETE FROM public.token_price_history
+WHERE id NOT IN (
+  SELECT DISTINCT ON (token_address, timestamp, granularity) id
+  FROM public.token_price_history
+  ORDER BY token_address, timestamp, granularity, created_at DESC
+);
+
+-- 3. Drop the old unique constraint (token_address, timestamp)
 ALTER TABLE public.token_price_history
   DROP CONSTRAINT IF EXISTS token_price_history_token_address_timestamp_key;
 
--- 3. Add correct unique constraint including granularity
+-- 4. Add correct unique constraint including granularity
 ALTER TABLE public.token_price_history
   ADD CONSTRAINT token_price_history_token_address_timestamp_granularity_key
   UNIQUE (token_address, timestamp, granularity);
