@@ -155,3 +155,62 @@ export async function dispatchAlertsForTransactions(
     console.error(`[NotificationService] Error dispatching alerts for ${walletAddress}:`, err);
   }
 }
+
+export async function dispatchEventAlert(
+  supabase: SupabaseClient,
+  walletAddress: string,
+  eventType: 'BADGE_EARNED' | 'PROFILE_UPDATED' | 'PLAN_UPGRADED',
+  metadata: any
+) {
+  try {
+    const { data: config } = await supabase
+      .from('user_alert_configs')
+      .select('*')
+      .eq('wallet_address', walletAddress)
+      .maybeSingle();
+
+    if (!config) return;
+
+    let title = '';
+    let description = '';
+    let fields: { name: string; value: string; inline?: boolean }[] = [];
+
+    switch (eventType) {
+      case 'BADGE_EARNED':
+        title = '🎉 New Badge Unlocked!';
+        description = `You just earned the **${metadata.badgeName || 'Mystery Badge'}**!`;
+        fields = [
+          { name: 'XP Awarded', value: `+${metadata.xpValue || 0} XP`, inline: true },
+          { name: 'Wallet', value: `\`${walletAddress}\``, inline: false },
+        ];
+        break;
+      case 'PROFILE_UPDATED':
+        title = '📝 Profile Updated';
+        description = 'Your Daftar profile information has been successfully updated.';
+        fields = [
+          { name: 'Username', value: metadata.username || 'N/A', inline: true },
+          { name: 'Wallet', value: `\`${walletAddress}\``, inline: false },
+        ];
+        break;
+      case 'PLAN_UPGRADED':
+        title = '🚀 Subscription Upgraded';
+        description = `Welcome to **${metadata.tier || 'Premium'}**! Your new features are now active.`;
+        fields = [
+          { name: 'Wallet', value: `\`${walletAddress}\``, inline: false },
+        ];
+        break;
+    }
+
+    if (config.discord_enabled && config.discord_user_id) {
+      await sendDiscordAlert(config.discord_user_id, title, description, fields);
+    }
+    
+    if (config.telegram_enabled && config.telegram_chat_id) {
+       const text = `<b>${title}</b>\n${description}`;
+       await sendTelegramAlert(config.telegram_chat_id, text);
+    }
+
+  } catch (err) {
+    console.error(`[NotificationService] Error dispatching event alert for ${walletAddress}:`, err);
+  }
+}

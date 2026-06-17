@@ -147,6 +147,10 @@ export async function initDiscordBot(): Promise<Client | null> {
       name: 'setup_tickets',
       description: 'Admin: Post the support ticket creation message.',
       default_member_permissions: String(PermissionFlagsBits.ManageGuild)
+    },
+    {
+      name: 'profile',
+      description: 'View your Daftar platform profile, level, and badges!',
     }
   ];
 
@@ -204,7 +208,7 @@ export async function initDiscordBot(): Promise<Client | null> {
     if (commandName === 'link') {
       // Direct user to Discord OAuth2 flow so they authenticate via daftar.fi frontend
       // This is consistent with the frontend "Connect Discord" button which uses OAuth2
-      const webappUrl = process.env.NODE_ENV === 'production' ? 'https://daftar.fi' : 'http://localhost:3000';
+      const webappUrl = process.env.FRONTEND_URL || 'https://daftar.fi';
       const redirectUri = encodeURIComponent(`${webappUrl}/settings`);
       const clientId = process.env.DISCORD_CLIENT_ID;
       const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify`;
@@ -281,6 +285,56 @@ export async function initDiscordBot(): Promise<Client | null> {
       } catch (err: any) {
         console.error('[DiscordBot] Portfolio fetch error:', err);
         await interaction.editReply({ content: '❌ Failed to retrieve portfolio details.' });
+      }
+    }
+
+    else if (commandName === 'profile') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { data: config, error } = await supabase
+          .from('user_alert_configs')
+          .select('wallet_address')
+          .eq('discord_user_id', userId)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!config || !config.wallet_address) {
+          return interaction.editReply({
+            content: '❌ You haven\'t linked your Daftar profile yet! Go to the `#verify` channel and click the button to link your account.'
+          });
+        }
+
+        const wallet = config.wallet_address;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('wallet_address', wallet)
+          .maybeSingle();
+
+        const { count: badgeCount } = await supabase
+          .from('badge_attestations')
+          .select('*', { count: 'exact', head: true })
+          .eq('wallet_address', wallet)
+          .eq('eligible', true);
+
+        const embed = new EmbedBuilder()
+          .setTitle(`👤 ${profile?.username || 'Daftar User'}'s Profile`)
+          .setDescription(profile?.bio || '*No bio provided.*')
+          .addFields(
+            { name: 'Level', value: `${profile?.current_level || 1} 🌟`, inline: true },
+            { name: 'XP', value: `${profile?.xp || 0} XP`, inline: true },
+            { name: 'Badges Earned', value: `${badgeCount || 0} 🏅`, inline: true },
+            { name: 'Subscription', value: profile?.subscription_tier === 'pro' || profile?.subscription_tier === 'lite' ? '💎 Premium' : 'Free Tier', inline: true },
+            { name: 'Wallet', value: `\`${wallet.slice(0, 6)}...${wallet.slice(-4)}\``, inline: false }
+          )
+          .setColor(0xD4AF37)
+          .setThumbnail(profile?.avatar_url || interaction.user.displayAvatarURL());
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (err: any) {
+        console.error('[DiscordBot] Profile fetch error:', err);
+        await interaction.editReply({ content: '❌ Failed to retrieve profile details.' });
       }
     }
 
@@ -427,7 +481,7 @@ export async function initDiscordBot(): Promise<Client | null> {
       }
       
       const token = jwt.sign({ sub: interaction.user.id }, jwtSecret, { expiresIn: '15m' });
-      const webappUrl = process.env.NODE_ENV === 'production' ? 'https://daftar.fi' : 'http://localhost:3000';
+      const webappUrl = process.env.FRONTEND_URL || 'https://daftar.fi';
       const verifyUrl = `${webappUrl}/verify?token=${token}`;
 
       const embed = new EmbedBuilder()

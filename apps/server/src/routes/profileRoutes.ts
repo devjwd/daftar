@@ -4,6 +4,7 @@ import { normalizeAddress } from '../utils/address.ts';
 import { profileLimiter, generalLimiter } from '../middleware/rateLimit.ts';
 import { checkRateLimit, checkAndBurnNonce, getNextNonce } from '../services/dbService.ts';
 import { verifyWalletSignature } from '../utils/crypto.ts';
+import { dispatchEventAlert } from '../services/notificationService.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const router = express.Router();
@@ -101,6 +102,8 @@ router.post('/', async (req: Request, res: Response) => {
       .single();
 
     if (error) throw error;
+
+    dispatchEventAlert(supabaseAdmin, normalizedAddr, 'PROFILE_UPDATED', { username: data.username }).catch(console.error);
 
     return res.status(200).json(data);
   } catch (err: any) {

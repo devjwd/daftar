@@ -9,6 +9,7 @@ import {
 import { evaluateRule, getSignerEpoch, verifyOnChainMint } from '../services/evaluationService.ts';
 import { signMintAuthorization } from '../services/signingService.ts';
 import { normalizeAddress } from '../utils/address.ts';
+import { dispatchEventAlert } from '../services/notificationService.ts';
 import CONFIG from '../config/index.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { BadgeDefinition } from '@daftar/types';
@@ -355,6 +356,8 @@ router.post('/sync', awardLimiter, async (req: Request, res: Response) => {
       }, { onConflict: 'badge_id, wallet_address' });
 
     if (error) throw error;
+
+    dispatchEventAlert(supabaseAdmin, normalizedAddr, 'BADGE_EARNED', { badgeName: badgeId, xpValue }).catch(console.error);
 
     return res.status(200).json({ ok: true, synced: true });
   } catch (err: any) {
