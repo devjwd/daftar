@@ -529,7 +529,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                     }}
                   />
-                  <YAxis hide={true} domain={[(min: number) => min - Math.abs(min) * 0.1 - 1, (max: number) => max + Math.abs(max) * 0.1 + 1]} />
+                  <YAxis hide={true} domain={['dataMin', 'dataMax']} />
                   {(isPremium || hasProfile) ? (
                     <Tooltip
                       content={<CustomTooltip />}
