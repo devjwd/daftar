@@ -542,7 +542,7 @@ BEGIN
   );
 END; $$;
 
-CREATE OR REPLACE FUNCTION public.prune_old_snapshots(user_addr text, days_to_keep integer DEFAULT 3)
+CREATE OR REPLACE FUNCTION public.prune_old_snapshots(user_addr text, days_to_keep integer DEFAULT 90)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   DELETE FROM public.user_networth_snapshots
@@ -551,7 +551,7 @@ BEGIN
     AND EXTRACT(HOUR FROM timestamp AT TIME ZONE 'UTC') != 23;
 END; $$;
 
-CREATE OR REPLACE FUNCTION public.prune_old_snapshots_bulk(days_to_keep integer DEFAULT 3)
+CREATE OR REPLACE FUNCTION public.prune_old_snapshots_bulk(days_to_keep integer DEFAULT 90)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   DELETE FROM public.user_networth_snapshots
@@ -592,7 +592,7 @@ DO $$ BEGIN
   $cron$);
 
   PERFORM cron.schedule('prune-hourly-networth-snapshots', '0 3 * * *', $cron$
-      SELECT public.prune_old_snapshots_bulk(3);
+      SELECT public.prune_old_snapshots_bulk(90);
   $cron$);
 END $$;
 

@@ -306,7 +306,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
   // Calculate PnL changes for non-verified users using their current balances and 24h price changes
   const computedChange = useMemo(() => {
-    if ((isPremium || hasProfile) && historicalData.length >= 2) {
+    // Use real history data whenever we have it (both pro and free-with-profile users)
+    if (historicalData.length >= 2) {
       const firstVal = dataToRender[0]?.value ?? totalValue;
       const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
       const rawChangeUsd = lastVal - firstVal;
@@ -385,7 +386,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
         changePercent
       };
     }
-  }, [isPremium, dataToRender, totalValue, balances, priceChanges]);
+  }, [historicalData, dataToRender, totalValue, balances, priceChanges]);
 
   const { rawChangeUsd, isPositive, changeUSD, changePercent } = computedChange;
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
@@ -423,7 +424,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 key={tf}
                 className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''}`}
                 onClick={() => handleTimeframeChange(tf)}
-                disabled={!isPremium}
+                disabled={!isPremium && tf !== '1D'}
               >
                 {tf}
               </button>

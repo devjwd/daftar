@@ -261,9 +261,9 @@ export async function takeNetworthSnapshot(
   } else {
     console.log(`[Networth] ✅ Snapshot saved for ${address}: $${totalNetworthUsd.toFixed(2)}`);
     
-    // Prune hourly snapshots older than 3 days to respect Supabase free tier storage limits
+    // Prune hourly snapshots — keep 90 days to support all chart timeframes (1W, 1M, 3M)
     try {
-      await supabase.rpc('prune_old_snapshots', { user_addr: address, days_to_keep: 3 });
+      await supabase.rpc('prune_old_snapshots', { user_addr: address, days_to_keep: 90 });
     } catch (pruneErr: any) {
       console.warn(`[Networth] Failed to prune old snapshots for ${address}:`, pruneErr.message);
     }

@@ -378,6 +378,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
               .maybeSingle();
               
             if (latestNetworthRow) {
+              // Balance snapshots only have wallet tokens; add defi_usd + nft_usd as static extra
               staticExtraUsd = Number(latestNetworthRow.defi_usd || 0) + Number(latestNetworthRow.nft_usd || 0);
             }
           }
