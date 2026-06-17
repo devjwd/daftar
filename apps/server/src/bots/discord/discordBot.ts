@@ -1,4 +1,5 @@
 import { Client, GatewayIntentBits, Partials, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ApplicationCommandOptionType, ChannelType, TextChannel, AttachmentBuilder } from 'discord.js';
+import jwt from 'jsonwebtoken';
 import { getSupabase } from '../../config/supabase.ts';
 import { getEffectiveTier } from '../../services/subscriptionService.ts';
 import { isPremiumTier } from '@daftar/shared-types';
@@ -420,20 +421,24 @@ export async function initDiscordBot(): Promise<Client | null> {
     if (!interaction.isButton()) return;
     
     if (interaction.customId === 'verify_movement_wallet') {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+         return interaction.reply({ content: '⚠️ Verification is currently offline (Missing JWT Secret).', ephemeral: true });
+      }
+      
+      const token = jwt.sign({ sub: interaction.user.id }, jwtSecret, { expiresIn: '15m' });
       const webappUrl = process.env.NODE_ENV === 'production' ? 'https://daftar.fi' : 'http://localhost:3000';
-      const redirectUri = encodeURIComponent(`${webappUrl}/settings`);
-      const clientId = process.env.DISCORD_CLIENT_ID;
-      const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify`;
+      const verifyUrl = `${webappUrl}/verify?token=${token}`;
 
       const embed = new EmbedBuilder()
         .setTitle('🔐 Secure Wallet Authentication')
         .setDescription(
           `You're just one step away from gaining your roles!\n\n` +
-          `**1.** Click the link below to open the Daftar Settings dashboard.\n` +
+          `**1.** Click the link below to open the secure verification dashboard.\n` +
           `**2.** Connect your Movement wallet (e.g. Razor, Nightly).\n` +
-          `**3.** Click the **"Connect Discord"** button on the site.\n\n` +
-          `[👉 Authenticate & Verify Here](${oauthUrl})\n\n` +
-          `*Your roles will be assigned automatically upon completion.*`
+          `**3.** Click **"Sign to Verify"** to prove ownership.\n\n` +
+          `[👉 Authenticate & Verify Here](${verifyUrl})\n\n` +
+          `*Your roles will be assigned automatically upon completion. This link expires in 15 minutes.*`
         )
         .setColor(0xD4AF37);
 

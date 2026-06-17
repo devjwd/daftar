@@ -28,6 +28,7 @@ const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const StandaloneVisualizer = lazy(() => import("./pages/StandaloneVisualizer"));
 const Plans = lazy(() => import("./pages/Plans"));
+const Verify = lazy(() => import("./pages/Verify"));
 
 const SWAP_ENABLED = getEnv("VITE_ENABLE_SWAP", true);
 
@@ -152,6 +153,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <Home />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/verify"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Verify />
               </Suspense>
             }
           />

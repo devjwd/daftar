@@ -1,0 +1,133 @@
+.verify-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+  background: var(--bg-primary, #14110f);
+  color: var(--text-primary, #ffffff);
+}
+
+.verify-card {
+  background: var(--bg-secondary, #1e1b19);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  padding: 40px 30px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.verify-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.verify-icon {
+  width: 64px;
+  height: 64px;
+  background: rgba(212, 175, 55, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: #D4AF37;
+}
+
+.verify-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary, #fff);
+}
+
+.verify-subtitle {
+  font-size: 15px;
+  color: var(--text-secondary, #aaa);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.verify-roles {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: left;
+}
+
+.verify-roles-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary, #aaa);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.verify-role-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text-primary, #fff);
+}
+
+.verify-role-item .dot {
+  width: 8px;
+  height: 8px;
+  background: #D4AF37;
+  border-radius: 50%;
+}
+
+.verify-button {
+  background: #D4AF37;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.verify-button:hover {
+  background: #ebd27b;
+  transform: translateY(-2px);
+}
+
+.verify-button:disabled {
+  background: #555;
+  color: #888;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.verify-error {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.verify-success {
+  color: #00ff00;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.verify-wallet-connect {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}

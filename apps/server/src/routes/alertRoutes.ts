@@ -1,5 +1,6 @@
 import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { normalizeAddress } from '../utils/address.ts';
 import fs from 'fs';
 import { generalLimiter } from '../middleware/rateLimit.ts';
@@ -417,6 +418,66 @@ router.post('/telegram-code', generalLimiter, async (req: Request, res: Response
   } catch (err: any) {
     console.error('[AlertRoutes] Generate telegram code error:', err);
     return res.status(500).json({ error: 'Failed to generate connection code' });
+  }
+});
+
+/**
+ * POST /api/alerts/verify-discord
+ * Completes the new wallet-signature based Discord verification flow.
+ */
+router.post('/verify-discord', generalLimiter, async (req: Request, res: Response) => {
+  const supabaseAdmin = getSupabase();
+  const { address, token, signature, signedMessage, nonce } = req.body;
+  const normalizedAddr = normalizeAddress(address);
+
+  if (!normalizedAddr) return res.status(400).json({ error: 'Invalid wallet address' });
+  if (!token) return res.status(400).json({ error: 'Verification token is required' });
+  if (!signature || !signedMessage || !nonce) return res.status(401).json({ error: 'Signature and nonce are required' });
+  if (!supabaseAdmin) return res.status(503).json({ error: 'Service unavailable' });
+
+  // Nonce check
+  const nonceCheck = await checkAndBurnNonce(supabaseAdmin, normalizedAddr, nonce);
+  if (!nonceCheck.ok) return res.status(403).json({ error: nonceCheck.error });
+
+  // Verify signature
+  const isValid = verifyWalletSignature(normalizedAddr, signedMessage, signature);
+  if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
+
+  try {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) throw new Error('JWT Secret missing on server');
+
+    let discordUserId: string;
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      discordUserId = decoded.sub;
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid or expired verification token' });
+    }
+
+    if (!discordUserId) return res.status(400).json({ error: 'Token missing user data' });
+
+    // Link the Discord ID to the wallet address
+    const { data, error } = await supabaseAdmin
+      .from('user_alert_configs')
+      .upsert({
+        wallet_address: normalizedAddr,
+        discord_user_id: discordUserId,
+        discord_enabled: true,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'wallet_address' })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Trigger role verification asynchronously
+    verifyUserRoles(discordUserId, normalizedAddr).catch(console.error);
+
+    return res.status(200).json({ message: 'Discord linked successfully via signature!', config: data });
+  } catch (err: any) {
+    console.error('[AlertRoutes] Discord verify linking error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to link Discord account' });
   }
 });
 
