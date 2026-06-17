@@ -196,8 +196,9 @@ CREATE TABLE IF NOT EXISTS public.token_price_history (
   price           numeric      NOT NULL,
   timestamp       timestamptz  NOT NULL,
   granularity     text         NOT NULL DEFAULT 'daily',
+  source          text         NOT NULL DEFAULT 'coingecko',
   created_at      timestamptz  NOT NULL DEFAULT now(),
-  UNIQUE(token_address, timestamp)
+  UNIQUE(token_address, timestamp, granularity)
 );
 
 -- TABLE: user_balance_snapshots (Reconstruction States)
@@ -828,3 +829,23 @@ SELECT cron.unschedule('prune-hourly-networth-snapshots');
 SELECT cron.schedule('prune-hourly-networth-snapshots', '0 3 * * *', $cron$
     SELECT public.prune_old_snapshots_bulk(90);
 $cron$);
+
+-- ----------------------------------------------------------------------------
+-- MIGRATION: Fix token_price_history table
+-- The 'source' column was missing, causing ALL price history inserts to fail.
+-- The UNIQUE constraint also needs granularity so 'daily' and '5min' can coexist.
+-- Run this in Supabase SQL Editor to fix the 1D PNL chart.
+-- ----------------------------------------------------------------------------
+
+-- 1. Add missing 'source' column (inserts were failing without this)
+ALTER TABLE public.token_price_history
+  ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'coingecko';
+
+-- 2. Drop the old unique constraint (token_address, timestamp)
+ALTER TABLE public.token_price_history
+  DROP CONSTRAINT IF EXISTS token_price_history_token_address_timestamp_key;
+
+-- 3. Add correct unique constraint including granularity
+ALTER TABLE public.token_price_history
+  ADD CONSTRAINT token_price_history_token_address_timestamp_granularity_key
+  UNIQUE (token_address, timestamp, granularity);

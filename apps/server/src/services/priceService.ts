@@ -168,7 +168,7 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
         const newEntries = historyEntries.filter(e => !existingAddresses.has(e.token_address));
 
         if (newEntries.length > 0) {
-          await supabase.from('token_price_history').insert(newEntries);
+          await supabase.from('token_price_history').upsert(newEntries, { onConflict: 'token_address,timestamp,granularity' });
         }
       }
 
@@ -189,7 +189,7 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
         }));
 
       if (fiveMinEntries.length > 0) {
-        await supabase.from('token_price_history').insert(fiveMinEntries);
+        await supabase.from('token_price_history').upsert(fiveMinEntries, { onConflict: 'token_address,timestamp,granularity' });
       }
     }
 
