@@ -37,11 +37,37 @@ export default function Verify() {
         throw new Error("Failed to sign message. Verification cancelled.");
       }
 
-      // Format based on Aptos Wallet Adapter standard
-      const signature = typeof response.signature === 'string' 
-        ? response.signature 
-        : ('data' in response.signature ? (response.signature as any).data : String(response.signature));
-      
+      // Safe hex conversion for Uint8Array or Buffer objects
+      const toHex = (val: any): string => {
+        if (!val) return '';
+        if (typeof val === 'string') {
+          return val.startsWith('0x') ? val : '0x' + val;
+        }
+        if (val instanceof Uint8Array || (val && typeof val === 'object' && val.constructor?.name === 'Uint8Array')) {
+          return '0x' + Array.from(val as Uint8Array).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+        if (val && typeof val === 'object' && 'data' in val) {
+          return toHex(val.data);
+        }
+        // Handle JSON stringified Uint8Arrays ({0: 12, 1: 34})
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          const keys = Object.keys(val).filter(k => !isNaN(Number(k)));
+          if (keys.length > 0) {
+            const arr = new Uint8Array(keys.length);
+            keys.forEach(k => { arr[Number(k)] = val[k]; });
+            return '0x' + Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+          }
+        }
+        // If it was already stringified incorrectly (e.g. "12,34,56")
+        if (typeof val === 'string' && val.includes(',')) {
+          return '0x' + val.split(',').map(s => Number(s).toString(16).padStart(2, '0')).join('');
+        }
+        return String(val);
+      };
+
+      const finalPublicKey = toHex(account.publicKey);
+      const finalSignature = toHex(response.signature);
+
       const signedMessage = response.fullMessage || message;
 
       // Ensure address is properly extracted as string
@@ -60,8 +86,8 @@ export default function Verify() {
           address: addressStr,
           token,
           signature: {
-            publicKey: typeof account.publicKey === 'string' ? account.publicKey : (account.publicKey as any)?.toString?.() || String(account.publicKey),
-            signature: signature
+            publicKey: finalPublicKey,
+            signature: finalSignature
           },
           signedMessage,
           nonce: 'discord_verify_' + Date.now() // Unique nonce for rate limiting/replay protection
