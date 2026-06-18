@@ -59,7 +59,10 @@ export default function Verify() {
         body: JSON.stringify({
           address: addressStr,
           token,
-          signature,
+          signature: {
+            publicKey: typeof account.publicKey === 'string' ? account.publicKey : (account.publicKey as any)?.toString?.() || String(account.publicKey),
+            signature: signature
+          },
           signedMessage,
           nonce: 'discord_verify_' + Date.now() // Unique nonce for rate limiting/replay protection
         })
