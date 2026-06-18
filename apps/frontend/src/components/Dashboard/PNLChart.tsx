@@ -155,18 +155,50 @@ const PNLChart: React.FC<PNLChartProps> = ({
     setTimeframe(tf);
   }, []);
 
-  const combinedBalances = React.useMemo(() => {
-    // Only include wallet token balances for per-token repricing.
-    // DeFi/LP/staking positions are already included via staticExtraUsd (passed from Dashboard).
-    return balances && balances.length > 0 ? balances.map((b: any) => ({
+  const { combinedBalances, adjustedStaticExtraUsd } = React.useMemo(() => {
+    let extraBalances: any[] = [];
+    let reducibleUsd = 0;
+
+    // Extract underlying tokens from liquidity positions
+    if (liquidityPositions && liquidityPositions.length > 0) {
+      liquidityPositions.forEach(pos => {
+        if (pos.token0Amount > 0 && pos.underlying) {
+          const tokens = pos.underlying.split('/').map((t: string) => t.trim());
+          if (tokens[0]) extraBalances.push({ symbol: tokens[0], amount: pos.token0Amount, asset_type: tokens[0] });
+          if (tokens[1] && pos.token1Amount > 0) extraBalances.push({ symbol: tokens[1], amount: pos.token1Amount, asset_type: tokens[1] });
+          reducibleUsd += (Number(pos.usdValue) || 0);
+        } else if (pos.amount > 0 && pos.symbol) {
+          extraBalances.push({ symbol: pos.symbol, amount: pos.amount, asset_type: pos.symbol });
+          reducibleUsd += (Number(pos.usdValue) || 0);
+        }
+      });
+    }
+
+    // Extract underlying tokens from staking positions
+    if (stakingPositions && stakingPositions.length > 0) {
+      stakingPositions.forEach(pos => {
+        if (pos.amount > 0 && pos.symbol) {
+          extraBalances.push({ symbol: pos.symbol, amount: pos.amount, asset_type: pos.symbol });
+          reducibleUsd += (Number(pos.usdValue) || 0);
+        }
+      });
+    }
+
+    // Include wallet token balances for per-token repricing.
+    const baseBalances = balances && balances.length > 0 ? balances.map((b: any) => ({
       asset_type: b.address,
       symbol: b.symbol,
       amount: b.amount || 0
     })) : [];
-  }, [balances]);
+
+    return {
+      combinedBalances: [...baseBalances, ...extraBalances],
+      adjustedStaticExtraUsd: Math.max(0, staticExtraUsd - reducibleUsd)
+    };
+  }, [balances, liquidityPositions, stakingPositions, staticExtraUsd]);
 
 
-  const balancesDep = (hasProfile && timeframe === '1D') ? JSON.stringify(combinedBalances) + '_' + totalValue : 'ignore';
+  const balancesDep = JSON.stringify(combinedBalances) + '_' + totalValue + '_' + adjustedStaticExtraUsd;
 
   React.useEffect(() => {
     // Clear stale data immediately when wallet changes
@@ -201,10 +233,10 @@ const PNLChart: React.FC<PNLChartProps> = ({
         const fetchOptions: RequestInit = { signal: controller.signal };
         
         // Pass live balances + the full non-wallet USD (DeFi + LP + staking + NFTs from Dashboard)
-        if (timeframe === '1D' && hasProfile && combinedBalances.length > 0) {
+        if (combinedBalances.length > 0 || adjustedStaticExtraUsd > 0) {
           fetchOptions.method = 'POST';
           fetchOptions.headers = { 'Content-Type': 'application/json' };
-          fetchOptions.body = JSON.stringify({ balances: combinedBalances, staticExtraUsd: staticExtraUsd || 0 });
+          fetchOptions.body = JSON.stringify({ balances: combinedBalances, staticExtraUsd: adjustedStaticExtraUsd || 0 });
         }
 
         const API_URL = (import.meta as any).env?.VITE_API_URL || '';

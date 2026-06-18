@@ -51,7 +51,7 @@ export async function verifyUserRoles(discordUserId: string, walletAddress: stri
       .setDescription(`Your Movement wallet (\`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}\`) has been successfully linked to your Discord profile!\n\nYou have been granted the **Verified** role. You can now access all the community channels.`)
       .setColor(0x00FF00)
       .setTimestamp();
-      
+
     await member.send({ embeds: [dmEmbed] }).catch(() => {
       console.log(`[DiscordBot] Could not send verification DM to ${discordUserId} (DMs might be closed)`);
     });
@@ -411,7 +411,7 @@ export async function initDiscordBot(): Promise<Client | null> {
         .setColor(0xD4AF37);
       await interaction.reply({ embeds: [embed], ephemeral: true });
     }
-    
+
     else if (commandName === 'setup_verify') {
       const embed = new EmbedBuilder()
         .setTitle('🛡️ Server Verification')
@@ -451,7 +451,7 @@ export async function initDiscordBot(): Promise<Client | null> {
         });
       }
     }
-    
+
     else if (commandName === 'kick') {
       const user = interaction.options.getUser('user');
       const reason = interaction.options.getString('reason') || 'No reason provided';
@@ -540,7 +540,7 @@ export async function initDiscordBot(): Promise<Client | null> {
   // Handle Button and Modal Interactions
   discordClient.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton() && !interaction.isModalSubmit()) return;
-    
+
     if (interaction.isButton() && interaction.customId === 'basic_verify') {
       const modal = new ModalBuilder()
         .setCustomId('captcha_modal')
@@ -564,7 +564,7 @@ export async function initDiscordBot(): Promise<Client | null> {
 
     if (interaction.isModalSubmit() && interaction.customId === 'captcha_modal') {
       const answer = interaction.fields.getTextInputValue('captcha_input').trim();
-      
+
       if (answer !== '5') {
         return interaction.reply({ content: '❌ Incorrect answer. Please try again.', ephemeral: true });
       }
@@ -588,9 +588,9 @@ export async function initDiscordBot(): Promise<Client | null> {
     else if (interaction.isButton() && interaction.customId === 'verify_movement_wallet') {
       const jwtSecret = process.env.JWT_SECRET;
       if (!jwtSecret) {
-         return interaction.reply({ content: '⚠️ Verification is currently offline (Missing JWT Secret).', ephemeral: true });
+        return interaction.reply({ content: '⚠️ Verification is currently offline (Missing JWT Secret).', ephemeral: true });
       }
-      
+
       const token = jwt.sign({ sub: interaction.user.id }, jwtSecret, { expiresIn: '15m' });
       const webappUrl = process.env.FRONTEND_URL || 'https://daftar.fi';
       const verifyUrl = `${webappUrl}/verify?token=${token}`;
@@ -612,10 +612,10 @@ export async function initDiscordBot(): Promise<Client | null> {
 
     else if (interaction.isButton() && interaction.customId === 'create_ticket') {
       if (!interaction.guild) return;
-      
+
       const category = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'ticket' && c.type === ChannelType.GuildCategory);
       const categoryId = category ? category.id : null;
-      
+
       try {
         const ticketChannel = await interaction.guild.channels.create({
           name: `ticket-${interaction.user.username}`,
@@ -660,12 +660,12 @@ export async function initDiscordBot(): Promise<Client | null> {
 
     else if (interaction.isButton() && interaction.customId === 'close_ticket') {
       await interaction.reply({ content: 'Saving transcript and closing ticket in 5 seconds...' });
-      
+
       try {
         if (interaction.channel && 'messages' in interaction.channel) {
           const messages = await (interaction.channel as any).messages.fetch({ limit: 100 });
           const transcript = messages.reverse().map((m: any) => `${m.createdAt.toISOString()} - ${m.author.tag}: ${m.content}`).join('\n');
-          
+
           if (interaction.guild) {
             const modlogChannel = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
             if (modlogChannel && 'send' in modlogChannel) {

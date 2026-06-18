@@ -522,7 +522,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
 
     const { data: snapshots, error: snapError } = await supabase
       .from('user_networth_snapshots')
-      .select('total_networth_usd, net_deposits_usd, timestamp')
+      .select('total_networth_usd, wallet_usd, defi_usd, nft_usd, net_deposits_usd, timestamp')
       .eq('user_address', wallet)
       .gte('timestamp', startDate.toISOString())
       .order('timestamp', { ascending: true });
@@ -560,11 +560,53 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
       return res.json({ history: [], performance: { changeUsd: 0, changePercent: 0 } });
     }
 
-    const history = snapshots.map((s: { timestamp: string; total_networth_usd: number | string; net_deposits_usd: number | string | null }) => ({
-      date: s.timestamp,
-      value: Number(s.total_networth_usd),
-      netDeposits: Number(s.net_deposits_usd || 0),
-    }));
+    const staticExtraUsd = req.body?.staticExtraUsd !== undefined ? Number(req.body.staticExtraUsd) : null;
+    let history: any[] = [];
+
+    if (staticExtraUsd !== null) {
+      // Find the latest snapshot that is real-time (has defi_usd > 0 or nft_usd > 0)
+      let latestDefi = 0;
+      let latestNft = 0;
+      for (let i = snapshots.length - 1; i >= 0; i--) {
+        const snap = snapshots[i];
+        const defi = Number(snap.defi_usd || 0);
+        const nft = Number(snap.nft_usd || 0);
+        if (defi > 0 || nft > 0) {
+          latestDefi = defi;
+          latestNft = nft;
+          break;
+        }
+      }
+
+      const missingFrontendNow = Math.max(0, staticExtraUsd - (latestDefi + latestNft));
+
+      history = snapshots.map((s: any) => {
+        const defi = Number(s.defi_usd || 0);
+        const nft = Number(s.nft_usd || 0);
+        const total = Number(s.total_networth_usd || 0);
+        let val = total;
+
+        if (defi === 0 && nft === 0) {
+          // Backfilled snapshot (wallet tokens only)
+          val = total + staticExtraUsd;
+        } else {
+          // Real-time snapshot (has recorded DeFi/NFTs)
+          val = total + missingFrontendNow;
+        }
+
+        return {
+          date: s.timestamp,
+          value: val,
+          netDeposits: Number(s.net_deposits_usd || 0),
+        };
+      });
+    } else {
+      history = snapshots.map((s: any) => ({
+        date: s.timestamp,
+        value: Number(s.total_networth_usd),
+        netDeposits: Number(s.net_deposits_usd || 0),
+      }));
+    }
 
     if (timeframe === 'All') {
       const baselineDate = await resolveHistoryBaselineDate(supabase, wallet);
