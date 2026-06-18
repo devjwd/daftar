@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "start": "tsx index.ts",
+    "start": "tsx start.ts",
     "dev": "tsx watch index.ts",
     "worker": "tsx watch worker.ts",
     "typecheck": "tsc --noEmit",
