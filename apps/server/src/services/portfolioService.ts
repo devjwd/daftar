@@ -161,6 +161,8 @@ export async function reconstructHistoricalBalances(
       const tx = txs[currentTxIndex];
       const action = tx.action || '';
       
+      const processedFlows = new Set<string>();
+
       // Process all activities to capture multi-asset flows (LPs, multi-hop swaps)
       const rawActivities = [
         ...(tx.metadata?.fungible_asset_activities || []),
@@ -213,6 +215,13 @@ export async function reconstructHistoricalBalances(
         if (assetType === '0x1' && Math.abs(amount - gasInMove) < 0.00005) {
           continue;
         }
+
+        // Deduplicate identical flows (Movement emits both CoinActivity and FungibleAssetActivity for the same transfer)
+        const flowKey = `${direction}-${assetType}-${amount}-${owner}`;
+        if (processedFlows.has(flowKey)) {
+          continue;
+        }
+        processedFlows.add(flowKey);
 
         const symbol = act.metadata?.symbol || (assetType === '0x1' ? 'MOVE' : 'Token');
 

@@ -56,14 +56,20 @@ export default function AnalyticsTooltip({ active, payload, activeChartTab, form
     }
     return (
       <div style={{ marginTop: '6px' }}>
-        {holdings.map((h, idx) => (
-          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgba(255,255,255,0.7)', paddingLeft: '8px', margin: '2px 0' }}>
-            <span>• {h.symbol}</span>
-            <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
-              {h.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 4 })}
-            </span>
-          </div>
-        ))}
+        {holdings.map((h, idx) => {
+          const displayAmount = h.amount > 0 && h.amount < 0.0001
+            ? h.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })
+            : h.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+            
+          return (
+            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgba(255,255,255,0.7)', paddingLeft: '8px', margin: '2px 0' }}>
+              <span>• {h.symbol}</span>
+              <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                {displayAmount === '0' && h.amount > 0 ? '< 0.00000001' : displayAmount}
+              </span>
+            </div>
+          );
+        })}
       </div>
     );
   };
