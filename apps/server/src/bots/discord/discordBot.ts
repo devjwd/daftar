@@ -370,23 +370,31 @@ export async function initDiscordBot(): Promise<Client | null> {
         .setTitle('🛡️ Server Verification')
         .setDescription(
           'Welcome to the **Daftar Official Discord**!\n\n' +
-          'To gain full access to the server channels and receive your exclusive roles, please verify your Movement wallet.\n\n' +
-          '**Benefits of Verification:**\n' +
-          '• Unlock all community channels\n' +
-          '• Display your `Verified` badge\n' +
-          '• Gain `Pro` roles automatically if you hold an active subscription\n\n' +
-          '*Click the button below to start the secure verification process.*'
+          'Choose your preferred method to gain access to the server:\n\n' +
+          '**🟢 Option 1: Basic Verification**\n' +
+          'Simply click the **Verify** button below to prove you are human and unlock standard community channels.\n\n' +
+          '**🔗 Option 2: Secure Wallet Linking (Recommended)**\n' +
+          'Connect your Movement wallet to gain standard access **PLUS**:\n' +
+          '• Display your `Verified` wallet badge\n' +
+          '• Receive real-time DMs for platform actions\n' +
+          '• Gain `Pro` roles automatically if you hold an active subscription'
         )
         .setColor(0xD4AF37)
         .setFooter({ text: 'Powered by Daftar', iconURL: discordClient?.user?.displayAvatarURL() });
 
-      const verifyButton = new ButtonBuilder()
-        .setCustomId('verify_movement_wallet')
-        .setLabel('Verify Wallet')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('✅');
+      const basicVerifyBtn = new ButtonBuilder()
+        .setCustomId('basic_verify')
+        .setLabel('Verify')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🛡️');
 
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(verifyButton);
+      const linkWalletBtn = new ButtonBuilder()
+        .setCustomId('verify_movement_wallet')
+        .setLabel('Link Wallet')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('🔗');
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(basicVerifyBtn, linkWalletBtn);
 
       await interaction.reply({ content: 'Verification message setup successfully.', ephemeral: true });
       if (interaction.channel && 'send' in interaction.channel) {
@@ -486,7 +494,24 @@ export async function initDiscordBot(): Promise<Client | null> {
   discordClient.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
     
-    if (interaction.customId === 'verify_movement_wallet') {
+    if (interaction.customId === 'basic_verify') {
+      const verifiedRoleId = process.env.DISCORD_VERIFIED_ROLE_ID;
+      if (!verifiedRoleId) {
+        return interaction.reply({ content: '⚠️ Verification system is currently misconfigured.', ephemeral: true });
+      }
+
+      const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+      if (member) {
+        if (member.roles.cache.has(verifiedRoleId)) {
+          return interaction.reply({ content: '✅ You are already verified!', ephemeral: true });
+        }
+        await member.roles.add(verifiedRoleId).catch(console.error);
+        return interaction.reply({ content: '✅ You have been verified successfully! Welcome to the community channels.', ephemeral: true });
+      }
+      return interaction.reply({ content: '❌ Could not verify your profile. Please try again.', ephemeral: true });
+    }
+
+    else if (interaction.customId === 'verify_movement_wallet') {
       const jwtSecret = process.env.JWT_SECRET;
       if (!jwtSecret) {
          return interaction.reply({ content: '⚠️ Verification is currently offline (Missing JWT Secret).', ephemeral: true });
