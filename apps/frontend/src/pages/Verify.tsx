@@ -44,6 +44,11 @@ export default function Verify() {
       
       const signedMessage = response.fullMessage || message;
 
+      // Ensure address is properly extracted as string
+      const addressStr = typeof account.address === 'string' 
+        ? account.address 
+        : (account.address as any)?.toString?.() || String(account.address);
+
       // 2. Send to backend
       const apiUrl = getEnv('VITE_API_URL', 'http://localhost:3001');
       const res = await fetch(`${apiUrl}/api/alerts/verify-discord`, {
@@ -52,7 +57,7 @@ export default function Verify() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          address: account.address,
+          address: addressStr,
           token,
           signature,
           signedMessage,
