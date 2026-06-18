@@ -163,6 +163,10 @@ export async function initDiscordBot(): Promise<Client | null> {
     {
       name: 'profile',
       description: 'View your Daftar platform profile, level, and badges!',
+    },
+    {
+      name: 'unlink',
+      description: 'Unlink your Movement wallet from your Discord account.',
     }
   ];
 
@@ -347,6 +351,49 @@ export async function initDiscordBot(): Promise<Client | null> {
       } catch (err: any) {
         console.error('[DiscordBot] Profile fetch error:', err);
         await interaction.editReply({ content: '❌ Failed to retrieve profile details.' });
+      }
+    }
+
+    else if (commandName === 'unlink') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { data: config, error } = await supabase
+          .from('user_alert_configs')
+          .select('*')
+          .eq('discord_user_id', userId)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!config || !config.wallet_address) {
+          return interaction.editReply({
+            content: '❌ Your Discord account is not currently linked to any wallet.'
+          });
+        }
+
+        // Unlink by updating the database
+        await supabase
+          .from('user_alert_configs')
+          .update({ discord_user_id: null, discord_enabled: false })
+          .eq('wallet_address', config.wallet_address);
+
+        // Remove the Pro role if they have it
+        const proRoleId = process.env.DISCORD_PRO_ROLE_ID;
+        if (proRoleId && interaction.guild) {
+          const member = await interaction.guild.members.fetch(userId).catch(() => null);
+          if (member && member.roles.cache.has(proRoleId)) {
+            await member.roles.remove(proRoleId).catch(console.error);
+          }
+        }
+
+        const embed = new EmbedBuilder()
+          .setTitle('🔗 Wallet Unlinked')
+          .setDescription(`Successfully disconnected wallet \`${config.wallet_address}\` from your Discord account.\n\nYou will no longer receive direct messages for platform events and your Pro roles have been removed.`)
+          .setColor(0xFF0000);
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (err: any) {
+        console.error('[DiscordBot] Unlink error:', err);
+        await interaction.editReply({ content: '❌ Failed to unlink wallet.' });
       }
     }
 

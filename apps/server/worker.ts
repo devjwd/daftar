@@ -7,6 +7,7 @@ import { backfillTransactionPrices } from './src/services/analyticsPriceService.
 import { drainSyncQueue } from './src/services/analyticsSyncQueue.ts';
 import { initTelegramBot } from './src/bots/telegram/telegramBot.ts';
 import { initDiscordBot } from './src/bots/discord/discordBot.ts';
+import { startSubscriptionSyncWorker } from './src/services/subscriptionSyncWorker.ts';
 
 dotenv.config();
 
@@ -23,6 +24,9 @@ startPricePitcher(supabaseAdmin);
 
 // Start 24/7 Background Analytics Worker for Verified Users
 startAnalyticsWorker(supabaseAdmin);
+
+// Start Discord Role Subscription Synchronization Worker
+startSubscriptionSyncWorker(supabaseAdmin);
 
 // Start hourly NFT floor price pitcher
 // startNFTPriceWorker(supabaseAdmin); // Temporarily disabled by user request
