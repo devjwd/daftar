@@ -44,6 +44,18 @@ export async function verifyUserRoles(discordUserId: string, walletAddress: stri
       }
     }
     console.log(`[DiscordBot] Verified roles for user ${discordUserId}`);
+
+    // Send a DM confirmation to the user
+    const dmEmbed = new EmbedBuilder()
+      .setTitle('✅ Verification Successful!')
+      .setDescription(`Your Movement wallet (\`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}\`) has been successfully linked to your Discord profile!\n\nYou have been granted the **Verified** role. You can now access all the community channels.`)
+      .setColor(0x00FF00)
+      .setTimestamp();
+      
+    await member.send({ embeds: [dmEmbed] }).catch(() => {
+      console.log(`[DiscordBot] Could not send verification DM to ${discordUserId} (DMs might be closed)`);
+    });
+
   } catch (error) {
     console.error('[DiscordBot] Error assigning roles:', error);
   }
