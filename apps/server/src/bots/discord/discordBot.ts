@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Partials, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ApplicationCommandOptionType, ChannelType, TextChannel, AttachmentBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ApplicationCommandOptionType, ChannelType, TextChannel, AttachmentBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ModalActionRowComponentBuilder } from 'discord.js';
 import jwt from 'jsonwebtoken';
 import { getSupabase } from '../../config/supabase.ts';
 import { getEffectiveTier } from '../../services/subscriptionService.ts';
@@ -537,11 +537,38 @@ export async function initDiscordBot(): Promise<Client | null> {
     }
   });
 
-  // Handle Button Interactions
+  // Handle Button and Modal Interactions
   discordClient.on('interactionCreate', async (interaction) => {
-    if (!interaction.isButton()) return;
+    if (!interaction.isButton() && !interaction.isModalSubmit()) return;
     
-    if (interaction.customId === 'basic_verify') {
+    if (interaction.isButton() && interaction.customId === 'basic_verify') {
+      const modal = new ModalBuilder()
+        .setCustomId('captcha_modal')
+        .setTitle('🛡️ Human Verification');
+
+      const mathInput = new TextInputBuilder()
+        .setCustomId('captcha_input')
+        .setLabel('What is 2 + 3? (Type the number)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMinLength(1)
+        .setMaxLength(2)
+        .setPlaceholder('Enter your answer here...');
+
+      const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(mathInput);
+      modal.addComponents(row);
+
+      await interaction.showModal(modal);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === 'captcha_modal') {
+      const answer = interaction.fields.getTextInputValue('captcha_input').trim();
+      
+      if (answer !== '5') {
+        return interaction.reply({ content: '❌ Incorrect answer. Please try again.', ephemeral: true });
+      }
+
       const verifiedRoleId = process.env.DISCORD_VERIFIED_ROLE_ID;
       if (!verifiedRoleId) {
         return interaction.reply({ content: '⚠️ Verification system is currently misconfigured.', ephemeral: true });
@@ -558,7 +585,7 @@ export async function initDiscordBot(): Promise<Client | null> {
       return interaction.reply({ content: '❌ Could not verify your profile. Please try again.', ephemeral: true });
     }
 
-    else if (interaction.customId === 'verify_movement_wallet') {
+    else if (interaction.isButton() && interaction.customId === 'verify_movement_wallet') {
       const jwtSecret = process.env.JWT_SECRET;
       if (!jwtSecret) {
          return interaction.reply({ content: '⚠️ Verification is currently offline (Missing JWT Secret).', ephemeral: true });
@@ -583,7 +610,7 @@ export async function initDiscordBot(): Promise<Client | null> {
       await interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    else if (interaction.customId === 'create_ticket') {
+    else if (interaction.isButton() && interaction.customId === 'create_ticket') {
       if (!interaction.guild) return;
       
       const category = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'ticket' && c.type === ChannelType.GuildCategory);
@@ -631,7 +658,7 @@ export async function initDiscordBot(): Promise<Client | null> {
       }
     }
 
-    else if (interaction.customId === 'close_ticket') {
+    else if (interaction.isButton() && interaction.customId === 'close_ticket') {
       await interaction.reply({ content: 'Saving transcript and closing ticket in 5 seconds...' });
       
       try {
