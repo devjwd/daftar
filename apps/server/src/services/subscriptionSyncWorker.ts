@@ -66,6 +66,12 @@ export const startSubscriptionSyncWorker = (supabaseAdmin: SupabaseClient | null
               await member.roles.remove(proRoleId);
               revokedCount++;
               console.log(`[SyncWorker] Revoked Pro role from ${config.discord_user_id} (${config.wallet_address}) - Subscription Expired`);
+
+              // Notify the user via DM
+              const webappUrl = process.env.FRONTEND_URL || 'https://daftar.fi';
+              await member.send({
+                content: `⚠️ **Subscription Expired**\nYour Daftar Premium subscription for wallet \`${config.wallet_address.slice(0, 6)}...${config.wallet_address.slice(-4)}\` has expired.\n\nYour \`Pro\` Discord roles have been removed. To regain access to premium features, please renew your subscription here: ${webappUrl}/settings`
+              }).catch(() => null);
             }
           }
         } catch (err: any) {

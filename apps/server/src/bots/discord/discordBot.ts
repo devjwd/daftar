@@ -739,6 +739,13 @@ export async function initDiscordBot(): Promise<Client | null> {
 
       const category = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'ticket' && c.type === ChannelType.GuildCategory);
       const categoryId = category ? category.id : null;
+      const expectedChannelName = `ticket-${interaction.user.username}`.toLowerCase();
+
+      // Check if ticket already exists
+      const existingTicket = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === expectedChannelName);
+      if (existingTicket) {
+        return interaction.reply({ content: `❌ You already have an open ticket: ${existingTicket}. Please close it before opening a new one.`, ephemeral: true });
+      }
 
       // Find Support or Moderator role
       const supportRole = interaction.guild.roles.cache.find(r => 
@@ -770,7 +777,7 @@ export async function initDiscordBot(): Promise<Client | null> {
         }
 
         const ticketChannel = await interaction.guild.channels.create({
-          name: `ticket-${interaction.user.username}`,
+          name: expectedChannelName,
           type: ChannelType.GuildText,
           parent: categoryId || null,
           permissionOverwrites,
