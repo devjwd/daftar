@@ -56,6 +56,16 @@ export async function verifyUserRoles(discordUserId: string, walletAddress: stri
       console.log(`[DiscordBot] Could not send verification DM to ${discordUserId} (DMs might be closed)`);
     });
 
+    // Also send a public message in the #verify channel
+    const verifyChannel = guild.channels.cache.find((c: any) => c.name.toLowerCase() === 'verify' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+    if (verifyChannel && 'send' in verifyChannel) {
+      const publicEmbed = new EmbedBuilder()
+        .setDescription(`🎉 <@${discordUserId}> has successfully linked their Movement wallet and is now **Verified**!`)
+        .setColor(0x00FF00);
+      
+      await verifyChannel.send({ embeds: [publicEmbed] }).catch(() => null);
+    }
+
   } catch (error) {
     console.error('[DiscordBot] Error assigning roles:', error);
   }
@@ -704,7 +714,15 @@ export async function initDiscordBot(): Promise<Client | null> {
           return interaction.reply({ content: '✅ You are already verified!', ephemeral: true });
         }
         await member.roles.add(verifiedRoleId).catch(console.error);
-        return interaction.reply({ content: '✅ You have been verified successfully! Welcome to the community channels.', ephemeral: true });
+        await interaction.reply({ content: '✅ You have been verified successfully! Welcome to the community channels.', ephemeral: true });
+        
+        if (interaction.channel) {
+          const publicEmbed = new EmbedBuilder()
+            .setDescription(`🎉 <@${interaction.user.id}> has completed human verification and is now **Verified**!`)
+            .setColor(0x00FF00);
+          await interaction.channel.send({ embeds: [publicEmbed] }).catch(() => null);
+        }
+        return;
       }
       return interaction.reply({ content: '❌ Could not verify your profile. Please try again.', ephemeral: true });
     }
