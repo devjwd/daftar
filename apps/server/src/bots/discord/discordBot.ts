@@ -249,6 +249,72 @@ export async function initDiscordBot(): Promise<Client | null> {
     });
   });
 
+  // Anti-Spam & Link Protection
+  const whitelistedDomains = [
+    'daftar.fi',
+    'discord.com',
+    'discord.gg',
+    'twitter.com',
+    'x.com',
+    'tenor.com',
+    'giphy.com',
+    'youtube.com',
+    'youtu.be',
+    'github.com'
+  ];
+
+  discordClient.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.guild) return;
+
+    // Check if user has admin or mod permissions (they bypass the filter)
+    if (message.member?.permissions.has(PermissionFlagsBits.ManageMessages)) return;
+
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const links = message.content.match(urlRegex);
+
+    if (links) {
+      let containsBadLink = false;
+      for (const link of links) {
+        try {
+          const url = new URL(link);
+          const domain = url.hostname.toLowerCase();
+          
+          // Check if domain ends with any of the whitelisted domains
+          const isWhitelisted = whitelistedDomains.some(white => domain === white || domain.endsWith('.' + white));
+          
+          if (!isWhitelisted) {
+            containsBadLink = true;
+            break;
+          }
+        } catch (e) {
+          // Unparseable URL, might be obfuscated spam
+          containsBadLink = true;
+          break;
+        }
+      }
+
+      if (containsBadLink) {
+        await message.delete().catch(() => null);
+        
+        const warning = await message.channel.send(`⚠️ ${message.author}, posting unauthorized links is not allowed in this server to prevent scams!`);
+        setTimeout(() => warning.delete().catch(() => null), 5000);
+
+        const modlogChannel = message.guild.channels.cache.find(c => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+        if (modlogChannel && 'send' in modlogChannel) {
+          const embed = new EmbedBuilder()
+            .setTitle('🛡️ Anti-Spam Link Removed')
+            .setColor(0xFF0000)
+            .addFields(
+              { name: 'Author', value: `${message.author} (${message.author.id})`, inline: true },
+              { name: 'Channel', value: `${message.channel}`, inline: true },
+              { name: 'Content', value: message.content, inline: false }
+            )
+            .setTimestamp();
+          await modlogChannel.send({ embeds: [embed] }).catch(() => null);
+        }
+      }
+    }
+  });
 
 
   // Handle Slash Command Interactions
