@@ -5,7 +5,7 @@ import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { startNFTPriceWorker } from './src/services/nftPriceWorker.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { drainSyncQueue } from './src/services/analyticsSyncQueue.ts';
-import { initTelegramBot } from './src/bots/telegram/telegramBot.ts';
+// Telegram bot is initialized in index.ts for webhooks
 import { initDiscordBot } from './src/bots/discord/discordBot.ts';
 import { startSubscriptionSyncWorker } from './src/services/subscriptionSyncWorker.ts';
 
@@ -15,8 +15,6 @@ const supabaseAdmin = getSupabase();
 
 console.log('[Worker] Starting background workers...');
 
-// Start Telegram and Discord bots
-initTelegramBot();
 initDiscordBot();
 
 // Start background price pitcher

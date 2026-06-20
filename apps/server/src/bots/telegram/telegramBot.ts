@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf';
+import { Application } from 'express';
 import { getSupabase } from '../../config/supabase.ts';
 import { normalizeAddress } from '../../utils/address.ts';
 import { getEffectiveTier } from '../../services/subscriptionService.ts';
@@ -10,24 +11,13 @@ import CONFIG from '../../config/index.ts';
 let bot: Telegraf | null = null;
 
 // ─── Rate Limiting ───────────────────────────────────────────────────────────
-const rateLimitMap = new Map<string, number>();
-const RATE_LIMIT_MS = 2000; // 2 seconds cooldown per chat
-
-function isRateLimited(chatId: string): boolean {
-  const now = Date.now();
-  const lastCall = rateLimitMap.get(chatId);
-  if (lastCall && now - lastCall < RATE_LIMIT_MS) return true;
-  rateLimitMap.set(chatId, now);
-  return false;
+async function checkRateLimit(chatId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return true;
+  const { data, error } = await supabase.rpc('check_telegram_rate_limit', { p_chat_id: chatId });
+  if (error || data === false) return false;
+  return true;
 }
-
-// Periodic cleanup of stale rate limit entries (every 5 minutes)
-setInterval(() => {
-  const cutoff = Date.now() - 60000;
-  for (const [key, ts] of rateLimitMap) {
-    if (ts < cutoff) rateLimitMap.delete(key);
-  }
-}, 300000);
 
 // ─── Formatting Helpers ──────────────────────────────────────────────────────
 function fmtUsd(value: number): string {
@@ -112,7 +102,7 @@ export function getTelegramBot(): Telegraf | null {
   return bot;
 }
 
-export function initTelegramBot(): Telegraf | null {
+export function initTelegramBot(app?: Application, webhookDomain?: string): Telegraf | null {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
     console.warn('[TelegramBot] TELEGRAM_BOT_TOKEN is not configured. Bot will not start.');
@@ -123,10 +113,19 @@ export function initTelegramBot(): Telegraf | null {
   console.log(`[TelegramBot] Initializing Telegraf bot${apiRoot ? ` with API root: ${apiRoot}` : ''}...`);
   bot = new Telegraf(token, apiRoot ? { telegram: { apiRoot } } : undefined);
 
+  bot.use(async (ctx, next) => {
+    const chatId = String(ctx.chat?.id);
+    if (chatId) {
+      const allowed = await checkRateLimit(chatId);
+      if (!allowed) return;
+    }
+    return next();
+  });
+
   // ─── /start ──────────────────────────────────────────────────────────────
   bot.start(async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const startPayload = ctx.payload;
     const supabase = getSupabase();
@@ -185,7 +184,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /link ───────────────────────────────────────────────────────────────
   bot.command('link', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     await ctx.reply(
       '🔒 <b>Secure Linking Required</b>\n\n' +
@@ -200,7 +199,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /unlink ─────────────────────────────────────────────────────────────
   bot.command('unlink', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const supabase = getSupabase();
     if (!supabase) return ctx.reply('⚠️ Service temporarily unavailable.');
@@ -238,7 +237,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /portfolio ──────────────────────────────────────────────────────────
   bot.command('portfolio', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const linked = await requireLinkedWallet(ctx);
     if (!linked) return;
@@ -323,7 +322,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /balance ────────────────────────────────────────────────────────────
   bot.command('balance', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const linked = await requireLinkedWallet(ctx);
     if (!linked) return;
@@ -427,7 +426,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /defi ───────────────────────────────────────────────────────────────
   bot.command('defi', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const linked = await requireLinkedWallet(ctx);
     if (!linked) return;
@@ -497,7 +496,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /transactions ───────────────────────────────────────────────────────
   bot.command('transactions', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const args = ctx.message.text.split(' ').slice(1);
     const targetArg = args[0]?.trim();
@@ -571,7 +570,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /search ─────────────────────────────────────────────────────────────
   bot.command('search', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const args = ctx.message.text.split(' ').slice(1);
     const targetWallet = args[0]?.trim();
@@ -624,7 +623,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /price ──────────────────────────────────────────────────────────────
   bot.command('price', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const supabase = getSupabase();
     if (!supabase) return ctx.reply('⚠️ Service temporarily unavailable.');
@@ -687,7 +686,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /alerts ─────────────────────────────────────────────────────────────
   bot.command('alerts', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const linked = await requireLinkedWallet(ctx);
     if (!linked) return;
@@ -726,7 +725,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /profile ────────────────────────────────────────────────────────────
   bot.command('profile', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     const linked = await requireLinkedWallet(ctx);
     if (!linked) return;
@@ -799,7 +798,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /network ────────────────────────────────────────────────────────────
   bot.command('network', async (ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     try {
       // Query Movement mainnet RPC for ledger info
@@ -858,7 +857,7 @@ export function initTelegramBot(): Telegraf | null {
   // ─── /help ───────────────────────────────────────────────────────────────
   bot.help((ctx) => {
     const chatId = String(ctx.chat.id);
-    if (isRateLimited(chatId)) return;
+    
 
     ctx.reply(
       '💡 <b>Daftar Bot — Command Reference</b>\n\n' +
@@ -890,7 +889,7 @@ export function initTelegramBot(): Telegraf | null {
     const text = ctx.message.text;
     if (text.startsWith('/')) {
       const chatId = String(ctx.chat.id);
-      if (isRateLimited(chatId)) return;
+      
 
       await ctx.reply(
         `❓ Unknown command: <code>${text.split(' ')[0]}</code>\n\n` +
@@ -916,14 +915,18 @@ export function initTelegramBot(): Telegraf | null {
   ]).catch(err => console.error('[TelegramBot] Failed to set commands:', err));
 
   // ─── Launch Bot ──────────────────────────────────────────────────────────
-  bot.launch()
-    .then(() => {
-      console.log('[TelegramBot] 🤖 Daftar Bot started successfully.');
-    })
-    .catch((err) => {
+  if (webhookDomain && app) {
+    bot.telegram.setWebhook(`${webhookDomain}/api/webhooks/telegram`);
+    app.use(bot.webhookCallback('/api/webhooks/telegram'));
+    console.log(`[TelegramBot] 🤖 Webhook registered at ${webhookDomain}/api/webhooks/telegram`);
+  } else {
+    bot.launch().then(() => {
+      console.log('[TelegramBot] 🤖 Daftar Bot started (Long Polling).');
+    }).catch((err) => {
       console.error('[TelegramBot] Failed to launch:', err);
       bot = null;
     });
+  }
 
   // Graceful shutdown
   process.once('SIGINT', () => bot?.stop('SIGINT'));

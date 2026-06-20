@@ -269,6 +269,7 @@ CREATE TABLE IF NOT EXISTS public.sync_queue (
     status TEXT NOT NULL DEFAULT 'pending',
     priority INTEGER DEFAULT 0,
     error_message TEXT,
+    retry_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -771,7 +772,7 @@ BEGIN
     AND (sq.id IS NULL OR sq.updated_at < (NOW() - pro_interval::interval) OR sq.status = 'failed')
     AND (sq.status IS NULL OR sq.status != 'processing')
   ON CONFLICT (user_address) DO UPDATE
-  SET status = 'pending', priority = 1, updated_at = NOW();
+  SET status = 'pending', priority = 1, retry_count = 0, updated_at = NOW();
 END;
 $$;
 
@@ -854,6 +855,69 @@ ALTER TABLE public.token_price_history
   DROP CONSTRAINT IF EXISTS token_price_history_token_address_timestamp_key;
 
 -- 4. Add correct unique constraint including granularity
-ALTER TABLE public.token_price_history
-  ADD CONSTRAINT token_price_history_token_address_timestamp_granularity_key
-  UNIQUE (token_address, timestamp, granularity);
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'token_price_history_token_address_timestamp_granularity_key') THEN 
+    ALTER TABLE public.token_price_history ADD CONSTRAINT token_price_history_token_address_timestamp_granularity_key UNIQUE (token_address, timestamp, granularity); 
+  END IF; 
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- MIGRATION: 20260620_telegram_rate_limits.sql
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS telegram_rate_limits (
+    chat_id text PRIMARY KEY,
+    last_request_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION check_telegram_rate_limit(p_chat_id text)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_allowed boolean;
+BEGIN
+    INSERT INTO telegram_rate_limits (chat_id, last_request_at)
+    VALUES (p_chat_id, now())
+    ON CONFLICT (chat_id) DO UPDATE 
+    SET last_request_at = now()
+    WHERE telegram_rate_limits.last_request_at < now() - interval '2 seconds'
+    RETURNING true INTO v_allowed;
+
+    IF v_allowed IS NULL THEN
+        RETURN false;
+    END IF;
+
+    RETURN true;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- MIGRATION: 20260620_discord_rate_limits.sql
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS discord_rate_limits (
+    user_id text PRIMARY KEY,
+    last_request_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION check_discord_rate_limit(p_user_id text)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_allowed boolean;
+BEGIN
+    INSERT INTO discord_rate_limits (user_id, last_request_at)
+    VALUES (p_user_id, now())
+    ON CONFLICT (user_id) DO UPDATE 
+    SET last_request_at = now()
+    WHERE discord_rate_limits.last_request_at < now() - interval '2 seconds'
+    RETURNING true INTO v_allowed;
+
+    IF v_allowed IS NULL THEN
+        RETURN false;
+    END IF;
+
+    RETURN true;
+END;
+$$;

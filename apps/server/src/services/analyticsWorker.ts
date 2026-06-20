@@ -61,3 +61,33 @@ export async function startAnalyticsWorker(supabase: SupabaseClient) {
 
   runLoop();
 }
+
+/**
+ * One-shot execution of the analytics worker, intended to be triggered by a CRON job or external scheduler.
+ * This avoids the memory leaks and crashes associated with infinite `setTimeout` loops.
+ */
+export async function runOneShotAnalytics(supabase: SupabaseClient) {
+  console.log('[AnalyticsWorker] 🤖 Running one-shot analytics sync cycle...');
+  try {
+    // 1. Cleanups
+    await cleanupExpiredSubscriptions(supabase);
+    // Note: We leave reProcessUnknownTransactions to a separate daily CRON for cleaner separation.
+
+    // 2. Queue due users
+    console.log(`[AnalyticsWorker] 🔄 Pushing due Pro users into DB queue...`);
+    const { error: enqueueErr } = await supabase.rpc('enqueue_due_users', { 
+      pro_interval: '5 minutes'
+    });
+
+    if (enqueueErr) {
+      throw new Error(`Queue RPC failed: ${enqueueErr.message}`);
+    }
+
+    // 3. Drain queue
+    await drainSyncQueue(supabase, CONCURRENCY_LIMIT);
+    console.log('[AnalyticsWorker] ✅ One-shot cycle complete.');
+  } catch (err: any) {
+    console.error(`[AnalyticsWorker] One-shot cycle error:`, err.message);
+    throw err;
+  }
+}

@@ -104,10 +104,26 @@ async function executeLockedJob(
   } catch (err: any) {
     console.error(`[SyncQueue] ❌ Failed processing sync job for ${address}:`, err.message);
 
+    // Fetch current retry count to determine if it should go to DLQ
+    const { data: jobData } = await supabase
+      .from('sync_queue')
+      .select('retry_count')
+      .eq('id', id)
+      .single();
+
+    const currentRetryCount = jobData?.retry_count || 0;
+    const nextRetryCount = currentRetryCount + 1;
+    const nextStatus = nextRetryCount >= 3 ? 'dlq' : 'failed';
+
+    if (nextStatus === 'dlq') {
+      console.error(`[SyncQueue] 🚨 Job for ${address} moved to Dead Letter Queue after ${nextRetryCount} failures.`);
+    }
+
     await supabase
       .from('sync_queue')
       .update({
-        status: 'failed',
+        status: nextStatus,
+        retry_count: nextRetryCount,
         error_message: err.message || 'Unknown error',
         updated_at: new Date().toISOString()
       })

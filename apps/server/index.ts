@@ -17,12 +17,14 @@ import plansRoutes from './src/routes/plansRoutes.ts';
 import feedbackRoutes from './src/routes/feedbackRoutes.ts';
 import reportRoutes from './src/routes/reportRoutes.ts';
 import alertRoutes from './src/routes/alertRoutes.ts';
+import webhookRoutes from './src/routes/webhookRoutes.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { handleError } from './src/utils/errors.ts';
 import CONFIG from './src/config/index.ts';
 import { startPricePitcher } from './src/services/priceService.ts';
 import { startNFTPriceWorker } from './src/services/nftPriceWorker.ts';
+import { initTelegramBot } from './src/bots/telegram/telegramBot.ts';
 
 dotenv.config();
 
@@ -66,6 +68,7 @@ app.use('/api/plans', plansRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // --- Global Error Handler ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -74,6 +77,9 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Start Server
 if (process.env.NODE_ENV !== 'test') {
+  // Initialize Telegram Bot (Webhooks if TELEGRAM_WEBHOOK_DOMAIN is set, otherwise Long Polling)
+  initTelegramBot(app, process.env.TELEGRAM_WEBHOOK_DOMAIN);
+
   app.listen(CONFIG.PORT, async () => {
     console.log(`[Server] running on port ${CONFIG.PORT}`);
   });

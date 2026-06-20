@@ -90,6 +90,15 @@ async function logModAction(guild: any, action: string, moderator: any, target: 
   await modlogChannel.send({ embeds: [embed] }).catch(console.error);
 }
 
+
+async function checkDiscordRateLimit(userId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return true;
+  const { data, error } = await supabase.rpc('check_discord_rate_limit', { p_user_id: userId });
+  if (error || data === false) return false;
+  return true;
+}
+
 export async function initDiscordBot(): Promise<Client | null> {
   const token = process.env.DISCORD_BOT_TOKEN;
   const clientId = process.env.DISCORD_CLIENT_ID;
@@ -333,6 +342,11 @@ export async function initDiscordBot(): Promise<Client | null> {
 
     const { commandName } = interaction;
     const userId = interaction.user.id;
+
+    const allowed = await checkDiscordRateLimit(userId);
+    if (!allowed) {
+      return interaction.reply({ content: '⏳ Please slow down! Wait a few seconds before using another command.', ephemeral: true });
+    }
     const supabase = getSupabase();
 
     if (!supabase) {
@@ -674,6 +688,14 @@ export async function initDiscordBot(): Promise<Client | null> {
   // Handle Button and Modal Interactions
   discordClient.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton() && !interaction.isModalSubmit()) return;
+
+    const allowed = await checkDiscordRateLimit(interaction.user.id);
+    if (!allowed) {
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: '⏳ Please slow down! Wait a few seconds before interacting again.', ephemeral: true });
+      }
+      return;
+    }
 
     if (interaction.isButton() && interaction.customId === 'basic_verify') {
       const modal = new ModalBuilder()
