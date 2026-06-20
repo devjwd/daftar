@@ -207,6 +207,48 @@ export async function initDiscordBot(): Promise<Client | null> {
     await modlogChannel.send({ embeds: [embed] }).catch(console.error);
   });
 
+  discordClient.on('messageUpdate', async (oldMessage, newMessage) => {
+    if (oldMessage.partial) await oldMessage.fetch().catch(() => null);
+    if (newMessage.partial) await newMessage.fetch().catch(() => null);
+    
+    if (!oldMessage.author || oldMessage.author.bot || !oldMessage.guild) return;
+    if (oldMessage.content === newMessage.content) return; // Only log text changes
+
+    const modlogChannel = oldMessage.guild.channels.cache.find(c => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+    if (!modlogChannel || !('send' in modlogChannel)) return;
+
+    const embed = new EmbedBuilder()
+      .setTitle('✏️ Message Edited')
+      .setColor(0xFFA500)
+      .addFields(
+        { name: 'Author', value: `${oldMessage.author} (${oldMessage.author.id})`, inline: true },
+        { name: 'Channel', value: `${oldMessage.channel}`, inline: true },
+        { name: 'Before', value: oldMessage.content || '*No text content*', inline: false },
+        { name: 'After', value: newMessage.content || '*No text content*', inline: false }
+      )
+      .setTimestamp();
+
+    await modlogChannel.send({ embeds: [embed] }).catch(console.error);
+  });
+
+  discordClient.on('guildMemberAdd', async (member) => {
+    const embed = new EmbedBuilder()
+      .setTitle(`Welcome to ${member.guild.name}! 👋`)
+      .setDescription(
+        `We are thrilled to have you here, ${member}!\n\n` +
+        `**To gain full access to the server:**\n` +
+        `Please navigate to the **#verify** channel and click the verification button to unlock community channels and claim your roles.\n\n` +
+        `If you need any help, feel free to open a ticket.`
+      )
+      .setColor(0x5865F2)
+      .setThumbnail(member.guild.iconURL())
+      .setTimestamp();
+
+    await member.send({ embeds: [embed] }).catch(() => {
+      console.log(`[DiscordBot] Could not send welcome DM to ${member.user.tag}`);
+    });
+  });
+
 
 
   // Handle Slash Command Interactions
@@ -460,6 +502,11 @@ export async function initDiscordBot(): Promise<Client | null> {
       const member = await interaction.guild?.members.fetch(user.id).catch(() => null);
       if (!member) return interaction.reply({ content: 'User is not in the server.', ephemeral: true });
 
+      const moderator = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+      if (moderator && member.roles.highest.position >= moderator.roles.highest.position && interaction.user.id !== interaction.guild?.ownerId) {
+        return interaction.reply({ content: '❌ You cannot kick a user with an equal or higher role than you.', ephemeral: true });
+      }
+
       await member.kick(reason).then(() => {
         interaction.reply({ content: `✅ Kicked ${user.tag} for: ${reason}`, ephemeral: true });
         logModAction(interaction.guild, 'Kick', interaction.user, user, reason);
@@ -472,6 +519,12 @@ export async function initDiscordBot(): Promise<Client | null> {
       const user = interaction.options.getUser('user');
       const reason = interaction.options.getString('reason') || 'No reason provided';
       if (!user) return interaction.reply({ content: 'User not found.', ephemeral: true });
+
+      const member = await interaction.guild?.members.fetch(user.id).catch(() => null);
+      const moderator = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+      if (member && moderator && member.roles.highest.position >= moderator.roles.highest.position && interaction.user.id !== interaction.guild?.ownerId) {
+        return interaction.reply({ content: '❌ You cannot ban a user with an equal or higher role than you.', ephemeral: true });
+      }
 
       await interaction.guild?.members.ban(user.id, { reason }).then(() => {
         interaction.reply({ content: `✅ Banned ${user.tag} for: ${reason}`, ephemeral: true });
@@ -489,6 +542,11 @@ export async function initDiscordBot(): Promise<Client | null> {
 
       const member = await interaction.guild?.members.fetch(user.id).catch(() => null);
       if (!member) return interaction.reply({ content: 'User is not in the server.', ephemeral: true });
+
+      const moderator = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+      if (moderator && member.roles.highest.position >= moderator.roles.highest.position && interaction.user.id !== interaction.guild?.ownerId) {
+        return interaction.reply({ content: '❌ You cannot timeout a user with an equal or higher role than you.', ephemeral: true });
+      }
 
       await member.timeout(duration * 60 * 1000, reason).then(() => {
         interaction.reply({ content: `✅ Timed out ${user.tag} for ${duration} minutes. Reason: ${reason}`, ephemeral: true });
@@ -616,25 +674,40 @@ export async function initDiscordBot(): Promise<Client | null> {
       const category = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'ticket' && c.type === ChannelType.GuildCategory);
       const categoryId = category ? category.id : null;
 
+      // Find Support or Moderator role
+      const supportRole = interaction.guild.roles.cache.find(r => 
+        r.name.toLowerCase().includes('support') || 
+        r.name.toLowerCase().includes('moderator')
+      );
+
       try {
+        const permissionOverwrites: any[] = [
+          {
+            id: interaction.guild.id,
+            deny: [PermissionFlagsBits.ViewChannel],
+          },
+          {
+            id: interaction.user.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+          },
+          {
+            id: discordClient!.user!.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+          }
+        ];
+
+        if (supportRole) {
+          permissionOverwrites.push({
+            id: supportRole.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+          });
+        }
+
         const ticketChannel = await interaction.guild.channels.create({
           name: `ticket-${interaction.user.username}`,
           type: ChannelType.GuildText,
           parent: categoryId || null,
-          permissionOverwrites: [
-            {
-              id: interaction.guild.id,
-              deny: [PermissionFlagsBits.ViewChannel],
-            },
-            {
-              id: interaction.user.id,
-              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-            },
-            {
-              id: discordClient!.user!.id,
-              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-            }
-          ],
+          permissionOverwrites,
         });
 
         const embed = new EmbedBuilder()
@@ -650,7 +723,7 @@ export async function initDiscordBot(): Promise<Client | null> {
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(closeBtn);
 
-        await ticketChannel.send({ content: `${interaction.user}`, embeds: [embed], components: [row] });
+        await ticketChannel.send({ content: `${interaction.user} ${supportRole ? `<@&${supportRole.id}>` : ''}`, embeds: [embed], components: [row] });
         await interaction.reply({ content: `✅ Ticket created: ${ticketChannel}`, ephemeral: true });
       } catch (err) {
         console.error('Error creating ticket:', err);
@@ -665,13 +738,33 @@ export async function initDiscordBot(): Promise<Client | null> {
         if (interaction.channel && 'messages' in interaction.channel) {
           const messages = await (interaction.channel as any).messages.fetch({ limit: 100 });
           const transcript = messages.reverse().map((m: any) => `${m.createdAt.toISOString()} - ${m.author.tag}: ${m.content}`).join('\n');
+          const buffer = Buffer.from(transcript, 'utf-8');
+          const channelName = (interaction.channel as any)?.name || 'ticket';
+          const attachment = new AttachmentBuilder(buffer, { name: `${channelName}-transcript.txt` });
+
+          // Extract original user ID from channel name (ticket-username)
+          // Wait, we don't have the user ID easily unless we find the first message or use channel topic.
+          // Let's find the first message to get the user who opened it.
+          const firstMessage = messages.find((m: any) => m.author.id === discordClient!.user!.id && m.content.includes('<@'));
+          let ticketCreatorId = null;
+          if (firstMessage) {
+            const match = firstMessage.content.match(/<@!?(\d+)>/);
+            if (match) ticketCreatorId = match[1];
+          }
+
+          if (ticketCreatorId && interaction.guild) {
+             const member = await interaction.guild.members.fetch(ticketCreatorId).catch(() => null);
+             if (member) {
+                await member.send({
+                  content: `🎫 Your ticket **${channelName}** has been closed. Here is your transcript for your records.`,
+                  files: [attachment]
+                }).catch(() => console.log('Could not DM transcript to user.'));
+             }
+          }
 
           if (interaction.guild) {
             const modlogChannel = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
             if (modlogChannel && 'send' in modlogChannel) {
-              const buffer = Buffer.from(transcript, 'utf-8');
-              const channelName = (interaction.channel as any)?.name || 'ticket';
-              const attachment = new AttachmentBuilder(buffer, { name: `${channelName}-transcript.txt` });
               await modlogChannel.send({
                 content: `🎫 Transcript for closed ticket: \`${channelName}\``,
                 files: [attachment]
