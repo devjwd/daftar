@@ -184,6 +184,18 @@ export async function initDiscordBot(): Promise<Client | null> {
       description: 'View your Daftar platform profile, level, and badges!',
     },
     {
+      name: 'xp',
+      description: 'View your current Daftar XP and Level.',
+    },
+    {
+      name: 'price',
+      description: 'View live token prices (MOVE, BTC, ETH).',
+    },
+    {
+      name: 'network',
+      description: 'View current Movement network status.',
+    },
+    {
       name: 'unlink',
       description: 'Unlink your Movement wallet from your Discord account.',
     }
@@ -466,11 +478,13 @@ export async function initDiscordBot(): Promise<Client | null> {
           .eq('wallet_address', wallet)
           .eq('eligible', true);
 
+        const level = Math.floor((profile?.xp || 0) / 1000) + 1;
+
         const embed = new EmbedBuilder()
           .setTitle(`👤 ${profile?.username || 'Daftar User'}'s Profile`)
           .setDescription(profile?.bio || '*No bio provided.*')
           .addFields(
-            { name: 'Level', value: `${profile?.current_level || 1} 🌟`, inline: true },
+            { name: 'Level', value: `${level} 🌟`, inline: true },
             { name: 'XP', value: `${profile?.xp || 0} XP`, inline: true },
             { name: 'Badges Earned', value: `${badgeCount || 0} 🏅`, inline: true },
             { name: 'Subscription', value: profile?.subscription_tier === 'pro' || profile?.subscription_tier === 'lite' ? '💎 Premium' : 'Free Tier', inline: true },
@@ -483,6 +497,132 @@ export async function initDiscordBot(): Promise<Client | null> {
       } catch (err: any) {
         console.error('[DiscordBot] Profile fetch error:', err);
         await interaction.editReply({ content: '❌ Failed to retrieve profile details.' });
+      }
+    }
+
+    else if (commandName === 'xp') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { data: config } = await supabase
+          .from('user_alert_configs')
+          .select('wallet_address')
+          .eq('discord_user_id', userId)
+          .maybeSingle();
+
+        if (!config || !config.wallet_address) {
+          return interaction.editReply({ content: '❌ You haven\'t linked your wallet yet! Use `/link`.' });
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('xp')
+          .eq('wallet_address', config.wallet_address)
+          .maybeSingle();
+
+        const xp = profile?.xp || 0;
+        const level = Math.floor(xp / 1000) + 1;
+        const nextLevelXp = level * 1000;
+        const progress = Math.floor((xp % 1000) / 1000 * 100);
+
+        const embed = new EmbedBuilder()
+          .setTitle('⚡ Daftar Experience Points')
+          .setDescription(`You are currently **Level ${level}**!`)
+          .addFields(
+            { name: 'Total XP', value: `${xp.toLocaleString()} XP`, inline: true },
+            { name: 'Next Level', value: `${nextLevelXp.toLocaleString()} XP (${progress}%)`, inline: true }
+          )
+          .setColor(0x00FF00);
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (err: any) {
+        console.error('[DiscordBot] XP error:', err);
+        await interaction.editReply({ content: '❌ Failed to fetch XP.' });
+      }
+    }
+
+    else if (commandName === 'price') {
+      await interaction.deferReply({ ephemeral: false });
+      try {
+        const tokenIds = [
+          '0x1',
+          '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c',
+          '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376',
+        ];
+
+        const { data: prices, error } = await supabase
+          .from('price_cache')
+          .select('token_id, price_usd, change_24h, cached_at')
+          .in('token_id', tokenIds);
+
+        if (error) throw error;
+
+        const priceMap: Record<string, { price: number; change: number; cachedAt: string }> = {};
+        if (prices) {
+          prices.forEach(p => {
+            priceMap[p.token_id] = {
+              price: Number(p.price_usd),
+              change: Number(p.change_24h || 0),
+              cachedAt: p.cached_at
+            };
+          });
+        }
+
+        const move = priceMap['0x1'];
+        const btc = priceMap['0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c'];
+        const eth = priceMap['0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376'];
+
+        const formatLine = (symbol: string, data: typeof move | undefined) => {
+          if (!data) return `**${symbol}:** Price unavailable`;
+          const sign = data.change >= 0 ? '+' : '';
+          const emoji = data.change >= 0 ? '🟢' : '🔴';
+          return `${emoji} **${symbol}:** $${data.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: symbol === 'MOVE' ? 5 : 2 })} (${sign}${data.change.toFixed(2)}%)`;
+        };
+
+        const embed = new EmbedBuilder()
+          .setTitle('💹 Live Token Prices')
+          .setDescription(
+            `${formatLine('MOVE', move)}\n` +
+            `${formatLine('BTC', btc)}\n` +
+            `${formatLine('ETH', eth)}\n`
+          )
+          .setColor(0xD4AF37)
+          .setFooter({ text: 'Source: CoinGecko' })
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (err: any) {
+        console.error('[DiscordBot] Price error:', err);
+        await interaction.editReply({ content: '❌ Failed to fetch prices.' });
+      }
+    }
+
+    else if (commandName === 'network') {
+      await interaction.deferReply({ ephemeral: false });
+      try {
+        const rpcUrl = process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1';
+        const response = await fetch(rpcUrl, { method: 'GET', headers: { 'Accept': 'application/json' } });
+        if (!response.ok) throw new Error(`RPC returned ${response.status}`);
+        
+        const data: any = await response.json();
+        
+        const blockHeight = Number(data.block_height || 0).toLocaleString();
+        const epoch = data.epoch || 'N/A';
+        const ledgerVersion = Number(data.ledger_version || 0).toLocaleString();
+        
+        const embed = new EmbedBuilder()
+          .setTitle('🌐 Movement Network Status')
+          .setDescription(
+            `**Block Height:** ${blockHeight}\n` +
+            `**Epoch:** ${epoch}\n` +
+            `**Ledger Version:** ${ledgerVersion}`
+          )
+          .setColor(0x5865F2)
+          .setTimestamp();
+          
+        await interaction.editReply({ embeds: [embed] });
+      } catch (err: any) {
+        console.error('[DiscordBot] Network error:', err);
+        await interaction.editReply({ content: '❌ Failed to fetch network status. RPC may be down.' });
       }
     }
 
@@ -738,11 +878,11 @@ export async function initDiscordBot(): Promise<Client | null> {
         await member.roles.add(verifiedRoleId).catch(console.error);
         await interaction.reply({ content: '✅ You have been verified successfully! Welcome to the community channels.', ephemeral: true });
         
-        if (interaction.channel) {
+        if (interaction.channel && 'send' in interaction.channel) {
           const publicEmbed = new EmbedBuilder()
             .setDescription(`🎉 <@${interaction.user.id}> has completed human verification and is now **Verified**!`)
             .setColor(0x00FF00);
-          await interaction.channel.send({ embeds: [publicEmbed] }).catch(() => null);
+          await (interaction.channel as any).send({ embeds: [publicEmbed] }).catch(() => null);
         }
         return;
       }
