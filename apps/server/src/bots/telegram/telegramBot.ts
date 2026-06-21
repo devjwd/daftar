@@ -922,9 +922,10 @@ export function initTelegramBot(app?: Application, webhookDomain?: string): Tele
 
   // ─── Launch Bot ──────────────────────────────────────────────────────────
   if (webhookDomain && app) {
-    bot.telegram.setWebhook(`${webhookDomain}/api/webhooks/telegram`);
+    const cleanDomain = webhookDomain.trim().replace(/\/$/, '');
+    bot.telegram.setWebhook(`${cleanDomain}/api/webhooks/telegram`);
     app.use(bot.webhookCallback('/api/webhooks/telegram'));
-    console.log(`[TelegramBot] 🤖 Webhook registered at ${webhookDomain}/api/webhooks/telegram`);
+    console.log(`[TelegramBot] 🤖 Webhook registered at ${cleanDomain}/api/webhooks/telegram`);
   } else {
     bot.launch().then(() => {
       console.log('[TelegramBot] 🤖 Daftar Bot started (Long Polling).');
