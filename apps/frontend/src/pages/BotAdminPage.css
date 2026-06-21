@@ -1,0 +1,108 @@
+.bot-admin-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 3rem 1rem;
+}
+
+.bot-admin-header {
+  margin-bottom: 2rem;
+}
+
+.bot-admin-title {
+  font-size: 2rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.bot-admin-subtitle {
+  color: var(--text-secondary);
+}
+
+.bot-admin-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.bot-admin-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.bot-admin-label {
+  display: block;
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.bot-admin-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.bot-admin-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.bot-admin-help {
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+  margin-top: 0.4rem;
+}
+
+.bot-admin-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 2rem 0;
+}
+
+.bot-admin-btn {
+  background: var(--primary);
+  color: #000;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bot-admin-btn:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.bot-admin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bot-admin-error {
+  background: rgba(255, 50, 50, 0.1);
+  border: 1px solid rgba(255, 50, 50, 0.2);
+  color: #ff5555;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.bot-admin-success {
+  background: rgba(50, 255, 50, 0.1);
+  border: 1px solid rgba(50, 255, 50, 0.2);
+  color: #55ff55;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
