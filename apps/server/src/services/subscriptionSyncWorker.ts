@@ -26,8 +26,8 @@ export const startSubscriptionSyncWorker = (supabaseAdmin: SupabaseClient | null
         return;
       }
 
-      const { data: guildConfigs } = await supabaseAdmin.from('discord_guild_configs').select('*');
-      if (!guildConfigs || guildConfigs.length === 0) return;
+      const guilds = discordClient.guilds.cache;
+      if (!guilds || guilds.size === 0) return;
 
       // Fetch all users who have linked their Discord account
       const { data: configs, error } = await supabaseAdmin
@@ -51,17 +51,15 @@ export const startSubscriptionSyncWorker = (supabaseAdmin: SupabaseClient | null
           if (!isPremiumTier(tier)) {
             let userNotified = false;
 
-            for (const gConfig of guildConfigs) {
-              if (!gConfig.pro_role_id) continue;
-
-              const guild = await discordClient.guilds.fetch(gConfig.guild_id).catch(() => null);
-              if (!guild) continue;
+            for (const [_, guild] of guilds) {
+              const proRole = guild.roles.cache.find((r: any) => r.name.toLowerCase() === 'pro');
+              if (!proRole) continue;
 
               const member = await guild.members.fetch(config.discord_user_id).catch(() => null);
-              if (member && member.roles.cache.has(gConfig.pro_role_id)) {
-                await member.roles.remove(gConfig.pro_role_id);
+              if (member && member.roles.cache.has(proRole.id)) {
+                await member.roles.remove(proRole).catch(console.error);
                 revokedCount++;
-                console.log(`[SyncWorker] Revoked Pro role from ${config.discord_user_id} in ${gConfig.guild_id} - Subscription Expired`);
+                console.log(`[SyncWorker] Revoked Pro role from ${config.discord_user_id} in ${guild.id} - Subscription Expired`);
 
                 // Notify the user via DM only once
                 if (!userNotified) {
