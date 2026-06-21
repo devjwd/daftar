@@ -29,6 +29,8 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const StandaloneVisualizer = lazy(() => import("./pages/StandaloneVisualizer"));
 const Plans = lazy(() => import("./pages/Plans"));
 const Verify = lazy(() => import("./pages/Verify"));
+const BotLandingPage = lazy(() => import("./pages/BotLandingPage"));
+const BotAdminPage = lazy(() => import("./pages/BotAdminPage"));
 
 const SWAP_ENABLED = getEnv("VITE_ENABLE_SWAP", true);
 
@@ -193,6 +195,8 @@ export default function App() {
                     <Route path="/level" element={<Level />} />
                     <Route path="/terms" element={<Terms />} />
                     <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/bot" element={<BotLandingPage />} />
+                    <Route path="/bot/admin" element={<BotAdminPage />} />
                     <Route path="*" element={<NotFoundPage />} />
                   </Routes>
                 </Layout>

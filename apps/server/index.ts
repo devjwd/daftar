@@ -18,6 +18,7 @@ import feedbackRoutes from './src/routes/feedbackRoutes.ts';
 import reportRoutes from './src/routes/reportRoutes.ts';
 import alertRoutes from './src/routes/alertRoutes.ts';
 import webhookRoutes from './src/routes/webhookRoutes.ts';
+import botAdminRoutes from './src/routes/botAdminRoutes.ts';
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { handleError } from './src/utils/errors.ts';
@@ -68,6 +69,7 @@ app.use('/api/plans', plansRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
+app.use('/api/bot/admin', botAdminRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // --- Global Error Handler ---

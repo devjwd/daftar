@@ -12,69 +12,84 @@ export function getDiscordClient(): Client | null {
 
 export async function verifyUserRoles(discordUserId: string, walletAddress: string) {
   if (!discordClient) return;
-  const guildId = process.env.DISCORD_GUILD_ID;
-  const verifiedRoleId = process.env.DISCORD_VERIFIED_ROLE_ID;
-  const proRoleId = process.env.DISCORD_PRO_ROLE_ID;
 
-  if (!guildId) return;
+  const supabase = getSupabase();
+  if (!supabase) return;
 
-  try {
-    const guild = await discordClient.guilds.fetch(guildId);
-    if (!guild) return;
+  let isPro = false;
+  const tier = await getEffectiveTier(supabase, walletAddress);
+  isPro = isPremiumTier(tier);
 
-    const member = await guild.members.fetch(discordUserId).catch(() => null);
-    if (!member) return;
+  const { data: configs } = await supabase.from('discord_guild_configs').select('*');
+  if (!configs) return;
 
-    const supabase = getSupabase();
-    let isPro = false;
-    if (supabase) {
-      const tier = await getEffectiveTier(supabase, walletAddress);
-      isPro = isPremiumTier(tier);
-    }
+  let dmSent = false;
 
-    if (verifiedRoleId) {
-      await member.roles.add(verifiedRoleId).catch(console.error);
-    }
+  for (const config of configs) {
+    try {
+      const guild = await discordClient.guilds.fetch(config.guild_id).catch(() => null);
+      if (!guild) continue;
 
-    if (proRoleId) {
-      if (isPro) {
-        await member.roles.add(proRoleId).catch(console.error);
-      } else {
-        await member.roles.remove(proRoleId).catch(console.error);
+      const member = await guild.members.fetch(discordUserId).catch(() => null);
+      if (!member) continue;
+
+      if (config.verified_role_id) {
+        await member.roles.add(config.verified_role_id).catch(console.error);
       }
+
+      if (config.pro_role_id) {
+        if (isPro) {
+          await member.roles.add(config.pro_role_id).catch(console.error);
+        } else {
+          await member.roles.remove(config.pro_role_id).catch(console.error);
+        }
+      }
+
+      // Send a DM confirmation to the user ONLY ONCE
+      if (!dmSent) {
+        const dmEmbed = new EmbedBuilder()
+          .setTitle('✅ Verification Successful!')
+          .setDescription(`Your Movement wallet (\`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}\`) has been successfully linked to your Discord profile!\n\nYou have been granted the **Verified** roles across your communities.`)
+          .setColor(0x00FF00)
+          .setTimestamp();
+
+        await member.send({ embeds: [dmEmbed] }).catch(() => null);
+        dmSent = true;
+      }
+
+      // Also send a public message in the #verify channel
+      const verifyChannel = guild.channels.cache.find((c: any) => c.name.toLowerCase() === 'verify' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+      if (verifyChannel && 'send' in verifyChannel) {
+        const publicEmbed = new EmbedBuilder()
+          .setDescription(`🎉 <@${discordUserId}> has successfully linked their Movement wallet and is now **Verified**!`)
+          .setColor(0x00FF00);
+        
+        await verifyChannel.send({ embeds: [publicEmbed] }).catch(() => null);
+      }
+
+    } catch (error) {
+      console.error(`[DiscordBot] Error assigning roles for guild ${config.guild_id}:`, error);
     }
-    console.log(`[DiscordBot] Verified roles for user ${discordUserId}`);
-
-    // Send a DM confirmation to the user
-    const dmEmbed = new EmbedBuilder()
-      .setTitle('✅ Verification Successful!')
-      .setDescription(`Your Movement wallet (\`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}\`) has been successfully linked to your Discord profile!\n\nYou have been granted the **Verified** role. You can now access all the community channels.`)
-      .setColor(0x00FF00)
-      .setTimestamp();
-
-    await member.send({ embeds: [dmEmbed] }).catch(() => {
-      console.log(`[DiscordBot] Could not send verification DM to ${discordUserId} (DMs might be closed)`);
-    });
-
-    // Also send a public message in the #verify channel
-    const verifyChannel = guild.channels.cache.find((c: any) => c.name.toLowerCase() === 'verify' && c.type === ChannelType.GuildText) as TextChannel | undefined;
-    if (verifyChannel && 'send' in verifyChannel) {
-      const publicEmbed = new EmbedBuilder()
-        .setDescription(`🎉 <@${discordUserId}> has successfully linked their Movement wallet and is now **Verified**!`)
-        .setColor(0x00FF00);
-      
-      await verifyChannel.send({ embeds: [publicEmbed] }).catch(() => null);
-    }
-
-  } catch (error) {
-    console.error('[DiscordBot] Error assigning roles:', error);
   }
 }
 
 async function logModAction(guild: any, action: string, moderator: any, target: any, reason: string) {
   if (!guild) return;
 
-  const modlogChannel = guild.channels.cache.find((c: any) => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+  let modlogChannel: any = null;
+  const supabase = getSupabase();
+  if (supabase) {
+    const { data: config } = await supabase.from('discord_guild_configs').select('modlogs_channel_id').eq('guild_id', guild.id).maybeSingle();
+    if (config?.modlogs_channel_id) {
+      modlogChannel = guild.channels.cache.get(config.modlogs_channel_id);
+    }
+  }
+
+  // Fallback to searching by name if no explicit config or if the configured channel isn't found
+  if (!modlogChannel) {
+    modlogChannel = guild.channels.cache.find((c: any) => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
+  }
+  
   if (!modlogChannel || !('send' in modlogChannel)) return;
 
   const embed = new EmbedBuilder()
@@ -198,6 +213,11 @@ export async function initDiscordBot(): Promise<Client | null> {
     {
       name: 'network',
       description: 'View current Movement network status.',
+    },
+    {
+      name: 'dashboard',
+      description: 'Admin: Get a secure link to the Web Admin Dashboard.',
+      default_member_permissions: String(PermissionFlagsBits.ManageGuild)
     },
     {
       name: 'unlink',
@@ -630,6 +650,42 @@ export async function initDiscordBot(): Promise<Client | null> {
       }
     }
 
+    else if (commandName === 'dashboard') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        if (!interaction.guildId) {
+          return interaction.editReply({ content: '❌ This command can only be used in a server.' });
+        }
+
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          return interaction.editReply({ content: '⚠️ Dashboard is currently offline (Missing JWT Secret).' });
+        }
+
+        // Generate magic link token valid for 1 hour
+        const token = jwt.sign({ guildId: interaction.guildId, userId: interaction.user.id }, jwtSecret, { expiresIn: '1h' });
+        const webappUrl = process.env.FRONTEND_URL || 'https://daftar.fi';
+        const dashboardUrl = `${webappUrl}/bot/admin?token=${token}`;
+
+        const embed = new EmbedBuilder()
+          .setTitle('⚙️ Bot Admin Dashboard')
+          .setDescription(`Click the link below to configure the Daftar Bot for **${interaction.guild?.name}**.\n\n*This link is secure, one-time use, and expires in 1 hour. Do not share it.*`)
+          .setColor(0x5865F2);
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setLabel('Open Dashboard')
+            .setStyle(ButtonStyle.Link)
+            .setURL(dashboardUrl)
+        );
+
+        await interaction.editReply({ embeds: [embed], components: [row] });
+      } catch (err: any) {
+        console.error('[DiscordBot] Dashboard error:', err);
+        await interaction.editReply({ content: '❌ Failed to generate dashboard link.' });
+      }
+    }
+
     else if (commandName === 'unlink') {
       await interaction.deferReply({ ephemeral: true });
       try {
@@ -869,9 +925,15 @@ export async function initDiscordBot(): Promise<Client | null> {
         return interaction.reply({ content: '❌ Incorrect answer. Please try again.', ephemeral: true });
       }
 
-      const verifiedRoleId = process.env.DISCORD_VERIFIED_ROLE_ID;
+      const supabase = getSupabase();
+      let verifiedRoleId = null;
+      if (supabase && interaction.guildId) {
+        const { data: config } = await supabase.from('discord_guild_configs').select('verified_role_id').eq('guild_id', interaction.guildId).maybeSingle();
+        verifiedRoleId = config?.verified_role_id;
+      }
+
       if (!verifiedRoleId) {
-        return interaction.reply({ content: '⚠️ Verification system is currently misconfigured.', ephemeral: true });
+        return interaction.reply({ content: '⚠️ Verification system is currently misconfigured for this server. Please contact an admin.', ephemeral: true });
       }
 
       const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
@@ -921,8 +983,17 @@ export async function initDiscordBot(): Promise<Client | null> {
     else if (interaction.isButton() && interaction.customId === 'create_ticket') {
       if (!interaction.guild) return;
 
-      const category = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'ticket' && c.type === ChannelType.GuildCategory);
-      const categoryId = category ? category.id : null;
+      let categoryId = null;
+      const supabase = getSupabase();
+      if (supabase) {
+        const { data: config } = await supabase.from('discord_guild_configs').select('support_category_id').eq('guild_id', interaction.guild.id).maybeSingle();
+        categoryId = config?.support_category_id || null;
+      }
+
+      if (!categoryId) {
+        const category = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'ticket' && c.type === ChannelType.GuildCategory);
+        categoryId = category ? category.id : null;
+      }
       const expectedChannelName = `ticket-${interaction.user.username}`.toLowerCase();
 
       // Check if ticket already exists

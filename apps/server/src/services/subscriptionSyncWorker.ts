@@ -26,19 +26,8 @@ export const startSubscriptionSyncWorker = (supabaseAdmin: SupabaseClient | null
         return;
       }
 
-      const guildId = process.env.DISCORD_GUILD_ID;
-      const proRoleId = process.env.DISCORD_PRO_ROLE_ID;
-
-      if (!guildId || !proRoleId) {
-        console.warn('[SyncWorker] DISCORD_GUILD_ID or DISCORD_PRO_ROLE_ID missing. Skipping sync.');
-        return;
-      }
-
-      const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
-      if (!guild) {
-        console.warn('[SyncWorker] Could not fetch Discord guild. Skipping sync.');
-        return;
-      }
+      const { data: guildConfigs } = await supabaseAdmin.from('discord_guild_configs').select('*');
+      if (!guildConfigs || guildConfigs.length === 0) return;
 
       // Fetch all users who have linked their Discord account
       const { data: configs, error } = await supabaseAdmin
@@ -60,18 +49,29 @@ export const startSubscriptionSyncWorker = (supabaseAdmin: SupabaseClient | null
           const tier = await getEffectiveTier(supabaseAdmin, config.wallet_address);
           
           if (!isPremiumTier(tier)) {
-            // User does not have a premium tier, ensure they don't have the Pro role
-            const member = await guild.members.fetch(config.discord_user_id).catch(() => null);
-            if (member && member.roles.cache.has(proRoleId)) {
-              await member.roles.remove(proRoleId);
-              revokedCount++;
-              console.log(`[SyncWorker] Revoked Pro role from ${config.discord_user_id} (${config.wallet_address}) - Subscription Expired`);
+            let userNotified = false;
 
-              // Notify the user via DM
-              const webappUrl = process.env.FRONTEND_URL || 'https://daftar.fi';
-              await member.send({
-                content: `⚠️ **Subscription Expired**\nYour Daftar Premium subscription for wallet \`${config.wallet_address.slice(0, 6)}...${config.wallet_address.slice(-4)}\` has expired.\n\nYour \`Pro\` Discord roles have been removed. To regain access to premium features, please renew your subscription here: ${webappUrl}/settings`
-              }).catch(() => null);
+            for (const gConfig of guildConfigs) {
+              if (!gConfig.pro_role_id) continue;
+
+              const guild = await discordClient.guilds.fetch(gConfig.guild_id).catch(() => null);
+              if (!guild) continue;
+
+              const member = await guild.members.fetch(config.discord_user_id).catch(() => null);
+              if (member && member.roles.cache.has(gConfig.pro_role_id)) {
+                await member.roles.remove(gConfig.pro_role_id);
+                revokedCount++;
+                console.log(`[SyncWorker] Revoked Pro role from ${config.discord_user_id} in ${gConfig.guild_id} - Subscription Expired`);
+
+                // Notify the user via DM only once
+                if (!userNotified) {
+                  const webappUrl = process.env.FRONTEND_URL || 'https://daftar.fi';
+                  await member.send({
+                    content: `⚠️ **Subscription Expired**\nYour Daftar Premium subscription for wallet \`${config.wallet_address.slice(0, 6)}...${config.wallet_address.slice(-4)}\` has expired.\n\nYour \`Pro\` Discord roles have been removed. To regain access to premium features, please renew your subscription here: ${webappUrl}/settings`
+                  }).catch(() => null);
+                  userNotified = true;
+                }
+              }
             }
           }
         } catch (err: any) {
@@ -80,7 +80,7 @@ export const startSubscriptionSyncWorker = (supabaseAdmin: SupabaseClient | null
       }
 
       if (revokedCount > 0) {
-        console.log(`[SyncWorker] Daily sync complete. Revoked Pro role from ${revokedCount} users.`);
+        console.log(`[SyncWorker] Daily sync complete. Revoked Pro roles ${revokedCount} times.`);
       }
 
     } catch (err) {
