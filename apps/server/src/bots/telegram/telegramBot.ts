@@ -13,9 +13,15 @@ let bot: Telegraf | null = null;
 // ─── Rate Limiting ───────────────────────────────────────────────────────────
 async function checkRateLimit(chatId: string): Promise<boolean> {
   const supabase = getSupabase();
-  if (!supabase) return true;
+  if (!supabase) return true; // Fail open if DB is unavailable
+  
   const { data, error } = await supabase.rpc('check_telegram_rate_limit', { p_chat_id: chatId });
-  if (error || data === false) return false;
+  if (error) {
+    console.error('[TelegramBot] Rate limit RPC error:', error.message);
+    // Fail open if the RPC hasn't been created in the database yet
+    return true; 
+  }
+  if (data === false) return false;
   return true;
 }
 

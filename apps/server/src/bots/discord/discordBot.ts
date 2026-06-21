@@ -95,7 +95,11 @@ async function checkDiscordRateLimit(userId: string): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return true;
   const { data, error } = await supabase.rpc('check_discord_rate_limit', { p_user_id: userId });
-  if (error || data === false) return false;
+  if (error) {
+    console.error('[DiscordBot] Rate limit RPC error:', error.message);
+    return true; // Fail open if RPC doesn't exist
+  }
+  if (data === false) return false;
   return true;
 }
 
