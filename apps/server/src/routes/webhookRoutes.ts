@@ -1,13 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { Webhook } from 'standardwebhooks';
 import { queueSync } from '../services/analyticsSyncQueue.ts';
-import { createClient } from '@supabase/supabase-js';
-import CONFIG from '../config/index.ts';
+import { getSupabase } from '../config/supabase.ts';
 
 const router = Router();
-const supabase = createClient(CONFIG.SUPABASE.URL, CONFIG.SUPABASE.SERVICE_KEY);
 
 router.post('/onchain-event', async (req: Request, res: Response) => {
+  const supabase = getSupabase();
   try {
     const webhookSecret = process.env.WEBHOOK_SECRET;
     if (!webhookSecret) {
