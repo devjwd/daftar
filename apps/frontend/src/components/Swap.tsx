@@ -17,7 +17,7 @@ import { getTokenDecimals } from "../utils/tokenUtils";
 import { getTokenInfo, getSwapAssetTypeBySymbol, MOVEMENT_TOKENS } from "../config/tokens";
 import { TOKEN_VISUALS } from "../config/display";
 import { useTokenPrices } from "../hooks/useTokenPrices";
-import { emit } from "../services/badges/badgeStore";
+
 import { getStoredLanguagePreference, t } from "../utils/language";
 import TransactionToast from "./TransactionToast";
 import { WalletModal } from "./WalletModal";
@@ -851,7 +851,7 @@ const Swap = ({ balances, onSwapSuccess }) => {
 
           // Fire awards progression change immediately (no backend logging blocks!)
           devLog("On-chain swap validated. Refreshing progression...");
-          emit("awards:changed");
+
 
           try {
             sessionStorage.setItem(SWAP_DETAILS_STORAGE_KEY, JSON.stringify(details));

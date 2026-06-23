@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../hooks/useProfile';
-import { useUserLevel } from '../hooks/useUserLevel';
 import { normalizeAddress } from '../services/profileService';
-import { getAllLevelPfps, getLevelBasedPfp, isPfpUnlockedForLevel } from '../utils/levelPfp';
 import { getStoredLanguagePreference, t } from '../utils/language';
 import './Profile.css';
 
@@ -18,23 +16,20 @@ export default function Profile() {
     connected,
     signMessage,
   });
-  const { level } = useUserLevel(address);
+
 
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [twitter, setTwitter] = useState('');
   const [telegram, setTelegram] = useState('');
   const [avatarUrl, setAvatarUrl] = useState(null);
-  const [showPfpPicker, setShowPfpPicker] = useState(false);
+
   const [showSuccess, setShowSuccess] = useState(false);
   const [notice, setNotice] = useState({ type: '', message: '' });
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
-  const pfpPickerRef = useRef(null);
-
-  const allPfps = useMemo(() => getAllLevelPfps(), []);
   const activeAvatarSrc = useMemo(
-    () => getLevelBasedPfp({ level, address, preferredPfp: avatarUrl }),
-    [level, address, avatarUrl]
+    () => avatarUrl || '/logo.png',
+    [avatarUrl]
   );
 
   useEffect(() => {
@@ -63,15 +58,9 @@ export default function Profile() {
       setBio(profile.bio || '');
       setTwitter(profile.twitter || '');
       setTelegram(profile.telegram || '');
-      setAvatarUrl(
-        getLevelBasedPfp({
-          level,
-          address,
-          preferredPfp: typeof profile.avatar_url === 'string' ? profile.avatar_url : null,
-        })
-      );
+      setAvatarUrl(typeof profile.avatar_url === 'string' ? profile.avatar_url : '/logo.png');
     }
-  }, [profile, level, address]);
+  }, [profile]);
 
   // Redirect if not connected
   useEffect(() => {
@@ -80,18 +69,7 @@ export default function Profile() {
     }
   }, [connected, navigate]);
 
-  useEffect(() => {
-    if (!showPfpPicker) return undefined;
 
-    const onPointerDown = (event) => {
-      if (!pfpPickerRef.current?.contains(event.target)) {
-        setShowPfpPicker(false);
-      }
-    };
-
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [showPfpPicker]);
 
   const formatAddress = (addr) => {
     if (!addr) return '';
@@ -150,66 +128,14 @@ export default function Profile() {
 
       <div className="profile-container">
         <div className="profile-header">
-          <div className="profile-avatar-section" ref={pfpPickerRef}>
-            <button
-              type="button"
-              className="profile-avatar profile-avatar-button"
-              onClick={() => setShowPfpPicker(true)}
-              aria-label="Open profile picture picker"
-            >
+          <div className="profile-avatar-section">
+            <div className="profile-avatar">
               <img
                 src={activeAvatarSrc}
                 alt="Profile"
                 className="avatar-image"
               />
-              <div className="avatar-hover-overlay">
-                <span className="avatar-hover-text">Change PFP</span>
-              </div>
-            </button>
-
-            {showPfpPicker && (
-              <div className="pfp-picker-popover">
-                <div className="pfp-picker-header">
-                  <h3>{t(language, 'profileSelectPfp')}</h3>
-                  <button
-                    type="button"
-                    className="pfp-picker-close"
-                    onClick={() => setShowPfpPicker(false)}
-                    aria-label="Close profile picture picker"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="level-avatar-grid">
-                  {allPfps.map((option) => {
-                    const unlocked = isPfpUnlockedForLevel(option.src, level);
-                    const selected = option.src === activeAvatarSrc;
-
-                    return (
-                      <button
-                        key={option.src}
-                        type="button"
-                        className={`level-avatar-option ${selected ? 'selected' : ''} ${unlocked ? '' : 'locked'}`}
-                        onClick={() => {
-                          if (!unlocked) return;
-                          setAvatarUrl(option.src);
-                          setShowPfpPicker(false);
-                        }}
-                        aria-label={
-                          unlocked
-                            ? `Select level ${option.requiredLevel} avatar`
-                            : `Locked level ${option.requiredLevel} avatar`
-                        }
-                        disabled={!unlocked}
-                      >
-                        <img src={option.src} alt={`Level ${option.requiredLevel} avatar`} />
-                        {!unlocked && <span className="avatar-lock">🔒</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
           <h1>{t(language, 'profileTitle')}</h1>

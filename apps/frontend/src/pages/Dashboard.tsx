@@ -12,16 +12,12 @@ import { getTokenAddressBySymbol, getTokenInfo } from "../config/tokens";
 import { useCurrency } from "../hooks/useCurrency";
 import { useIndexerBalances, IndexerBalance } from "../hooks/useIndexerBalances";
 import { useMovementClient } from "../hooks/useMovementClient";
-import { useProfile } from "../hooks/useProfile";
-import { useTokenPrices } from "../hooks/useTokenPrices";
-import { useUserLevel } from "../hooks/useUserLevel";
-import { useDeFiPositions } from "../hooks/useDeFiPositions";
 import { useNFTs } from "../hooks/useNFTs";
+import { useAddressLabel } from "../hooks/useAddressLabel";
+import { resolveEntityBranding } from "../config/entities";
 import { getWalletAge, getUserNFTHoldings, getUserTokenBalances, getYuzuLiquidityPositions } from "../services/indexer";
-import { getLevelBasedPfp } from "../utils/levelPfp";
 import { getStoredLanguagePreference, t } from "../utils/language";
 import { getSettingsStorageKey, getStoredHidePositionThreshold } from "../utils/settings";
-import { useAddressLabel } from "../hooks/useAddressLabel";
 
 import { devLog } from "../utils/devLogger";
 import { getTokenDecimals, isValidAddress, parseCoinType } from "../utils/tokenUtils";
@@ -296,22 +292,11 @@ const Dashboard = () => {
   const lpLoading = defiLoading;
 
   const { profile: userProfile } = useProfile(viewingAddress);
-  const {
-    level: viewingLevel,
-    xp: viewingXp,
-    nextLevelXP: viewingNextLevelXP,
-    xpProgress: viewingXpProgress,
-    badges: viewingBadges,
-  } = useUserLevel(viewingAddress);
   const { label: addressLabel } = useAddressLabel(viewingAddress);
 
   const entityBranding = useMemo(() => resolveEntityBranding(viewingAddress), [viewingAddress]);
 
-  const userAvatarSrc = entityBranding?.logo || getLevelBasedPfp({
-    level: viewingLevel,
-    address: viewingAddress,
-    preferredPfp: userProfile?.avatar_url,
-  });
+  const userAvatarSrc = entityBranding?.logo || userProfile?.avatar_url || '/logo.png';
 
 
   useEffect(() => {
@@ -920,11 +905,7 @@ const Dashboard = () => {
           language={language}
           onClose={() => setShowProfileModal(false)}
           preloadedProfile={userProfile}
-          preloadedLevel={viewingLevel}
-          preloadedXp={viewingXp}
-          preloadedNextLevelXP={viewingNextLevelXP}
-          preloadedXpProgress={viewingXpProgress}
-          preloadedBadges={viewingBadges}
+
           preloadedAvatarSrc={userAvatarSrc}
         />
       )}

@@ -20,10 +20,7 @@ const SwapPage = lazy(() => import("./pages/Swap"));
 const SwapDetails = lazy(() => import("./pages/SwapDetails"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Settings = lazy(() => import("./pages/Settings"));
-const Badges = lazy(() => import("./pages/Badges"));
-const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 const Admin = lazy(() => import("./pages/Admin"));
-const Level = lazy(() => import("./pages/Level"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const StandaloneVisualizer = lazy(() => import("./pages/StandaloneVisualizer"));
@@ -63,12 +60,9 @@ const WalletProviderShell: React.FC<{ children: ReactNode }> = ({ children }) =>
 const TITLE_MAP: Record<string, string> = {
   "/": "Daftar | Home",
   "/swap": "Daftar | Swap",
-  "/badges": "Daftar | Badges",
-  "/leaderboard": "Daftar | Leaderboard",
   "/settings": "Daftar | Settings",
   "/admin": "Daftar | Admin",
   "/plans": "Daftar | Plans",
-  "/level": "Daftar | Level",
   "/terms": "Daftar | Terms",
   "/privacy": "Daftar | Privacy",
   "/profile": "Daftar | Profile"
@@ -185,14 +179,13 @@ export default function App() {
                     />
                     <Route path="/earn" element={<Navigate to="/profile" replace />} />
                     <Route path="/earn/*" element={<Navigate to="/profile" replace />} />
-                    <Route path="/badges" element={<Badges />} />
-                    <Route path="/leaderboard" element={<Leaderboard />} />
+
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/plans" element={<Plans />} />
                     <Route path="/more" element={<Navigate to="/settings" replace />} />
-                    <Route path="/level" element={<Level />} />
+
                     <Route path="/terms" element={<Terms />} />
                     <Route path="/privacy" element={<Privacy />} />
                     <Route path="/bot" element={<BotLandingPage />} />

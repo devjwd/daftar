@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { useUserLevel } from '../hooks/useUserLevel';
 import { formatAddress, isValidAddress } from '../utils/tokenUtils';
 import { getStoredLanguagePreference, t } from '../utils/language';
 import { getStoredThemePreference, resolveTheme } from '../utils/theme';
@@ -71,8 +70,6 @@ export default function Layout({ children }) {
 
 
   const passAddress = account?.address ? String(account.address) : null;
-  const { level: passLevel, loading: passLevelLoading } = useUserLevel(passAddress);
-
   const { balances } = useIndexerBalances(passAddress);
   const { prices } = useTokenPrices();
   const { convertUSD, formatValue } = useCurrency();
@@ -283,25 +280,6 @@ export default function Layout({ children }) {
                 </li>
               )}
 
-              <li className={location.pathname.startsWith("/badges") ? "active" : ""}>
-                <button
-                  type="button"
-                  className="nav-link-btn"
-                  onClick={() => navigate("/badges")}
-                >
-                  {t(language, 'navBadges')}
-                </button>
-              </li>
-
-              <li className={location.pathname.startsWith("/leaderboard") ? "active" : ""}>
-                <button
-                  type="button"
-                  className="nav-link-btn"
-                  onClick={() => navigate("/leaderboard")}
-                >
-                  {t(language, 'navLeaderboard')}
-                </button>
-              </li>
 
 
               <li className="more-dropdown-container">
@@ -429,17 +407,7 @@ export default function Layout({ children }) {
           <div className="nav-right">
             <SearchBar variant="layout" language={language} />
 
-            <div className="nav-pass-inline">
-              <button
-                type="button"
-                className="nav-pass-pill"
-                onClick={() => navigate("/level")}
-                aria-label="Level"
-              >
-                <span className="nav-pass-text">Level</span>
-                <span className="nav-pass-level">{passLevelLoading ? '•' : passLevel}</span>
-              </button>
-            </div>
+
 
             {connected && account ? (
               <div className="wallet-dropdown-container">

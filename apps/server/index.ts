@@ -4,10 +4,10 @@ import dotenv from 'dotenv';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Route Imports
-import badgeRoutes from './src/routes/badgeRoutes.ts';
+
 import swapRoutes from './src/routes/swapRoutes.ts';
 import priceRoutes from './src/routes/priceRoutes.ts';
-import leaderboardRoutes from './src/routes/leaderboardRoutes.ts';
+
 import profileRoutes from './src/routes/profileRoutes.ts';
 import adminRoutes from './src/routes/adminRoutes.ts';
 import configRoutes from './src/routes/configRoutes.ts';
@@ -53,10 +53,10 @@ app.use(
 // Routes
 app.get('/health', (_req: Request, res: Response) => res.status(200).json({ ok: true }));
 
-app.use('/api/badges', badgeRoutes);
+
 app.use('/api/swap', swapRoutes);
 app.use('/api/prices', priceRoutes);
-app.use('/api/leaderboard', leaderboardRoutes);
+
 app.use('/api/profiles', profileRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/config', configRoutes);

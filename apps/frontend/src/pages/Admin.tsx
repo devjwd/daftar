@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { normalizeAddress } from '../utils/address';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import './Admin.css';
-import BadgeAdmin from '../components/BadgeAdmin';
+
 import EntityAdmin from '../components/EntityAdmin';
 import PlanAdmin from '../components/PlanAdmin';
 import ReportAdmin from '../components/ReportAdmin';
@@ -26,14 +26,13 @@ import {
   updateRouterFee,
   updateRouterTreasury,
 } from '../services/routerService';
-import { fetchRegistryInfo } from '../services/badgeService';
 
 export default function Admin() {
   const { connected, account, signAndSubmitTransaction } = useWallet();
   const { client: movementClient } = useMovementClient();
   const { pendingTx, trackTransaction } = useTransactionTracker();
   
-  const [activeTab, setActiveTab] = useState('badges');
+  const [activeTab, setActiveTab] = useState('entities');
 
   const [swapSettings, setSwapSettings] = useState<SwapSettings>(getSwapSettings());
   const [onChainSettings, setOnChainSettings] = useState(null);
@@ -112,8 +111,7 @@ export default function Admin() {
       if (!movementClient) return;
       setLoadingConfig(true);
       try {
-        const registry = await fetchRegistryInfo(movementClient);
-        if (registry?.admin) setOnChainAdmin(registry.admin);
+        // Registry admin removed
       } catch (err) {
         console.warn('[Admin] Failed to load registry admin:', err);
       } finally {
@@ -343,19 +341,7 @@ export default function Admin() {
 
         <div className="admin-tabs-shell">
           <div className="admin-tabs" role="tablist" aria-label="Admin sections">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'badges'}
-              className={`admin-tab ${activeTab === 'badges' ? 'active' : ''}`}
-              onClick={() => setActiveTab('badges')}
-            >
-              <span className="admin-tab-icon" aria-hidden="true">🏅</span>
-              <span className="admin-tab-text">
-                <span className="admin-tab-title">Badges</span>
-                <span className="admin-tab-meta">SBT campaigns and rewards</span>
-              </span>
-            </button>
+
             <button
               type="button"
               role="tab"
@@ -424,7 +410,7 @@ export default function Admin() {
           </div>
         </div>
 
-        {activeTab === 'badges' && <BadgeAdmin />}
+
         {activeTab === 'entities' && <EntityAdmin />}
         {activeTab === 'plans' && <PlanAdmin />}
         {activeTab === 'reports' && <ReportAdmin />}
