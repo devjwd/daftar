@@ -13,6 +13,8 @@ import { dispatchEventAlert } from '../services/notificationService.ts';
 import CONFIG from '../config/index.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { BadgeDefinition } from '@daftar/types';
+import { getEffectiveTier } from '../services/subscriptionService.ts';
+import { isPremiumTier } from '@daftar/shared-types';
 
 const router = express.Router();
 
@@ -83,6 +85,16 @@ router.post('/award', awardLimiter, async (req: Request, res: Response) => {
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
   try {
+    // 0. Check Pro Tier (Production-ready via SubscriptionService)
+    const tier = await getEffectiveTier(supabaseAdmin, normalizedAddr);
+    if (!isPremiumTier(tier)) {
+      return res.status(403).json({
+        eligible: false,
+        reason: 'pro-tier-required',
+        error: 'Badges are only available for Pro users'
+      });
+    }
+
     // 1. Fetch badge definition
     const { data: badge, error: bError } = await supabaseAdmin
       .from('badge_definitions')
@@ -173,6 +185,12 @@ router.get('/eligibility', badgeLimiter, forceRefreshLimiter, async (req: Reques
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
   try {
+    // 0. Check Pro Tier (Production-ready via SubscriptionService)
+    const tier = await getEffectiveTier(supabaseAdmin, normalizedAddr);
+    if (!isPremiumTier(tier)) {
+      return res.status(200).json({ eligible: false, reason: 'pro-tier-required', error: 'Badges are only available for Pro users' });
+    }
+
     // 1. Fetch badge definition
     const { data: badge, error: bError } = await supabaseAdmin
       .from('badge_definitions')
@@ -217,6 +235,12 @@ router.get('/eligibility/bulk', badgeLimiter, forceRefreshLimiter, async (req: R
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database unavailable' });
 
   try {
+    // 0. Check Pro Tier (Production-ready via SubscriptionService)
+    const tier = await getEffectiveTier(supabaseAdmin, normalizedAddr);
+    if (!isPremiumTier(tier)) {
+      return res.status(200).json({ results: [] });
+    }
+
     // 1. Fetch all active badges
     const { data: badges, error: bError } = await supabaseAdmin
       .from('badge_definitions')

@@ -7,25 +7,7 @@ import { BadgeDefinition, EligibilityResult } from '@daftar/types';
 
 const VERIFIED_CACHE_TTL_MS = CONFIG.CACHE.VERIFIED_TTL_MS;
 
-// Short-lived cache for on-chain data to deduplicate burst requests (e.g. bulk scan)
-const RPC_BURST_CACHE = new Map<string, { value: any; timestamp: number }>();
-const RPC_BURST_TTL_MS = 10_000; // 10 seconds
-
-const getCachedRpc = (key: string) => {
-  const cached = RPC_BURST_CACHE.get(key);
-  if (cached && Date.now() - cached.timestamp < RPC_BURST_TTL_MS) return cached.value;
-  return null;
-};
-
-const MAX_CACHE_SIZE = 1000;
-const setCachedRpc = (key: string, value: any) => {
-  if (RPC_BURST_CACHE.size >= MAX_CACHE_SIZE) {
-    // Evict oldest entry to prevent memory leak
-    const firstKey = RPC_BURST_CACHE.keys().next().value;
-    if (firstKey) RPC_BURST_CACHE.delete(firstKey);
-  }
-  RPC_BURST_CACHE.set(key, { value, timestamp: Date.now() });
-};
+// Live RPC caches removed. Eligibility is now database-driven for Pro users.
 
 export const isFresh = (timestamp: string | null | undefined): boolean => {
   if (!timestamp) return false;
@@ -85,43 +67,13 @@ const HANDLERS: Record<number, (supabase: SupabaseClient, wallet: string, badge:
   },
 
   [BADGE_RULES.MIN_BALANCE]: async (supabase, wallet, badge, params) => {
-    const coinType = String(params.coin_type ?? params.coinType ?? '').trim();
-    if (!coinType) throw new Error('MIN_BALANCE requires coin_type');
-    
-    const cacheKey = `bal:${wallet}:${coinType}`;
-    let rawBalance = getCachedRpc(cacheKey);
-
-    if (rawBalance === null) {
-      const fullnodeUrl = getFullnodeUrl();
-      const { response, parsed } = await fetchJson(`${fullnodeUrl}/view`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          function: '0x1::coin::balance',
-          type_arguments: [coinType],
-          arguments: [wallet],
-        }),
-      });
-
-      if (!Array.isArray(parsed)) {
-        throw new Error(parsed?.message || 'Invalid RPC response format');
-      }
-
-      rawBalance = Number(parsed[0] ?? 0);
-      setCachedRpc(cacheKey, rawBalance);
-    }
-    const rawBalanceVal = BigInt(rawBalance || 0);
-    const decimals = Number(params.decimals ?? 8);
-    const minAmount = Number(params.min_amount ?? params.minAmount ?? params.min ?? 0);
-    const minAmountRaw = BigInt(Math.floor(minAmount * Math.pow(10, decimals)));
-
-    const isEligible = rawBalanceVal >= minAmountRaw;
-    const currentDisplay = Number(rawBalanceVal) / Math.pow(10, decimals);
-
+    // Deprecated: We no longer make live RPC calls for balance checks.
+    // In the Pro-only database-driven model, this rule type needs to be replaced
+    // or rewritten to use an indexed token balances table if implemented in the future.
     return {
-      eligible: isEligible,
-      reason: isEligible ? 'min-balance-threshold-met' : 'min-balance-threshold-not-met',
-      progress: { current: currentDisplay, target: minAmount }
+      eligible: false,
+      reason: 'min-balance-requires-rpc-deprecated',
+      progress: { current: 0, target: 1 }
     };
   },
 

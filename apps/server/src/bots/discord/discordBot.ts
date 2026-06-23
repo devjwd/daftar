@@ -63,7 +63,7 @@ export async function verifyUserRoles(discordUserId: string, walletAddress: stri
         const publicEmbed = new EmbedBuilder()
           .setDescription(`🎉 <@${discordUserId}> has successfully linked their Movement wallet and is now **Verified**!`)
           .setColor(0x00FF00);
-        
+
         await verifyChannel.send({ embeds: [publicEmbed] }).catch(() => null);
       }
 
@@ -77,7 +77,7 @@ async function logModAction(guild: any, action: string, moderator: any, target: 
   if (!guild) return;
 
   const modlogChannel = guild.channels.cache.find((c: any) => c.name.toLowerCase() === 'modlogs' && c.type === ChannelType.GuildText) as TextChannel | undefined;
-  
+
   if (!modlogChannel || !('send' in modlogChannel)) return;
 
   const embed = new EmbedBuilder()
@@ -248,7 +248,7 @@ export async function initDiscordBot(): Promise<Client | null> {
   discordClient.on('messageUpdate', async (oldMessage, newMessage) => {
     if (oldMessage.partial) await oldMessage.fetch().catch(() => null);
     if (newMessage.partial) await newMessage.fetch().catch(() => null);
-    
+
     if (!oldMessage.author || oldMessage.author.bot || !oldMessage.guild) return;
     if (oldMessage.content === newMessage.content) return; // Only log text changes
 
@@ -316,10 +316,10 @@ export async function initDiscordBot(): Promise<Client | null> {
         try {
           const url = new URL(link);
           const domain = url.hostname.toLowerCase();
-          
+
           // Check if domain ends with any of the whitelisted domains
           const isWhitelisted = whitelistedDomains.some(white => domain === white || domain.endsWith('.' + white));
-          
+
           if (!isWhitelisted) {
             containsBadLink = true;
             break;
@@ -333,7 +333,7 @@ export async function initDiscordBot(): Promise<Client | null> {
 
       if (containsBadLink) {
         await message.delete().catch(() => null);
-        
+
         const warning = await message.channel.send(`⚠️ ${message.author}, posting unauthorized links is not allowed in this server to prevent scams!`);
         setTimeout(() => warning.delete().catch(() => null), 5000);
 
@@ -609,13 +609,13 @@ export async function initDiscordBot(): Promise<Client | null> {
         const rpcUrl = process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1';
         const response = await fetch(rpcUrl, { method: 'GET', headers: { 'Accept': 'application/json' } });
         if (!response.ok) throw new Error(`RPC returned ${response.status}`);
-        
+
         const data: any = await response.json();
-        
+
         const blockHeight = Number(data.block_height || 0).toLocaleString();
         const epoch = data.epoch || 'N/A';
         const ledgerVersion = Number(data.ledger_version || 0).toLocaleString();
-        
+
         const embed = new EmbedBuilder()
           .setTitle('🌐 Movement Network Status')
           .setDescription(
@@ -625,7 +625,7 @@ export async function initDiscordBot(): Promise<Client | null> {
           )
           .setColor(0x5865F2)
           .setTimestamp();
-          
+
         await interaction.editReply({ embeds: [embed] });
       } catch (err: any) {
         console.error('[DiscordBot] Network error:', err);
@@ -877,7 +877,7 @@ export async function initDiscordBot(): Promise<Client | null> {
       if (!verifiedRole) {
         return interaction.reply({ content: '⚠️ Verification system is currently misconfigured for this server. Please create a "Verified" role.', ephemeral: true });
       }
-      
+
       const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
       if (member) {
         if (member.roles.cache.has(verifiedRole.id)) {
@@ -885,7 +885,7 @@ export async function initDiscordBot(): Promise<Client | null> {
         }
         await member.roles.add(verifiedRole).catch(console.error);
         await interaction.reply({ content: '✅ You have been verified successfully! Welcome to the community channels.', ephemeral: true });
-        
+
         if (interaction.channel && 'send' in interaction.channel) {
           const publicEmbed = new EmbedBuilder()
             .setDescription(`🎉 <@${interaction.user.id}> has completed human verification and is now **Verified**!`)
@@ -936,8 +936,8 @@ export async function initDiscordBot(): Promise<Client | null> {
       }
 
       // Find Support or Moderator role
-      const supportRole = interaction.guild.roles.cache.find(r => 
-        r.name.toLowerCase().includes('support') || 
+      const supportRole = interaction.guild.roles.cache.find(r =>
+        r.name.toLowerCase().includes('support') ||
         r.name.toLowerCase().includes('moderator')
       );
 
@@ -1014,13 +1014,13 @@ export async function initDiscordBot(): Promise<Client | null> {
           }
 
           if (ticketCreatorId && interaction.guild) {
-             const member = await interaction.guild.members.fetch(ticketCreatorId).catch(() => null);
-             if (member) {
-                await member.send({
-                  content: `🎫 Your ticket **${channelName}** has been closed. Here is your transcript for your records.`,
-                  files: [attachment]
-                }).catch(() => console.log('Could not DM transcript to user.'));
-             }
+            const member = await interaction.guild.members.fetch(ticketCreatorId).catch(() => null);
+            if (member) {
+              await member.send({
+                content: `🎫 Your ticket **${channelName}** has been closed. Here is your transcript for your records.`,
+                files: [attachment]
+              }).catch(() => console.log('Could not DM transcript to user.'));
+            }
           }
 
           if (interaction.guild) {

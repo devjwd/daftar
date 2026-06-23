@@ -53,7 +53,7 @@ export const CRITERIA_TYPES = {
 export const CRITERIA_LABELS = {
   [CRITERIA_TYPES.TRANSACTION_COUNT]: 'Transaction Count',
   [CRITERIA_TYPES.DAYS_ONCHAIN]: 'Days On-chain',
-  [CRITERIA_TYPES.MIN_BALANCE]: 'Minimum Balance',
+  [CRITERIA_TYPES.MIN_BALANCE]: 'Minimum Balance (Deprecated)',
   [CRITERIA_TYPES.TOKEN_HOLDER]: 'Token Holder',
   [CRITERIA_TYPES.PROTOCOL_USAGE]: 'Protocol Usage',
   [CRITERIA_TYPES.PROTOCOL_COUNT]: 'Protocol Interaction Count',
@@ -81,7 +81,8 @@ export const CRITERIA_PARAM_SCHEMAS = {
     min: { type: 'number', label: 'Minimum Days', required: true, default: 7, min: 1 },
   },
   [CRITERIA_TYPES.MIN_BALANCE]: {
-    coinType: { type: 'select', label: 'Token to Hold', required: true, options: [] },
+    // Deprecated. UI should gracefully hide or disable this.
+    coinType: { type: 'select', label: 'Token to Hold (Deprecated - No RPC)', required: true, options: [] },
     minAmount: { type: 'number', label: 'Minimum Amount (human-readable)', required: true, default: 1, min: 0 },
     decimals: { type: 'number', label: 'Token Decimals', required: false, default: 8, min: 0, max: 18 },
   },

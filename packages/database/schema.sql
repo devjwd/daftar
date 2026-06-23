@@ -405,6 +405,9 @@ DO $$ BEGIN
           FROM public.transaction_history
         ) t WHERE t.rn > 500
       )
+      AND wallet_address NOT IN (
+        SELECT wallet_address FROM public.profiles WHERE subscription_tier = 'pro'
+      )
   $cron$);
 END $$;
 

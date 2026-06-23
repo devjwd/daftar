@@ -19,6 +19,9 @@ import { confirmMintAndOwnership } from '../services/badges/mintVerification';
 import { bulkCheckEligibility } from '../services/badges/engineService';
 import { useBadges } from '../hooks/useBadges';
 import { useBadgeEligibility } from '../hooks/useBadgeEligibility';
+import PlanGate from '../components/PlanGate';
+import { useProfile } from '../hooks/useProfile';
+import { resolveEffectiveTier, isPremiumTier } from '../utils/subscription';
 import { t, getStoredLanguagePreference } from '../utils/language';
 import { getSettingsStorageKey } from '../utils/settings';
 import {
@@ -171,6 +174,14 @@ export default function Badges() {
     : null;
 
   const [language, setLanguage] = useState(() => getStoredLanguagePreference(getSettingsStorageKey(address)));
+  const { profile, loading: profileLoading } = useProfile(address);
+  const subscriptionTier = resolveEffectiveTier({
+    subscription_tier: profile?.subscription_tier,
+    subscription_expires_at: profile?.subscription_expires_at,
+    is_verified: profile?.is_verified,
+  });
+  const isPremium = isPremiumTier(subscriptionTier);
+
   const [lifecycleTab, setLifecycleTab] = useState('active');
   const [mintingIds, setMintingIds] = useState(new Set());
   const [error, setError] = useState('');
@@ -370,6 +381,18 @@ export default function Badges() {
       </article>
     );
   };
+
+  if (address && !profileLoading && !isPremium) {
+    return (
+      <div className="badges-page" style={{ padding: '40px 20px', minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <PlanGate
+          feature="Pro Badges"
+          description="Unlock exclusive badges, earn XP, and level up your profile based on your on-chain activity."
+          requiredTier="pro"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="badges-page">
