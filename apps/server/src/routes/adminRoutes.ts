@@ -1,8 +1,7 @@
 import { getSupabase } from '../config/supabase.ts';
 import express, { Request, Response, NextFunction } from 'express';
 import { verifyAdminRequest } from '../services/adminService.ts';
-import { auditBadgeDefinitions } from '../services/badgeAuditService.ts';
-import { validateBadgeDefinitionPayload } from '../services/validationService.ts';
+
 import { normalizeAddress } from '../utils/address.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { queueSync } from '../services/analyticsSyncQueue.ts';
@@ -37,87 +36,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
   const { action, badge, badges } = req.body;
 
   try {
-    if (action === 'batch_sync') {
-      const list = Array.isArray(badges) ? badges : [];
-      const validated = list
-        .map(b => validateBadgeDefinitionPayload(b))
-        .filter(v => v.ok)
-        .map(v => v.badge);
 
-      if (validated.length === 0) return res.json({ success: true, count: 0 });
-
-      const { error } = await supabaseAdmin.from('badge_definitions').upsert(validated, { onConflict: 'badge_id' });
-      if (error) throw error;
-      return res.json({ success: true, action, count: validated.length });
-    }
-
-    if (action === 'list-all-badges') {
-      const { include_deleted } = req.body;
-      let query = supabaseAdmin
-        .from('badge_definitions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!include_deleted) {
-        query = query.eq('is_deleted', false);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return res.json({ success: true, action, badges: data });
-    }
-
-    if (action === 'delete') {
-      const badgeId = badge?.badge_id || badge?.id;
-      if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
-      const { error } = await supabaseAdmin
-        .from('badge_definitions')
-        .update({ is_deleted: true, updated_at: new Date().toISOString() })
-        .eq('badge_id', badgeId);
-      if (error) throw error;
-      return res.json({ success: true, action, badge_id: badgeId, soft_deleted: true });
-    }
-
-    if (action === 'restore') {
-      const badgeId = badge?.badge_id || badge?.id;
-      if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
-      const { error } = await supabaseAdmin
-        .from('badge_definitions')
-        .update({ is_deleted: false, updated_at: new Date().toISOString() })
-        .eq('badge_id', badgeId);
-      if (error) throw error;
-      return res.json({ success: true, action, badge_id: badgeId, restored: true });
-    }
-
-    if (action === 'toggle-status') {
-      const badgeId = badge?.badge_id || badge?.id;
-      if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
-      const { error } = await supabaseAdmin
-        .from('badge_definitions')
-        .update({
-          enabled: !!badge.enabled,
-          is_active: !!badge.enabled,
-          updated_at: new Date().toISOString()
-        })
-        .eq('badge_id', badgeId);
-      if (error) throw error;
-      return res.json({ success: true, action, badge_id: badgeId });
-    }
-
-    if (action === 'toggle-public') {
-      const badgeId = badge?.badge_id || badge?.id;
-      if (!badgeId) return res.status(400).json({ error: 'badge_id required' });
-      const { error } = await supabaseAdmin
-        .from('badge_definitions')
-        .update({
-          is_public: !!badge.is_public,
-          updated_at: new Date().toISOString()
-        })
-        .eq('badge_id', badgeId);
-      if (error) throw error;
-      return res.json({ success: true, action, badge_id: badgeId });
-    }
 
     if (action === 'manage-entities') {
       const { entity, id, method } = req.body;
@@ -201,43 +120,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
       return res.json({ success: true, ok: true, action: 'create-label', label: data });
     }
 
-    if (action === 'import-allowlist') {
-      const { badge_id, addresses, action_type: allowlistAction, wallet_address } = req.body;
 
-      if (allowlistAction === 'import') {
-        if (!badge_id || !Array.isArray(addresses)) return res.status(400).json({ error: 'badge_id and addresses array required' });
-
-        // Use RPC for bulk import if available, or sequential inserts
-        const rows = addresses.map(addr => ({
-          badge_id,
-          wallet_address: addr.toLowerCase(),
-          created_at: new Date().toISOString()
-        }));
-
-        const { error } = await supabaseAdmin.from('badge_eligible_wallets').upsert(rows, { onConflict: 'badge_id,wallet_address' });
-        if (error) throw error;
-        return res.json({ ok: true, count: rows.length });
-      }
-
-      if (allowlistAction === 'remove') {
-        if (!badge_id || !wallet_address) return res.status(400).json({ error: 'badge_id and wallet_address required' });
-        const { error } = await supabaseAdmin.from('badge_eligible_wallets').delete().eq('badge_id', badge_id).eq('wallet_address', wallet_address.toLowerCase());
-        if (error) throw error;
-        return res.json({ ok: true });
-      }
-
-      if (allowlistAction === 'clear') {
-        if (!badge_id) return res.status(400).json({ error: 'badge_id required' });
-        const { error } = await supabaseAdmin.from('badge_eligible_wallets').delete().eq('badge_id', badge_id);
-        if (error) throw error;
-        return res.json({ ok: true });
-      }
-    }
-
-    if (action === 'integrity-audit') {
-      const results = await auditBadgeDefinitions(supabaseAdmin);
-      return res.json({ success: true, ...results });
-    }
 
     if (action === 'manage-users') {
       const { method, address: targetAddress, verified } = req.body;
