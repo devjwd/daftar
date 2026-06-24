@@ -56,6 +56,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 src={modalAvatarSrc}
                 alt="User"
                 className="modal-avatar-image"
+                onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
               />
             </div>
             <div className="modal-info-section">

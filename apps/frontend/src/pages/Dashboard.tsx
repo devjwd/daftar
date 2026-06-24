@@ -561,6 +561,7 @@ const Dashboard = () => {
                     src={userAvatarSrc}
                     alt="User"
                     className="hero-avatar-image"
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
                   />
                 </div>
                 <div className="hero-profile-socials-grid">

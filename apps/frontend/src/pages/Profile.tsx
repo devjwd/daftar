@@ -2,9 +2,45 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../hooks/useProfile';
-import { normalizeAddress } from '../services/profileService';
+import { normalizeAddress, imageToBase64, compressImage } from '../services/profileService';
 import { getStoredLanguagePreference, t } from '../utils/language';
 import './Profile.css';
+
+const PFP_OPTIONS = [
+  '/pfp/default.png',
+  '/pfp/level1 (1).png',
+  '/pfp/level1 (2).png',
+  '/pfp/level1 (4).png',
+  '/pfp/level1 (5).png',
+  '/pfp/level1 (6).png',
+  '/pfp/level1 (7).png',
+  '/pfp/level1 (8).png',
+  '/pfp/level3 (1).png',
+  '/pfp/level3 (2).png',
+  '/pfp/level3 (3).png',
+  '/pfp/level3 (4).png',
+  '/pfp/level3 (5).png',
+  '/pfp/level3 (6).png',
+  '/pfp/level3.png',
+  '/pfp/level6 (1).png',
+  '/pfp/level6 (2).png',
+  '/pfp/level6 (3).png',
+  '/pfp/level6 (4).png',
+  '/pfp/level6 (5).png',
+  '/pfp/level6 (6).png',
+  '/pfp/level6 (7).png',
+  '/pfp/level9 (1).png',
+  '/pfp/level9 (10).png',
+  '/pfp/level9 (11).png',
+  '/pfp/level9 (2).png',
+  '/pfp/level9 (3).png',
+  '/pfp/level9 (4).png',
+  '/pfp/level9 (5).png',
+  '/pfp/level9 (6).png',
+  '/pfp/level9 (7).png',
+  '/pfp/level9 (8).png',
+  '/pfp/level9 (9).png',
+];
 
 export default function Profile() {
   const { account, connected, signMessage } = useWallet();
@@ -23,6 +59,10 @@ export default function Profile() {
   const [twitter, setTwitter] = useState('');
   const [telegram, setTelegram] = useState('');
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [showPfpPicker, setShowPfpPicker] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isPro = profile?.is_verified || profile?.subscription_tier === 'pro';
 
   const [showSuccess, setShowSuccess] = useState(false);
   const [notice, setNotice] = useState({ type: '', message: '' });
@@ -42,11 +82,20 @@ export default function Profile() {
       }
     };
 
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.pfp-picker-popover') && !target.closest('.profile-avatar-button')) {
+        setShowPfpPicker(false);
+      }
+    };
+
     window.addEventListener('languagechange', onLanguageChange);
     window.addEventListener('storage', syncLanguage);
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       window.removeEventListener('languagechange', onLanguageChange);
       window.removeEventListener('storage', syncLanguage);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -75,6 +124,25 @@ export default function Profile() {
     if (!addr) return '';
     const str = String(addr);
     return `${str.slice(0, 6)}...${str.slice(-4)}`;
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!isPro) {
+      setNotice({ type: 'error', message: 'Custom PFP is a Pro feature.' });
+      return;
+    }
+
+    try {
+      const base64 = await imageToBase64(file);
+      const compressed = await compressImage(base64, 400, 400);
+      setAvatarUrl(compressed);
+      setShowPfpPicker(false);
+    } catch (err: any) {
+      setNotice({ type: 'error', message: err.message || 'Failed to upload image' });
+    }
   };
 
   const handleSave = async () => {
@@ -129,13 +197,77 @@ export default function Profile() {
       <div className="profile-container">
         <div className="profile-header">
           <div className="profile-avatar-section">
-            <div className="profile-avatar">
-              <img
-                src={activeAvatarSrc}
-                alt="Profile"
-                className="avatar-image"
-              />
-            </div>
+            <button 
+              className="profile-avatar-button"
+              onClick={() => setShowPfpPicker(!showPfpPicker)}
+              aria-label="Change profile picture"
+            >
+              <div className="profile-avatar">
+                <img
+                  src={activeAvatarSrc}
+                  alt="Profile"
+                  className="avatar-image"
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
+                />
+                <div className="avatar-hover-overlay">
+                  <span className="avatar-hover-text">{t(language, 'profileSelectPfp')}</span>
+                </div>
+              </div>
+            </button>
+
+            {showPfpPicker && (
+              <div className="pfp-picker-popover">
+                <div className="pfp-picker-header">
+                  <h3>{t(language, 'profileSelectPfp')}</h3>
+                  <button className="pfp-picker-close" onClick={() => setShowPfpPicker(false)}>×</button>
+                </div>
+
+                <div className="pfp-upload-section" style={{ marginBottom: '16px', textAlign: 'center' }}>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    ref={fileInputRef} 
+                    style={{ display: 'none' }} 
+                    onChange={handleFileUpload} 
+                  />
+                  <button 
+                    className={`save-btn-compact ${!isPro ? 'disabled' : ''}`}
+                    onClick={() => {
+                      if (!isPro) {
+                        setNotice({ type: 'error', message: 'Custom PFP is a Pro feature.' });
+                        return;
+                      }
+                      fileInputRef.current?.click();
+                    }}
+                    title={!isPro ? "Pro feature only" : "Upload custom PFP"}
+                    style={{ width: '100%', marginBottom: '8px' }}
+                  >
+                    Upload Custom PFP {isPro && <span className="verified-badge" style={{ marginLeft: '6px' }}>✓</span>}
+                  </button>
+                  {!isPro && <p className="level-avatar-hint" style={{ color: '#ef4444', fontSize: '12px' }}>Custom PFP is a Pro feature.</p>}
+                </div>
+
+                <p className="level-avatar-hint">{t(language, 'profilePfpHint')}</p>
+                <div className="level-avatar-grid">
+                  {PFP_OPTIONS.map((pfp, idx) => (
+                    <button
+                      key={idx}
+                      className={`level-avatar-option ${activeAvatarSrc === pfp ? 'selected' : ''}`}
+                      onClick={() => {
+                        setAvatarUrl(pfp);
+                        setShowPfpPicker(false);
+                      }}
+                    >
+                      <img 
+                        src={pfp} 
+                        alt={`Avatar option ${idx + 1}`} 
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <h1>{t(language, 'profileTitle')}</h1>
