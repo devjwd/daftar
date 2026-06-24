@@ -63,6 +63,7 @@
 ///   300 - E_PAUSED
 ///   301 - E_ALREADY_INITIALIZED
 ///   302 - E_NOT_INITIALIZED
+///   303 - E_COOLDOWN_ACTIVE
 /// =============================================================================
 
 module swap_router::router {
@@ -90,6 +91,8 @@ module swap_router::router {
     const E_PAUSED: u64                 = 300;
     const E_ALREADY_INITIALIZED: u64    = 301;
     const E_NOT_INITIALIZED: u64        = 302;
+    /// Emitted when a caller attempts a second record_swap before the cooldown expires.
+    const E_COOLDOWN_ACTIVE: u64        = 303;
 
     // -------------------------------------------------------------------------
     // Constants
@@ -113,6 +116,11 @@ module swap_router::router {
 
     /// Stable route IDs — never reuse a deactivated ID.
     const ROUTER_MOSAIC: u8            = 1;
+
+    /// Minimum seconds between consecutive record_swap calls from the same address.
+    /// Blocks automated spam bots; real users swap far less than once per second.
+    /// Change requires a contract upgrade — not admin-configurable by design.
+    const MIN_RECORD_INTERVAL_SECONDS: u64 = 1;
 
     // -------------------------------------------------------------------------
     // Events
@@ -400,6 +408,18 @@ module swap_router::router {
         let user_addr = signer::address_of(user);
         let now = timestamp::now_seconds();
 
+        // Anti-spam cooldown: require at least MIN_RECORD_INTERVAL_SECONDS between
+        // consecutive record_swap calls from the same address.
+        // We use swap_count (not last_swap_at > 0) so the check is correct even
+        // when the very first swap is recorded at timestamp t = 0 in tests.
+        let (_, _, swap_count, _, last_swap_at) = storage::get_user_stats(user_addr);
+        if (swap_count > 0) {
+            assert!(
+                now >= last_swap_at + MIN_RECORD_INTERVAL_SECONDS,
+                E_COOLDOWN_ACTIVE
+            );
+        };
+
         let (fee_bps, _, _, _, _) = storage::get_partner_config();
         let max_fee = calculate_fee_for_bps(amount_in, fee_bps);
         // Require non-zero fee only when fee is actually collectible after floor math.
@@ -494,6 +514,13 @@ module swap_router::router {
     public fun get_route_count(): u64 {
         assert!(storage::config_exists(), E_NOT_INITIALIZED);
         storage::get_route_count()
+    }
+
+    /// Returns the minimum number of seconds required between consecutive
+    /// record_swap calls from the same address. Informational — for frontend UX.
+    #[view]
+    public fun get_min_record_interval(): u64 {
+        MIN_RECORD_INTERVAL_SECONDS
     }
 
     // -------------------------------------------------------------------------
@@ -803,6 +830,8 @@ module swap_router::router {
         let _mc = setup_test(admin, framework);
         default_init(admin);
         record_swap(admin, 100_000_000, 30_000, ROUTER_MOSAIC);
+        // Advance time to satisfy the per-address cooldown guard before second call.
+        timestamp::fast_forward_seconds(2);
         record_swap(admin, 200_000_000, 60_000, ROUTER_MOSAIC);
         let (_, fees) = get_stats();
         assert!(fees == 90_000, 1);
@@ -878,6 +907,33 @@ module swap_router::router {
         let (total_swaps, total_fees) = get_stats();
         assert!(total_swaps == 1, 1);
         assert!(total_fees == 0, 2);
+        coin::destroy_mint_cap(_mc);
+    }
+
+    // -- Cooldown guard --
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    #[expected_failure(abort_code = E_COOLDOWN_ACTIVE)]
+    public fun test_record_swap_cooldown_blocks_rapid_calls(admin: &signer, framework: &signer) {
+        let _mc = setup_test(admin, framework);
+        default_init(admin);
+        // First call at t=0 succeeds (no previous swap recorded).
+        record_swap(admin, 100_000_000, 30_000, ROUTER_MOSAIC);
+        // Second call at t=0 must be rejected: now(0) < last_swap_at(0) + 1.
+        record_swap(admin, 100_000_000, 30_000, ROUTER_MOSAIC);
+        coin::destroy_mint_cap(_mc);
+    }
+
+    #[test(admin = @swap_router, framework = @0x1)]
+    public fun test_record_swap_cooldown_allows_after_interval(admin: &signer, framework: &signer) {
+        let _mc = setup_test(admin, framework);
+        default_init(admin);
+        record_swap(admin, 100_000_000, 30_000, ROUTER_MOSAIC);
+        // Advance past the minimum interval — second call must succeed.
+        timestamp::fast_forward_seconds(MIN_RECORD_INTERVAL_SECONDS);
+        record_swap(admin, 100_000_000, 30_000, ROUTER_MOSAIC);
+        let (total_swaps, _) = get_stats();
+        assert!(total_swaps == 2, 1);
         coin::destroy_mint_cap(_mc);
     }
 

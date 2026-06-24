@@ -45,7 +45,6 @@ module swap_router::storage {
     const E_ROUTE_NOT_FOUND: u64       = 400;
     const E_ROUTE_ALREADY_EXISTS: u64  = 401;
     const E_ROUTE_NAME_TOO_LONG: u64   = 402;
-    const E_ARITH_OVERFLOW: u64        = 403;
     const E_INVALID_ROUTE_ID: u64      = 404;
 
     // -------------------------------------------------------------------------
@@ -284,9 +283,8 @@ module swap_router::storage {
             enabled: true,
             added_at: now,
         });
-        let next_count = reg.count + 1;
-        assert!(next_count >= reg.count, E_ARITH_OVERFLOW);
-        reg.count = next_count;
+        // Move VM aborts natively on u64 overflow; no manual guard needed.
+        reg.count = reg.count + 1;
     }
 
     public(friend) fun set_route_enabled(route_id: u8, enabled: bool) acquires RouteRegistry {
@@ -301,14 +299,10 @@ module swap_router::storage {
 
     public(friend) fun record_global_swap(fee_reported: u64, now: u64) acquires SwapStats {
         let s = borrow_global_mut<SwapStats>(@swap_router);
-        let next_swaps = s.total_swaps + 1;
-        assert!(next_swaps >= s.total_swaps, E_ARITH_OVERFLOW);
-        s.total_swaps = next_swaps;
-
-        let next_fees = s.total_fees_reported + fee_reported;
-        assert!(next_fees >= s.total_fees_reported, E_ARITH_OVERFLOW);
-        s.total_fees_reported = next_fees;
-        s.updated_at           = now;
+        // Move VM aborts natively on u64 overflow; no manual guards needed.
+        s.total_swaps         = s.total_swaps + 1;
+        s.total_fees_reported = s.total_fees_reported + fee_reported;
+        s.updated_at          = now;
     }
 
     public fun get_stats(): (u64, u64) acquires SwapStats {
@@ -338,17 +332,10 @@ module swap_router::storage {
             });
         } else {
             let s = borrow_global_mut<UserSwapStats>(addr);
-            let next_amount = s.total_amount_in + amount_in;
-            assert!(next_amount >= s.total_amount_in, E_ARITH_OVERFLOW);
-            s.total_amount_in = next_amount;
-
-            let next_fees = s.total_fees_reported + fee_reported;
-            assert!(next_fees >= s.total_fees_reported, E_ARITH_OVERFLOW);
-            s.total_fees_reported = next_fees;
-
-            let next_count = s.swap_count + 1;
-            assert!(next_count >= s.swap_count, E_ARITH_OVERFLOW);
-            s.swap_count = next_count;
+            // Move VM aborts natively on u64 overflow; no manual guards needed.
+            s.total_amount_in     = s.total_amount_in + amount_in;
+            s.total_fees_reported = s.total_fees_reported + fee_reported;
+            s.swap_count          = s.swap_count + 1;
             s.last_swap_at        = now;
         }
     }

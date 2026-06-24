@@ -12,9 +12,12 @@ import { getTokenAddressBySymbol, getTokenInfo } from "../config/tokens";
 import { useCurrency } from "../hooks/useCurrency";
 import { useIndexerBalances, IndexerBalance } from "../hooks/useIndexerBalances";
 import { useMovementClient } from "../hooks/useMovementClient";
+import { useTokenPrices } from "../hooks/useTokenPrices";
 import { useNFTs } from "../hooks/useNFTs";
 import { useAddressLabel } from "../hooks/useAddressLabel";
-import { resolveEntityBranding } from "../config/entities";
+import { useDeFiPositions } from "../hooks/useDeFiPositions";
+import { useProfile } from "../hooks/useProfile";
+import { resolveEntityBranding } from "../services/entityStore";
 import { getWalletAge, getUserNFTHoldings, getUserTokenBalances, getYuzuLiquidityPositions } from "../services/indexer";
 import { getStoredLanguagePreference, t } from "../utils/language";
 import { getSettingsStorageKey, getStoredHidePositionThreshold } from "../utils/settings";
@@ -24,7 +27,6 @@ import { getTokenDecimals, isValidAddress, parseCoinType } from "../utils/tokenU
 import { resolveTokenPrice } from "../utils/price";
 import ProfileCard from "../components/ProfileCard";
 import { ALL_ADAPTERS } from "../config/adapters/index";
-import { resolveEntityBranding } from "../services/entityStore";
 
 import PNLChart from "../components/Dashboard/PNLChart";
 import ProfileModal from "../components/Dashboard/ProfileModal";

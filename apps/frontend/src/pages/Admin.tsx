@@ -19,6 +19,8 @@ import {
 import { ADMIN_ADDRESS } from '../config/network';
 import {
   fetchRouterPartnerConfig,
+  fetchRouterStats,
+  fetchRouterMinRecordInterval,
   isRouterConfigured,
   setRouterPaused,
   updateRouterChargeFeeBy,
@@ -42,6 +44,8 @@ export default function Admin() {
   const [successMessage, setSuccessMessage] = useState('');
   const [onChainAdmin, setOnChainAdmin] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const [routerStats, setRouterStats] = useState<{ totalSwaps: number; totalFeesReported: number } | null>(null);
+  const [minRecordInterval, setMinRecordInterval] = useState<number | null>(null);
 
   const connectedAddress = useMemo(() => {
     if (!account?.address) return null;
@@ -99,6 +103,10 @@ export default function Admin() {
         chargeFeeBy: chain.chargeFeeBy as 'token_in' | 'token_out',
         mosaicApiKey: local.mosaicApiKey || prev.mosaicApiKey || '',
       }));
+
+      // Load analytics stats and cooldown interval in parallel (non-blocking).
+      fetchRouterStats(movementClient).then(setRouterStats).catch(() => {});
+      fetchRouterMinRecordInterval(movementClient).then(setMinRecordInterval).catch(() => {});
     } catch (error) {
       showMessage(error?.message || 'Failed to load on-chain router settings', true);
     } finally {
@@ -459,6 +467,18 @@ export default function Admin() {
                   <span>Paused</span>
                   <strong>{swapSettings.paused ? 'Yes' : 'No'}</strong>
                 </div>
+                <div className="admin-summary-item">
+                  <span>Total Swaps Recorded</span>
+                  <strong>{routerStats ? routerStats.totalSwaps.toLocaleString() : '—'}</strong>
+                </div>
+                <div className="admin-summary-item">
+                  <span>Total Fees Reported</span>
+                  <strong>{routerStats ? routerStats.totalFeesReported.toLocaleString() : '—'}</strong>
+                </div>
+                <div className="admin-summary-item">
+                  <span>Record Cooldown</span>
+                  <strong>{minRecordInterval !== null ? `${minRecordInterval}s` : '—'}</strong>
+                </div>
               </div>
 
               <div className="admin-settings-layout">
@@ -497,7 +517,7 @@ export default function Admin() {
                         checked={Boolean(swapSettings.paused)}
                         onChange={(e) => setSwapSettings((prev) => ({ ...prev, paused: e.target.checked }))}
                       />
-                      Pause swap recording on-chain (`set_paused`)
+                      <strong style={{ color: 'var(--color-error, #e74c3c)' }}>Pause ALL swaps on-chain</strong> — blocks execution, quoting, and recording for all users (<code>set_paused</code>)
                     </label>
                   </div>
 

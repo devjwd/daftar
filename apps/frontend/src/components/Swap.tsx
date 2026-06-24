@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useMovementClient } from "../hooks/useMovementClient";
 import { getSwapSettings, updateSwapSettings } from "../services/adminService";
-import { fetchRouterPartnerConfig, isRouterConfigured } from "../services/routerService";
+import { fetchRouterPartnerConfig, isRouterConfigured, recordOnChainSwap } from "../services/routerService";
 import { DEFAULT_NETWORK } from "../config/network";
 import {
   clampSlippagePercent,
@@ -859,6 +859,23 @@ const Swap = ({ balances, onSwapSuccess }) => {
             // Ignore storage failures (private mode or disabled storage).
           }
 
+          // Fire on-chain record_swap analytics (fire-and-forget — must not block UX).
+          if (isRouterConfigured() && account && signAndSubmitTransaction) {
+            const fromDecimals = getDecimals(fromToken);
+            const amountInRaw = Number(toBaseUnitsString(fromAmount, fromDecimals)) || 0;
+            // feeReported comes from the Mosaic quote if available, else 0.
+            const feeReportedRaw = Number(routingResult?.best?.quoteData?.feeAmount || 0);
+            // routerSource: 1 = Mosaic (default), yuzu routes through Mosaic proxy (same route id).
+            const routerSource = 1;
+            recordOnChainSwap({
+              signAndSubmitTransaction,
+              sender: account.address?.toString?.() || account.address,
+              amountIn: amountInRaw,
+              feeReported: feeReportedRaw,
+              routerSource,
+            }).catch((recordErr) => devLog('On-chain record_swap failed (non-blocking):', recordErr));
+          }
+
           // Record confirmed swap to database (fire-and-forget)
           try {
             const fromPrice = resolveTokenPrice(fromToken);
@@ -904,7 +921,29 @@ const Swap = ({ balances, onSwapSuccess }) => {
     } catch (err) {
       console.error("Swap error:", err);
       const msg = err.message || "";
-      if (msg.includes("rejected") || msg.includes("denied")) {
+
+      // Decode Move VM contract abort codes into user-friendly messages.
+      // Format: "Move abort ... <code>" or "abort_code: <code>"
+      const abortMatch = msg.match(/(?:abort_code:|Move abort[^0-9]*)([0-9]+)/i);
+      const abortCode = abortMatch ? Number(abortMatch[1]) : null;
+
+      if (abortCode === 300) {
+        // E_PAUSED
+        setError("Swaps are currently paused by the admin.");
+        setTxToast({ type: "error", title: "Swap Paused", message: "The swap router is paused. Please try again later.", txHash: null });
+      } else if (abortCode === 303) {
+        // E_COOLDOWN_ACTIVE
+        setError("Please wait a moment before recording another swap.");
+        setTxToast({ type: "error", title: "Cooldown Active", message: "One swap per second may be recorded on-chain.", txHash: null });
+      } else if (abortCode === 201) {
+        // E_ZERO_AMOUNT
+        setError("Swap amount must be greater than zero.");
+        setTxToast({ type: "error", title: "Invalid Amount", message: "Enter a non-zero amount before swapping.", txHash: null });
+      } else if (abortCode === 204) {
+        // E_UNSUPPORTED_ROUTER_SOURCE
+        setError("This swap route is not currently enabled.");
+        setTxToast({ type: "error", title: "Route Unavailable", message: "The selected routing source has been disabled.", txHash: null });
+      } else if (msg.includes("rejected") || msg.includes("denied")) {
         setError("Transaction rejected by user");
         setTxToast({
           type: "error",
