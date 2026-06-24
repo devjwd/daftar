@@ -222,16 +222,19 @@ export default function Profile() {
                   <button className="pfp-picker-close" onClick={() => setShowPfpPicker(false)}>×</button>
                 </div>
 
-                <div className="pfp-upload-section" style={{ marginBottom: '16px', textAlign: 'center' }}>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    ref={fileInputRef} 
-                    style={{ display: 'none' }} 
-                    onChange={handleFileUpload} 
-                  />
-                  <button 
-                    className={`save-btn-compact ${!isPro ? 'disabled' : ''}`}
+                <p className="level-avatar-hint">{t(language, 'profilePfpHint')}</p>
+                
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  ref={fileInputRef} 
+                  style={{ display: 'none' }} 
+                  onChange={handleFileUpload} 
+                />
+                
+                <div className="level-avatar-grid">
+                  <button
+                    className={`level-avatar-option ${!isPro ? 'locked' : ''}`}
                     onClick={() => {
                       if (!isPro) {
                         setNotice({ type: 'error', message: 'Custom PFP is a Pro feature.' });
@@ -240,15 +243,22 @@ export default function Profile() {
                       fileInputRef.current?.click();
                     }}
                     title={!isPro ? "Pro feature only" : "Upload custom PFP"}
-                    style={{ width: '100%', marginBottom: '8px' }}
+                    style={{ background: 'rgba(205, 161, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >
-                    Upload Custom PFP {isPro && <span className="verified-badge" style={{ marginLeft: '6px' }}>✓</span>}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#deb884" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    {!isPro && (
+                      <div className="avatar-lock">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                      </div>
+                    )}
                   </button>
-                  {!isPro && <p className="level-avatar-hint" style={{ color: '#ef4444', fontSize: '12px' }}>Custom PFP is a Pro feature.</p>}
-                </div>
-
-                <p className="level-avatar-hint">{t(language, 'profilePfpHint')}</p>
-                <div className="level-avatar-grid">
                   {PFP_OPTIONS.map((pfp, idx) => (
                     <button
                       key={idx}
