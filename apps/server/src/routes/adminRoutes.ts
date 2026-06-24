@@ -122,6 +122,19 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
 
 
 
+    if (action === 'trigger-crawl') {
+      const { targetExchangeId } = req.body;
+      
+      // Dynamic import to avoid circular dependencies
+      import('../services/exchangeCrawlerService.ts').then(({ runExchangeCrawler }) => {
+        runExchangeCrawler(supabaseAdmin, targetExchangeId).catch(err => {
+          console.error('[AdminRoute] Backend crawler error:', err);
+        });
+      });
+      
+      return res.json({ success: true, message: 'Backend crawl triggered asynchronously' });
+    }
+
     if (action === 'manage-users') {
       const { method, address: targetAddress, verified } = req.body;
 

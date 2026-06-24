@@ -82,93 +82,33 @@ export default function EntityAdmin() {
 
   const runLocalCrawl = async () => {
     if (isCrawling) return;
-    
-    let exchanges = entities.filter(e => e.category === 'Exchange');
-    if (selectedExchangeId !== 'all') {
-      exchanges = exchanges.filter(e => e.id === selectedExchangeId);
-    }
-
-    if (exchanges.length === 0) return setMessage({ text: 'No exchange entities found for crawling', type: 'error' });
-
     setIsCrawling(true);
-    setMessage({ text: `Starting network crawl for ${exchanges.length === 1 ? exchanges[0].name : 'all exchanges'}...`, type: 'info' });
-
-    const knownAddresses = new Set(entities.map(e => e.address.toLowerCase()));
-    let totalFound = 0;
+    setMessage({ text: 'Triggering background crawler on server...', type: 'info' });
 
     try {
-      for (const exchange of exchanges) {
-        setCrawlStatus(`Crawling ${exchange.name}...`);
-        let ltVersion: string | null = "9223372036854775807";
-        let hasMore = true;
-        let checkedTxs = 0;
-        const allDiscoveredForExchange = [];
-
-        while (hasMore) {
-          setCrawlStatus(`Crawling ${exchange.name}... Checked ${checkedTxs} txs. Discovered ${totalFound} addresses`);
-          const res = await fetch((import.meta as any).env.VITE_MOVEMENT_INDEXER_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: `query Crawl($addr: String!, $lt: bigint) {
-                account_transactions(where: { account_address: { _eq: $addr }, transaction_version: { _lt: $lt } }, order_by: { transaction_version: desc }, limit: 50) {
-                  transaction_version
-                  user_transaction { sender }
-                }
-              }`,
-              variables: { addr: exchange.address, lt: ltVersion }
-            })
-          });
-
-          const json = await res.json();
-          const txs = json.data?.account_transactions || [];
-          if (txs.length === 0) {
-            hasMore = false;
-            break;
-          }
-
-          checkedTxs += txs.length;
-          setCrawlStatus(`Crawling ${exchange.name}... Checked ${checkedTxs} txs. Discovered ${totalFound} addresses`);
-
-          for (const tx of txs) {
-            const sender = tx.user_transaction?.sender?.toLowerCase();
-            if (sender && sender !== exchange.address.toLowerCase() && !knownAddresses.has(sender)) {
-              allDiscoveredForExchange.push({
-                address: sender,
-                entity_id: exchange.id,
-                label_name: `${exchange.name} Deposit Address`,
-                discovery_method: 'browser_crawl'
-              });
-              knownAddresses.add(sender); // Don't re-label same address in this session
-              totalFound++;
-            }
-          }
-
-          ltVersion = txs[txs.length - 1].transaction_version;
-          if (txs.length < 50) hasMore = false;
-          await new Promise(r => setTimeout(r, 200));
-        }
-
-        if (allDiscoveredForExchange.length > 0) {
-          setCrawlStatus(`Saving ${allDiscoveredForExchange.length} addresses for ${exchange.name}... (Please approve signature in your wallet)`);
-          const body = { labels: allDiscoveredForExchange, action: 'manage-labels', method: 'POST' };
-          const auth = await createAuth('manage-labels', body);
-          const apiRes = await fetch((import.meta as any).env.VITE_API_URL + '/api/admin/manage-badge', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...auth },
-            body: JSON.stringify(body)
-          });
-          if (!apiRes.ok) throw new Error('Failed to save bulk labels');
-        }
+      const payload = { 
+        action: 'trigger-crawl', 
+        targetExchangeId: selectedExchangeId === 'all' ? undefined : selectedExchangeId 
+      };
+      const auth = await createAuth('trigger-crawl', payload);
+      
+      const res = await fetch((import.meta as any).env.VITE_API_URL + '/api/admin/manage-badge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify(payload)
+      });
+      
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to trigger crawler');
       }
-      setMessage({ text: `Crawl complete! Found ${totalFound} new deposit addresses.`, type: 'success' });
-      fetchLabels();
+      
+      setMessage({ text: 'Crawler started successfully in the background!', type: 'success' });
     } catch (err: any) {
       console.error('Crawl error:', err);
-      setMessage({ text: 'Crawl interrupted: ' + err.message, type: 'error' });
+      setMessage({ text: 'Crawl error: ' + err.message, type: 'error' });
     } finally {
       setIsCrawling(false);
-      setCrawlStatus('');
     }
   };
 

@@ -77,10 +77,15 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   handleError(err, res);
 });
 
+import { initCronJobs } from './src/jobs/cronScheduler.ts';
+
 // Start Server
 if (process.env.NODE_ENV !== 'test') {
   // Initialize Telegram Bot (Webhooks if TELEGRAM_WEBHOOK_DOMAIN is set, otherwise Long Polling)
   initTelegramBot(app, process.env.TELEGRAM_WEBHOOK_DOMAIN);
+
+  // Initialize automated background jobs
+  initCronJobs();
 
   app.listen(CONFIG.PORT, async () => {
     console.log(`[Server] running on port ${CONFIG.PORT}`);
