@@ -298,7 +298,7 @@ const Dashboard = () => {
 
   const entityBranding = useMemo(() => resolveEntityBranding(viewingAddress), [viewingAddress]);
 
-  const userAvatarSrc = entityBranding?.logo || userProfile?.avatar_url || '/logo.png';
+  const userAvatarSrc = entityBranding?.logo || userProfile?.avatar_url || '/pfp/default.png';
 
 
   useEffect(() => {
@@ -561,7 +561,7 @@ const Dashboard = () => {
                     src={userAvatarSrc}
                     alt="User"
                     className="hero-avatar-image"
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/pfp/default.png'; }}
                   />
                 </div>
                 <div className="hero-profile-socials-grid">

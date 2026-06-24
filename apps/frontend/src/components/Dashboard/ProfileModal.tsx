@@ -38,7 +38,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const { profile: hookProfile } = useProfile(viewingAddress);
   const userProfile = hookProfile || preloadedProfile;
 
-  const modalAvatarSrc = userProfile?.avatar_url || preloadedAvatarSrc || '/logo.png';
+  const modalAvatarSrc = userProfile?.avatar_url || preloadedAvatarSrc || '/pfp/default.png';
 
   return (
     <div className="profile-modal-overlay" onClick={onClose}>
@@ -56,7 +56,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 src={modalAvatarSrc}
                 alt="User"
                 className="modal-avatar-image"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
+                onError={(e) => { (e.target as HTMLImageElement).src = '/pfp/default.png'; }}
               />
             </div>
             <div className="modal-info-section">

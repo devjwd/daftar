@@ -41,7 +41,7 @@ export default function ProfileCard({ address }) {
             src={(profile as any)?.avatar_url || '/pfp/default.png'} 
             alt={profile?.username || 'User'} 
             className="profile-card-image" 
-            onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
+            onError={(e) => { (e.target as HTMLImageElement).src = '/pfp/default.png'; }}
           />
         </div>
         <div className="profile-card-info">

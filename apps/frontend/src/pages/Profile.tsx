@@ -68,7 +68,7 @@ export default function Profile() {
   const [notice, setNotice] = useState({ type: '', message: '' });
   const [language, setLanguage] = useState(() => getStoredLanguagePreference());
   const activeAvatarSrc = useMemo(
-    () => avatarUrl || '/logo.png',
+    () => avatarUrl || '/pfp/default.png',
     [avatarUrl]
   );
 
@@ -107,7 +107,7 @@ export default function Profile() {
       setBio(profile.bio || '');
       setTwitter(profile.twitter || '');
       setTelegram(profile.telegram || '');
-      setAvatarUrl(typeof profile.avatar_url === 'string' ? profile.avatar_url : '/logo.png');
+      setAvatarUrl(typeof profile.avatar_url === 'string' ? profile.avatar_url : '/pfp/default.png');
     }
   }, [profile]);
 
@@ -207,7 +207,7 @@ export default function Profile() {
                   src={activeAvatarSrc}
                   alt="Profile"
                   className="avatar-image"
-                  onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/pfp/default.png'; }}
                 />
                 <div className="avatar-hover-overlay">
                   <span className="avatar-hover-text">{t(language, 'profileSelectPfp')}</span>
