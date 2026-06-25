@@ -73,8 +73,23 @@
 /* ---- Timeframe ---- */
 .timeframe-selectors-v4 {
   display: flex;
+  align-items: center;
   gap: 0;
   margin-right: 5px;
+}
+
+.pnl-info-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: help;
+  transition: color 0.2s ease;
+}
+
+.pnl-info-icon-wrapper:hover {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .tf-btn-v4 {

@@ -438,6 +438,18 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
         {activeTab === 'History' && (
           <div className="timeframe-selectors-v4">
+            {!isPremium && (
+              <div 
+                className="pnl-info-icon-wrapper" 
+                title="For non-Pro users, the 24H PNL is estimated based on your current balances and 24H market price changes."
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+              </div>
+            )}
             {TIME_FRAMES.map((tf) => (
               <button
                 key={tf}
