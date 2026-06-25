@@ -208,7 +208,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
       setError(null);
     }
 
-    if (!walletAddress || activeTab !== 'History' || (!isPremium && !hasProfile)) {
+    if (!walletAddress || activeTab !== 'History') {
       setHistoricalData([]);
       setIsLoading(false);
       setError(null);
@@ -487,16 +487,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
             <span className="pnl-change-percent">({isPositive ? '+' : ''}{changePercent}%)</span>
           </div>
           <div className="pnl-chart-wrapper-v4">
-            {!isPremium && !hasProfile && (
-              <div className="pnl-restricted-overlay">
-                <div className="restricted-content">
-                  <p className="restricted-text">
-                    Create a profile to unlock your 24h PNL chart. Upgrade to Pro for full history.
-                  </p>
-                </div>
-              </div>
-            )}
-            {!isPremium && hasProfile && timeframe !== '1D' && (
+            {!isPremium && timeframe !== '1D' && (
               <div className="pnl-restricted-overlay">
                 <div className="restricted-content">
                   <p className="restricted-text">
@@ -506,16 +497,16 @@ const PNLChart: React.FC<PNLChartProps> = ({
               </div>
             )}
 
-            {isLoading && (isPremium || hasProfile) && (
+            {isLoading && (
               <div className="pnl-loading-overlay pnl-loading-subtle">
                 <div className="chart-loading-shimmer" />
               </div>
             )}
             {/* Syncing state: show when data is being indexed for the first time */}
-            {syncingState.syncing && (isPremium || hasProfile) && !isLoading && (
+            {syncingState.syncing && !isLoading && (
               <SyncingBanner synced={syncingState.synced} total={syncingState.total} />
             )}
-            {error && (isPremium || hasProfile) && (
+            {error && (
               <div className="pnl-error-overlay">
                 <div className="pnl-error-content">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -528,9 +519,9 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 </div>
               </div>
             )}
-            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${((!isPremium && !hasProfile) || error) ? 'blurred-chart' : ''}`}>
+            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${error ? 'blurred-chart' : ''}`}>
               <ResponsiveContainer width="99%" height="100%">
-                <AreaChart data={(!isPremium && !hasProfile) ? DUMMY_PREMIUM_CHART_DATA : dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
@@ -553,7 +544,6 @@ const PNLChart: React.FC<PNLChartProps> = ({
                     dy={8}
                     minTickGap={40}
                     tickFormatter={(val) => {
-                      if (!isPremium && !hasProfile) return '';
                       if (val === 'Start' || val === 'Now') return val;
                       const d = new Date(val);
                       if (isNaN(d.getTime())) return '';
@@ -562,22 +552,20 @@ const PNLChart: React.FC<PNLChartProps> = ({
                     }}
                   />
                   <YAxis hide={true} domain={['dataMin', 'dataMax']} />
-                  {(isPremium || hasProfile) ? (
-                    <Tooltip
-                      content={<CustomTooltip />}
-                      cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
-                    />
-                  ) : null}
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  />
                   <Area
                     type="monotone"
                     dataKey="displayValue"
-                    stroke={(!isPremium && !hasProfile) ? '#cda169' : strokeColor}
+                    stroke={strokeColor}
                     strokeWidth={2}
                     fillOpacity={1}
-                    fill={(!isPremium && !hasProfile) ? 'url(#colorGold)' : `url(#${gradientId})`}
-                    activeDot={(isPremium || hasProfile) ? { r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 } : false}
+                    fill={`url(#${gradientId})`}
+                    activeDot={{ r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 }}
                     dot={false}
-                    isAnimationActive={isPremium || hasProfile}
+                    isAnimationActive={true}
                     animationDuration={600}
                     animationEasing="ease-in-out"
                   />
