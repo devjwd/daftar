@@ -447,6 +447,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 </svg>
                 <div className="pnl-info-tooltip">
                   For non-Pro users, the 24H PNL is estimated based on your current balances and 24H market price changes.
+                  <br /><br />
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Non-Pro users are limited to only the 24H PNL chart.</span>
                 </div>
               </div>
             )}
