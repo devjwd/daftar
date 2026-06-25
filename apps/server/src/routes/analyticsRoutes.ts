@@ -320,15 +320,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
         if (timeframe !== '1D') {
           throw err;
         }
-        // For 1D, allow access if the user has a profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('wallet_address')
-          .eq('wallet_address', wallet)
-          .maybeSingle();
-        if (!profile) {
-          return res.status(403).json({ error: 'You must create a profile to view this chart', code: 'WALLET_ACCESS_DENIED' });
-        }
+        // For 1D, we now allow access even without a profile
       } else {
         throw err;
       }
