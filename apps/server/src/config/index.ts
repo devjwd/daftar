@@ -15,10 +15,7 @@ export interface Config {
     URL: string | undefined;
     SERVICE_ROLE_KEY: string | undefined;
   };
-  SIGNER: {
-    PRIVATE_KEY: string | undefined;
-    MODULE_ADDRESS: string | undefined;
-  };
+
   CACHE: {
     VERIFIED_TTL_MS: number;
     PRICE_TTL_MS: number;
@@ -45,10 +42,7 @@ export const CONFIG: Config = {
     SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   },
 
-  SIGNER: {
-    PRIVATE_KEY: process.env.BADGE_ATTESTOR_PRIVATE_KEY || process.env.BADGE_SIGNER_PRIVATE_KEY,
-    MODULE_ADDRESS: process.env.BADGE_MODULE_ADDRESS,
-  },
+
 
   CACHE: {
     VERIFIED_TTL_MS: 15 * 60 * 1000, // 15 minutes
@@ -69,8 +63,7 @@ const validateBackendConfig = () => {
 
   if (!CONFIG.SUPABASE.URL) missing.push('SUPABASE_URL');
   if (!CONFIG.SUPABASE.SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
-  if (!CONFIG.SIGNER.PRIVATE_KEY) missing.push('BADGE_ATTESTOR_PRIVATE_KEY');
-  if (!CONFIG.SIGNER.MODULE_ADDRESS) missing.push('BADGE_MODULE_ADDRESS');
+
 
   if (missing.length > 0) {
     const msg = `[CRITICAL] Missing environment variables: ${missing.join(', ')}`;
