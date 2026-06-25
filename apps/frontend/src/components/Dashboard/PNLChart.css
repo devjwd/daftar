@@ -95,9 +95,9 @@
 
 .pnl-info-tooltip {
   position: absolute;
-  bottom: 100%;
+  top: 100%;
   right: 0;
-  margin-bottom: 8px;
+  margin-top: 8px;
   width: max-content;
   max-width: 240px;
   background: rgba(18, 15, 12, 0.98);
@@ -111,7 +111,7 @@
   font-weight: 500;
   opacity: 0;
   visibility: hidden;
-  transform: translateY(4px);
+  transform: translateY(-4px);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 20;
   pointer-events: none;
@@ -121,11 +121,11 @@
 .pnl-info-tooltip::after {
   content: '';
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   right: 4px;
   border-width: 5px;
   border-style: solid;
-  border-color: rgba(18, 15, 12, 0.98) transparent transparent transparent;
+  border-color: transparent transparent rgba(18, 15, 12, 0.98) transparent;
 }
 
 .pnl-info-icon-wrapper:hover .pnl-info-tooltip {
