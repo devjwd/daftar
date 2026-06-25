@@ -45,51 +45,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   CONSTRAINT wallet_address_lowercase CHECK (wallet_address = lower(wallet_address))
 );
 
--- TABLE: badge_definitions
-CREATE TABLE IF NOT EXISTS public.badge_definitions (
-  id                  uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
-  badge_id            text         NOT NULL UNIQUE,
-  name                text         NOT NULL,
-  description         text         NOT NULL DEFAULT '',
-  image_url           text         NOT NULL DEFAULT '',
-  xp_value            bigint       NOT NULL DEFAULT 0,
-  mint_fee            numeric      NOT NULL DEFAULT 0,
-  category            text,
-  criteria            jsonb        NOT NULL DEFAULT '[]',
-  metadata            jsonb        NOT NULL DEFAULT '{}',
-  is_public           boolean      NOT NULL DEFAULT true,
-  enabled             boolean      NOT NULL DEFAULT true,
-  is_active           boolean      NOT NULL DEFAULT true,
-  is_deleted          boolean      NOT NULL DEFAULT false,
-  rule_type           text         DEFAULT 'manual',
-  rule_params         jsonb        NOT NULL DEFAULT '{}',
-  on_chain_badge_id   integer,
-  created_at          timestamptz  NOT NULL DEFAULT now(),
-  updated_at          timestamptz  NOT NULL DEFAULT now()
-);
-
--- TABLE: badge_attestations
-CREATE TABLE IF NOT EXISTS public.badge_attestations (
-  id              uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
-  wallet_address  text         NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE RESTRICT,
-  badge_id        text         NOT NULL REFERENCES public.badge_definitions(badge_id) ON DELETE CASCADE,
-  eligible        boolean      NOT NULL DEFAULT false,
-  proof_hash      text,
-  metadata        jsonb        NOT NULL DEFAULT '{}',
-  verified_at     timestamptz  NOT NULL DEFAULT now(),
-  created_at      timestamptz  NOT NULL DEFAULT now(),
-  updated_at      timestamptz  NOT NULL DEFAULT now(),
-  CONSTRAINT uq_attestation UNIQUE (wallet_address, badge_id),
-  CONSTRAINT proof_required_when_eligible CHECK (eligible = false OR proof_hash IS NOT NULL)
-);
-
--- TABLE: badge_eligible_wallets
-CREATE TABLE IF NOT EXISTS public.badge_eligible_wallets (
-    badge_id        text         REFERENCES public.badge_definitions(badge_id) ON DELETE CASCADE,
-    wallet_address  text         NOT NULL,
-    created_at      timestamptz  DEFAULT now(),
-    PRIMARY KEY (badge_id, wallet_address)
-);
 
 -- TABLE: used_nonces
 CREATE TABLE IF NOT EXISTS public.used_nonces (
@@ -359,9 +314,6 @@ CREATE INDEX IF NOT EXISTS idx_sync_queue_lookup ON public.sync_queue(status, pr
 -- 5. ROW LEVEL SECURITY (RLS) POLICIES
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.badge_definitions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.badge_attestations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.badge_eligible_wallets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.api_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transaction_history ENABLE ROW LEVEL SECURITY;
@@ -380,13 +332,10 @@ ALTER TABLE public.sync_queue ENABLE ROW LEVEL SECURITY;
 DO $$ 
 BEGIN
     DROP POLICY IF EXISTS "Read for anon profiles" ON public.profiles;
-    DROP POLICY IF EXISTS "Read for anon badge definitions" ON public.badge_definitions;
-    DROP POLICY IF EXISTS "Read for anon attestations" ON public.badge_attestations;
     DROP POLICY IF EXISTS "Read for anon transactions" ON public.transaction_history;
     DROP POLICY IF EXISTS "Read for anon prices" ON public.price_cache;
     DROP POLICY IF EXISTS "Read for anon swap stats" ON public.dapp_swap_stats;
     DROP POLICY IF EXISTS "Read for anon entities" ON public.tracked_entities;
-    DROP POLICY IF EXISTS "Read for anon eligibility" ON public.badge_eligible_wallets;
     DROP POLICY IF EXISTS "Public read access for address_labels" ON public.address_labels;
     DROP POLICY IF EXISTS "Admin full access for address_labels" ON public.address_labels;
     DROP POLICY IF EXISTS "Read for anon nft_stats" ON public.nft_collection_stats;
@@ -401,13 +350,10 @@ END $$;
 
 -- Policy creation (Read-only for anon, full access is granted to authenticated/service_role via standard SQL grants)
 CREATE POLICY "Read for anon profiles" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Read for anon badge definitions" ON public.badge_definitions FOR SELECT USING (true);
-CREATE POLICY "Read for anon attestations" ON public.badge_attestations FOR SELECT USING (true);
 CREATE POLICY "Read for anon transactions" ON public.transaction_history FOR SELECT USING (true);
 CREATE POLICY "Read for anon prices" ON public.price_cache FOR SELECT USING (true);
 CREATE POLICY "Read for anon swap stats" ON public.dapp_swap_stats FOR SELECT USING (true);
 CREATE POLICY "Read for anon entities" ON public.tracked_entities FOR SELECT USING (true);
-CREATE POLICY "Read for anon eligibility" ON public.badge_eligible_wallets FOR SELECT USING (true);
 CREATE POLICY "Public read access for address_labels" ON public.address_labels FOR SELECT USING (true);
 CREATE POLICY "Admin full access for address_labels" ON public.address_labels FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "Read for anon nft_stats" ON public.nft_collection_stats FOR SELECT USING (true);
@@ -457,58 +403,16 @@ BEGIN
   RETURN NEW;
 END; $$ LANGUAGE plpgsql;
 
--- Award/Update Badge XP Function
-CREATE OR REPLACE FUNCTION public.sync_user_xp()
-RETURNS TRIGGER AS $$
-DECLARE v_xp_val bigint;
-BEGIN
-  INSERT INTO public.profiles (wallet_address, xp)
-  VALUES (NEW.wallet_address, 0)
-  ON CONFLICT (wallet_address) DO NOTHING;
-
-  SELECT xp_value INTO v_xp_val FROM public.badge_definitions WHERE badge_id = NEW.badge_id;
-
-  IF (TG_OP = 'INSERT' AND NEW.eligible = true AND NEW.proof_hash IS NOT NULL) OR 
-     (TG_OP = 'UPDATE' AND OLD.proof_hash IS NULL AND NEW.proof_hash IS NOT NULL AND NEW.eligible = true) THEN
-    UPDATE public.profiles SET xp = xp + COALESCE(v_xp_val, 0), updated_at = now() WHERE wallet_address = NEW.wallet_address;
-  ELSIF (TG_OP = 'UPDATE' AND OLD.proof_hash IS NOT NULL AND NEW.eligible = false) THEN
-    UPDATE public.profiles SET xp = GREATEST(0, xp - COALESCE(v_xp_val, 0)), updated_at = now() WHERE wallet_address = NEW.wallet_address;
-  END IF;
-
-  RETURN NEW;
-END; $$ LANGUAGE plpgsql;
-
--- Revoke XP on Delete
-CREATE OR REPLACE FUNCTION public.revoke_user_xp_on_delete()
-RETURNS TRIGGER AS $$
-DECLARE v_xp_val bigint;
-BEGIN
-  SELECT xp_value INTO v_xp_val FROM public.badge_definitions WHERE badge_id = OLD.badge_id;
-  IF OLD.eligible = true THEN
-    UPDATE public.profiles SET xp = GREATEST(0, xp - COALESCE(v_xp_val, 0)), updated_at = now() WHERE wallet_address = OLD.wallet_address;
-  END IF;
-  RETURN OLD;
-END; $$ LANGUAGE plpgsql;
-
 -- Trigger Activations
-DROP TRIGGER IF EXISTS trg_badge_xp_sync ON public.badge_attestations;
-CREATE TRIGGER trg_badge_xp_sync AFTER INSERT OR UPDATE ON public.badge_attestations FOR EACH ROW EXECUTE FUNCTION public.sync_user_xp();
-
 DROP TRIGGER IF EXISTS trg_trade_xp_sync ON public.transaction_history;
 CREATE TRIGGER trg_trade_xp_sync AFTER INSERT ON public.transaction_history FOR EACH ROW EXECUTE FUNCTION public.sync_trade_xp();
-
-DROP TRIGGER IF EXISTS trg_badge_xp_revoke ON public.badge_attestations;
-CREATE TRIGGER trg_badge_xp_revoke AFTER DELETE ON public.badge_attestations FOR EACH ROW EXECUTE FUNCTION public.revoke_user_xp_on_delete();
 
 -- Updated_at Timestamps
 DROP TRIGGER IF EXISTS trg_profiles_updated_at ON public.profiles;
 CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-DROP TRIGGER IF EXISTS trg_badge_definitions_updated_at ON public.badge_definitions;
-CREATE TRIGGER trg_badge_definitions_updated_at BEFORE UPDATE ON public.badge_definitions FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-DROP TRIGGER IF EXISTS trg_badge_attestations_updated_at ON public.badge_attestations;
-CREATE TRIGGER trg_badge_attestations_updated_at BEFORE UPDATE ON public.badge_attestations FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 
 DROP TRIGGER IF EXISTS trg_api_rate_limits_updated_at ON public.api_rate_limits;
 CREATE TRIGGER trg_api_rate_limits_updated_at BEFORE UPDATE ON public.api_rate_limits FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -766,8 +670,10 @@ BEGIN
   INSERT INTO sync_queue (user_address, status, priority, created_at, updated_at)
   SELECT p.wallet_address, 'pending', 1, NOW(), NOW()
   FROM profiles p
+  JOIN user_subscriptions us ON p.wallet_address = us.wallet_address
   LEFT JOIN sync_queue sq ON p.wallet_address = sq.user_address
-  WHERE (p.subscription_tier = 'pro' OR p.subscription_tier = 'lite')
+  WHERE (us.tier_id = 'pro' OR us.tier_id = 'lite')
+    AND us.status = 'active'
     AND p.wallet_address IS NOT NULL
     AND (sq.id IS NULL OR sq.updated_at < (NOW() - pro_interval::interval) OR sq.status = 'failed')
     AND (sq.status IS NULL OR sq.status != 'processing')

@@ -36,11 +36,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(
   cors({
     origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-      const allowedOrigins = process.env.BADGE_CORS_ORIGIN
-        ? process.env.BADGE_CORS_ORIGIN.split(',')
+      const allowedOrigins = process.env.CORS_ORIGINS
+        ? process.env.CORS_ORIGINS.split(',')
         : ['http://localhost:3000', 'http://localhost:3001', 'https://www.daftar.fi', 'https://daftar.fi'];
-      // Strict matching for subdomains, removing the loose .endsWith('.vercel.app')
-      if (!origin || allowedOrigins.includes(origin) || /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin)) {
+      
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
