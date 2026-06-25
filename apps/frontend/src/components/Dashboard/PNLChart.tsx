@@ -231,7 +231,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
       setError(null);
       try {
         const fetchOptions: RequestInit = { signal: controller.signal };
-        
+
         // Pass live balances + the full non-wallet USD (DeFi + LP + staking + NFTs from Dashboard)
         if (combinedBalances.length > 0 || adjustedStaticExtraUsd > 0) {
           fetchOptions.method = 'POST';
@@ -439,8 +439,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
         {activeTab === 'History' && (
           <div className="timeframe-selectors-v4">
             {!isPremium && (
-              <div 
-                className="pnl-info-icon-wrapper" 
+              <div
+                className="pnl-info-icon-wrapper"
                 title="For non-Pro users, the 24H PNL is estimated based on your current balances and 24H market price changes."
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
