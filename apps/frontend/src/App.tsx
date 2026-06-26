@@ -82,7 +82,6 @@ const getDocumentTitle = (pathname: string): string => {
     
     const tab = segments[2];
     const tabLabel = tab === "trx" ? " - Transactions" 
-      : tab === "nfts" ? " - NFTs" 
       : tab === "visualizer" ? " - Visualizer"
       : tab === "analytics" ? " - Analytics" : "";
 

@@ -392,20 +392,6 @@ export const setSubscriptionPaymentConfig = async (
   return { ok: response.ok, error: response.error };
 };
 
-export const getNFTCollectionStats = async (): Promise<Record<string, { floor: number; topBid: number }>> => {
-  const response = await callApi<{ collections: any[] }>('/api/prices/nft');
-  if (!response.ok || !response.data?.collections) return {};
-
-  const statsMap: Record<string, { floor: number; topBid: number }> = {};
-  response.data.collections.forEach((col: any) => {
-    statsMap[col.collection_id] = {
-      floor: Number(col.floor_price || 0),
-      topBid: Number(col.top_bid || 0)
-    };
-  });
-  return statsMap;
-};
-
 export const submitFeedback = async (payload: {
   feature: string;
   feedbackText: string;

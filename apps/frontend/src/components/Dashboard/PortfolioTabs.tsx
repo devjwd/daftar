@@ -11,7 +11,6 @@ import './PortfolioTabs.css';
 const PORTFOLIO_TABS = {
   OVERVIEW: 'overview',
   TRX: 'trx',
-  NFT: 'nfts',
   ANALYTICS: 'analytics',
 };
 
@@ -55,13 +54,7 @@ const PortfolioTabs: React.FC<PortfolioTabsProps> = ({
       >
         {t(language, 'portfolioTabTrxHistory')}
       </button>
-      <button
-        type="button"
-        className={`portfolio-tab-btn ${activeTab === PORTFOLIO_TABS.NFT ? 'active' : ''}`}
-        onClick={() => navigate(`/profile/${urlAddress}/${PORTFOLIO_TABS.NFT}`)}
-      >
-        {t(language, 'portfolioTabNfts')}
-      </button>
+
 
       <div className="analytics-tab-wrapper" style={{ marginLeft: 'auto', position: 'relative' }}>
         <button

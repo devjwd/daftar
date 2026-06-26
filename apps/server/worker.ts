@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { getSupabase } from './src/config/supabase.ts';
 import { startPricePitcher } from './src/services/priceService.ts';
 import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
-import { startNFTPriceWorker } from './src/services/nftPriceWorker.ts';
+
 import { backfillTransactionPrices } from './src/services/analyticsPriceService.ts';
 import { drainSyncQueue } from './src/services/analyticsSyncQueue.ts';
 // Telegram bot is initialized in index.ts for webhooks
@@ -26,8 +26,7 @@ startAnalyticsWorker(supabaseAdmin);
 // Start Discord Role Subscription Synchronization Worker
 startSubscriptionSyncWorker(supabaseAdmin);
 
-// Start hourly NFT floor price pitcher
-// startNFTPriceWorker(supabaseAdmin); // Temporarily disabled by user request
+
 
 let isShuttingDown = false;
 

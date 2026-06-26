@@ -5,11 +5,7 @@ import CONFIG from '../config/index.ts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { reconstructHistoricalBalances } from './portfolioService.ts';
 import { dispatchAlertsForTransactions } from './notificationService.ts';
-import {
-  TRADEPORT_SUFFIX_MAP,
-  processTradeportAssets,
-  generateTradeportDescription
-} from './nft/tradeportDetector.ts';
+
 
 export async function clearUserAnalyticsData(supabase: SupabaseClient, walletAddress: string) {
   const normalized = normalizeAddress(walletAddress);
@@ -401,8 +397,7 @@ function enrichTransaction(
     redeem_fa: TX_TYPES.WITHDRAW,
     // CapyGo
     sell_miner: TX_TYPES.OTHER,
-    // Tradeport NFT
-    ...TRADEPORT_SUFFIX_MAP,
+
     transfer_tokens_v2: TX_TYPES.NFT_TRANSFER,
     mosaic_swap_with_fee: TX_TYPES.SWAP,
     // BRKT Prediction
@@ -771,12 +766,7 @@ function enrichTransaction(
     primaryOut = { direction: 'out', amount, symbol, assetType } as any;
   }
 
-  // Custom high-fidelity override for Tradeport NFT Buy/Accept Bid transactions on backend
-  if (protocol === 'Tradeport') {
-    const tradeportFlow = processTradeportAssets(suffix, events, primaryIn, primaryOut);
-    primaryIn = tradeportFlow.primaryIn;
-    primaryOut = tradeportFlow.primaryOut;
-  }
+
 
   if (protocol === 'Move Match') {
     if (suffix === 'register_team') {
@@ -801,7 +791,7 @@ function enrichTransaction(
       description = `${suffix.charAt(0).toUpperCase() + suffix.slice(1).replace(/_/g, ' ')} via Move Match`;
     }
   } else if (protocol === 'Tradeport') {
-    description = generateTradeportDescription(suffix, events, primaryIn, primaryOut);
+    description = `Tradeport NFT Interaction`;
   } else if (action === TX_TYPES.SWAP) {
     if (primaryIn && primaryOut) {
       description = `Swapped ${primaryOut.amount.toFixed(2)} ${primaryOut.symbol} for ${primaryIn.amount.toFixed(2)} ${primaryIn.symbol}`;

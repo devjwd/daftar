@@ -24,7 +24,7 @@ import { startAnalyticsWorker } from './src/services/analyticsWorker.ts';
 import { handleError } from './src/utils/errors.ts';
 import CONFIG from './src/config/index.ts';
 import { startPricePitcher } from './src/services/priceService.ts';
-import { startNFTPriceWorker } from './src/services/nftPriceWorker.ts';
+
 import { initTelegramBot } from './src/bots/telegram/telegramBot.ts';
 
 dotenv.config();

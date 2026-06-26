@@ -1,10 +1,6 @@
 import { findTrackedDappMatch } from "../config/dapps";
 import { getTokenInfo } from "../config/tokens";
-import {
-  NFT_TX_TYPES,
-  NFT_TX_VISUALS,
-  TRADEPORT_SUFFIX_MAP
-} from "./nft/tradeportDetector";
+
 
 /**
  * Transaction History Engine v2
@@ -21,7 +17,7 @@ export const TX_TYPES = {
   NFT_MINT: "nft_mint", NFT_TRANSFER: "nft_transfer",
   LIQUIDITY: "liquidity",
   YIELD: "yield",
-  ...NFT_TX_TYPES,
+
   OTHER: "other",
 };
 
@@ -43,7 +39,7 @@ export const TX_VISUALS = {
   [TX_TYPES.NFT_TRANSFER]: { label: "NFT Transfer", icon: "🖼️", color: "#EC4899", bg: "rgba(236,72,153,0.1)" },
   [TX_TYPES.LIQUIDITY]: { label: "Liquidity", icon: "💧", color: "#0EA5E9", bg: "rgba(14,165,233,0.1)" },
   [TX_TYPES.YIELD]: { label: "Yield", icon: "🌱", color: "#10B981", bg: "rgba(16,185,129,0.1)" },
-  ...NFT_TX_VISUALS,
+
   [TX_TYPES.OTHER]: { label: "Contract", icon: "⚙️", color: "#94A3B8", bg: "rgba(148,163,184,0.1)" },
 };
 
@@ -115,7 +111,7 @@ const FUNC_MAP = {
   // CapyGo
   sell_miner: { type: TX_TYPES.OTHER, label: "Sell Miner" },
   // Tradeport NFT
-  ...TRADEPORT_SUFFIX_MAP,
+
   transfer_tokens_v2: { type: TX_TYPES.NFT_TRANSFER, label: "Transfer NFT" },
   mosaic_swap_with_fee: { type: TX_TYPES.SWAP, label: "Swap Assets" },
   // BRKT Prediction

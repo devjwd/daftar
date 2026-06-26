@@ -13,7 +13,7 @@ import { useCurrency } from "../hooks/useCurrency";
 import { useIndexerBalances, IndexerBalance } from "../hooks/useIndexerBalances";
 import { useMovementClient } from "../hooks/useMovementClient";
 import { useTokenPrices } from "../hooks/useTokenPrices";
-import { useNFTs } from "../hooks/useNFTs";
+
 import { useAddressLabel } from "../hooks/useAddressLabel";
 import { useDeFiPositions } from "../hooks/useDeFiPositions";
 import { useProfile } from "../hooks/useProfile";
@@ -43,7 +43,7 @@ import {
 
 import OverviewTab from '../components/Dashboard/OverviewTab';
 import TransactionsTab from '../components/Dashboard/TransactionsTab';
-import NFTTab from '../components/Dashboard/NFTTab';
+
 import AnalyticsSkeleton from '../components/Analytics/AnalyticsSkeleton';
 const AnalyticsView = lazy(() => import('../components/Analytics/AnalyticsView'));
 
@@ -173,16 +173,7 @@ const Dashboard = () => {
 
   const movePrice = useMemo(() => getTokenPriceFromMap('MOVE', priceMap) || 0, [priceMap]);
 
-  const [valuationMethod, setValuationMethod] = useState<'topBid' | 'floor'>('topBid');
 
-  const {
-    nfts: userNFTs,
-    groupedCollections,
-    totalWorth: nftsTotalWorth,
-    totalWorthMove: nftsTotalWorthMove,
-    loading: nftsLoading,
-    refresh: refreshNFTs
-  } = useNFTs(viewingAddress, movePrice, valuationMethod);
 
   const settingsKey = useMemo(() => getSettingsStorageKey(account?.address), [account?.address]);
 
@@ -229,14 +220,11 @@ const Dashboard = () => {
       ]);
 
       // 2. Then refresh DeFi positions and NFTs
-      await Promise.all([
-        refreshDeFi({
-          force: true,
-          priceMap: priceData?.prices,
-          balances: balanceData
-        }),
-        refreshNFTs()
-      ]);
+      await refreshDeFi({
+        force: true,
+        priceMap: priceData?.prices,
+        balances: balanceData
+      });
 
       // 3. Update lastRefresh to trigger TrxHistory and other sub-components
       setLastRefresh(Date.now());
@@ -289,8 +277,8 @@ const Dashboard = () => {
     return visibleStakingPositions.reduce((sum, p) => sum + (p.numericValue || 0), 0);
   }, [visibleStakingPositions]);
 
-  const combinedNetWorth = totalUsdValue + defiNetValue + liquidityTotalValue + stakingTotalValue + (nftsTotalWorth || 0);
-  const assetsLoading = pricesLoading || indexerLoading || clientLoading || nftsLoading;
+  const combinedNetWorth = totalUsdValue + defiNetValue + liquidityTotalValue + stakingTotalValue;
+  const assetsLoading = pricesLoading || indexerLoading || clientLoading;
   const lpLoading = defiLoading;
 
   const { profile: userProfile } = useProfile(viewingAddress);
@@ -355,7 +343,6 @@ const Dashboard = () => {
       { name: 'DeFi', value: Math.round((defiNetValue / total) * 100), color: '#b2854f', rawValue: defiNetValue },
       { name: 'LP', value: Math.round((liquidityTotalValue / total) * 100), color: '#e5be8a', rawValue: liquidityTotalValue },
       { name: 'Staking', value: Math.round((stakingTotalValue / total) * 100), color: '#deb884', rawValue: stakingTotalValue },
-      { name: 'NFTs', value: Math.round(((nftsTotalWorth || 0) / total) * 100), color: '#895f2d', rawValue: nftsTotalWorth || 0 },
     ].filter(d => d.rawValue > 0);
 
     // Normalize to 100%
@@ -364,11 +351,11 @@ const Dashboard = () => {
       data[0].value += (100 - sum);
     }
     return data;
-  }, [totalUsdValue, defiNetValue, liquidityTotalValue, stakingTotalValue, nftsTotalWorth, combinedNetWorth]);
+  }, [totalUsdValue, defiNetValue, liquidityTotalValue, stakingTotalValue, combinedNetWorth]);
 
   const protocolBreakdownData = useMemo(() => {
     const protocolMap = new Map();
-    protocolMap.set('Holding', totalUsdValue + (nftsTotalWorth || 0));
+    protocolMap.set('Holding', totalUsdValue);
 
     [...visibleDeFiPositions, ...visibleLiquidityPositions, ...visibleStakingPositions].forEach(p => {
       const proto = p.protocolName || p.platform || 'Unknown';
@@ -416,7 +403,7 @@ const Dashboard = () => {
     }
 
     return finalData;
-  }, [totalUsdValue, nftsTotalWorth, visibleDeFiPositions, visibleLiquidityPositions, visibleStakingPositions, combinedNetWorth]);
+  }, [totalUsdValue, visibleDeFiPositions, visibleLiquidityPositions, visibleStakingPositions, combinedNetWorth]);
 
   useEffect(() => {
     if (account && connected) {
@@ -475,7 +462,6 @@ const Dashboard = () => {
 
     let tabLabel = "";
     if (activeTab === PORTFOLIO_TABS.TRX) tabLabel = " - Transactions";
-    else if (activeTab === PORTFOLIO_TABS.NFT) tabLabel = " - NFTs";
     else if (activeTab === PORTFOLIO_TABS.ANALYTICS) {
       tabLabel = " - Analytics";
     }
@@ -483,7 +469,7 @@ const Dashboard = () => {
     document.title = `${name}${tabLabel} | Daftar`;
 
     // Update SEO Meta Tags
-    const metaDesc = `View ${name}'s portfolio on the Movement Network. Real-time net worth, transaction history, NFTs, and portfolio analytics.`;
+    const metaDesc = `View ${name}'s portfolio on the Movement Network. Real-time net worth, transaction history, and portfolio analytics.`;
 
     const updateMeta = (name: string, content: string, attr = 'name') => {
       let el = document.querySelector(`meta[${attr}="${name}"]`);
@@ -790,7 +776,7 @@ const Dashboard = () => {
             balances={balances}
             priceChanges={priceChanges}
             hasProfile={!!userProfile}
-            staticExtraUsd={(nftsTotalWorth || 0) + defiNetValue + liquidityTotalValue + stakingTotalValue}
+            staticExtraUsd={defiNetValue + liquidityTotalValue + stakingTotalValue}
             allPositions={visibleDeFiPositions}
             liquidityPositions={visibleLiquidityPositions}
             stakingPositions={visibleStakingPositions}
@@ -877,15 +863,6 @@ const Dashboard = () => {
           )}
 
 
-
-          {activeTab === PORTFOLIO_TABS.NFT && (
-            <NFTTab
-              userNFTs={userNFTs}
-              groupedCollections={groupedCollections}
-              nftsLoading={nftsLoading}
-              viewingAddress={viewingAddress}
-            />
-          )}
 
           {activeTab === PORTFOLIO_TABS.ANALYTICS && (
             <Suspense fallback={
