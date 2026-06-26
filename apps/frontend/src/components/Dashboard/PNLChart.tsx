@@ -54,7 +54,7 @@ const SyncingBanner = ({ synced, total }: { synced: number; total: number }) => 
   );
 };
 
-const CustomTooltip = ({ active, payload, label, firstValue }: any) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const formattedDate = label === 'Start' || label === 'Now'
       ? label
@@ -64,26 +64,12 @@ const CustomTooltip = ({ active, payload, label, firstValue }: any) => {
       })();
 
     const netWorth = payload[0].payload.value ?? 0;
-    const netDeposits = payload[0].payload.netDeposits;
-
-    const formatUsd = (val: number) => {
-      const sign = val < 0 ? '-' : '';
-      const decimals = getPrecisionDecimals(val);
-      return `${sign}$${Math.abs(val).toLocaleString(undefined, {
-        minimumFractionDigits: decimals < 2 ? decimals : 2,
-        maximumFractionDigits: decimals
-      })}`;
-    };
-
-    const formattedNW = formatUsd(netWorth);
-
-    // Period PNL: change from start of selected period
-    const periodPnl = firstValue != null ? netWorth - firstValue : null;
-    const periodPnlPositive = periodPnl != null && periodPnl >= 0;
-
-    // True PNL: net worth minus total net deposits (Pro only — netDeposits is only set for Pro)
-    const truePnl = netDeposits != null && netDeposits > 0 ? netWorth - netDeposits : null;
-    const truePnlPositive = truePnl != null && truePnl >= 0;
+    const sign = netWorth < 0 ? '-' : '';
+    const decimals = getPrecisionDecimals(netWorth);
+    const formattedNW = `${sign}$${Math.abs(netWorth).toLocaleString(undefined, {
+      minimumFractionDigits: decimals < 2 ? decimals : 2,
+      maximumFractionDigits: decimals
+    })}`;
 
     return (
       <div className="history-tooltip">
@@ -92,22 +78,6 @@ const CustomTooltip = ({ active, payload, label, firstValue }: any) => {
           <span className="tooltip-label">Net Worth</span>
           <span className="tooltip-value">{formattedNW}</span>
         </div>
-        {periodPnl != null && (
-          <div className="tooltip-value-row">
-            <span className="tooltip-label">Period PnL</span>
-            <span className="tooltip-value" style={{ color: periodPnlPositive ? '#36c690' : '#e06a6a' }}>
-              {periodPnlPositive ? '+' : ''}{formatUsd(periodPnl)}
-            </span>
-          </div>
-        )}
-        {truePnl != null && (
-          <div className="tooltip-value-row" style={{ marginTop: '2px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <span className="tooltip-label" style={{ opacity: 0.6 }}>True PnL</span>
-            <span className="tooltip-value" style={{ color: truePnlPositive ? '#36c690' : '#e06a6a', fontSize: 'var(--font-size-xs)' }}>
-              {truePnlPositive ? '+' : ''}{formatUsd(truePnl)}
-            </span>
-          </div>
-        )}
       </div>
     );
   }
@@ -457,8 +427,6 @@ const PNLChart: React.FC<PNLChartProps> = ({
   };
   const periodLabel = TIMEFRAME_LABELS[timeframe] || timeframe;
 
-  const chartFirstValue = dataToRender && dataToRender.length > 0 ? dataToRender[0]?.value : null;
-
   return (
     <div className="pnl-chart-container">
       {/* Tab selector at top */}
@@ -560,26 +528,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
             )}
 
             {isLoading && (
-              <div className="pnl-skeleton-overlay">
-                <svg className="pnl-skeleton-svg" width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 400 120">
-                  <defs>
-                    <linearGradient id="shimmerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="rgba(255,255,255,0)" />
-                      <stop offset="50%" stopColor="rgba(255,255,255,0.06)" />
-                      <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-                      <animateTransform attributeName="gradientTransform" type="translate" from="-400 0" to="400 0" dur="1.4s" repeatCount="indefinite" />
-                    </linearGradient>
-                    <clipPath id="skeletonClip">
-                      <rect x="0" y="0" width="400" height="120" />
-                    </clipPath>
-                  </defs>
-                  {/* Skeleton area fill */}
-                  <path d="M0,90 Q50,70 100,75 Q150,80 200,50 Q250,20 300,40 Q350,60 400,30 L400,120 L0,120 Z" fill="rgba(255,255,255,0.03)" />
-                  {/* Skeleton line */}
-                  <path d="M0,90 Q50,70 100,75 Q150,80 200,50 Q250,20 300,40 Q350,60 400,30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />
-                  {/* Shimmer sweep */}
-                  <rect x="0" y="0" width="400" height="120" fill="url(#shimmerGrad)" clipPath="url(#skeletonClip)" />
-                </svg>
+              <div className="pnl-loading-overlay pnl-loading-subtle">
+                <div className="chart-loading-shimmer" />
               </div>
             )}
             {/* Syncing state: show when data is being indexed for the first time */}
@@ -642,7 +592,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   />
                   <YAxis hide={true} domain={['dataMin', 'dataMax']} />
                   <Tooltip
-                    content={<CustomTooltip firstValue={chartFirstValue} />}
+                    content={<CustomTooltip />}
                     cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
                   />
                   <Area
