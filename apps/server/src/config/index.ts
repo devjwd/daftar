@@ -48,7 +48,7 @@ export const CONFIG: Config = {
     VERIFIED_TTL_MS: 15 * 60 * 1000, // 15 minutes
     PRICE_TTL_MS: 10 * 60 * 1000,  // 10 minutes
   },
-  
+
   TRADEPORT: {
     API_KEY: process.env.TRADEPORT_API_KEY || process.env.VITE_TRADEPORT_API_KEY,
     API_USER: process.env.TRADEPORT_API_USER || process.env.VITE_TRADEPORT_API_USER || 'daftar',
