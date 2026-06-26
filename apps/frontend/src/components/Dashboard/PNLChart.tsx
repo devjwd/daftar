@@ -54,7 +54,7 @@ const SyncingBanner = ({ synced, total }: { synced: number; total: number }) => 
   );
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, firstValue }: any) => {
   if (active && payload && payload.length) {
     const formattedDate = label === 'Start' || label === 'Now'
       ? label
@@ -64,21 +64,50 @@ const CustomTooltip = ({ active, payload, label }: any) => {
       })();
 
     const netWorth = payload[0].payload.value ?? 0;
+    const netDeposits = payload[0].payload.netDeposits;
 
-    const nwSign = netWorth < 0 ? '-' : '';
-    const decimals = getPrecisionDecimals(netWorth);
-    const formattedNW = `${nwSign}$${Math.abs(netWorth).toLocaleString(undefined, {
-      minimumFractionDigits: decimals < 2 ? decimals : 2,
-      maximumFractionDigits: decimals
-    })}`;
+    const formatUsd = (val: number) => {
+      const sign = val < 0 ? '-' : '';
+      const decimals = getPrecisionDecimals(val);
+      return `${sign}$${Math.abs(val).toLocaleString(undefined, {
+        minimumFractionDigits: decimals < 2 ? decimals : 2,
+        maximumFractionDigits: decimals
+      })}`;
+    };
+
+    const formattedNW = formatUsd(netWorth);
+
+    // Period PNL: change from start of selected period
+    const periodPnl = firstValue != null ? netWorth - firstValue : null;
+    const periodPnlPositive = periodPnl != null && periodPnl >= 0;
+
+    // True PNL: net worth minus total net deposits (Pro only — netDeposits is only set for Pro)
+    const truePnl = netDeposits != null && netDeposits > 0 ? netWorth - netDeposits : null;
+    const truePnlPositive = truePnl != null && truePnl >= 0;
 
     return (
-      <div className="history-tooltip" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div className="history-tooltip">
         <div className="tooltip-date">{formattedDate}</div>
         <div className="tooltip-value-row">
           <span className="tooltip-label">Net Worth</span>
           <span className="tooltip-value">{formattedNW}</span>
         </div>
+        {periodPnl != null && (
+          <div className="tooltip-value-row">
+            <span className="tooltip-label">Period PnL</span>
+            <span className="tooltip-value" style={{ color: periodPnlPositive ? '#36c690' : '#e06a6a' }}>
+              {periodPnlPositive ? '+' : ''}{formatUsd(periodPnl)}
+            </span>
+          </div>
+        )}
+        {truePnl != null && (
+          <div className="tooltip-value-row" style={{ marginTop: '2px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <span className="tooltip-label" style={{ opacity: 0.6 }}>True PnL</span>
+            <span className="tooltip-value" style={{ color: truePnlPositive ? '#36c690' : '#e06a6a', fontSize: 'var(--font-size-xs)' }}>
+              {truePnlPositive ? '+' : ''}{formatUsd(truePnl)}
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -331,16 +360,14 @@ const PNLChart: React.FC<PNLChartProps> = ({
       return mapped;
     }
 
-    return [
-      { time: 'Start', value: totalValue, netDeposits: 0, displayValue: totalValue },
-      { time: 'Now', value: totalValue, netDeposits: 0, displayValue: totalValue }
-    ];
+    // Return null to signal "no data" so we can show the empty state instead
+    return null;
   }, [historicalData, totalValue]);
 
   // Calculate PnL changes for non-verified users using their current balances and 24h price changes
   const computedChange = useMemo(() => {
     // Use real history data whenever we have it (both pro and free-with-profile users)
-    if (historicalData.length >= 2) {
+    if (dataToRender && dataToRender.length >= 2) {
       const firstVal = dataToRender[0]?.value ?? totalValue;
       const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
       const rawChangeUsd = lastVal - firstVal;
@@ -425,6 +452,13 @@ const PNLChart: React.FC<PNLChartProps> = ({
   const strokeColor = isPositive ? '#36c690' : '#e06a6a';
   const gradientId = isPositive ? 'colorGreen' : 'colorRed';
 
+  const TIMEFRAME_LABELS: Record<string, string> = {
+    '1D': '24H', '1W': '7D', '1M': '30D', '3M': '90D', 'All': 'All'
+  };
+  const periodLabel = TIMEFRAME_LABELS[timeframe] || timeframe;
+
+  const chartFirstValue = dataToRender && dataToRender.length > 0 ? dataToRender[0]?.value : null;
+
   return (
     <div className="pnl-chart-container">
       {/* Tab selector at top */}
@@ -466,16 +500,27 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 </div>
               </div>
             )}
-            {TIME_FRAMES.map((tf) => (
-              <button
-                key={tf}
-                className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''}`}
-                onClick={() => handleTimeframeChange(tf)}
-                disabled={!isPremium && tf !== '1D'}
-              >
-                {tf}
-              </button>
-            ))}
+            {TIME_FRAMES.map((tf) => {
+              const isLocked = !isPremium && tf !== '1D';
+              return (
+                <button
+                  key={tf}
+                  className={`tf-btn-v4 ${timeframe === tf ? 'active' : ''} ${isLocked ? 'locked' : ''}`}
+                  onClick={() => !isLocked && handleTimeframeChange(tf)}
+                  disabled={isLocked}
+                  title={isLocked ? 'Upgrade to Pro to unlock' : undefined}
+                >
+                  {isLocked ? (
+                    <>
+                      {tf}
+                      <svg className="tf-lock-icon" width="8" height="8" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                        <path d="M18 11H6V8a6 6 0 0 1 12 0v3zm1 0V8A7 7 0 0 0 5 8v3H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V12a1 1 0 0 0-1-1h-2z"/>
+                      </svg>
+                    </>
+                  ) : tf}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -501,6 +546,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
             <span className="pnl-change-arrow">{isPositive ? '▲' : '▼'}</span>
             <span className="pnl-change-usd">{isPositive ? '+' : '-'}${changeUSD}</span>
             <span className="pnl-change-percent">({isPositive ? '+' : ''}{changePercent}%)</span>
+            <span className="pnl-change-period">{periodLabel}</span>
           </div>
           <div className="pnl-chart-wrapper-v4">
             {!isPremium && timeframe !== '1D' && (
@@ -514,8 +560,26 @@ const PNLChart: React.FC<PNLChartProps> = ({
             )}
 
             {isLoading && (
-              <div className="pnl-loading-overlay pnl-loading-subtle">
-                <div className="chart-loading-shimmer" />
+              <div className="pnl-skeleton-overlay">
+                <svg className="pnl-skeleton-svg" width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 400 120">
+                  <defs>
+                    <linearGradient id="shimmerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+                      <stop offset="50%" stopColor="rgba(255,255,255,0.06)" />
+                      <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                      <animateTransform attributeName="gradientTransform" type="translate" from="-400 0" to="400 0" dur="1.4s" repeatCount="indefinite" />
+                    </linearGradient>
+                    <clipPath id="skeletonClip">
+                      <rect x="0" y="0" width="400" height="120" />
+                    </clipPath>
+                  </defs>
+                  {/* Skeleton area fill */}
+                  <path d="M0,90 Q50,70 100,75 Q150,80 200,50 Q250,20 300,40 Q350,60 400,30 L400,120 L0,120 Z" fill="rgba(255,255,255,0.03)" />
+                  {/* Skeleton line */}
+                  <path d="M0,90 Q50,70 100,75 Q150,80 200,50 Q250,20 300,40 Q350,60 400,30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />
+                  {/* Shimmer sweep */}
+                  <rect x="0" y="0" width="400" height="120" fill="url(#shimmerGrad)" clipPath="url(#skeletonClip)" />
+                </svg>
               </div>
             )}
             {/* Syncing state: show when data is being indexed for the first time */}
@@ -535,9 +599,18 @@ const PNLChart: React.FC<PNLChartProps> = ({
                 </div>
               </div>
             )}
-            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${error ? 'blurred-chart' : ''}`}>
+            {!isLoading && !error && !syncingState.syncing && dataToRender === null && (
+              <div className="pnl-empty-state">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+                <span className="pnl-empty-title">No chart history yet</span>
+                <span className="pnl-empty-sub">Data will appear as your portfolio is indexed</span>
+              </div>
+            )}
+            <div className={`pnl-chart-inner ${chartFading ? 'chart-fading' : ''} ${error ? 'blurred-chart' : ''} ${dataToRender === null ? 'pnl-chart-hidden' : ''}`}>
               <ResponsiveContainer width="99%" height="100%">
-                <AreaChart data={dataToRender} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                <AreaChart data={dataToRender ?? [{ time: 'Now', value: totalValue, netDeposits: 0, displayValue: totalValue }]} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#36c690" stopOpacity={0.25} />
@@ -569,7 +642,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   />
                   <YAxis hide={true} domain={['dataMin', 'dataMax']} />
                   <Tooltip
-                    content={<CustomTooltip />}
+                    content={<CustomTooltip firstValue={chartFirstValue} />}
                     cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
                   />
                   <Area
