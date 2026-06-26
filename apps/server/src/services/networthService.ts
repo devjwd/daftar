@@ -63,21 +63,34 @@ export async function takeNetworthSnapshot(
 ) {
   const address = normalizeAddress(walletAddress);
   
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('tier')
+    .eq('wallet_address', address)
+    .maybeSingle();
+  const isPro = profile?.tier === 'PRO';
+
   const timestamp = new Date();
-  // Round to nearest hour for the UNIQUE constraint
-  timestamp.setMinutes(0, 0, 0);
-  const hourStartISO = timestamp.toISOString();
+  if (isPro) {
+    // Round to nearest 15 minutes for Pro users to give high-res long-term charts
+    const minutes = timestamp.getMinutes();
+    timestamp.setMinutes(minutes - (minutes % 15), 0, 0);
+  } else {
+    // Round to nearest hour for free users
+    timestamp.setMinutes(0, 0, 0);
+  }
+  const timestampISO = timestamp.toISOString();
 
   if (!force) {
     const { data: existingSnapshot } = await supabase
       .from('user_networth_snapshots')
       .select('timestamp')
       .eq('user_address', address)
-      .eq('timestamp', hourStartISO)
+      .eq('timestamp', timestampISO)
       .maybeSingle();
 
     if (existingSnapshot) {
-      console.log(`[Networth] Snapshot for ${address} already exists for this hour. Skipping calculation.`);
+      console.log(`[Networth] Snapshot for ${address} already exists for this interval. Skipping calculation.`);
       return null;
     }
   }
@@ -175,7 +188,7 @@ export async function takeNetworthSnapshot(
     .from('user_networth_snapshots')
     .select('net_deposits_usd, timestamp')
     .eq('user_address', address)
-    .lt('timestamp', hourStartISO)
+    .lt('timestamp', timestampISO)
     .order('timestamp', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -242,7 +255,7 @@ export async function takeNetworthSnapshot(
     defi_usd: defiUsd,
     nft_usd: nftUsd,
     net_deposits_usd: netDepositsUsd,
-    timestamp: hourStartISO,
+    timestamp: timestampISO,
     breakdown: { ...breakdown, is_realtime: true }
   };
 

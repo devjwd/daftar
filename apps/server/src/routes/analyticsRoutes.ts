@@ -405,10 +405,9 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
 
           const { data: periodTxs } = await supabase
             .from('user_transaction_history')
-            .select('timestamp, value_usd, action, protocol')
+            .select('timestamp, value_usd, action, protocol, asset_in_symbol, asset_in_amount, asset_out_symbol, asset_out_amount')
             .eq('user_address', wallet)
             .gte('timestamp', startDate.toISOString())
-            .in('action', [...INFLOW_ACTIONS, ...OUTFLOW_ACTIONS])
             .order('timestamp', { ascending: true });
 
           const { data: startingSnap } = await supabase
@@ -427,31 +426,66 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
             val: Number(t.value_usd || 0),
             action: t.action,
             protocol: t.protocol || '',
+            asset_in_symbol: t.asset_in_symbol,
+            asset_in_amount: Number(t.asset_in_amount || 0),
+            asset_out_symbol: t.asset_out_symbol,
+            asset_out_amount: Number(t.asset_out_amount || 0),
           }));
 
           const uniqueTimestamps = Object.keys(pricesByTime).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
           let runningNetDeposits = baseNetDeposits;
-          let txIndex = 0;
+          let txIndexAsc = 0;
+          const netDepositsMap: Record<string, number> = {};
 
-          const history = uniqueTimestamps.map((timeISO) => {
+          // First pass: compute netDeposits ascending
+          for (const timeISO of uniqueTimestamps) {
             const timestampMs = new Date(timeISO).getTime();
-
-            while (txIndex < sortedTxs.length && sortedTxs[txIndex].time <= timestampMs) {
-              const tx = sortedTxs[txIndex];
+            while (txIndexAsc < sortedTxs.length && sortedTxs[txIndexAsc].time <= timestampMs) {
+              const tx = sortedTxs[txIndexAsc];
               const isExchange = KNOWN_EXCHANGES.has(tx.protocol) || tx.protocol.includes('Exchange') || tx.protocol.includes('Bridge');
               if (isExchange) {
-                if (INFLOW_ACTIONS.includes(tx.action)) {
-                  runningNetDeposits += tx.val;
-                } else if (OUTFLOW_ACTIONS.includes(tx.action)) {
-                  runningNetDeposits -= tx.val;
+                if (INFLOW_ACTIONS.includes(tx.action)) runningNetDeposits += tx.val;
+                else if (OUTFLOW_ACTIONS.includes(tx.action)) runningNetDeposits -= tx.val;
+              }
+              txIndexAsc++;
+            }
+            netDepositsMap[timeISO] = runningNetDeposits;
+          }
+
+          // Second pass: replay balances descending
+          const sortedTxsDesc = [...sortedTxs].sort((a, b) => b.time - a.time);
+          let txIndexDesc = 0;
+          const virtualBalances = JSON.parse(JSON.stringify(balances || []));
+          const reversedTimestamps = [...uniqueTimestamps].reverse();
+
+          const historyReversed = reversedTimestamps.map((timeISO) => {
+            const timestampMs = new Date(timeISO).getTime();
+
+            // Revert txs that happened AFTER this timestamp
+            while (txIndexDesc < sortedTxsDesc.length && sortedTxsDesc[txIndexDesc].time > timestampMs) {
+              const tx = sortedTxsDesc[txIndexDesc];
+              
+              if (tx.asset_in_symbol && tx.asset_in_amount) {
+                const existingIn = virtualBalances.find((b: any) => b.symbol?.toUpperCase() === tx.asset_in_symbol.toUpperCase());
+                if (existingIn) {
+                  existingIn.amount = Math.max(0, Number(existingIn.amount) - tx.asset_in_amount);
                 }
               }
-              txIndex++;
+              
+              if (tx.asset_out_symbol && tx.asset_out_amount) {
+                const existingOut = virtualBalances.find((b: any) => b.symbol?.toUpperCase() === tx.asset_out_symbol.toUpperCase());
+                if (existingOut) {
+                  existingOut.amount = Number(existingOut.amount) + tx.asset_out_amount;
+                } else {
+                  virtualBalances.push({ symbol: tx.asset_out_symbol, amount: tx.asset_out_amount, asset_type: '' });
+                }
+              }
+              txIndexDesc++;
             }
 
             let totalValuation = staticExtraUsd;
-            balances.forEach((b: any) => {
+            virtualBalances.forEach((b: any) => {
               let tokenKey = b.asset_type.toLowerCase().replace(/^0x0*/, '0x');
               if (NATIVE_MOVE_ADDRESSES.has(tokenKey)) {
                 tokenKey = '0x1';
@@ -465,15 +499,17 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
                   const aliasKey = LST_PRICE_ALIASES[b.symbol];
                   price = pricesByTime[timeISO][aliasKey] || fallbackPrices[aliasKey] || 0;
                 } else if (upperSym.includes('USDC') || upperSym.includes('USDT') || upperSym.includes('DAI') || upperSym.includes('USDE') || upperSym.includes('USD')) {
-                  price = 1.0;
+                  price = 0;
                 } else if (upperSym.includes('BTC')) {
                   const btcKey = '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c';
-                  price = pricesByTime[timeISO][btcKey] || fallbackPrices[btcKey] || 80000;
+                  price = pricesByTime[timeISO][btcKey] || fallbackPrices[btcKey] || 0;
                 } else if (upperSym.includes('ETH')) {
                   const ethKey = '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376';
-                  price = pricesByTime[timeISO][ethKey] || fallbackPrices[ethKey] || 2500;
+                  price = pricesByTime[timeISO][ethKey] || fallbackPrices[ethKey] || 0;
                 } else if (upperSym === 'MOVE' || upperSym.includes('MOVE') || tokenKey === '0x1') {
-                  price = pricesByTime[timeISO]['0x1'] || pricesByTime[timeISO]['0xa'] || fallbackPrices['0x1'] || 0.015;
+                  price = pricesByTime[timeISO]['0x1'] || pricesByTime[timeISO]['0xa'] || fallbackPrices['0x1'] || 0;
+                } else {
+                  price = fallbackPrices[tokenKey] || 0;
                 }
               }
 
@@ -487,9 +523,11 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
             return {
               date: timeISO,
               value: totalValuation,
-              netDeposits: runningNetDeposits,
+              netDeposits: netDepositsMap[timeISO],
             };
           });
+
+          const history = historyReversed.reverse();
 
           if (history.length >= 2) {
             const firstPoint = history[0];
