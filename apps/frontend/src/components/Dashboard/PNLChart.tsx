@@ -313,14 +313,28 @@ const PNLChart: React.FC<PNLChartProps> = ({
 
   // Map dataToRender (always show Net Worth on the chart line)
   const dataToRender = useMemo(() => {
-    const rawData = historicalData.length > 1
-      ? historicalData
-      : [{ time: 'Start', value: totalValue, netDeposits: 0 }, { time: 'Now', value: totalValue, netDeposits: 0 }];
+    if (historicalData.length > 1) {
+      const mapped = historicalData.map(pt => ({
+        ...pt,
+        displayValue: pt.value
+      }));
+      
+      // Append the live net worth to the end of the chart so it perfectly matches the user's current balance
+      const lastHistoricalPt = mapped[mapped.length - 1];
+      mapped.push({
+        time: new Date().toISOString(),
+        value: totalValue,
+        netDeposits: lastHistoricalPt.netDeposits,
+        displayValue: totalValue
+      });
+      
+      return mapped;
+    }
 
-    return rawData.map(pt => ({
-      ...pt,
-      displayValue: pt.value
-    }));
+    return [
+      { time: 'Start', value: totalValue, netDeposits: 0, displayValue: totalValue },
+      { time: 'Now', value: totalValue, netDeposits: 0, displayValue: totalValue }
+    ];
   }, [historicalData, totalValue]);
 
   // Calculate PnL changes for non-verified users using their current balances and 24h price changes
