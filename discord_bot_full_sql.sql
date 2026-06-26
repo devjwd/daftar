@@ -37,6 +37,7 @@ DO $$
 BEGIN
     DROP POLICY IF EXISTS "Allow all manage alert config" ON public.user_alert_configs;
     DROP POLICY IF EXISTS "Read for anon alert config" ON public.user_alert_configs;
+    DROP POLICY IF EXISTS "Service role full access on alert config" ON public.user_alert_configs;
 END $$;
 
 CREATE POLICY "Read for anon alert config" ON public.user_alert_configs FOR SELECT USING (true);
