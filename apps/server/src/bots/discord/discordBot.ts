@@ -205,6 +205,17 @@ export async function initDiscordBot(): Promise<Client | null> {
     {
       name: 'unlink',
       description: 'Unlink your Movement wallet from your Discord account.',
+    },
+    {
+      name: 'alert',
+      description: 'Configure your Daftar real-time transaction and price alerts.',
+      options: [
+        { name: 'enable_price_alerts', description: 'Receive DMs for big price moves', type: ApplicationCommandOptionType.Boolean, required: false },
+        { name: 'price_change_percent', description: 'Percentage move to trigger price alert (e.g. 5, 10)', type: ApplicationCommandOptionType.Number, required: false },
+        { name: 'alert_on_received', description: 'Receive DMs when you receive tokens', type: ApplicationCommandOptionType.Boolean, required: false },
+        { name: 'alert_on_withdrawal', description: 'Receive DMs when you send tokens', type: ApplicationCommandOptionType.Boolean, required: false },
+        { name: 'alert_on_swaps', description: 'Receive DMs when you swap tokens', type: ApplicationCommandOptionType.Boolean, required: false }
+      ]
     }
   ];
 
@@ -630,6 +641,69 @@ export async function initDiscordBot(): Promise<Client | null> {
       } catch (err: any) {
         console.error('[DiscordBot] Network error:', err);
         await interaction.editReply({ content: '❌ Failed to fetch network status. RPC may be down.' });
+      }
+    }
+
+    else if (commandName === 'alert') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { data: config, error } = await supabase
+          .from('user_alert_configs')
+          .select('*')
+          .eq('discord_user_id', userId)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!config || !config.wallet_address) {
+          return interaction.editReply({
+            content: '❌ Your Discord account is not currently linked to any wallet. Use `/link` first.'
+          });
+        }
+
+        const updates: any = {};
+        
+        const enablePrice = interaction.options.getBoolean('enable_price_alerts');
+        const priceThreshold = interaction.options.getNumber('price_change_percent');
+        const onReceive = interaction.options.getBoolean('alert_on_received');
+        const onSend = interaction.options.getBoolean('alert_on_withdrawal');
+        const onSwap = interaction.options.getBoolean('alert_on_swaps');
+
+        if (enablePrice !== null) updates.alert_on_price_change = enablePrice;
+        if (priceThreshold !== null) updates.price_alert_threshold = priceThreshold;
+        if (onReceive !== null) updates.alert_on_received = onReceive;
+        if (onSend !== null) updates.alert_on_withdrawal = onSend;
+        if (onSwap !== null) updates.alert_on_swaps = onSwap;
+
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .from('user_alert_configs')
+            .update(updates)
+            .eq('wallet_address', config.wallet_address);
+        }
+
+        // Fetch updated config
+        const { data: updatedConfig } = await supabase
+          .from('user_alert_configs')
+          .select('*')
+          .eq('wallet_address', config.wallet_address)
+          .single();
+
+        const embed = new EmbedBuilder()
+          .setTitle('🔔 Alert Configuration Updated')
+          .setDescription(`Your alert preferences for \`${config.wallet_address}\` have been updated!`)
+          .addFields(
+            { name: 'Price Alerts', value: updatedConfig.alert_on_price_change ? `✅ Enabled (±${updatedConfig.price_alert_threshold}%)` : '❌ Disabled', inline: false },
+            { name: 'Receives', value: updatedConfig.alert_on_received ? '✅ Enabled' : '❌ Disabled', inline: true },
+            { name: 'Withdrawals', value: updatedConfig.alert_on_withdrawal ? '✅ Enabled' : '❌ Disabled', inline: true },
+            { name: 'Swaps', value: updatedConfig.alert_on_swaps ? '✅ Enabled' : '❌ Disabled', inline: true }
+          )
+          .setColor(0x00FF00);
+
+        await interaction.editReply({ embeds: [embed] });
+
+      } catch (err: any) {
+        console.error('[DiscordBot] Alert config error:', err);
+        await interaction.editReply({ content: '❌ Failed to update alert settings.' });
       }
     }
 

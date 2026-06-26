@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { processPriceAlerts } from './priceAlertWorker.ts';
 
 export const TOKEN_COINGECKO_IDS: Record<string, string> = {
   '0xa': 'movement',
@@ -191,6 +192,9 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
       if (fiveMinEntries.length > 0) {
         await supabase.from('token_price_history').upsert(fiveMinEntries, { onConflict: 'token_address,timestamp,granularity' });
       }
+
+      // 4. Process Price Alerts
+      void processPriceAlerts(supabase, snapshot);
     }
 
     return snapshot;
