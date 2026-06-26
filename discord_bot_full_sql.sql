@@ -99,6 +99,12 @@ CREATE TABLE IF NOT EXISTS public.price_alerts_log (
 );
 
 ALTER TABLE public.price_alerts_log ENABLE ROW LEVEL SECURITY;
+
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Allow public read access to price_alerts_log" ON public.price_alerts_log;
+END $$;
+
 CREATE POLICY "Allow public read access to price_alerts_log" ON public.price_alerts_log FOR SELECT USING (true);
 
 
@@ -120,4 +126,10 @@ CREATE TABLE IF NOT EXISTS public.discord_guild_configs (
 );
 
 ALTER TABLE public.discord_guild_configs ENABLE ROW LEVEL SECURITY;
+
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Allow public read access to discord_guild_configs" ON public.discord_guild_configs;
+END $$;
+
 CREATE POLICY "Allow public read access to discord_guild_configs" ON public.discord_guild_configs FOR SELECT USING (true);
