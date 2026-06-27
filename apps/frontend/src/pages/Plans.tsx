@@ -33,9 +33,17 @@ interface PlansConfig {
   discountScope?: 'first_month' | 'all_months';
 }
 
+interface ContractConfig {
+  pricePerDuration: number;
+  discountPricePerDuration: number;
+  discountScope: number;
+  durationInSeconds: number;
+}
+
 // ─── Payment Modal ──────────────────────────────────────────────────────────
 interface PaymentModalProps {
   config: PlansConfig;
+  contractConfig: ContractConfig;
   walletAddress: string;
   onClose: () => void;
   onSuccess: () => void;
@@ -43,7 +51,7 @@ interface PaymentModalProps {
   client: any;
 }
 
-function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmitTransaction, client }: PaymentModalProps) {
+function PaymentModal({ config, contractConfig, walletAddress, onClose, onSuccess, signAndSubmitTransaction, client }: PaymentModalProps) {
   const [selectedMonths, setSelectedMonths] = useState<number>(1);
   const [step, setStep] = useState<'confirm' | 'sending' | 'verifying' | 'purchased' | 'error'>('confirm');
   const [txHash, setTxHash] = useState('');
@@ -51,26 +59,21 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
-  // Calculate pricing based on selectedMonths and discountScope
-  const discountScope = config.discountScope || 'all_months';
-  const hasDiscount = config.discountPriceUsd !== null;
-
-  let totalPriceUsd = 0;
-  if (hasDiscount && config.discountPriceUsd !== null) {
-    if (discountScope === 'first_month') {
-      totalPriceUsd = config.discountPriceUsd + (selectedMonths - 1) * config.basePriceUsd;
-    } else {
-      totalPriceUsd = config.discountPriceUsd * selectedMonths;
-    }
+  // Use the exact contract config math
+  let moveAmount = 0;
+  if (contractConfig.discountScope === 1) {
+    moveAmount = contractConfig.discountPricePerDuration + (selectedMonths - 1) * contractConfig.pricePerDuration;
+  } else if (contractConfig.discountScope === 2) {
+    moveAmount = contractConfig.discountPricePerDuration * selectedMonths;
   } else {
-    totalPriceUsd = config.basePriceUsd * selectedMonths;
+    moveAmount = contractConfig.pricePerDuration * selectedMonths;
   }
-
-  const moveAmount = config.movePriceUsd > 0 ? totalPriceUsd / config.movePriceUsd : 0;
-  // Add 1% buffer so user pays slightly more than minimum (avoids verification rejection at edge)
-  const moveAmountWithBuffer = moveAmount * 1.01;
-  const octasToSend = Math.ceil(moveAmountWithBuffer * 1e8);
-  const moveDisplay = (octasToSend / 1e8).toFixed(4);
+  
+  const octasToSend = Math.ceil(moveAmount * 1e8);
+  const moveDisplay = moveAmount.toFixed(4);
+  
+  // Approximate USD for display purposes only
+  const totalPriceUsd = moveAmount * config.movePriceUsd;
 
   const isInsufficientBalance = balance !== null && balance < (octasToSend / 1e8);
 
@@ -118,11 +121,6 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
   }, [walletAddress]);
 
   const handleSendMove = useCallback(async () => {
-    if (!config.treasuryWallet) {
-      setErrorMsg('Treasury wallet is not configured. Contact the admin.');
-      setStep('error');
-      return;
-    }
     if (isInsufficientBalance) {
       setErrorMsg('You do not have enough MOVE balance to purchase this plan.');
       setStep('error');
@@ -133,9 +131,9 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       const result = await signAndSubmitTransaction({
         sender: walletAddress,
         data: {
-          function: '0x1::aptos_account::transfer',
+          function: '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69::subscription::upgrade_to_pro',
           typeArguments: [],
-          functionArguments: [config.treasuryWallet, String(octasToSend)],
+          functionArguments: [String(selectedMonths)],
         },
       });
       // The wallet adapter returns { hash } or similar
@@ -150,7 +148,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
       setErrorMsg(err?.message || 'Transaction was rejected or failed.');
       setStep('error');
     }
-  }, [config.treasuryWallet, octasToSend, walletAddress, signAndSubmitTransaction, handleVerify, selectedMonths, isInsufficientBalance]);
+  }, [octasToSend, walletAddress, signAndSubmitTransaction, handleVerify, selectedMonths, isInsufficientBalance]);
 
   return (
     <div className="payment-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -195,18 +193,13 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
             </div>
 
             <div className="payment-summary-card">
-              <div className="payment-summary-row">
+                <div className="payment-summary-row">
                 <span>Plan</span>
-                <strong>Pro — {config.durationDays * selectedMonths} days</strong>
+                <strong>Pro — {Math.floor(contractConfig.durationInSeconds / (24*60*60)) * selectedMonths} days</strong>
               </div>
               <div className="payment-summary-row">
-                <span>Price</span>
+                <span>Approx USD Value</span>
                 <strong>
-                  {hasDiscount && (
-                    <s style={{ color: 'rgba(255,255,255,0.35)', marginRight: '8px' }}>
-                      ${(config.basePriceUsd * selectedMonths).toFixed(2)}
-                    </s>
-                  )}
                   ${totalPriceUsd.toFixed(2)}
                 </strong>
               </div>
@@ -283,7 +276,7 @@ function PaymentModal({ config, walletAddress, onClose, onSuccess, signAndSubmit
               </div>
               <div className="post-purchase-title">Welcome to Pro!</div>
               <div className="post-purchase-subtitle">
-                Your {config.durationDays * selectedMonths}-day Pro subscription is now active
+                Your {Math.floor(contractConfig.durationInSeconds / (24*60*60)) * selectedMonths}-day Pro subscription is now active
               </div>
             </div>
 
@@ -355,6 +348,7 @@ export default function Plans() {
   const { profile, loading: profileLoading, refresh: refreshProfile } = useProfile(walletAddress);
   const [plans, setPlans] = useState<PlanDefinition[]>([]);
   const [plansConfig, setPlansConfig] = useState<PlansConfig | null>(null);
+  const [contractConfig, setContractConfig] = useState<ContractConfig | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
@@ -375,6 +369,25 @@ export default function Plans() {
         if (fetchedConfig) {
           setPlansConfig(fetchedConfig);
         }
+        if (movementClient) {
+          try {
+            const res = await movementClient.getAccountResource({
+              accountAddress: '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69',
+              resourceType: '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69::subscription::SubscriptionRegistry'
+            });
+            if (res && res.data) {
+              const data = res.data as any;
+              setContractConfig({
+                pricePerDuration: Number(data.price_per_duration || 0) / 1e8,
+                discountPricePerDuration: Number(data.discount_price_per_duration || 0) / 1e8,
+                discountScope: Number(data.discount_scope || 0),
+                durationInSeconds: Number(data.duration_in_seconds || 2592000), // Default 30 days
+              });
+            }
+          } catch (e) {
+            console.warn("Could not fetch contract price", e);
+          }
+        }
       } catch (err) {
         console.error('Failed to load plans:', err);
       } finally {
@@ -382,7 +395,7 @@ export default function Plans() {
       }
     }
     loadData();
-  }, []);
+  }, [movementClient]);
 
   const handlePaymentSuccess = useCallback(() => {
     // Refresh profile to reflect new tier without hard reloading
@@ -397,9 +410,9 @@ export default function Plans() {
     ? (plansConfig.discountPriceUsd !== null ? plansConfig.discountPriceUsd : plansConfig.basePriceUsd)
     : 5;
 
-  const moveEquivalent = plansConfig && plansConfig.movePriceUsd > 0
-    ? (effectivePriceUsd / plansConfig.movePriceUsd).toFixed(2)
-    : null;
+  const moveEquivalent = contractConfig !== null 
+    ? contractConfig.pricePerDuration.toFixed(2)
+    : (plansConfig && plansConfig.movePriceUsd > 0 ? (effectivePriceUsd / plansConfig.movePriceUsd).toFixed(2) : null);
 
   // Fallback plans if API fails
   const displayPlans: PlanDefinition[] = plans.length > 0 ? plans : [
@@ -563,9 +576,10 @@ export default function Plans() {
       </div>
 
       {/* Payment Modal */}
-      {showPaymentModal && plansConfig && walletAddress && (
+      {showPaymentModal && plansConfig && contractConfig !== null && walletAddress && (
         <PaymentModal
           config={plansConfig}
+          contractConfig={contractConfig}
           walletAddress={walletAddress}
           onClose={() => setShowPaymentModal(false)}
           onSuccess={handlePaymentSuccess}

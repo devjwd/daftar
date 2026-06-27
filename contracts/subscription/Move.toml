@@ -1,0 +1,12 @@
+[package]
+name = "subscription_manager"
+version = "1.0.0"
+authors = []
+
+[addresses]
+subscription_manager = "0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69" # Same deployer as swap_router for now
+
+[dependencies.AptosFramework]
+git = "https://github.com/movementlabsxyz/aptos-core.git"
+rev = "movement"
+subdir = "aptos-move/framework/aptos-framework"

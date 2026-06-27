@@ -272,42 +272,42 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Transaction sender does not match the provided wallet address.' });
     }
 
-    // 5. Validate the payload — must be a coin transfer to the treasury wallet
+    // 5. Validate the payload — must be a subscription upgrade
     const payload = tx.payload || {};
     const fn: string = (payload.function || '').toLowerCase();
-    const isCoinTransfer =
-      fn === '0x1::aptos_account::transfer' ||
-      fn === '0x1::coin::transfer';
+    const isSubscriptionUpgrade =
+      fn === '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69::subscription::upgrade_to_pro';
 
-    if (!isCoinTransfer) {
-      return res.status(400).json({ error: 'Transaction is not a valid MOVE transfer. Expected 0x1::aptos_account::transfer.' });
+    if (!isSubscriptionUpgrade) {
+      return res.status(400).json({ error: 'Transaction is not a valid subscription upgrade.' });
     }
 
-    const args: any[] = payload.arguments || [];
-    const txRecipient = normalizeAddress(String(args[0] || ''));
-    const treasury = normalizeAddress(cfg.treasuryWallet);
+    // 6. Find the SubscriptionPurchasedEvent in the transaction events
+    const events = tx.events || [];
+    const purchasedEvent = events.find((e: any) => 
+      e.type === '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69::subscription::SubscriptionPurchasedEvent'
+    );
 
-    if (txRecipient !== treasury) {
-      return res.status(400).json({ error: `Payment must be sent to the treasury wallet. Expected: ${cfg.treasuryWallet}` });
+    if (!purchasedEvent) {
+      return res.status(400).json({ error: 'Subscription event not found in transaction. Ensure the transaction succeeded.' });
     }
 
-    // 6. Validate amount (allow 2% tolerance for price fluctuation)
-    const txOctas = Number(args[1] || 0);
-    const tolerance = 0.02; // 2%
-    const minAcceptableOctas = Math.floor(requiredOctas * (1 - tolerance));
-
-    if (txOctas < minAcceptableOctas) {
-      const sentMove = (txOctas / MOVE_DECIMALS).toFixed(4);
-      const neededMove = (minAcceptableOctas / MOVE_DECIMALS).toFixed(4);
-      return res.status(400).json({
-        error: `Insufficient payment. Sent ${sentMove} MOVE but ${neededMove} MOVE is required (2% tolerance applied).`,
-      });
+    const eventData = purchasedEvent.data || {};
+    if (normalizeAddress(eventData.user) !== walletAddress) {
+      return res.status(400).json({ error: 'Subscription event user does not match the provided wallet address.' });
     }
+
+    // Extract precise details from the verified event
+    const txOctas = Number(eventData.amount_paid || 0);
+    const eventMonths = Number(eventData.months || months);
+    const totalDurationDays = cfg.durationDays * eventMonths;
 
     // 7. All checks passed — upgrade the subscription
     const now = new Date();
-    const totalDurationDays = cfg.durationDays * months;
-    const expiresAt = new Date(now.getTime() + totalDurationDays * 24 * 60 * 60 * 1000);
+    // Use the contract's explicit expires_at if available, otherwise calculate fallback
+    const expiresAt = eventData.expires_at 
+      ? new Date(Number(eventData.expires_at) * 1000)
+      : new Date(now.getTime() + totalDurationDays * 24 * 60 * 60 * 1000);
 
     const { data: updatedProfile, error: updateError } = await supabase
       .from('profiles')
