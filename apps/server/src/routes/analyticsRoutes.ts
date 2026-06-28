@@ -486,34 +486,43 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
 
             let totalValuation = staticExtraUsd;
             virtualBalances.forEach((b: any) => {
-              let tokenKey = b.asset_type.toLowerCase().replace(/^0x0*/, '0x');
-              if (NATIVE_MOVE_ADDRESSES.has(tokenKey)) {
+              const rawKey = (b.asset_type || '').toLowerCase().replace(/^0x0*/, '0x');
+              // Detect if asset_type is a real address or just a symbol string (fallback from LP extraction)
+              const isRealAddress = rawKey.startsWith('0x') && rawKey.length > 4;
+              let tokenKey = isRealAddress ? rawKey : '';
+              if (tokenKey && NATIVE_MOVE_ADDRESSES.has(tokenKey)) {
                 tokenKey = '0x1';
               }
 
-              let price = pricesByTime[timeISO][tokenKey] || 0;
+              // Only do address-based lookup when we have a real address
+              let price = (tokenKey && pricesByTime[timeISO][tokenKey]) ? pricesByTime[timeISO][tokenKey] : 0;
 
               if (price === 0 && b.symbol) {
                 const upperSym = b.symbol.toUpperCase();
                 if (LST_PRICE_ALIASES[b.symbol]) {
+                  // LST: inherit underlying token price
                   const aliasKey = LST_PRICE_ALIASES[b.symbol];
                   price = pricesByTime[timeISO][aliasKey] || fallbackPrices[aliasKey] || 0;
+                } else if (upperSym === 'MOVE' || upperSym === 'GMOVE' || upperSym === 'STMOVE' || upperSym === 'CVMOVE' || upperSym.endsWith('MOVE') || tokenKey === '0x1') {
+                  // MOVE and MOVE LSTs
+                  price = pricesByTime[timeISO]['0x1'] || pricesByTime[timeISO]['0xa'] || fallbackPrices['0x1'] || 0;
                 } else if (upperSym.includes('USDC') || upperSym.includes('USDT') || upperSym.includes('DAI') || upperSym.includes('USDE') || upperSym.includes('USD')) {
-                  price = 0;
-                } else if (upperSym.includes('BTC')) {
+                  // Stablecoins: always $1
+                  price = 1;
+                } else if (upperSym.includes('BTC') || upperSym.includes('WBTC')) {
                   const btcKey = '0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c';
                   price = pricesByTime[timeISO][btcKey] || fallbackPrices[btcKey] || 0;
-                } else if (upperSym.includes('ETH')) {
+                } else if (upperSym.includes('ETH') || upperSym.includes('WETH')) {
                   const ethKey = '0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376';
                   price = pricesByTime[timeISO][ethKey] || fallbackPrices[ethKey] || 0;
-                } else if (upperSym === 'MOVE' || upperSym.includes('MOVE') || tokenKey === '0x1') {
-                  price = pricesByTime[timeISO]['0x1'] || pricesByTime[timeISO]['0xa'] || fallbackPrices['0x1'] || 0;
-                } else {
+                } else if (tokenKey) {
+                  // Real address but unknown symbol: try fallback price cache
                   price = fallbackPrices[tokenKey] || 0;
                 }
               }
 
-              if (price === 0 && fallbackPrices[tokenKey]) {
+              // Final safety net: if we have a real address and still no price, try fallback cache
+              if (price === 0 && tokenKey && fallbackPrices[tokenKey]) {
                 price = fallbackPrices[tokenKey];
               }
 

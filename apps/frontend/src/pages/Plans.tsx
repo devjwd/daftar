@@ -68,10 +68,10 @@ function PaymentModal({ config, contractConfig, walletAddress, onClose, onSucces
   } else {
     moveAmount = contractConfig.pricePerDuration * selectedMonths;
   }
-  
+
   const octasToSend = Math.ceil(moveAmount * 1e8);
   const moveDisplay = moveAmount.toFixed(4);
-  
+
   // Approximate USD for display purposes only
   const totalPriceUsd = moveAmount * config.movePriceUsd;
 
@@ -193,9 +193,9 @@ function PaymentModal({ config, contractConfig, walletAddress, onClose, onSucces
             </div>
 
             <div className="payment-summary-card">
-                <div className="payment-summary-row">
+              <div className="payment-summary-row">
                 <span>Plan</span>
-                <strong>Pro — {Math.floor(contractConfig.durationInSeconds / (24*60*60)) * selectedMonths} days</strong>
+                <strong>Pro — {Math.floor(contractConfig.durationInSeconds / (24 * 60 * 60)) * selectedMonths} days</strong>
               </div>
               <div className="payment-summary-row">
                 <span>Approx USD Value</span>
@@ -276,7 +276,7 @@ function PaymentModal({ config, contractConfig, walletAddress, onClose, onSucces
               </div>
               <div className="post-purchase-title">Welcome to Pro!</div>
               <div className="post-purchase-subtitle">
-                Your {Math.floor(contractConfig.durationInSeconds / (24*60*60)) * selectedMonths}-day Pro subscription is now active
+                Your {Math.floor(contractConfig.durationInSeconds / (24 * 60 * 60)) * selectedMonths}-day Pro subscription is now active
               </div>
             </div>
 
@@ -410,7 +410,7 @@ export default function Plans() {
     ? (plansConfig.discountPriceUsd !== null ? plansConfig.discountPriceUsd : plansConfig.basePriceUsd)
     : 5;
 
-  const moveEquivalent = contractConfig !== null 
+  const moveEquivalent = contractConfig !== null
     ? contractConfig.pricePerDuration.toFixed(2)
     : (plansConfig && plansConfig.movePriceUsd > 0 ? (effectivePriceUsd / plansConfig.movePriceUsd).toFixed(2) : null);
 
