@@ -281,7 +281,7 @@ router.post('/test', generalLimiter, async (req: Request, res: Response) => {
     const testText = '<b>🚨 Daftar Alert: Test Notification Successful</b>\n\n' +
       'If you are reading this, your alert notification channel has been set up correctly! Future transaction warnings will be sent here.';
 
-    let channelsTriggered: string[] = [];
+    const channelsTriggered: string[] = [];
 
     if (config.email_enabled && config.email) {
       const emailHtml = `

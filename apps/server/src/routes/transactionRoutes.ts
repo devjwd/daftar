@@ -131,7 +131,7 @@ router.get('/', generalLimiter, async (req: Request, res: Response) => {
     if (minAmount !== null || maxAmount !== null) {
       // Supabase OR condition for filtering either asset_in_amount OR asset_out_amount
       // e.g., (asset_in_amount >= min OR asset_out_amount >= min)
-      let orConditions = [];
+      const orConditions = [];
       
       if (minAmount !== null && maxAmount !== null) {
         orConditions.push(`and(asset_in_amount.gte.${minAmount},asset_in_amount.lte.${maxAmount})`);

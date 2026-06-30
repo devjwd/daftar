@@ -747,11 +747,11 @@ function enrichTransaction(
     protocol = exchangeName;
   }
 
-  let category = (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVED) ? 'Transfer' : 'DeFi';
+  const category = (action === TX_TYPES.SEND || action === TX_TYPES.RECEIVED) ? 'Transfer' : 'DeFi';
 
   // 6. Generate Description & Metadata
   let description = 'Contract interaction';
-  let primaryIn = inFlows[0];
+  const primaryIn = inFlows[0];
   let primaryOut = outFlows[0];
 
   // Fallback for single-sided protocol interactions missing direct user flows (e.g. MovePosition auto-compounding)
@@ -915,8 +915,8 @@ export async function syncFullUserHistory(
     .order('version', { ascending: true })
     .limit(1);
 
-  let maxVersionStr = maxData && maxData.length > 0 ? String(maxData[0].version) : "0";
-  let minVersionStr = minData && minData.length > 0 ? String(minData[0].version) : "9223372036854775807";
+  const maxVersionStr = maxData && maxData.length > 0 ? String(maxData[0].version) : "0";
+  const minVersionStr = minData && minData.length > 0 ? String(minData[0].version) : "9223372036854775807";
 
   // CRITICAL FIX: If the history table was cleared manually, reset the sync status
   let isFullySynced = statusData?.full_history_synced === true;

@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { BadgeDefinition, Profile, EligibilityResult, LeaderboardEntry } from '@daftar/types';
+import { BadgeDefinition, Profile, EligibilityResult, LeaderboardEntry } from '@daftar/shared-types';
 import { normalizeAddress } from '../utils/address';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';

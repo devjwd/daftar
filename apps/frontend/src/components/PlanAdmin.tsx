@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { managePlan, getPlansConfig, setSubscriptionPaymentConfig } from '../services/api';
 import { createAdminProofHeaders } from '../services/adminProof';
+import { useMovementClient } from '../hooks/useMovementClient';
 
 interface UserProfile {
   wallet_address: string;
@@ -14,7 +15,8 @@ interface UserProfile {
 }
 
 export default function PlanAdmin() {
-  const { account, signMessage } = useWallet();
+  const { account, signMessage, signAndSubmitTransaction } = useWallet();
+  const { client: movementClient } = useMovementClient();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +51,71 @@ export default function PlanAdmin() {
   const showMessage = (type: string, text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+  };
+
+  const [contractConfig, setContractConfig] = useState({
+    price_per_duration: 0,
+    discount_price_per_duration: 0,
+    discount_scope: 0,
+    duration_in_seconds: 2592000,
+  });
+  const [contractConfigLoading, setContractConfigLoading] = useState(true);
+  const [contractConfigSaving, setContractConfigSaving] = useState(false);
+
+  // Load contract config
+  useEffect(() => {
+    async function loadContractConfig() {
+      if (!movementClient) return;
+      try {
+        const res = await movementClient.getAccountResource({
+          accountAddress: '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69',
+          resourceType: '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69::subscription::SubscriptionRegistry'
+        });
+        if (res && res.data) {
+          const data = res.data as any;
+          setContractConfig({
+            price_per_duration: Number(data.price_per_duration || 0) / 1e8,
+            discount_price_per_duration: Number(data.discount_price_per_duration || 0) / 1e8,
+            discount_scope: Number(data.discount_scope || 0),
+            duration_in_seconds: Number(data.duration_in_seconds || 2592000),
+          });
+        }
+      } catch (e) {
+        console.warn("Could not fetch contract config", e);
+      } finally {
+        setContractConfigLoading(false);
+      }
+    }
+    loadContractConfig();
+  }, [movementClient]);
+
+  const handleSyncToBlockchain = async () => {
+    if (!account || !signAndSubmitTransaction) {
+      showMessage('error', 'Wallet not connected');
+      return;
+    }
+    setContractConfigSaving(true);
+    try {
+      const payload = {
+        function: '0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69::subscription::update_pricing',
+        typeArguments: [],
+        functionArguments: [
+          Math.floor(contractConfig.price_per_duration * 1e8),
+          Math.floor(contractConfig.discount_price_per_duration * 1e8),
+          contractConfig.discount_scope,
+          contractConfig.duration_in_seconds
+        ],
+      };
+      const response = await signAndSubmitTransaction({
+        data: payload
+      });
+      await movementClient.waitForTransaction({ transactionHash: response.hash });
+      showMessage('success', 'On-Chain Pricing updated successfully!');
+    } catch (err: any) {
+      showMessage('error', err.message || 'Failed to sync to blockchain');
+    } finally {
+      setContractConfigSaving(false);
+    }
   };
 
   const createAuth = useCallback(async (body: any) => {
@@ -229,13 +296,116 @@ export default function PlanAdmin() {
   return (
     <div className="admin-content">
 
-      {/* ── Subscription Payment Settings ── */}
+      <div className="admin-settings-card" style={{ marginBottom: '24px' }}>
+        <h3>On-Chain Smart Contract Pricing</h3>
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginBottom: '20px' }}>
+          Configure the exact MOVE token prices encoded directly onto the blockchain. This is the source of truth for the subscription cost.
+        </p>
+
+        {contractConfigLoading ? (
+          <div style={{ color: '#aaa', fontSize: '14px' }}>Loading on-chain config...</div>
+        ) : (
+          <div>
+            <div className="admin-settings-grid">
+              <div className="admin-form-group">
+                <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Base Price (MOVE)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={contractConfig.price_per_duration}
+                  onChange={e => setContractConfig(p => ({ ...p, price_per_duration: Number(e.target.value) }))}
+                  style={{ marginTop: '6px', width: '100%' }}
+                />
+              </div>
+
+              <div className="admin-form-group">
+                <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Discount Price (MOVE)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={contractConfig.discount_price_per_duration}
+                  onChange={e => setContractConfig(p => ({ ...p, discount_price_per_duration: Number(e.target.value) }))}
+                  style={{ marginTop: '6px', width: '100%' }}
+                />
+              </div>
+
+              <div className="admin-form-group">
+                <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Duration (Seconds)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={contractConfig.duration_in_seconds}
+                  onChange={e => setContractConfig(p => ({ ...p, duration_in_seconds: Number(e.target.value) }))}
+                  style={{ marginTop: '6px', width: '100%' }}
+                />
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
+                  ({(contractConfig.duration_in_seconds / 86400).toFixed(1)} days)
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-form-group" style={{ marginTop: '16px' }}>
+              <label style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>Discount Application</label>
+              <div style={{ display: 'flex', gap: '24px', marginTop: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+                  <input
+                    type="radio"
+                    name="onchain_discount_scope"
+                    value="0"
+                    checked={contractConfig.discount_scope === 0}
+                    onChange={() => setContractConfig(p => ({ ...p, discount_scope: 0 }))}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  No Discount
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+                  <input
+                    type="radio"
+                    name="onchain_discount_scope"
+                    value="1"
+                    checked={contractConfig.discount_scope === 1}
+                    onChange={() => setContractConfig(p => ({ ...p, discount_scope: 1 }))}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  First Period Only
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+                  <input
+                    type="radio"
+                    name="onchain_discount_scope"
+                    value="2"
+                    checked={contractConfig.discount_scope === 2}
+                    onChange={() => setContractConfig(p => ({ ...p, discount_scope: 2 }))}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  All Periods
+                </label>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '20px' }}>
+              <button
+                className="admin-btn admin-btn-primary"
+                onClick={handleSyncToBlockchain}
+                disabled={contractConfigSaving}
+              >
+                {contractConfigSaving ? 'Syncing...' : 'Sync to Blockchain'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Legacy Display Config (USD) ── */}
       <div className="admin-settings-card" style={{ marginBottom: '28px', borderColor: 'rgba(205,161,105,0.25)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div>
-            <h3 style={{ margin: 0 }}>💳 Subscription Payment Settings</h3>
+            <h3 style={{ margin: 0 }}>💳 Legacy Display Config (USD)</h3>
             <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>
-              Configure MOVE token payment — users can self-subscribe directly from their wallet.
+              Configure the approximate USD display values and treasury address.
             </p>
           </div>
           {configLoading && <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>Loading...</span>}

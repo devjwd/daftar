@@ -37,7 +37,7 @@ export async function reconstructHistoricalBalances(
     console.error(`[Portfolio] Error fetching latest snapshot:`, snapError);
   }
 
-  let lastDateStr = latestSnapshot?.snapshot_date;
+  const lastDateStr = latestSnapshot?.snapshot_date;
   const balances: BalanceState = {};
   let recalcStartDateStr: string | null = null;
   let balanceLoadDateStr: string | null = null;

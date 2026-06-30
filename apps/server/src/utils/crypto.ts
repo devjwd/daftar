@@ -51,7 +51,7 @@ export const verifyWalletSignature = (
   const parsed = parseSignaturePayload(signaturePayload);
 
   // Extract values, handling potential nesting (e.g. from some wallets)
-  let publicKeyInput = parsed?.publicKey || parsed?.public_key || parsed?.public_key_hex;
+  const publicKeyInput = parsed?.publicKey || parsed?.public_key || parsed?.public_key_hex;
   let signatureInput = parsed?.signature || parsed?.sig || parsed?.sig_hex;
 
   // If we got an object that has 'signature' inside (double nesting)

@@ -85,7 +85,7 @@ export const fetchCoinGeckoPrices = async (supabase?: SupabaseClient | null): Pr
   }
 
   try {
-    let data: any = await fetchFromCoinGecko(headers);
+    const data: any = await fetchFromCoinGecko(headers);
 
     if (!data) {
       // All CoinGecko attempts failed — try to return cached DB values

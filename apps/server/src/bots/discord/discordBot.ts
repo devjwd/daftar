@@ -1000,7 +1000,7 @@ export async function initDiscordBot(): Promise<Client | null> {
       if (!interaction.guild) return;
 
       const category = interaction.guild.channels.cache.find(c => c.name.toLowerCase() === 'support' || c.name.toLowerCase() === 'ticket' && c.type === ChannelType.GuildCategory);
-      let categoryId = category ? category.id : null;
+      const categoryId = category ? category.id : null;
       const expectedChannelName = `ticket-${interaction.user.username}`.toLowerCase();
 
       // Check if ticket already exists

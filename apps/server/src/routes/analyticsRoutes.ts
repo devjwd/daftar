@@ -99,9 +99,9 @@ router.post('/trigger-sync', generalLimiter, async (req: Request, res: Response)
       .maybeSingle();
 
     if (!profile) {
-      return res.status(403).json({ 
-        error: 'Profile required', 
-        message: 'You must create a profile to sync your portfolio.' 
+      return res.status(403).json({
+        error: 'Profile required',
+        message: 'You must create a profile to sync your portfolio.'
       });
     }
 
@@ -120,9 +120,9 @@ router.post('/trigger-sync', generalLimiter, async (req: Request, res: Response)
         const lastUpdate = new Date(queueData.updated_at).getTime();
         const oneHour = 60 * 60 * 1000;
         if (Date.now() - lastUpdate < oneHour) {
-          return res.status(200).json({ 
-            status: 'cooldown', 
-            message: 'Sync requested too recently. Please wait 1 hour between on-demand syncs.' 
+          return res.status(200).json({
+            status: 'cooldown',
+            message: 'Sync requested too recently. Please wait 1 hour between on-demand syncs.'
           });
         }
       }
@@ -156,9 +156,9 @@ router.get('/status', async (req: Request, res: Response) => {
     .maybeSingle();
 
   if (error) return res.status(500).json({ error: 'Failed to fetch status' });
-  
+
   const data = statusData || { full_history_synced: false, total_transactions: 0, synced_transactions: 0 };
-  
+
   // Check if there is an active job in the queue (pending or processing)
   const { data: activeJob } = await supabase
     .from('sync_queue')
@@ -208,7 +208,7 @@ router.get('/reprocess-unknowns', requireMaintenanceKey, async (req: Request, re
 
   try {
     const { reProcessUnknownTransactions } = await import('../services/analyticsSyncService.ts');
-    
+
     // Run reprocessing asynchronously so the HTTP request returns immediately
     reProcessUnknownTransactions(supabase)
       .then(() => console.log('[Maintenance] Finished reprocessing unknown transactions.'))
@@ -359,7 +359,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
             balances = bData || [];
             console.log(`[PNL-Precise] Fetched ${balances.length} balances from DB snapshot.`);
           }
-          
+
           if (!req.body?.staticExtraUsd) {
             const { data: latestNetworthRow } = await supabase
               .from('user_networth_snapshots')
@@ -368,7 +368,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
               .order('timestamp', { ascending: false })
               .limit(1)
               .maybeSingle();
-              
+
             if (latestNetworthRow) {
               // Balance snapshots only have wallet tokens; add defi_usd + nft_usd as static extra
               staticExtraUsd = Number(latestNetworthRow.defi_usd || 0) + Number(latestNetworthRow.nft_usd || 0);
@@ -465,14 +465,14 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
             // Revert txs that happened AFTER this timestamp
             while (txIndexDesc < sortedTxsDesc.length && sortedTxsDesc[txIndexDesc].time > timestampMs) {
               const tx = sortedTxsDesc[txIndexDesc];
-              
+
               if (tx.asset_in_symbol && tx.asset_in_amount) {
                 const existingIn = virtualBalances.find((b: any) => b.symbol?.toUpperCase() === tx.asset_in_symbol.toUpperCase());
                 if (existingIn) {
                   existingIn.amount = Math.max(0, Number(existingIn.amount) - tx.asset_in_amount);
                 }
               }
-              
+
               if (tx.asset_out_symbol && tx.asset_out_amount) {
                 const existingOut = virtualBalances.find((b: any) => b.symbol?.toUpperCase() === tx.asset_out_symbol.toUpperCase());
                 if (existingOut) {

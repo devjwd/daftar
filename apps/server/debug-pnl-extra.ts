@@ -16,8 +16,8 @@ async function testBackend() {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  let staticExtraUsd = 1.45;
-  let balances = [{ asset_type: '0x1', symbol: 'MOVE', amount: 40 }];
+  const staticExtraUsd = 1.45;
+  const balances = [{ asset_type: '0x1', symbol: 'MOVE', amount: 40 }];
   
   const startDate = new Date();
   startDate.setHours(startDate.getHours() - 24);
@@ -42,7 +42,7 @@ async function testBackend() {
     const history = uniqueTimestamps.map((timeISO) => {
       let totalValuation = staticExtraUsd;
       balances.forEach((b: any) => {
-        let price = pricesByTime[timeISO]['0x1'] || 0;
+        const price = pricesByTime[timeISO]['0x1'] || 0;
         totalValuation += Number(b.amount || 0) * price;
       });
       return { date: timeISO, value: totalValuation };
