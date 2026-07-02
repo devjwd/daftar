@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   subscription_tier   text         NOT NULL DEFAULT 'free',
   subscription_started_at timestamptz,
   subscription_expires_at timestamptz,
+  subscription_reminder_sent boolean DEFAULT false,
   CONSTRAINT wallet_address_lowercase CHECK (wallet_address = lower(wallet_address))
 );
 
