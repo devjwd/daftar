@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getDiscordClient } from '../bots/discord/discordBot.ts';
-import { getEffectiveTier } from './subscriptionService.ts';
+import { getEffectiveTier, processSubscriptionReminders } from './subscriptionService.ts';
 import { isPremiumTier } from '@daftar/shared-types';
 
 /**
@@ -80,6 +80,9 @@ export const startSubscriptionSyncWorker = (supabaseAdmin: SupabaseClient | null
       if (revokedCount > 0) {
         console.log(`[SyncWorker] Daily sync complete. Revoked Pro roles ${revokedCount} times.`);
       }
+
+      // Process 24-hour expiration reminders
+      await processSubscriptionReminders(supabaseAdmin);
 
     } catch (err) {
       console.error('[SyncWorker] Global error during sync loop:', err);

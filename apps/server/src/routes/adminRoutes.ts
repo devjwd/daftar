@@ -211,6 +211,7 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
           updatePayload.subscription_expires_at = null;
         } else {
           updatePayload.subscription_started_at = updatePayload.subscription_started_at || new Date().toISOString();
+          updatePayload.subscription_reminder_sent = false;
           if (expires_at) {
             updatePayload.subscription_expires_at = expires_at;
           }

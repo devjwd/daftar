@@ -11,32 +11,62 @@ interface ApiResponse<T> {
   error?: string;
 }
 
-const callApi = async <T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> => {
+const callApi = async <T>(
+  path: string,
+  options: RequestInit & { retries?: number; retryDelay?: number; timeout?: number } = {}
+): Promise<ApiResponse<T>> => {
+  const { retries = 3, retryDelay = 1000, timeout = 10000, ...fetchOptions } = options;
   const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
 
-    const data = await response.json().catch(() => null);
-    return {
-      ok: response.ok,
-      status: response.status,
-      data,
-      error: response.ok ? undefined : (data?.error || 'Unknown error'),
-    };
-  } catch (error: any) {
-    return {
-      ok: false,
-      status: 0,
-      data: null,
-      error: error.message || 'Network error',
-    };
+  let attempt = 0;
+
+  while (attempt <= retries) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...fetchOptions.headers,
+        },
+      });
+      clearTimeout(id);
+
+      if (response.status >= 500 && attempt < retries) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data = await response.json().catch(() => null);
+      return {
+        ok: response.ok,
+        status: response.status,
+        data,
+        error: response.ok ? undefined : (data?.error || 'Unknown error'),
+      };
+    } catch (error: unknown) {
+      clearTimeout(id);
+
+      const isAbortError = error instanceof Error && error.name === 'AbortError';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      if (attempt >= retries) {
+        return {
+          ok: false,
+          status: isAbortError ? 408 : 0,
+          data: null,
+          error: isAbortError ? 'Request timeout' : (errorMessage || 'Network error'),
+        };
+      }
+
+      attempt++;
+      await new Promise(resolve => setTimeout(resolve, retryDelay * Math.pow(2, attempt - 1)));
+    }
   }
+
+  return { ok: false, status: 0, data: null, error: 'Maximum retries exceeded' };
 };
 
 export const getProfile = async (address: string): Promise<Profile | null> => {
@@ -48,7 +78,7 @@ export const getProfile = async (address: string): Promise<Profile | null> => {
 export const updateProfile = async (
   address: string,
   profile: Partial<Profile>,
-  signature?: any,
+  signature?: string | number[],
   signedMessage?: string,
   nonce?: number
 ): Promise<Profile> => {
@@ -92,7 +122,7 @@ export const checkBadgeEligibility = async (badgeId: string, wallet: string, for
   return response.ok ? response.data : null;
 };
 
-export const awardBadge = async (walletAddress: string, badgeId: string, signature?: string): Promise<any> => {
+export const awardBadge = async (walletAddress: string, badgeId: string, signature?: string): Promise<unknown> => {
   const response = await callApi('/api/badges/award', {
     method: 'POST',
     body: JSON.stringify({
@@ -123,7 +153,7 @@ export const searchProfiles = async (query: string, limit: number = 10): Promise
 
 export const fetchUserBadges = async (address: string) => {
   const normalized = normalizeAddress(address);
-  const response = await callApi<{ awards: any[] }>(`/api/badges/user/${encodeURIComponent(normalized)}`);
+  const response = await callApi<{ awards: unknown[] }>(`/api/badges/user/${encodeURIComponent(normalized)}`);
   return { ok: response.ok, awards: response.data?.awards || [], status: response.status, data: response.data };
 };
 
@@ -143,7 +173,7 @@ export const fetchAllBadges = async (options: { includePrivate?: boolean, includ
   };
 };
 
-export const saveBadgeDefinitions = async (payload: { badges: any[], adminAuth: any, clearAwards?: boolean }) => {
+export const saveBadgeDefinitions = async (payload: { badges: Record<string, unknown>[], adminAuth: Record<string, string>, clearAwards?: boolean }) => {
   const response = await callApi<{ badges: BadgeDefinition[] }>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'batch_sync', ...payload }),
@@ -152,8 +182,8 @@ export const saveBadgeDefinitions = async (payload: { badges: any[], adminAuth: 
   return response;
 };
 
-export const manageBadgeDefinition = async (action: string, badge: any, adminAuth: any) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+export const manageBadgeDefinition = async (action: string, badge: Record<string, unknown>, adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action, badge }),
     headers: adminAuth || {}
@@ -161,8 +191,8 @@ export const manageBadgeDefinition = async (action: string, badge: any, adminAut
   return response;
 };
 
-export const awardBadgeToUser = async (address: string, badgeId: string, metadata: any, options: { adminAuth: any }) => {
-  const response = await callApi<any>('/api/badges/award', {
+export const awardBadgeToUser = async (address: string, badgeId: string, metadata: Record<string, unknown>, options: { adminAuth: Record<string, string> }) => {
+  const response = await callApi<unknown>('/api/badges/award', {
     method: 'POST',
     body: JSON.stringify({
       walletAddress: normalizeAddress(address),
@@ -213,8 +243,8 @@ export const requestMintSignature = async (walletAddress: string, badgeId: strin
   };
 };
 
-export const importAllowlist = async (badgeId: string, addresses: string[], adminAuth: any) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+export const importAllowlist = async (badgeId: string, addresses: string[], adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, addresses, action_type: 'import' }),
     headers: adminAuth || {}
@@ -222,8 +252,8 @@ export const importAllowlist = async (badgeId: string, addresses: string[], admi
   return response;
 };
 
-export const getAllowlistStats = async (badgeId: string, adminAuth: any) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+export const getAllowlistStats = async (badgeId: string, adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, action_type: 'stats' }),
     headers: adminAuth || {}
@@ -231,8 +261,8 @@ export const getAllowlistStats = async (badgeId: string, adminAuth: any) => {
   return response;
 };
 
-export const searchAllowlist = async (badgeId: string, walletAddress: string, adminAuth: any) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+export const searchAllowlist = async (badgeId: string, walletAddress: string, adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, wallet_address: walletAddress, action_type: 'search' }),
     headers: adminAuth || {}
@@ -240,8 +270,8 @@ export const searchAllowlist = async (badgeId: string, walletAddress: string, ad
   return response;
 };
 
-export const removeFromAllowlist = async (badgeId: string, walletAddress: string, adminAuth: any) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+export const removeFromAllowlist = async (badgeId: string, walletAddress: string, adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, wallet_address: walletAddress, action_type: 'remove' }),
     headers: adminAuth || {}
@@ -249,8 +279,8 @@ export const removeFromAllowlist = async (badgeId: string, walletAddress: string
   return response;
 };
 
-export const clearAllowlist = async (badgeId: string, adminAuth: any) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+export const clearAllowlist = async (badgeId: string, adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'import-allowlist', badge_id: badgeId, action_type: 'clear' }),
     headers: adminAuth || {}
@@ -259,11 +289,11 @@ export const clearAllowlist = async (badgeId: string, adminAuth: any) => {
 };
 
 export const fetchBadgeHolders = async (badgeId: string) => {
-  const response = await callApi<{ holders: any[] }>(`/api/badges/holders/${encodeURIComponent(badgeId)}`);
+  const response = await callApi<{ holders: unknown[] }>(`/api/badges/holders/${encodeURIComponent(badgeId)}`);
   return { ok: response.ok, data: response.data?.holders || [], status: response.status, error: response.error };
 };
 
-export const fetchAdminBadges = async (adminAuth: any, includeDeleted: boolean = false) => {
+export const fetchAdminBadges = async (adminAuth: Record<string, string>, includeDeleted: boolean = false) => {
   const response = await callApi<{ badges: BadgeDefinition[] }>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'list-all-badges', include_deleted: includeDeleted }),
@@ -272,13 +302,13 @@ export const fetchAdminBadges = async (adminAuth: any, includeDeleted: boolean =
   return { ok: response.ok, badges: response.data?.badges || [], status: response.status, error: response.error };
 };
 
-export const getSystemConfig = async (): Promise<Record<string, any>> => {
-  const response = await callApi<Record<string, any>>('/api/config');
+export const getSystemConfig = async (): Promise<Record<string, unknown>> => {
+  const response = await callApi<Record<string, unknown>>('/api/config');
   return response.ok ? (response.data || {}) : {};
 };
 
-export const updateSystemConfig = async (settings: Record<string, any>, adminAuth: any) => {
-  const response = await callApi<any>('/api/config', {
+export const updateSystemConfig = async (settings: Record<string, unknown>, adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/config', {
     method: 'POST',
     body: JSON.stringify({ settings }),
     headers: adminAuth || {}
@@ -286,8 +316,8 @@ export const updateSystemConfig = async (settings: Record<string, any>, adminAut
   return response;
 };
 
-export const manageEntity = async (action_type: 'POST' | 'DELETE', payload: any, adminAuth: any) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+export const manageEntity = async (action_type: 'POST' | 'DELETE', payload: Record<string, unknown>, adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ 
       action: 'manage-entities', 
@@ -300,8 +330,8 @@ export const manageEntity = async (action_type: 'POST' | 'DELETE', payload: any,
   return response;
 };
 
-export const manageUserVerification = async (action_data: { method: 'LIST' | 'TOGGLE_VERIFICATION', address?: string, verified?: boolean, query?: string }, adminAuth: any) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+export const manageUserVerification = async (action_data: { method: 'LIST' | 'TOGGLE_VERIFICATION', address?: string, verified?: boolean, query?: string }, adminAuth: Record<string, string>) => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ 
       action: 'manage-users', 
@@ -321,9 +351,9 @@ export const managePlan = async (
     query?: string;
     tierFilter?: string;
   },
-  adminAuth: any
+  adminAuth: Record<string, string>
 ) => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({
       action: 'manage-subscriptions',
@@ -334,13 +364,13 @@ export const managePlan = async (
   return response;
 };
 
-export const getPlanStatus = async (walletAddress: string): Promise<any> => {
-  const response = await callApi<any>(`/api/plans/status?wallet=${encodeURIComponent(normalizeAddress(walletAddress))}`);
+export const getPlanStatus = async (walletAddress: string): Promise<unknown> => {
+  const response = await callApi<unknown>(`/api/plans/status?wallet=${encodeURIComponent(normalizeAddress(walletAddress))}`);
   return response.ok ? response.data : null;
 };
 
-export const getPlanList = async (): Promise<any> => {
-  const response = await callApi<any>('/api/plans');
+export const getPlanList = async (): Promise<unknown> => {
+  const response = await callApi<unknown>('/api/plans');
   return response.ok ? response.data?.plans : [];
 };
 
@@ -353,7 +383,7 @@ export const getPlansConfig = async (): Promise<{
   movePriceUsd: number;
   discountScope: 'first_month' | 'all_months';
 } | null> => {
-  const response = await callApi<any>('/api/plans/config');
+  const response = await callApi<unknown>('/api/plans/config');
   return response.ok ? response.data : null;
 };
 
@@ -362,7 +392,7 @@ export const verifySubscriptionPayment = async (
   txHash: string,
   months: number = 1
 ): Promise<{ ok: boolean; tier?: string; expiresAt?: string; error?: string }> => {
-  const response = await callApi<any>('/api/plans/verify-payment', {
+  const response = await callApi<unknown>('/api/plans/verify-payment', {
     method: 'POST',
     body: JSON.stringify({ walletAddress, txHash, months }),
   });
@@ -381,10 +411,10 @@ export const setSubscriptionPaymentConfig = async (
     duration_days: number;
     discount_scope: 'first_month' | 'all_months';
   },
-  adminAuth: any
+  adminAuth: Record<string, string>
 ): Promise<{ ok: boolean; error?: string }> => {
   const body = { method: 'SET_PAYMENT_CONFIG', ...config };
-  const response = await callApi<any>('/api/admin/manage-badge', {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({ action: 'manage-subscriptions', ...body }),
     headers: adminAuth || {},
@@ -398,7 +428,7 @@ export const submitFeedback = async (payload: {
   screenshot?: string;
   walletAddress?: string;
 }): Promise<{ ok: boolean; error?: string }> => {
-  const response = await callApi<any>('/api/feedback', {
+  const response = await callApi<unknown>('/api/feedback', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -416,7 +446,7 @@ export const submitBugReport = async (payload: {
   tokenSymbol?: string;
   tokenAddress?: string;
 }): Promise<{ ok: boolean; error?: string }> => {
-  const response = await callApi<any>('/api/reports', {
+  const response = await callApi<unknown>('/api/reports', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -431,9 +461,9 @@ export const manageReports = async (
     method: 'LIST' | 'DELETE';
     id?: string;
   },
-  adminAuth: any
-): Promise<any> => {
-  const response = await callApi<any>('/api/admin/manage-badge', {
+  adminAuth: Record<string, string>
+): Promise<unknown> => {
+  const response = await callApi<unknown>('/api/admin/manage-badge', {
     method: 'POST',
     body: JSON.stringify({
       action: 'manage-reports',
@@ -446,10 +476,10 @@ export const manageReports = async (
 
 export const getAlertConfig = async (
   address: string,
-  signature?: any,
+  signature?: string | number[],
   message?: string,
   nonce?: number
-): Promise<any> => {
+): Promise<unknown> => {
   const params: Record<string, string> = {
     address: normalizeAddress(address)
   };
@@ -463,18 +493,18 @@ export const getAlertConfig = async (
     params.nonce = String(nonce);
   }
   const qs = new URLSearchParams(params);
-  const response = await callApi<any>(`/api/alerts/config?${qs.toString()}`);
+  const response = await callApi<unknown>(`/api/alerts/config?${qs.toString()}`);
   return response.ok ? response.data : null;
 };
 
 export const saveAlertConfig = async (
   address: string,
-  config: any,
-  signature: any,
+  config: Record<string, unknown>,
+  signature: string | number[],
   signedMessage: string,
   nonce: number
-): Promise<any> => {
-  const response = await callApi<any>('/api/alerts/config', {
+): Promise<unknown> => {
+  const response = await callApi<unknown>('/api/alerts/config', {
     method: 'POST',
     body: JSON.stringify({
       address: normalizeAddress(address),
@@ -493,11 +523,11 @@ export const saveAlertConfig = async (
 export const linkDiscord = async (
   address: string,
   discordUserId: string,
-  signature: any,
+  signature: string | number[],
   signedMessage: string,
   nonce: number
-): Promise<any> => {
-  const response = await callApi<any>('/api/alerts/link-discord', {
+): Promise<unknown> => {
+  const response = await callApi<unknown>('/api/alerts/link-discord', {
     method: 'POST',
     body: JSON.stringify({
       address: normalizeAddress(address),
@@ -515,11 +545,11 @@ export const linkDiscord = async (
 
 export const testAlerts = async (
   address: string,
-  signature: any,
+  signature: string | number[],
   signedMessage: string,
   nonce: number
-): Promise<any> => {
-  const response = await callApi<any>('/api/alerts/test', {
+): Promise<unknown> => {
+  const response = await callApi<unknown>('/api/alerts/test', {
     method: 'POST',
     body: JSON.stringify({
       address: normalizeAddress(address),
@@ -537,7 +567,7 @@ export const testAlerts = async (
 export const checkAlertLink = async (
   address: string
 ): Promise<{ telegramLinked: boolean; discordLinked: boolean; telegramEnabled: boolean; discordEnabled: boolean } | null> => {
-  const response = await callApi<any>(`/api/alerts/check-link?address=${encodeURIComponent(normalizeAddress(address))}`);
+  const response = await callApi<unknown>(`/api/alerts/check-link?address=${encodeURIComponent(normalizeAddress(address))}`);
   return response.ok ? response.data : null;
 };
 
@@ -545,11 +575,11 @@ export const exchangeDiscordOauth = async (
   address: string,
   code: string,
   redirectUri: string,
-  signature: any,
+  signature: string | number[],
   signedMessage: string,
   nonce: number
-): Promise<any> => {
-  const response = await callApi<any>('/api/alerts/discord-oauth', {
+): Promise<unknown> => {
+  const response = await callApi<unknown>('/api/alerts/discord-oauth', {
     method: 'POST',
     body: JSON.stringify({
       address: normalizeAddress(address),
@@ -568,11 +598,11 @@ export const exchangeDiscordOauth = async (
 
 export const getTelegramLinkCode = async (
   address: string,
-  signature: any,
+  signature: string | number[],
   signedMessage: string,
   nonce: number
 ): Promise<{ code: string }> => {
-  const response = await callApi<any>('/api/alerts/telegram-code', {
+  const response = await callApi<unknown>('/api/alerts/telegram-code', {
     method: 'POST',
     body: JSON.stringify({
       address: normalizeAddress(address),

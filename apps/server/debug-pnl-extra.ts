@@ -5,7 +5,7 @@ dotenv.config({ path: '../../.env' });
 async function testBackend() {
   const url = 'https://daftar-analytics-production.up.railway.app/api/analytics/pnl-precise?wallet=0x5077a6be218410fb5710a0d56278892c4563cb8b845aada96b5871b1f05a5c80&timeframe=1D';
   // Alternatively, test the local server if running, but we'll try to hit the DB directly to simulate backend logic.
-  
+
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
@@ -18,7 +18,7 @@ async function testBackend() {
 
   const staticExtraUsd = 1.45;
   const balances = [{ asset_type: '0x1', symbol: 'MOVE', amount: 40 }];
-  
+
   const startDate = new Date();
   startDate.setHours(startDate.getHours() - 24);
 
@@ -38,7 +38,7 @@ async function testBackend() {
     });
 
     const uniqueTimestamps = Object.keys(pricesByTime).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-    
+
     const history = uniqueTimestamps.map((timeISO) => {
       let totalValuation = staticExtraUsd;
       balances.forEach((b: any) => {
@@ -47,7 +47,7 @@ async function testBackend() {
       });
       return { date: timeISO, value: totalValuation };
     });
-    
+
     console.log("First point:", history[0]);
     console.log("Last point:", history[history.length - 1]);
   } else {

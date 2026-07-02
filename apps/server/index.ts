@@ -2,6 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 
 // Route Imports
 
@@ -30,6 +32,16 @@ import { initTelegramBot } from './src/bots/telegram/telegramBot.ts';
 dotenv.config();
 
 const app = express();
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    integrations: [nodeProfilingIntegration()],
+    tracesSampleRate: 1.0,
+    profilesSampleRate: 1.0,
+  });
+}
+
 app.use(express.json({ limit: '10mb' }));
 
 // CORS Configuration
@@ -73,6 +85,8 @@ app.use('/api/bot/admin', botAdminRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // --- Global Error Handler ---
+Sentry.setupExpressErrorHandler(app);
+
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   handleError(err, res);
 });

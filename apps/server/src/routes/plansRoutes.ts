@@ -317,6 +317,7 @@ router.post('/verify-payment', async (req: Request, res: Response) => {
         is_verified: true,
         subscription_started_at: now.toISOString(),
         subscription_expires_at: expiresAt.toISOString(),
+        subscription_reminder_sent: false,
         updated_at: now.toISOString(),
       }, { onConflict: 'wallet_address' })
       .select()
