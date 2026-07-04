@@ -1,4 +1,4 @@
-import { Ed25519Account, generateSigningMessage } from '@aptos-labs/ts-sdk';
+import { Ed25519Account } from '@aptos-labs/ts-sdk';
 import { verifyWalletSignature } from './src/utils/crypto.ts';
 
 // 1. Generate an account

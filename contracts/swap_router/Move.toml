@@ -6,7 +6,7 @@ authors = []
 [addresses]
 # Mainnet deployer wallet: 2026-04-13
 # Previous address: 0x61ed30854e689da3c31d2e07b55fd94add415aac102d2dd7f831bf5c294757e3
-swap_router = "0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69"
+swap_router = "0x5c2bdc5b4926bd545d39c8caca4c96cffca19d707bda7f8bffd8602c1eaf1133"
 
 [dependencies.AptosFramework]
 git = "https://github.com/movementlabsxyz/aptos-core.git"

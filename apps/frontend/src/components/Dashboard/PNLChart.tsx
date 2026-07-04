@@ -54,7 +54,7 @@ const SyncingBanner = ({ synced, total }: { synced: number; total: number }) => 
   );
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, minDecimals = 2 }: any) => {
   if (active && payload && payload.length) {
     const formattedDate = label === 'Start' || label === 'Now'
       ? label
@@ -65,7 +65,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
     const netWorth = payload[0].payload.value ?? 0;
     const sign = netWorth < 0 ? '-' : '';
-    const decimals = getPrecisionDecimals(netWorth);
+    const baseDecimals = getPrecisionDecimals(netWorth);
+    const decimals = Math.max(baseDecimals, minDecimals);
     const formattedNW = `${sign}$${Math.abs(netWorth).toLocaleString(undefined, {
       minimumFractionDigits: decimals < 2 ? decimals : 2,
       maximumFractionDigits: decimals
@@ -155,35 +156,10 @@ const PNLChart: React.FC<PNLChartProps> = ({
   }, []);
 
   const { combinedBalances, adjustedStaticExtraUsd } = React.useMemo(() => {
-    let extraBalances: any[] = [];
-    let reducibleUsd = 0;
-
-    // Extract underlying tokens from liquidity positions
-    if (liquidityPositions && liquidityPositions.length > 0) {
-      liquidityPositions.forEach(pos => {
-        if (pos.token0Amount > 0 && pos.underlying) {
-          const tokens = pos.underlying.split('/').map((t: string) => t.trim());
-          if (tokens[0]) extraBalances.push({ symbol: tokens[0], amount: pos.token0Amount, asset_type: tokens[0] });
-          if (tokens[1] && pos.token1Amount > 0) extraBalances.push({ symbol: tokens[1], amount: pos.token1Amount, asset_type: tokens[1] });
-          reducibleUsd += (Number(pos.usdValue) || 0);
-        } else if (pos.amount > 0 && pos.symbol) {
-          extraBalances.push({ symbol: pos.symbol, amount: pos.amount, asset_type: pos.symbol });
-          reducibleUsd += (Number(pos.usdValue) || 0);
-        }
-      });
-    }
-
-    // Extract underlying tokens from staking positions
-    if (stakingPositions && stakingPositions.length > 0) {
-      stakingPositions.forEach(pos => {
-        if (pos.amount > 0 && pos.symbol) {
-          extraBalances.push({ symbol: pos.symbol, amount: pos.amount, asset_type: pos.symbol });
-          reducibleUsd += (Number(pos.usdValue) || 0);
-        }
-      });
-    }
-
     // Include wallet token balances for per-token repricing.
+    // We avoid extracting LP and Staking underlying tokens here because the backend 
+    // cannot reliably price them without their exact token addresses. Leaving them in
+    // staticExtraUsd ensures their value is safely retained in the 1D chart baseline.
     const baseBalances = balances && balances.length > 0 ? balances.map((b: any) => ({
       asset_type: b.address,
       symbol: b.symbol,
@@ -191,10 +167,10 @@ const PNLChart: React.FC<PNLChartProps> = ({
     })) : [];
 
     return {
-      combinedBalances: [...baseBalances, ...extraBalances],
-      adjustedStaticExtraUsd: Math.max(0, staticExtraUsd - reducibleUsd)
+      combinedBalances: baseBalances,
+      adjustedStaticExtraUsd: Math.max(0, staticExtraUsd)
     };
-  }, [balances, liquidityPositions, stakingPositions, staticExtraUsd]);
+  }, [balances, staticExtraUsd]);
 
 
   const balancesDep = JSON.stringify(combinedBalances) + '_' + totalValue + '_' + adjustedStaticExtraUsd;
@@ -313,10 +289,23 @@ const PNLChart: React.FC<PNLChartProps> = ({
   // Map dataToRender (always show Net Worth on the chart line)
   const dataToRender = useMemo(() => {
     if (historicalData.length > 1) {
-      const mapped = historicalData.map(pt => ({
+      let mapped = historicalData.map(pt => ({
         ...pt,
         displayValue: pt.value
       }));
+      
+      // Apply a 5-point moving average to smooth the visual line (reducing jaggedness)
+      if (mapped.length > 20) {
+        mapped = mapped.map((pt, i, arr) => {
+          // Don't smooth the first/last few points to ensure the chart starts/ends accurately
+          if (i < 2 || i > arr.length - 3) return pt;
+          const sum = arr[i - 2].value + arr[i - 1].value + pt.value + arr[i + 1].value + arr[i + 2].value;
+          return {
+            ...pt,
+            displayValue: sum / 5
+          };
+        });
+      }
       
       // Append the live net worth to the end of the chart so it perfectly matches the user's current balance
       const lastHistoricalPt = mapped[mapped.length - 1];
@@ -340,7 +329,10 @@ const PNLChart: React.FC<PNLChartProps> = ({
     if (dataToRender && dataToRender.length >= 2) {
       const firstVal = dataToRender[0]?.value ?? totalValue;
       const lastVal = dataToRender[dataToRender.length - 1]?.value ?? totalValue;
-      const rawChangeUsd = lastVal - firstVal;
+      const firstNetDeposits = dataToRender[0]?.netDeposits ?? 0;
+      const lastNetDeposits = dataToRender[dataToRender.length - 1]?.netDeposits ?? 0;
+
+      const rawChangeUsd = (lastVal - firstVal) - (lastNetDeposits - firstNetDeposits);
       const isPositive = rawChangeUsd >= 0;
       const usdChangeDecimals = getPrecisionDecimals(rawChangeUsd);
       const changeUSD = Math.abs(rawChangeUsd).toLocaleString(undefined, {
@@ -348,7 +340,7 @@ const PNLChart: React.FC<PNLChartProps> = ({
         maximumFractionDigits: usdChangeDecimals
       });
 
-      const baseValue = firstVal > 0 ? firstVal : 0.01;
+      const baseValue = firstVal > 0 ? firstVal : Math.max(lastNetDeposits - firstNetDeposits, 0.01);
       let changePercent = '0.00';
       if (baseValue > 0.01) {
         const pct = (rawChangeUsd / baseValue) * 100;
@@ -592,7 +584,10 @@ const PNLChart: React.FC<PNLChartProps> = ({
                   />
                   <YAxis hide={true} domain={['dataMin', 'dataMax']} />
                   <Tooltip
-                    content={<CustomTooltip />}
+                    content={(props: any) => {
+                      const spread = dataToRender ? Math.max(...dataToRender.map(d => d.value)) - Math.min(...dataToRender.map(d => d.value)) : 0;
+                      return <CustomTooltip {...props} minDecimals={spread > 0 && spread < 2 ? 4 : 2} />;
+                    }}
                     cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }}
                   />
                   <Area
@@ -600,6 +595,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
                     dataKey="displayValue"
                     stroke={strokeColor}
                     strokeWidth={2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
                     fillOpacity={1}
                     fill={`url(#${gradientId})`}
                     activeDot={{ r: 4, fill: '#fff', stroke: strokeColor, strokeWidth: 2 }}

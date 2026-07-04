@@ -6,52 +6,6 @@ import CONFIG from '../config/index.ts';
 import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, LST_PRICE_ALIASES, NATIVE_MOVE_ADDRESSES, KNOWN_EXCHANGES } from '../config/whitelists.ts';
 
 /**
- * Fetch user holdings directly from the Movement network indexer
- */
-async function fetchUserNFTHoldings(address: string): Promise<any[]> {
-  try {
-    const response = await fetch(CONFIG.MOVEMENT.INDEXER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query: `
-          query GetUserNFTs($address: String!) {
-            current_token_ownerships_v2(
-              where: {
-                owner_address: { _eq: $address }
-                amount: { _gt: "0" }
-              }
-            ) {
-              amount
-              current_token_data {
-                collection_id
-              }
-            }
-          }
-        `,
-        variables: { address },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}`);
-    }
-
-    const json: any = await response.json();
-    if (json.errors) {
-      throw new Error(JSON.stringify(json.errors));
-    }
-
-    return json.data?.current_token_ownerships_v2 || [];
-  } catch (err: any) {
-    console.error('[NetworthService] ❌ Failed to fetch user NFT holdings:', err.message);
-    return [];
-  }
-}
-
-/**
  * Net Worth Snapshot Service
  * Aggregates Wallet + DeFi + NFT value every hour
  */
@@ -158,27 +112,8 @@ export async function takeNetworthSnapshot(
     breakdown[p.protocol] = (breakdown[p.protocol] || 0) + p.usdValue;
   });
 
-  // 4. Calculate NFT Valuation
-  const { data: nftStats } = await supabase.from('nft_collection_stats').select('*');
-  const statsMap: Record<string, number> = {};
-  if (nftStats) {
-    nftStats.forEach(stat => {
-      statsMap[stat.collection_id] = Number(stat.top_bid || 0);
-    });
-  }
-
-  const holdings = await fetchUserNFTHoldings(address);
-  const movePrice = priceMap['0x1'] || priceMap['MOVE'] || 0;
+  // 4. Calculate NFT Valuation (Disabled - NFTs removed from platform)
   let nftUsd = 0;
-
-  holdings.forEach(h => {
-    const colId = h.current_token_data?.collection_id;
-    if (colId && statsMap[colId]) {
-      const bid = statsMap[colId];
-      const amount = parseFloat(h.amount) || 1;
-      nftUsd += bid * amount * movePrice;
-    }
-  });
 
   // 5. Calculate Cumulative Net Inflows (Deposits - Withdrawals) incrementally
   let netDepositsUsd = 0;

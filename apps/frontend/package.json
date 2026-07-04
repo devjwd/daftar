@@ -30,7 +30,7 @@
     "@aptos-labs/ts-sdk": "^1.21.0",
     "@aptos-labs/wallet-adapter-react": "^7.2.8",
     "@okwallet/aptos-wallet-adapter": "^0.0.7",
-    "@sentry/react": "^10.62.0",
+    "@sentry/react": "^10.63.0",
     "@sentry/tracing": "^7.120.4",
     "@supabase/supabase-js": "^2.49.8",
     "framer-motion": "^12.38.0",

@@ -75,7 +75,9 @@ export async function fetchUserDeFiPositions(
               symbol
             });
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn(`[DeFiService] Echelon Lending error for ${market}:`, e);
+        }
       }
 
       // Process Liabilities (Debt/Borrows)
@@ -104,7 +106,9 @@ export async function fetchUserDeFiPositions(
               symbol
             });
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn(`[DeFiService] Echelon Debt error for ${market}:`, e);
+        }
       }
     }
 
@@ -140,7 +144,9 @@ export async function fetchUserDeFiPositions(
             const amount = amountRaw / Math.pow(10, decimals);
             const price = priceMap[coinType] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
             if (amount > 0.0001) positions.push({ protocol: "MovePosition", type: "Lending", amount, usdValue: amount * price, symbol });
-          } catch(e) {}
+          } catch(e) {
+            console.warn(`[DeFiService] MovePosition Lending error for ${coinType}:`, e);
+          }
         }
       }
 
@@ -162,7 +168,9 @@ export async function fetchUserDeFiPositions(
             const amount = amountRaw / Math.pow(10, decimals);
             const price = priceMap[coinType] || priceMap[Object.keys(priceMap).find(k => k.includes(symbol.toLowerCase())) || ''] || priceMap['0x1'] || 0;
             if (amount > 0.0001) positions.push({ protocol: "MovePosition", type: "Debt", amount, usdValue: -amount * price, symbol });
-          } catch(e) {}
+          } catch(e) {
+            console.warn(`[DeFiService] MovePosition Debt error for ${coinType}:`, e);
+          }
         }
       }
     }

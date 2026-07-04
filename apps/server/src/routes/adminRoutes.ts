@@ -402,12 +402,16 @@ router.post('/manage-badge', async (req: Request, res: Response) => {
         if (fs.existsSync(REPORTS_FILE)) {
           try {
             reports = JSON.parse(fs.readFileSync(REPORTS_FILE, 'utf-8'));
-          } catch (e) {}
+          } catch (e) {
+            console.warn('[Admin] Failed to parse reports:', e);
+          }
         }
         reports = reports.filter((r: any) => r.id !== id);
         try {
           fs.writeFileSync(REPORTS_FILE, JSON.stringify(reports, null, 2), 'utf-8');
-        } catch (e) {}
+        } catch (e) {
+          console.warn('[Admin] Failed to write reports:', e);
+        }
         return res.json({ success: true, id });
       }
     }

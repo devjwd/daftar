@@ -1,3 +1,4 @@
+/* global process, console */
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config({ path: 'e:/Daftar on movement/daftar/.env' });

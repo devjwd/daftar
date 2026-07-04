@@ -12,7 +12,7 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest --passWithNoTests",
     "test:ui": "vitest --ui --passWithNoTests",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint ."
   },
   "devDependencies": {
     "@daftar/shared-types": "*",

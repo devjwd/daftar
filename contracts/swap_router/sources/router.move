@@ -118,9 +118,10 @@ module swap_router::router {
     const ROUTER_MOSAIC: u8            = 1;
 
     /// Minimum seconds between consecutive record_swap calls from the same address.
-    /// Blocks automated spam bots; real users swap far less than once per second.
+    /// Limits abuse to at most 2,880 self-reported records per address per day.
+    /// Real users swap far less than once per 30 seconds.
     /// Change requires a contract upgrade — not admin-configurable by design.
-    const MIN_RECORD_INTERVAL_SECONDS: u64 = 1;
+    const MIN_RECORD_INTERVAL_SECONDS: u64 = 30;
 
     // -------------------------------------------------------------------------
     // Events
@@ -666,6 +667,16 @@ module swap_router::router {
         coin::destroy_mint_cap(_mc);
     }
 
+    #[test(admin = @swap_router, attacker = @0xDEAD, framework = @0x1)]
+    #[expected_failure(abort_code = E_NOT_ADMIN)]
+    public fun test_non_admin_cannot_update_fee(admin: &signer, attacker: &signer, framework: &signer) {
+        let _mc = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(attacker));
+        default_init(admin);
+        update_fee(attacker, 10);
+        coin::destroy_mint_cap(_mc);
+    }
+
     // -- charge_fee_by update --
 
     #[test(admin = @swap_router, framework = @0x1)]
@@ -687,6 +698,26 @@ module swap_router::router {
         let _mc = setup_test(admin, framework);
         default_init(admin);
         update_charge_fee_by(admin, b"bad_value");
+        coin::destroy_mint_cap(_mc);
+    }
+
+    #[test(admin = @swap_router, attacker = @0xDEAD, framework = @0x1)]
+    #[expected_failure(abort_code = E_NOT_ADMIN)]
+    public fun test_non_admin_cannot_update_treasury(admin: &signer, attacker: &signer, framework: &signer) {
+        let _mc = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(attacker));
+        default_init(admin);
+        update_treasury(attacker, @0xDEAD);
+        coin::destroy_mint_cap(_mc);
+    }
+
+    #[test(admin = @swap_router, attacker = @0xDEAD, framework = @0x1)]
+    #[expected_failure(abort_code = E_NOT_ADMIN)]
+    public fun test_non_admin_cannot_set_paused(admin: &signer, attacker: &signer, framework: &signer) {
+        let _mc = setup_test(admin, framework);
+        account::create_account_for_test(signer::address_of(attacker));
+        default_init(admin);
+        set_paused(attacker, true);
         coin::destroy_mint_cap(_mc);
     }
 
@@ -830,8 +861,8 @@ module swap_router::router {
         let _mc = setup_test(admin, framework);
         default_init(admin);
         record_swap(admin, 100_000_000, 30_000, ROUTER_MOSAIC);
-        // Advance time to satisfy the per-address cooldown guard before second call.
-        timestamp::fast_forward_seconds(2);
+        // Advance time past the 30-second minimum interval before second call.
+        timestamp::fast_forward_seconds(31);
         record_swap(admin, 200_000_000, 60_000, ROUTER_MOSAIC);
         let (_, fees) = get_stats();
         assert!(fees == 90_000, 1);

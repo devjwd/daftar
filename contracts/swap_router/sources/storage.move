@@ -45,6 +45,7 @@ module swap_router::storage {
     const E_ROUTE_NOT_FOUND: u64       = 400;
     const E_ROUTE_ALREADY_EXISTS: u64  = 401;
     const E_ROUTE_NAME_TOO_LONG: u64   = 402;
+    const E_STATS_OVERFLOW: u64        = 403;
     const E_INVALID_ROUTE_ID: u64      = 404;
 
     // -------------------------------------------------------------------------
@@ -299,7 +300,10 @@ module swap_router::storage {
 
     public(friend) fun record_global_swap(fee_reported: u64, now: u64) acquires SwapStats {
         let s = borrow_global_mut<SwapStats>(@swap_router);
-        // Move VM aborts natively on u64 overflow; no manual guards needed.
+        // Guard against u64 overflow with a named abort code so indexers
+        // and frontends get a diagnosable error rather than an opaque VM abort.
+        assert!(s.total_swaps < 18_446_744_073_709_551_614u64, E_STATS_OVERFLOW);
+        assert!(s.total_fees_reported <= 18_446_744_073_709_551_615u64 - fee_reported, E_STATS_OVERFLOW);
         s.total_swaps         = s.total_swaps + 1;
         s.total_fees_reported = s.total_fees_reported + fee_reported;
         s.updated_at          = now;
@@ -332,7 +336,10 @@ module swap_router::storage {
             });
         } else {
             let s = borrow_global_mut<UserSwapStats>(addr);
-            // Move VM aborts natively on u64 overflow; no manual guards needed.
+            // Guard against u64 overflow with a named abort code.
+            assert!(s.total_amount_in <= 18_446_744_073_709_551_615u64 - amount_in, E_STATS_OVERFLOW);
+            assert!(s.total_fees_reported <= 18_446_744_073_709_551_615u64 - fee_reported, E_STATS_OVERFLOW);
+            assert!(s.swap_count < 18_446_744_073_709_551_614u64, E_STATS_OVERFLOW);
             s.total_amount_in     = s.total_amount_in + amount_in;
             s.total_fees_reported = s.total_fees_reported + fee_reported;
             s.swap_count          = s.swap_count + 1;

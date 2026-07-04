@@ -102,7 +102,7 @@ export const verifyWalletSignature = (
         }
       }
     }
-  } catch (err: any) {
+  } catch {
     // Ignore parse error on message, treat as raw string
   }
 

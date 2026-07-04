@@ -370,8 +370,8 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
               .maybeSingle();
 
             if (latestNetworthRow) {
-              // Balance snapshots only have wallet tokens; add defi_usd + nft_usd as static extra
-              staticExtraUsd = Number(latestNetworthRow.defi_usd || 0) + Number(latestNetworthRow.nft_usd || 0);
+              // Balance snapshots only have wallet tokens; add defi_usd as static extra
+              staticExtraUsd = Number(latestNetworthRow.defi_usd || 0);
             }
           }
         }
@@ -603,33 +603,29 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
     let history: any[] = [];
 
     if (staticExtraUsd !== null) {
-      // Find the latest snapshot that is real-time (has defi_usd > 0 or nft_usd > 0)
+      // Find the latest snapshot that is real-time (has defi_usd > 0)
       let latestDefi = 0;
-      let latestNft = 0;
       for (let i = snapshots.length - 1; i >= 0; i--) {
         const snap = snapshots[i];
         const defi = Number(snap.defi_usd || 0);
-        const nft = Number(snap.nft_usd || 0);
-        if (defi > 0 || nft > 0) {
+        if (defi > 0) {
           latestDefi = defi;
-          latestNft = nft;
           break;
         }
       }
 
-      const missingFrontendNow = Math.max(0, staticExtraUsd - (latestDefi + latestNft));
+      const missingFrontendNow = Math.max(0, staticExtraUsd - latestDefi);
 
       history = snapshots.map((s: any) => {
         const defi = Number(s.defi_usd || 0);
-        const nft = Number(s.nft_usd || 0);
         const total = Number(s.total_networth_usd || 0);
         let val = total;
 
-        if (defi === 0 && nft === 0) {
+        if (defi === 0) {
           // Backfilled snapshot (wallet tokens only)
           val = total + staticExtraUsd;
         } else {
-          // Real-time snapshot (has recorded DeFi/NFTs)
+          // Real-time snapshot (has recorded DeFi)
           val = total + missingFrontendNow;
         }
 

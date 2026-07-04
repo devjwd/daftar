@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-subscription_manager = "0x2a5b1aad1cb52fa0f2be5da258cd85aa340f55bccd8cf684f89dbc6f5cbe0a69" # Same deployer as swap_router for now
+subscription_manager = "0x5c2bdc5b4926bd545d39c8caca4c96cffca19d707bda7f8bffd8602c1eaf1133" # Same deployer as swap_router for now
 
 [dependencies.AptosFramework]
 git = "https://github.com/movementlabsxyz/aptos-core.git"

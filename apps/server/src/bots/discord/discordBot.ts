@@ -398,7 +398,7 @@ export async function initDiscordBot(): Promise<Client | null> {
           `**Steps:**\n` +
           `1. Click the link below to open Daftar Settings.\n` +
           `2. Connect your Movement wallet (e.g. Razor, Nightly).\n` +
-          `3. Click the **\"Connect Discord\"** button — you'll be redirected back here automatically.\n\n` +
+          `3. Click the **"Connect Discord"** button — you'll be redirected back here automatically.\n\n` +
           `[👉 Click here to connect your Discord account](${oauthUrl})`
         )
         .setColor(0xD4AF37)
