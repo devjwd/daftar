@@ -35,6 +35,12 @@ export async function takeNetworthSnapshot(
   }
   const timestampISO = timestamp.toISOString();
 
+  // Sanity guard: never write a snapshot with a future timestamp
+  if (new Date(timestampISO) > new Date()) {
+    console.error(`[Networth] ⚠️ Refusing to write snapshot with future timestamp ${timestampISO} for ${address}`);
+    return null;
+  }
+
   if (!force) {
     const { data: existingSnapshot } = await supabase
       .from('user_networth_snapshots')

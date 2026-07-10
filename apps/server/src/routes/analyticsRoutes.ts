@@ -564,6 +564,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
       .select('total_networth_usd, wallet_usd, defi_usd, nft_usd, net_deposits_usd, timestamp')
       .eq('user_address', wallet)
       .gte('timestamp', startDate.toISOString())
+      .lte('timestamp', new Date().toISOString()) // Exclude any corrupted future-dated snapshots
       .order('timestamp', { ascending: true });
 
     if (snapError) throw snapError;
