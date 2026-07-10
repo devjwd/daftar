@@ -56,12 +56,10 @@ const SyncingBanner = ({ synced, total }: { synced: number; total: number }) => 
 
 const CustomTooltip = ({ active, payload, label, minDecimals = 2 }: any) => {
   if (active && payload && payload.length) {
-    const formattedDate = label === 'Start' || label === 'Now'
-      ? label
-      : (() => {
-        const d = new Date(label);
-        return isNaN(d.getTime()) ? '' : d.toLocaleString();
-      })();
+    const formattedDate = (() => {
+      const d = new Date(label);
+      return isNaN(d.getTime()) ? '' : d.toLocaleString();
+    })();
 
     const netWorth = payload[0].payload.value ?? 0;
     const sign = netWorth < 0 ? '-' : '';
@@ -291,7 +289,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
     if (historicalData.length > 1) {
       let mapped = historicalData.map(pt => ({
         ...pt,
-        displayValue: pt.value
+        displayValue: pt.value,
+        unixTime: new Date(pt.time === 'Start' ? (historicalData[1]?.time || pt.time) : pt.time).getTime()
       }));
       
       // Apply a 5-point moving average to smooth the visual line (reducing jaggedness)
@@ -313,7 +312,8 @@ const PNLChart: React.FC<PNLChartProps> = ({
         time: new Date().toISOString(),
         value: totalValue,
         netDeposits: lastHistoricalPt.netDeposits,
-        displayValue: totalValue
+        displayValue: totalValue,
+        unixTime: Date.now()
       });
       
       return mapped;
@@ -569,14 +569,16 @@ const PNLChart: React.FC<PNLChartProps> = ({
                     </linearGradient>
                   </defs>
                   <XAxis
-                    dataKey="time"
+                    dataKey="unixTime"
+                    type="number"
+                    scale="time"
+                    domain={['dataMin', 'dataMax']}
                     axisLine={false}
                     tickLine={false}
                     tick={{ fill: 'rgba(255, 255, 255, 0.8)', fontSize: 10, fontFamily: 'var(--font-primary)' }}
                     dy={8}
                     minTickGap={40}
                     tickFormatter={(val) => {
-                      if (val === 'Start' || val === 'Now') return val;
                       const d = new Date(val);
                       if (isNaN(d.getTime())) return '';
                       if (timeframe === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit' });
