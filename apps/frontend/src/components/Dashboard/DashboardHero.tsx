@@ -4,6 +4,7 @@ import PNLChart from './PNLChart';
 import { NetWorthValueSkeleton, NetWorthMetaSkeleton } from './Skeletons';
 import { getPrecisionDecimals } from '../../utils/dashboardUtils';
 import { t } from '../../utils/language';
+import { resolveEffectiveTier } from '../../utils/subscription';
 
 export const ErrorMessage = ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
   <div className="error-message">
@@ -292,7 +293,7 @@ export const DashboardHero = ({
           assetBreakdown={assetBreakdownData}
           protocolBreakdown={protocolBreakdownData}
           walletAddress={viewingAddress}
-          subscriptionTier={userProfile?.subscription_tier || (userProfile?.is_verified ? 'pro' : 'free')}
+          subscriptionTier={resolveEffectiveTier(userProfile)}
           balances={balances}
           priceChanges={priceChanges}
           hasProfile={!!userProfile}

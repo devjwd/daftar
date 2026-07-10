@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { resolveEffectiveTier } from "../utils/subscription";
 
 import "./Dashboard.css";
 import { useDashboardData } from "../hooks/useDashboardData";
@@ -24,7 +25,7 @@ const Dashboard = () => {
         urlAddress={data.urlAddress}
         canEditProfile={data.canEditProfile}
         language={data.language}
-        subscriptionTier={data.userProfile?.subscription_tier || 'free'}
+        subscriptionTier={resolveEffectiveTier(data.userProfile)}
         isVerified={Boolean(data.userProfile?.is_verified)}
       />
 
@@ -71,7 +72,7 @@ const Dashboard = () => {
             <TransactionsTab
               viewingAddress={data.viewingAddress}
               lastRefresh={data.lastRefresh}
-              subscriptionTier={data.userProfile?.subscription_tier || (data.userProfile?.is_verified ? 'pro' : 'free')}
+              subscriptionTier={resolveEffectiveTier(data.userProfile)}
               hideValues={data.hideValues}
               language={data.language}
             />

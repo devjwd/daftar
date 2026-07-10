@@ -233,12 +233,24 @@ router.get('/networth', async (req: Request, res: Response) => {
 
   try {
     await assertEnrichedWalletAccess(supabase, req, wallet);
+
+    // Determine start date from optional `timeframe` query param (defaults to 7 days)
+    const timeframe = (req.query.timeframe as string) || '1W';
+    const startDate = new Date();
+    if (timeframe === '1D') startDate.setHours(startDate.getHours() - 24);
+    else if (timeframe === '1W') startDate.setDate(startDate.getDate() - 7);
+    else if (timeframe === '1M') startDate.setMonth(startDate.getMonth() - 1);
+    else if (timeframe === '3M') startDate.setMonth(startDate.getMonth() - 3);
+    else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+    else startDate.setFullYear(startDate.getFullYear() - 5); // All
+
     const { data: snapshots, error } = await supabase
       .from('user_networth_snapshots')
       .select('*')
       .eq('user_address', wallet)
+      .gte('timestamp', startDate.toISOString())
       .order('timestamp', { ascending: true })
-      .limit(168); // Last 7 days of hourly snapshots
+      .limit(2000); // Safety cap — well above any real-world row count for supported timeframes
 
     if (error) throw error;
     return res.json({ snapshots });

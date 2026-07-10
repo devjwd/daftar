@@ -4,6 +4,7 @@ import { fetchUserDeFiPositions } from './defiService.ts';
 import fetch from 'node-fetch';
 import CONFIG from '../config/index.ts';
 import { INFLOW_ACTIONS, OUTFLOW_ACTIONS, LST_PRICE_ALIASES, NATIVE_MOVE_ADDRESSES, KNOWN_EXCHANGES } from '../config/whitelists.ts';
+import { resolveEffectiveTier } from '@daftar/shared-types';
 
 /**
  * Net Worth Snapshot Service
@@ -16,13 +17,14 @@ export async function takeNetworthSnapshot(
   force: boolean = false
 ) {
   const address = normalizeAddress(walletAddress);
-  
+
+  // Fetch all fields needed for resolveEffectiveTier (handles lite→pro, expiry, is_verified)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('tier')
+    .select('subscription_tier, is_verified, subscription_expires_at')
     .eq('wallet_address', address)
     .maybeSingle();
-  const isPro = profile?.tier === 'PRO';
+  const isPro = resolveEffectiveTier(profile) === 'pro';
 
   const timestamp = new Date();
   if (isPro) {
