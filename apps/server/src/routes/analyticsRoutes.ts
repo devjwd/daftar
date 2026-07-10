@@ -631,7 +631,8 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
 
       history = snapshots.map((s: any) => {
         const defi = Number(s.defi_usd || 0);
-        const total = Number(s.total_networth_usd || 0);
+        const nft = Number(s.nft_usd || 0);
+        const total = Number(s.total_networth_usd || 0) - nft;
         let val = total;
 
         if (defi === 0) {
@@ -651,7 +652,7 @@ router.all('/pnl-precise', async (req: Request, res: Response) => {
     } else {
       history = snapshots.map((s: any) => ({
         date: s.timestamp,
-        value: Number(s.total_networth_usd),
+        value: Number(s.total_networth_usd) - Number(s.nft_usd || 0),
         netDeposits: Number(s.net_deposits_usd || 0),
       }));
     }
